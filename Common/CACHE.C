@@ -1,7 +1,7 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
    additions to that source code contained in this file are Copyright (c) 2004
-   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
 
@@ -27,7 +27,7 @@ int nPasswordIdx = 0;
 int cacheEmpty = 1;
 
 int
-VolumeReadHeaderCache (BOOL bCache, char *dev, char *lpszPassword, int nPasswordLen,
+VolumeReadHeaderCache (BOOL bCache, char *header, char *headerHiddenVol, char *lpszPassword, int nPasswordLen,
 		       PCRYPTO_INFO * retInfo)
 {
 	int nReturnCode = ERR_PASSWORD_WRONG;
@@ -36,7 +36,7 @@ VolumeReadHeaderCache (BOOL bCache, char *dev, char *lpszPassword, int nPassword
 	/* Attempt to recognize volume using mount password */
 	if (nPasswordLen > 0)
 	{
-		nReturnCode = VolumeReadHeader (dev, lpszPassword, retInfo);
+		nReturnCode = VolumeReadHeader (header, headerHiddenVol, lpszPassword, retInfo);
 
 		/* Save mount passwords back into cache if asked to do so */
 		if (bCache == TRUE && nReturnCode == 0)
@@ -73,7 +73,7 @@ VolumeReadHeaderCache (BOOL bCache, char *dev, char *lpszPassword, int nPassword
 		{
 			if (nDriverPasswordLen[i] > 0)
 			{
-				nReturnCode = VolumeReadHeader (dev, szDriverPassword[i], retInfo);
+				nReturnCode = VolumeReadHeader (header, headerHiddenVol, szDriverPassword[i], retInfo);
 
 				if (nReturnCode != ERR_PASSWORD_WRONG)
 					break;

@@ -1,7 +1,7 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
    additions to that source code contained in this file are Copyright (c) 2004
-   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
 
@@ -23,8 +23,6 @@
 
 #pragma warning( disable : 4127 )
 
-#define FIRST_READ_SIZE SECTOR_SIZE*2
-
 NTSTATUS
 TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	       PEXTENSION Extension,
@@ -39,173 +37,27 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	UNICODE_STRING FullFileName;
 	IO_STATUS_BLOCK IoStatusBlock;
 	LARGE_INTEGER lDiskLength;
-	char *readBuffer;
+	char *readBuffer = 0;
+	char *readBufferHiddenVol = 0;
 	NTSTATUS ntStatus;
+	BOOL bTimeStampValid = FALSE;
 
 	Extension->pfoDeviceFile = NULL;
 	Extension->hDeviceFile = NULL;
 
-	readBuffer = TCalloc (FIRST_READ_SIZE);
-	if (readBuffer == NULL)
-	{
-		ntStatus = STATUS_INSUFFICIENT_RESOURCES;
-		goto error;
-	}
-
 	RtlInitUnicodeString (&FullFileName, pwszMountVolume);
-
-	InitializeObjectAttributes (&oaFileAttributes, &FullFileName, OBJ_CASE_INSENSITIVE,
-				    NULL, NULL);
-
-	ntStatus = ZwCreateFile (&Extension->hDeviceFile,
-				 GENERIC_READ | GENERIC_WRITE | SYNCHRONIZE,
-				 &oaFileAttributes,
-				 &IoStatusBlock,
-				 NULL,
-				 FILE_ATTRIBUTE_NORMAL |
-				 FILE_ATTRIBUTE_SYSTEM,
-				 0,
-				 FILE_OPEN,
-				 FILE_WRITE_THROUGH |
-				 FILE_NO_INTERMEDIATE_BUFFERING |
-				 FILE_SYNCHRONOUS_IO_NONALERT,
-				 NULL,
-				 0);
-
-	/* 26-4-99 NT for some partitions returns this code, it is really a
-	   access denied */
-	if (ntStatus == 0xc000001b)
-	{
-		ntStatus = STATUS_ACCESS_DENIED;
-	}
-
-	if (ntStatus == STATUS_ACCESS_DENIED)
-	{
-		ntStatus = ZwCreateFile (&Extension->hDeviceFile,
-					 GENERIC_READ | SYNCHRONIZE,
-					 &oaFileAttributes,
-					 &IoStatusBlock,
-					 NULL,
-					 FILE_ATTRIBUTE_NORMAL |
-					 FILE_ATTRIBUTE_SYSTEM,
-					 0,
-					 FILE_OPEN,
-					 FILE_WRITE_THROUGH |
-					 FILE_NO_INTERMEDIATE_BUFFERING |
-					 FILE_SYNCHRONOUS_IO_NONALERT,
-					 NULL,
-					 0);
-		Extension->bReadOnly = TRUE;
-	}
-	else
-		Extension->bReadOnly = FALSE;
-
-	/* 26-4-99 NT for some partitions returns this code, it is really a
-	   access denied */
-	if (ntStatus == 0xc000001b)
-	{
-		/* Partitions which return this code can still be opened with
-		   FILE_SHARE_READ but this causes NT problems elsewhere in
-		   particular if you do FILE_SHARE_READ NT will die later if
-		   anyone even tries to open the partition  (or file for that
-		   matter...)  */
-		ntStatus = STATUS_SHARING_VIOLATION;
-	}
-
-	if (!NT_SUCCESS (ntStatus))
-	{
-		goto error;
-	}
-
-	ntStatus = ZwReadFile (Extension->hDeviceFile, NULL, NULL, NULL,
-		   &IoStatusBlock, readBuffer, FIRST_READ_SIZE, NULL, NULL);
-
-	if (!NT_SUCCESS (ntStatus))
-	{
-		Dump ("Read failed: NTSTATUS 0x%08x\n", ntStatus);
-	}
-	else if (IoStatusBlock.Information != FIRST_READ_SIZE)
-	{
-		Dump ("Read didn't read enough data in: %lu / %lu\n", IoStatusBlock.Information, FIRST_READ_SIZE);
-		ntStatus = STATUS_UNSUCCESSFUL;
-	}
-
-	if (!NT_SUCCESS (ntStatus))
-	{
-		goto error;
-	}
-
-
+	InitializeObjectAttributes (&oaFileAttributes, &FullFileName, OBJ_CASE_INSENSITIVE,	NULL, NULL);
 	KeInitializeEvent (&Extension->keVolumeEvent, NotificationEvent, FALSE);
 
-	if (bRawDevice == FALSE)
-	{
-		ntStatus = ZwQueryInformationFile (Extension->hDeviceFile,
-						   &IoStatusBlock,
-						   &FileBasicInfo,
-						   sizeof (FileBasicInfo),
-						   FileBasicInformation);
-
-		if (NT_SUCCESS (ntStatus))
-			ntStatus = ZwQueryInformationFile (Extension->hDeviceFile,
-							   &IoStatusBlock,
-							   &FileStandardInfo,
-						  sizeof (FileStandardInfo),
-						   FileStandardInformation);
-
-		if (!NT_SUCCESS (ntStatus))
-		{
-			Dump ("ZwQueryInformationFile failed while opening file: NTSTATUS 0x%08x\n",
-			      ntStatus);
-			goto error;
-		}
-		else
-			lDiskLength.QuadPart = FileStandardInfo.EndOfFile.QuadPart;
-
-		if (FileBasicInfo.FileAttributes & FILE_ATTRIBUTE_COMPRESSED)
-		{
-			Dump ("File \"%ls\" is marked as compressed - not supported!\n", pwszMountVolume);
-			mount->nReturnCode = ERR_COMPRESSION_NOT_SUPPORTED;
-			ntStatus = STATUS_SUCCESS;
-			goto error;
-		}
-
-		ntStatus = ObReferenceObjectByHandle (Extension->hDeviceFile,
-						      FILE_ALL_ACCESS,
-						      *IoFileObjectType,
-						      KernelMode,
-						  &Extension->pfoDeviceFile,
-						      0);
-
-		if (!NT_SUCCESS (ntStatus))
-		{
-			goto error;
-		}
-
-		/* Get the FSD device for the file (probably either NTFS or
-		   FAT) */
-		Extension->pFsdDevice = IoGetRelatedDeviceObject (Extension->pfoDeviceFile);
-
-		DeviceObject->StackSize = (CCHAR) (Extension->pFsdDevice->StackSize + 1);
-
-	}
-	else
+	// If we are opening a device, query its size first
+	if (bRawDevice)
 	{
 		DISK_GEOMETRY dg;
 
-		ZwClose (Extension->hDeviceFile);
-		Extension->hDeviceFile = NULL;
-
-		if (Extension->bReadOnly == TRUE)
-			ntStatus = IoGetDeviceObjectPointer (&FullFileName,
-							     FILE_READ_DATA,
-						  &Extension->pfoDeviceFile,
-						    &Extension->pFsdDevice);
-		else
-			ntStatus = IoGetDeviceObjectPointer (&FullFileName,
-							     FILE_ALL_ACCESS,
-						  &Extension->pfoDeviceFile,
-						    &Extension->pFsdDevice);
+		ntStatus = IoGetDeviceObjectPointer (&FullFileName,
+			FILE_READ_DATA,
+			&Extension->pfoDeviceFile,
+			&Extension->pFsdDevice);
 
 		if (!NT_SUCCESS (ntStatus))
 		{
@@ -214,10 +66,9 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 
 		DeviceObject->StackSize = (CCHAR) (Extension->pFsdDevice->StackSize + 1);
 
-
 		if (wcscmp (Extension->pFsdDevice->DriverObject->DriverName.Buffer, WIDE ("\\FileSystem\\RAW")) != 0)
 		{
-			/* FAT/NTFS  "knows" about this device */
+			/* FAT/NTFS "knows" about this device */
 			ntStatus = STATUS_SHARING_VIOLATION;
 			goto error;
 		}
@@ -252,19 +103,187 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			lDiskLength.QuadPart = dg.Cylinders.QuadPart * dg.SectorsPerTrack *
 				dg.TracksPerCylinder * dg.BytesPerSector;
 		}
-
-
 	}
 
+	// Open the volume hosting file/device
+	if (!mount->bMountReadOnly)
+	{
+		ntStatus = ZwCreateFile (&Extension->hDeviceFile,
+			GENERIC_READ | GENERIC_WRITE | SYNCHRONIZE,
+			&oaFileAttributes,
+			&IoStatusBlock,
+			NULL,
+			FILE_ATTRIBUTE_NORMAL |
+			FILE_ATTRIBUTE_SYSTEM,
+			mount->bExclusiveAccess ? 0 : FILE_SHARE_READ | FILE_SHARE_WRITE,
+			FILE_OPEN,
+			FILE_WRITE_THROUGH |
+			FILE_NO_INTERMEDIATE_BUFFERING |
+			FILE_SYNCHRONOUS_IO_NONALERT,
+			NULL,
+			0);
+	}
+
+	/* 26-4-99 NT for some partitions returns this code, it is really a
+	access denied */
+	if (ntStatus == 0xc000001b)
+	{
+		ntStatus = STATUS_ACCESS_DENIED;
+	}
+
+	if (mount->bMountReadOnly || ntStatus == STATUS_ACCESS_DENIED)
+	{
+		ntStatus = ZwCreateFile (&Extension->hDeviceFile,
+			GENERIC_READ | SYNCHRONIZE,
+			&oaFileAttributes,
+			&IoStatusBlock,
+			NULL,
+			FILE_ATTRIBUTE_NORMAL |
+			FILE_ATTRIBUTE_SYSTEM,
+			mount->bExclusiveAccess ? 0 : FILE_SHARE_READ | FILE_SHARE_WRITE,
+			FILE_OPEN,
+			FILE_WRITE_THROUGH |
+			FILE_NO_INTERMEDIATE_BUFFERING |
+			FILE_SYNCHRONOUS_IO_NONALERT,
+			NULL,
+			0);
+		Extension->bReadOnly = TRUE;
+	}
+	else
+		Extension->bReadOnly = FALSE;
+
+	/* 26-4-99 NT for some partitions returns this code, it is really a
+	access denied */
+	if (ntStatus == 0xc000001b)
+	{
+		/* Partitions which return this code can still be opened with
+		FILE_SHARE_READ but this causes NT problems elsewhere in
+		particular if you do FILE_SHARE_READ NT will die later if
+		anyone even tries to open the partition  (or file for that
+		matter...)  */
+		ntStatus = STATUS_SHARING_VIOLATION;
+	}
+
+	if (!NT_SUCCESS (ntStatus))
+	{
+		goto error;
+	}
+
+	// If we have opened a file, query its size now
+	if (bRawDevice == FALSE)
+	{
+		ntStatus = ZwQueryInformationFile (Extension->hDeviceFile,
+			&IoStatusBlock,
+			&FileBasicInfo,
+			sizeof (FileBasicInfo),
+			FileBasicInformation);
+
+		if (NT_SUCCESS (ntStatus))
+		{
+			/* Remember the container timestamp. (Used to reset access/modification file date/time
+			of file-hosted containers upon dismount or after unsuccessful mount attempt to preserve
+			plausible deniability of hidden volumes.) */
+			Extension->fileCreationTime = FileBasicInfo.CreationTime;
+			Extension->fileLastAccessTime = FileBasicInfo.LastAccessTime;
+			Extension->fileLastWriteTime = FileBasicInfo.LastWriteTime;
+			Extension->fileLastChangeTime = FileBasicInfo.ChangeTime;
+			bTimeStampValid = TRUE;
+
+			ntStatus = ZwQueryInformationFile (Extension->hDeviceFile,
+				&IoStatusBlock,
+				&FileStandardInfo,
+				sizeof (FileStandardInfo),
+				FileStandardInformation);
+		}
+
+		if (!NT_SUCCESS (ntStatus))
+		{
+			Dump ("ZwQueryInformationFile failed while opening file: NTSTATUS 0x%08x\n",
+				ntStatus);
+			goto error;
+		}
+
+		lDiskLength.QuadPart = FileStandardInfo.EndOfFile.QuadPart;
+
+		if (FileBasicInfo.FileAttributes & FILE_ATTRIBUTE_COMPRESSED)
+		{
+			Dump ("File \"%ls\" is marked as compressed - not supported!\n", pwszMountVolume);
+			mount->nReturnCode = ERR_COMPRESSION_NOT_SUPPORTED;
+			ntStatus = STATUS_SUCCESS;
+			goto error;
+		}
+
+		ntStatus = ObReferenceObjectByHandle (Extension->hDeviceFile,
+			FILE_ALL_ACCESS,
+			*IoFileObjectType,
+			KernelMode,
+			&Extension->pfoDeviceFile,
+			0);
+
+		if (!NT_SUCCESS (ntStatus))
+		{
+			goto error;
+		}
+
+		/* Get the FSD device for the file (probably either NTFS or	FAT) */
+		Extension->pFsdDevice = IoGetRelatedDeviceObject (Extension->pfoDeviceFile);
+
+		DeviceObject->StackSize = (CCHAR) (Extension->pFsdDevice->StackSize + 1);
+	}
+
+	// Check volume size
 	if (lDiskLength.QuadPart < MIN_VOLUME_SIZE || lDiskLength.QuadPart > MAX_VOLUME_SIZE)
 	{
-		/* Volume too large or too small for us to handle... */
 		mount->nReturnCode = ERR_VOL_SIZE_WRONG;
 		ntStatus = STATUS_SUCCESS;
 		goto error;
 	}
-	else
-		Extension->DiskLength = lDiskLength.QuadPart;
+	
+	Extension->DiskLength = lDiskLength.QuadPart;
+
+	// Read normal volume header
+	readBuffer = TCalloc (HEADER_SIZE);
+	if (readBuffer == NULL)
+	{
+		ntStatus = STATUS_INSUFFICIENT_RESOURCES;
+		goto error;
+	}
+
+	ntStatus = ZwReadFile (Extension->hDeviceFile, NULL, NULL, NULL,
+		&IoStatusBlock, readBuffer, HEADER_SIZE, NULL, NULL);
+
+	// Read hidden volume header if needed 
+	if (mountingHiddenVolumesAllowed)
+	{
+		LARGE_INTEGER byteOffset;
+
+		readBufferHiddenVol = TCalloc (HEADER_SIZE);
+		if (readBufferHiddenVol == NULL)
+		{
+			ntStatus = STATUS_INSUFFICIENT_RESOURCES;
+			goto error;
+		}
+
+		byteOffset.QuadPart = lDiskLength.QuadPart - HIDDEN_VOL_HEADER_OFFSET;
+		ntStatus = ZwReadFile (Extension->hDeviceFile, NULL, NULL, NULL,
+			&IoStatusBlock, readBufferHiddenVol, HEADER_SIZE, &byteOffset, NULL);
+	}
+
+	if (!NT_SUCCESS (ntStatus))
+	{
+		Dump ("Read failed: NTSTATUS 0x%08x\n", ntStatus);
+	}
+	else if (IoStatusBlock.Information != HEADER_SIZE)
+	{
+		Dump ("Read didn't read enough data in: %lu / %lu\n", IoStatusBlock.Information, HEADER_SIZE);
+		ntStatus = STATUS_UNSUCCESSFUL;
+	}
+
+	if (!NT_SUCCESS (ntStatus))
+	{
+		goto error;
+	}
+
 
 	/* Attempt to recognize the volume */
 
@@ -272,24 +291,63 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			      FALSE, NULL);
 
 	mount->nReturnCode = VolumeReadHeaderCache (
-							   mount->bCache,
-							   readBuffer,
-							   mount->szPassword,
-						 strlen (mount->szPassword),
-						    &Extension->cryptoInfo);
+								mount->bCache,
+								readBuffer,
+								readBufferHiddenVol,
+								mount->szPassword,
+								strlen (mount->szPassword),
+								&Extension->cryptoInfo);
 
 	KeReleaseMutex (&driverMutex, FALSE);
 
 	if (mount->nReturnCode == 0)
 	{
-		/* There's one extra sector than there should be */
-		Extension->DiskLength -= SECTOR_SIZE;
+		/* Volume header successfully decrypted */
 
+		if (Extension->cryptoInfo->hiddenVolume)
+		{
+			// Hidden volume setup
+
+			// Validate the size of the hidden volume specified in the header
+			if (Extension->DiskLength < (__int64) Extension->cryptoInfo->hiddenVolumeSize + HIDDEN_VOL_HEADER_OFFSET + HEADER_SIZE
+				|| Extension->cryptoInfo->hiddenVolumeSize <= 0)
+			{
+				mount->nReturnCode = ERR_VOL_SIZE_WRONG;
+				ntStatus = STATUS_SUCCESS;
+				goto error;
+			}
+
+			// Determine the offset of the hidden volume
+			Extension->cryptoInfo->hiddenVolumeOffset = Extension->DiskLength - Extension->cryptoInfo->hiddenVolumeSize - HIDDEN_VOL_HEADER_OFFSET;
+
+			Dump("Hidden volume offset = %I64d", Extension->cryptoInfo->hiddenVolumeOffset);
+
+			// Validate the offset
+			if (Extension->cryptoInfo->hiddenVolumeOffset % SECTOR_SIZE != 0)
+			{
+				mount->nReturnCode = ERR_VOL_SIZE_WRONG;
+				ntStatus = STATUS_SUCCESS;
+				goto error;
+			}
+
+			// Set volume size
+			Extension->DiskLength = Extension->cryptoInfo->hiddenVolumeSize;	
+		}
+		else
+		{
+			// Normal (not a hidden) volume
+
+			// Set volume size
+			Extension->DiskLength -= HEADER_SIZE;
+		}
+
+		// Calculate virtual volume geometry
 		Extension->TracksPerCylinder = 1;
 		Extension->SectorsPerTrack = 1;
 		Extension->BytesPerSector = 512;
 		Extension->NumberOfCylinders = Extension->DiskLength / 512;
 		Extension->PartitionType = 0;
+
 		Extension->bRawDevice = bRawDevice;
 
 		if (wcslen (pwszMountVolume) < 64)
@@ -306,7 +364,6 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		Extension->mountTime = mount->time;
 
 		TCfree (readBuffer);
-
 		return STATUS_SUCCESS;
 	}
 
@@ -319,7 +376,14 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	else
 		ntStatus = STATUS_SUCCESS;
 
-      error:
+error:
+
+	if (bTimeStampValid)
+	{
+		/* Restore the container timestamp to preserve plausible deniability of possible hidden volume. */
+		RestoreTimeStamp (Extension);
+		bTimeStampValid = FALSE;
+	}
 
 	/* Close the hDeviceFile */
 	if (Extension->hDeviceFile != NULL)
@@ -332,9 +396,12 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	if (Extension->pfoDeviceFile != NULL)
 		ObDereferenceObject (Extension->pfoDeviceFile);
 
-	/* Free the tmp IO buffer */
+	/* Free the tmp IO buffers */
 	if (readBuffer != NULL)
 		TCfree (readBuffer);
+
+	if (readBufferHiddenVol != NULL)
+		TCfree (readBufferHiddenVol);
 
 	return ntStatus;
 }
@@ -342,13 +409,24 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 void
 TCCloseVolume (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension)
 {
+	NTSTATUS ntStatus;
+
 	if (DeviceObject);	/* Remove compiler warning */
 
 	if (Extension->hDeviceFile != NULL)
-		ZwClose (Extension->hDeviceFile);
+	{
+		if (Extension->bRawDevice == FALSE)
+		{
+			/* Restore the container timestamp to preserve plausible deniability of possible hidden volume. */
+			RestoreTimeStamp (Extension);
+		}
+
+		ntStatus = ZwClose (Extension->hDeviceFile);
+		if (!NT_SUCCESS (ntStatus))
+			Dump ("ZwClose failed in TCCloseVolume: NTSTATUS 0x%08x\n", ntStatus);
+	}
 	ObDereferenceObject (Extension->pfoDeviceFile);
 	crypto_close (Extension->cryptoInfo);
-
 }
 
 /* This rountine can be called at any IRQL so we need to tread carefully. Not
@@ -434,12 +512,12 @@ TCCompletion (PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID pUserBuffer)
 		if (tmpLength > 0)
 		{
 			/* Decrypt the data on read */
-			Extension->cryptoInfo->decrypt_sector ((ULONG *) CurrentAddress,
+			DecryptSectors ((ULONG *) CurrentAddress,
 				tmpOffset / SECTOR_SIZE,
 				tmpLength / SECTOR_SIZE,
-				&Extension->cryptoInfo->ks[0],
+				Extension->cryptoInfo->ks,
 				Extension->cryptoInfo->iv,
-				Extension->cryptoInfo->cipher);
+				Extension->cryptoInfo->ea);
 		}
 
 		if (Extension->bRawDevice == FALSE)
@@ -605,8 +683,17 @@ TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 //		Dump ("Read: 0x%08x for %lu bytes...\n", irpSp->Parameters.Read.ByteOffset.LowPart,
 //		      irpSp->Parameters.Read.Length);
 
-		/* Fixup the parameters to handle this particular volume type */
-		irpSp->Parameters.Read.ByteOffset.QuadPart += SECTOR_SIZE;  
+
+		if (Extension->cryptoInfo->hiddenVolume)
+		{
+			/* Hidden volume offset */
+			irpSp->Parameters.Read.ByteOffset.QuadPart += Extension->cryptoInfo->hiddenVolumeOffset;
+		}
+		else
+		{
+			/* Fixup the parameters to handle this particular volume type */
+			irpSp->Parameters.Read.ByteOffset.QuadPart += HEADER_SIZE;  
+		}
 
 		if (Extension->bRawDevice == TRUE)
 			ntStatus = TCSendIRP_RawDevice (DeviceObject, Extension,
@@ -628,18 +715,28 @@ TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 
 		CurrentAddress = (PUCHAR) MmGetSystemAddressForMdlSafe (Irp->MdlAddress, HighPagePriority);
 
-		/* Fixup the parameters to handle this particular volume type */
-		irpSp->Parameters.Read.ByteOffset.QuadPart += SECTOR_SIZE;
+
+		if (Extension->cryptoInfo->hiddenVolume)
+		{
+			/* Hidden volume offset */
+			irpSp->Parameters.Read.ByteOffset.QuadPart += Extension->cryptoInfo->hiddenVolumeOffset;
+		}
+		else
+		{
+			/* Fixup the parameters to handle this particular volume type */
+			irpSp->Parameters.Read.ByteOffset.QuadPart += HEADER_SIZE;
+		}
 
 		memcpy (tmpBuffer, CurrentAddress, irpSp->Parameters.Read.Length);
 
 		/* Encrypt the data */
-		Extension->cryptoInfo->encrypt_sector ((ULONG *) tmpBuffer,
+		EncryptSectors ((ULONG *) tmpBuffer,
 			irpSp->Parameters.Read.ByteOffset.QuadPart / SECTOR_SIZE,
 			irpSp->Parameters.Read.Length / SECTOR_SIZE,
-			&Extension->cryptoInfo->ks[0],
+			Extension->cryptoInfo->ks,
 			Extension->cryptoInfo->iv,
-			Extension->cryptoInfo->cipher);
+			Extension->cryptoInfo->ea);
+
 
 		if (Extension->bRawDevice == TRUE)
 		{
@@ -722,7 +819,7 @@ NTSTATUS
 COMPLETE_IRP (PDEVICE_OBJECT DeviceObject,
 	      PIRP Irp,
 	      NTSTATUS IrpStatus,
-	      ULONG IrpInformation)
+	      ULONG_PTR IrpInformation)
 {
 	Irp->IoStatus.Status = IrpStatus;
 	Irp->IoStatus.Information = IrpInformation;
@@ -730,12 +827,12 @@ COMPLETE_IRP (PDEVICE_OBJECT DeviceObject,
 	if (DeviceObject);	/* Remove compiler warning */
 
 #ifdef _DEBUG
-	if (!NT_SUCCESS (IrpStatus))
-	{
-		PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation (Irp);
-		Dump ("COMPLETE_IRP FAILING IRP %ls Flags 0x%08x vpb 0x%08x NTSTATUS 0x%08x\n", TCTranslateCode (irpSp->MajorFunction),
-		      (ULONG) DeviceObject->Flags, (ULONG) DeviceObject->Vpb->Flags, IrpStatus);
-	}
+	//if (!NT_SUCCESS (IrpStatus))
+	//{
+	//	PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation (Irp);
+	//	Dump ("COMPLETE_IRP FAILING IRP %ls Flags 0x%08x vpb 0x%08x NTSTATUS 0x%08x\n", TCTranslateCode (irpSp->MajorFunction),
+	//	      (ULONG) DeviceObject->Flags, (ULONG) DeviceObject->Vpb->Flags, IrpStatus);
+	//}
 	//else
 	//{
 	//	PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation (Irp);
@@ -745,4 +842,44 @@ COMPLETE_IRP (PDEVICE_OBJECT DeviceObject,
 #endif
 	IoCompleteRequest (Irp, IO_NO_INCREMENT);
 	return IrpStatus;
+}
+
+// Restores the container timestamp to preserve plausible deniability of possible hidden volume.
+static void RestoreTimeStamp (PEXTENSION Extension)
+{
+	NTSTATUS ntStatus;
+	FILE_BASIC_INFORMATION FileBasicInfo;
+	IO_STATUS_BLOCK IoStatusBlock;
+
+	if (Extension->hDeviceFile != NULL && Extension->bRawDevice == FALSE && Extension->bReadOnly == FALSE)
+	{
+		ntStatus = ZwQueryInformationFile (Extension->hDeviceFile,
+			&IoStatusBlock,
+			&FileBasicInfo,
+			sizeof (FileBasicInfo),
+			FileBasicInformation); 
+
+		if (!NT_SUCCESS (ntStatus))
+		{
+			Dump ("ZwQueryInformationFile failed in RestoreTimeStamp: NTSTATUS 0x%08x\n",
+				ntStatus);
+		}
+		else
+		{
+			FileBasicInfo.CreationTime = Extension->fileCreationTime;
+			FileBasicInfo.LastAccessTime = Extension->fileLastAccessTime;
+			FileBasicInfo.LastWriteTime = Extension->fileLastWriteTime;
+			FileBasicInfo.ChangeTime = Extension->fileLastChangeTime;
+
+			ntStatus = ZwSetInformationFile(
+				Extension->hDeviceFile,
+				&IoStatusBlock,
+				&FileBasicInfo,
+				sizeof (FileBasicInfo),
+				FileBasicInformation); 
+
+			if (!NT_SUCCESS (ntStatus))
+				Dump ("ZwSetInformationFile failed in RestoreTimeStamp: NTSTATUS 0x%08x\n",ntStatus);
+		}
+	}
 }

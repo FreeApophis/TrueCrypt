@@ -1,7 +1,7 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
    additions to that source code contained in this file are Copyright (c) 2004
-   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
 
@@ -35,7 +35,6 @@
 #include "endian.h"
 #include "pkcs5.h"
 #include "crc.h"
-
 
 /* Blowfish Test Vectors */
 
@@ -1046,13 +1045,44 @@ AES_TEST aes_ecb_vectors[1] = {
 0x8e,0xa2,0xb7,0xca,0x51,0x67,0x45,0xbf,0xea,0xfc,0x49,0x90,0x4b,0x49,0x60,0x89
 };
 
+#define SERPENT_TEST_COUNT 1
+
+typedef struct {
+	unsigned char key[32];
+	unsigned char plaintext[16];
+	unsigned char ciphertext[16];
+	} SERPENT_TEST;
+
+SERPENT_TEST serpent_vectors[1] = {
+0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+
+0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+0xde, 0x26, 0x9f, 0xf8, 0x33, 0xe4, 0x32, 0xb8, 0x5b, 0x2e, 0x88, 0xd2, 0x70, 0x1c, 0xe7, 0x5c,
+};
+
+#define TWOFISH_TEST_COUNT 1
+
+typedef struct {
+	unsigned char key[32];
+	unsigned char plaintext[16];
+	unsigned char ciphertext[16];
+	} TWOFISH_TEST;
+
+TWOFISH_TEST twofish_vectors[1] = {
+0xD4, 0x3B, 0xB7, 0x55, 0x6E, 0xA3, 0x2E, 0x46, 0xF2, 0xA2, 0x82, 0xB7, 0xD4, 0x5B, 0x4E, 0x0D,
+0x57, 0xFF, 0x73, 0x9D, 0x4D, 0xC9, 0x2C, 0x1B, 0xD7, 0xFC, 0x01, 0x70, 0x0C, 0xC8, 0x21, 0x6F,
+
+0x90, 0xAF, 0xE9, 0x1B, 0xB2, 0x88, 0x54, 0x4F, 0x2C, 0x32, 0xDC, 0x23, 0x9B, 0x26, 0x35, 0xE6,
+0x6C, 0xB4, 0x56, 0x1C, 0x40, 0xBF, 0x0A, 0x97, 0x05, 0x93, 0x1C, 0xB6, 0xD4, 0x08, 0xE7, 0xFA
+};
 
 unsigned char ks_tmp[MAX_EXPANDED_KEY]; 
 
 void
-init_cipher2(int cipher, void* key, void* ks, int key_len) 
+CipherInit2(int cipher, void* key, void* ks, int key_len) 
 {
-	/* This routine uses init_cipher for everything except the variable key length ciphers */
+	/* This routine uses CipherInit for everything except the variable key length ciphers */
 
 	switch (cipher)
 	{
@@ -1061,19 +1091,27 @@ init_cipher2(int cipher, void* key, void* ks, int key_len)
 		break;
 
 	case AES:
-		init_cipher(cipher,key,ks);
+		CipherInit(cipher,key,ks);
 		break;
 
 	case DES56:
-		init_cipher(cipher,key,ks);
+		CipherInit(cipher,key,ks);
 		break;
 
 	case CAST:
-		init_cipher(cipher,key,ks);
+		CipherInit(cipher,key,ks);
+		break;
+
+	case SERPENT:
+		CipherInit(cipher,key,ks);
 		break;
 
 	case TRIPLEDES:
-		init_cipher(cipher,key,ks);
+		CipherInit(cipher,key,ks);
+		break;
+
+	case TWOFISH:
+		CipherInit(cipher,key,ks);
 		break;
 	}
 }
@@ -1141,7 +1179,7 @@ ResetCipherTest(HWND hwndDlg, int nCipherChoice)
 	SetWindowText(GetDlgItem(hwndDlg, IDC_PLAINTEXT), "0000000000000000");
 	SetWindowText(GetDlgItem(hwndDlg, IDC_CIPHERTEXT), "0000000000000000");
 
-	if (nCipherChoice == AES)
+	if (nCipherChoice == AES || nCipherChoice == SERPENT || nCipherChoice == TWOFISH)
 	{
 		ndx = SendMessage (GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_ADDSTRING, 0,(LPARAM) "32");
 		SendMessage(GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_SETITEMDATA, ndx,(LPARAM) 32);
@@ -1171,15 +1209,15 @@ BOOL Des56TestLoop(void *test_vectors, int nVectorCount, int enc)
 		memcpy(tmp, ((DES_TEST*)test_vectors)->plaintext, 8);
 
 		memset(ks_tmp,0,sizeof(ks_tmp));
-		init_cipher2(cipher, key, ks_tmp, 8);
+		CipherInit2(cipher, key, ks_tmp, 8);
 
 		if (enc) 
 		{
-			encipher_block(cipher, tmp, ks_tmp);
+			EncipherBlock(cipher, tmp, ks_tmp);
 		}
 		else
 		{
-			decipher_block(cipher, tmp, ks_tmp);
+			DecipherBlock(cipher, tmp, ks_tmp);
 		}
 
 		if (memcmp(((DES_TEST*)test_vectors)->ciphertext, tmp,8)!=0)
@@ -1220,7 +1258,7 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 			ResetCipherTest(hwndDlg, nCipherChoice);
 
-			sprintf(szTmp, getstr(IDS_CIPHER_TEST), get_cipher_name(nCipherChoice));
+			sprintf(szTmp, getstr(IDS_CIPHER_TEST), CipherGetName(nCipherChoice));
 			SetWindowText(hwndDlg, szTmp);
 
 			return 1;
@@ -1236,109 +1274,14 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		if (lw == IDC_AUTO)
 		{
-			char key[32];
-			unsigned char tmp[16];
-			BOOL bFailed = FALSE;
-			int i;
-
-			for (i=0;i<BF_TEST_COUNT;i++)
-			{			
-				memcpy(key, bf_ecb_vectors[i].key, 8);
-				memcpy(tmp, bf_ecb_vectors[i].plaintext, 8);
-				init_cipher2(BLOWFISH, key, ks_tmp, 8);
-				BF_ecb_encrypt(tmp,tmp,(struct bf_key_st *)ks_tmp,1);
-				if (memcmp(bf_ecb_vectors[i].ciphertext,tmp,8)!=0)
-					break;
-			}
-
-			if (i==BF_TEST_COUNT)
+			if (!AutoTestAlgorithms())
 			{
-				/* Test the Blowfish code against Bruce Schneiers test vectors (1 & 2) and
-				   Mike Morgans test vector (3) */
-
-				unsigned char *plain1 = ( unsigned char * ) "BLOWFISH";
-				unsigned char *key1 = ( unsigned char * ) "abcdefghijklmnopqrstuvwxyz";
-				unsigned char cipher1[] = { 0x32, 0x4E, 0xD0, 0xFE, 0xF4, 0x13, 0xA2, 0x03 };
-				unsigned char plain2[] = { 0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32, 0x10 };
-				unsigned char *key2 = ( unsigned char * ) "Who is John Galt?";
-				unsigned char cipher2[] = { 0xCC, 0x91, 0x73, 0x2B, 0x80, 0x22, 0xF6, 0x84 };
-				unsigned char plain3[] = { 0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32, 0x10 };
-				unsigned char key3[] = { 0x41, 0x79, 0x6E, 0xA0, 0x52, 0x61, 0x6E, 0xE4 };
-				unsigned char cipher3[] = { 0xE1, 0x13, 0xF4, 0x10, 0x2C, 0xFC, 0xCE, 0x43 };
-				unsigned char tmp[8];
-
-
-				init_cipher2(BLOWFISH, key1, ks_tmp, 26);
-				BF_ecb_encrypt(plain1,tmp,(struct bf_key_st *)ks_tmp,1);
-				if (memcmp(cipher1,tmp,8)!=0)
-					bFailed = TRUE;
-
-				init_cipher2(BLOWFISH, key2, ks_tmp, 17);
-				BF_ecb_encrypt(plain2,tmp,(struct bf_key_st *)ks_tmp,1);
-				if (memcmp(cipher2,tmp,8)!=0)
-					bFailed = TRUE;
-				
-				init_cipher2(BLOWFISH, key3, ks_tmp, 8);
-				BF_ecb_encrypt(plain3,tmp,(struct bf_key_st *)ks_tmp,1);
-				if (memcmp(cipher3,tmp,8)!=0)
-					bFailed = TRUE;
-
-			} else
-				bFailed = TRUE;
-
-			for (i=0;i<CAST_TEST_COUNT;i++)
-			{			
-				int cipher = CAST;
-				memcpy(key, cast_ecb_vectors[i].key, 16);
-				memcpy(tmp, cast_ecb_vectors[i].plaintext, 8);
-				init_cipher2(cipher, key, ks_tmp, 16);
-				encipher_block(cipher, tmp, ks_tmp);
-				if (memcmp(cast_ecb_vectors[i].ciphertext, tmp,8)!=0)
-					break;
-			}
-	
-			if (i!=CAST_TEST_COUNT)
-				bFailed = TRUE;
-
-			if (Des56TestLoop(des56_ecb_vectors_ip, DES56_TEST_COUNT_IP,1)!=TRUE)
-				bFailed = TRUE;
-			if (Des56TestLoop(des56_ecb_vectors_vp, DES56_TEST_COUNT_VP,1)!=TRUE)
-				bFailed = TRUE;
-			if (Des56TestLoop(des56_ecb_vectors_kp, DES56_TEST_COUNT_KP,1)!=TRUE)
-				bFailed = TRUE;
-			if (Des56TestLoop(des56_ecb_vectors_rs, DES56_TEST_COUNT_RS,0)!=TRUE)
-				bFailed = TRUE;
-			if (Des56TestLoop(des56_ecb_vectors_dp, DES56_TEST_COUNT_DP,1)!=TRUE)
-				bFailed = TRUE;
-			if (Des56TestLoop(des56_ecb_vectors_sb, DES56_TEST_COUNT_SB,1)!=TRUE)
-				bFailed = TRUE;
-
-			for (i = 0; i < AES_TEST_COUNT; i++)
-			{			
-				int cipher = AES;
-				memcpy(key, aes_ecb_vectors[i].key, 32);
-				memcpy(tmp, aes_ecb_vectors[i].plaintext, 16);
-				init_cipher(cipher, key, ks_tmp);
-				encipher_block(cipher, tmp, ks_tmp);
-				if (memcmp(aes_ecb_vectors[i].ciphertext, tmp, 16)!=0)
-					break;
-			}
-			if (i != AES_TEST_COUNT)
-				bFailed = TRUE;
-
-			if (!test_pkcs5())
-				bFailed = TRUE;
-			if (!crc32_selftest())
-				bFailed = TRUE;
-
-			ShowWindow(GetDlgItem(hwndDlg, IDC_TESTS_MESSAGE), SW_SHOWNORMAL);
-
-			if (bFailed == TRUE)
-			{
+				ShowWindow(GetDlgItem(hwndDlg, IDC_TESTS_MESSAGE), SW_SHOWNORMAL);
 				SetWindowText(GetDlgItem(hwndDlg, IDC_TESTS_MESSAGE), getstr(IDS_TESTS_FAILED));
 			} 
 			else
 			{
+				ShowWindow(GetDlgItem(hwndDlg, IDC_TESTS_MESSAGE), SW_SHOWNORMAL);
 				SetWindowText(GetDlgItem(hwndDlg, IDC_TESTS_MESSAGE), getstr(IDS_TESTS_PASSED));
 				ShowWindow(GetDlgItem(hwndDlg, IDC_REDTICK), SW_SHOWNORMAL);
 			}
@@ -1436,19 +1379,19 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				{
 					/* Convert to little-endian, this is needed here and not in
 					above auto-tests because BF_ecb_encrypt above correctly converts
-					from big to little endian, and encipher_block does not! */
+					from big to little endian, and EncipherBlock does not! */
 					LongReverse((void*)tmp, pt);
 				}
 
-				init_cipher2(nCipherChoice, key, ks_tmp, ks);
+				CipherInit2(nCipherChoice, key, ks_tmp, ks);
 
 				if (bEncrypt==TRUE)
 				{
-					encipher_block(nCipherChoice, tmp, ks_tmp);
+					EncipherBlock(nCipherChoice, tmp, ks_tmp);
 				}
 				else
 				{
-					decipher_block(nCipherChoice, tmp, ks_tmp);
+					DecipherBlock(nCipherChoice, tmp, ks_tmp);
 				}
 
 				if (nCipherChoice == BLOWFISH)
@@ -1485,4 +1428,149 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	}
 
 	return 0;
+}
+
+
+BOOL AutoTestAlgorithms (void)
+{
+	char key[32];
+	unsigned char tmp[16];
+	BOOL bFailed = FALSE;
+	int i;
+
+	for (i=0;i<BF_TEST_COUNT;i++)
+	{			
+		memcpy(key, bf_ecb_vectors[i].key, 8);
+		memcpy(tmp, bf_ecb_vectors[i].plaintext, 8);
+		CipherInit2(BLOWFISH, key, ks_tmp, 8);
+		BF_ecb_encrypt(tmp,tmp,(struct bf_key_st *)ks_tmp,1);
+		if (memcmp(bf_ecb_vectors[i].ciphertext,tmp,8)!=0)
+			break;
+	}
+
+	if (i==BF_TEST_COUNT)
+	{
+		/* Test the Blowfish code against Bruce Schneiers test vectors (1 & 2) and
+		Mike Morgans test vector (3) */
+
+		unsigned char *plain1 = ( unsigned char * ) "BLOWFISH";
+		unsigned char *key1 = ( unsigned char * ) "abcdefghijklmnopqrstuvwxyz";
+		unsigned char cipher1[] = { 0x32, 0x4E, 0xD0, 0xFE, 0xF4, 0x13, 0xA2, 0x03 };
+		unsigned char plain2[] = { 0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32, 0x10 };
+		unsigned char *key2 = ( unsigned char * ) "Who is John Galt?";
+		unsigned char cipher2[] = { 0xCC, 0x91, 0x73, 0x2B, 0x80, 0x22, 0xF6, 0x84 };
+		unsigned char plain3[] = { 0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32, 0x10 };
+		unsigned char key3[] = { 0x41, 0x79, 0x6E, 0xA0, 0x52, 0x61, 0x6E, 0xE4 };
+		unsigned char cipher3[] = { 0xE1, 0x13, 0xF4, 0x10, 0x2C, 0xFC, 0xCE, 0x43 };
+		unsigned char tmp[8];
+
+
+		CipherInit2(BLOWFISH, key1, ks_tmp, 26);
+		BF_ecb_encrypt(plain1,tmp,(struct bf_key_st *)ks_tmp,1);
+		if (memcmp(cipher1,tmp,8)!=0)
+			bFailed = TRUE;
+
+		CipherInit2(BLOWFISH, key2, ks_tmp, 17);
+		BF_ecb_encrypt(plain2,tmp,(struct bf_key_st *)ks_tmp,1);
+		if (memcmp(cipher2,tmp,8)!=0)
+			bFailed = TRUE;
+
+		CipherInit2(BLOWFISH, key3, ks_tmp, 8);
+		BF_ecb_encrypt(plain3,tmp,(struct bf_key_st *)ks_tmp,1);
+		if (memcmp(cipher3,tmp,8)!=0)
+			bFailed = TRUE;
+
+	} else
+		bFailed = TRUE;
+
+	for (i=0;i<CAST_TEST_COUNT;i++)
+	{			
+		int cipher = CAST;
+		memcpy(key, cast_ecb_vectors[i].key, 16);
+		memcpy(tmp, cast_ecb_vectors[i].plaintext, 8);
+		CipherInit2(cipher, key, ks_tmp, 16);
+		EncipherBlock(cipher, tmp, ks_tmp);
+		if (memcmp(cast_ecb_vectors[i].ciphertext, tmp,8)!=0)
+			break;
+	}
+
+	if (i!=CAST_TEST_COUNT)
+		bFailed = TRUE;
+
+	if (Des56TestLoop(des56_ecb_vectors_ip, DES56_TEST_COUNT_IP,1)!=TRUE)
+		bFailed = TRUE;
+	if (Des56TestLoop(des56_ecb_vectors_vp, DES56_TEST_COUNT_VP,1)!=TRUE)
+		bFailed = TRUE;
+	if (Des56TestLoop(des56_ecb_vectors_kp, DES56_TEST_COUNT_KP,1)!=TRUE)
+		bFailed = TRUE;
+	if (Des56TestLoop(des56_ecb_vectors_rs, DES56_TEST_COUNT_RS,0)!=TRUE)
+		bFailed = TRUE;
+	if (Des56TestLoop(des56_ecb_vectors_dp, DES56_TEST_COUNT_DP,1)!=TRUE)
+		bFailed = TRUE;
+	if (Des56TestLoop(des56_ecb_vectors_sb, DES56_TEST_COUNT_SB,1)!=TRUE)
+		bFailed = TRUE;
+
+	// AES
+	for (i = 0; i < AES_TEST_COUNT; i++)
+	{			
+		int cipher = AES;
+		memcpy(key, aes_ecb_vectors[i].key, 32);
+		memcpy(tmp, aes_ecb_vectors[i].plaintext, 16);
+		CipherInit(cipher, key, ks_tmp);
+
+		EncipherBlock(cipher, tmp, ks_tmp);
+		if (memcmp(aes_ecb_vectors[i].ciphertext, tmp, 16) != 0)
+			break;
+
+		DecipherBlock(cipher, tmp, ks_tmp);
+		if (memcmp(aes_ecb_vectors[i].plaintext, tmp, 16) != 0)
+			break;
+	}
+	if (i != AES_TEST_COUNT)
+		bFailed = TRUE;
+
+	// Serpent
+	for (i = 0; i < SERPENT_TEST_COUNT; i++)
+	{			
+		int cipher = SERPENT;
+		memcpy(key, serpent_vectors[i].key, 32);
+		memcpy(tmp, serpent_vectors[i].plaintext, 16);
+		CipherInit(cipher, key, ks_tmp);
+
+		EncipherBlock(cipher, tmp, ks_tmp);
+		if (memcmp(serpent_vectors[i].ciphertext, tmp, 16) != 0)
+			break;
+
+		DecipherBlock(cipher, tmp, ks_tmp);
+		if (memcmp(serpent_vectors[i].plaintext, tmp, 16) != 0)
+			break;
+	}
+	if (i != SERPENT_TEST_COUNT)
+		bFailed = TRUE;
+
+	// Twofish
+	for (i = 0; i < TWOFISH_TEST_COUNT; i++)
+	{			
+		int cipher = TWOFISH;
+		memcpy(key, twofish_vectors[i].key, 32);
+		memcpy(tmp, twofish_vectors[i].plaintext, 16);
+		CipherInit(cipher, key, ks_tmp);
+
+		EncipherBlock(cipher, tmp, ks_tmp);
+		if (memcmp(twofish_vectors[i].ciphertext, tmp, 16) != 0)
+			break;
+
+		DecipherBlock(cipher, tmp, ks_tmp);
+		if (memcmp(twofish_vectors[i].plaintext, tmp, 16) != 0)
+			break;
+	}
+	if (i != TWOFISH_TEST_COUNT)
+		bFailed = TRUE;
+
+	if (!test_pkcs5())
+		bFailed = TRUE;
+	if (!crc32_selftest())
+		bFailed = TRUE;
+
+	return !bFailed;
 }

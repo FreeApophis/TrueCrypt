@@ -6,17 +6,17 @@
 #define IDUNMOUNTALL                    3
 #define IDS_MOUNT_BUTTON                6
 #define IDS_UNMOUNT_BUTTON              7
+#define IDS_UNMOUNTALL_LOCK_FAILED      8
 #define IDS_OPEN_TITLE                  9
 #define IDS_TITLE                       13
+#define IDS_DEVICE_IN_USE_INFO          14
 #define IDS_PASSWORD                    27
 #define IDD_MOUNT_DLG                   102
 #define IDD_PASSWORDCHANGE_DLG          111
 #define IDB_DRIVEICON                   113
 #define IDD_PASSWORD_DLG                114
 #define IDB_DRIVEICON_MASK              114
-#define IDS_ALREADY_MOUNTED             125
 #define IDS_MOUNTED_NOPWCHANGE          126
-#define IDS_UNMOUNT_FAILED              127
 #define IDR_MENU                        127
 #define IDD_PREFERENCES_DLG             128
 #define IDD_VOLUME_PROPERTIES           129
@@ -56,13 +56,16 @@
 #define IDM_ABOUT                       40011
 #define ID_VOLUME                       40012
 #define ID_TOOLS                        40018
-#define ID_Menu40020                    40020
 #define ID_PREFERENCES                  40027
 #define ID_MOUNT_VOLUME                 40033
 #define ID_UNMOUNT_VOLUME               40034
 #define IDC_VOLUME_PROPERTIES           40036
 #define IDC_CLEAR_HISTORY               40038
 #define ID_LICENSE                      40040
+#define ID_TRUECRYPTONTHEWEB_HOMEPAGE   40042
+#define ID_FORUMS                       40044
+#define ID_BENCHMARK                    40046
+#define ID_TOOLS_VERIFYCIPHERS          40047
 
 // Next default values for new objects
 // 
@@ -70,7 +73,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        130
-#define _APS_NEXT_COMMAND_VALUE         40042
+#define _APS_NEXT_COMMAND_VALUE         40048
 #define _APS_NEXT_CONTROL_VALUE         1034
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

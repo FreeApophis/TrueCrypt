@@ -1,7 +1,7 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
    additions to that source code contained in this file are Copyright (c) 2004
-   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
 
@@ -65,7 +65,7 @@ unsigned long crc32long (unsigned long *data)
 	CRC = (CRC >> 8) ^ crc_32_tab[ (CRC ^ *d++) & 0xFF ];
 	CRC = (CRC >> 8) ^ crc_32_tab[ (CRC ^ *d++) & 0xFF ];
 	CRC = (CRC >> 8) ^ crc_32_tab[ (CRC ^ *d++) & 0xFF ];
-	return (CRC >> 8) ^ crc_32_tab[ (CRC ^ *d++) & 0xFF ] ^ 0xffffffff;
+	return (CRC >> 8) ^ crc_32_tab[ (CRC ^ *d) & 0xFF ] ^ 0xffffffff;
 }
 
 int crc32_selftest (void)

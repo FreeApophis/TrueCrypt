@@ -1,7 +1,7 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
    additions to that source code contained in this file are Copyright (c) 2004
-   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
 
@@ -13,8 +13,8 @@ void Randfree ( void );
 void RandSetHashFunction ( int hash );
 void Randmix ( void );
 void RandaddBuf ( void *buf , int len );
-void RandpeekBytes ( char *buf , int len );
-void RandgetBytes ( char *buf , int len, BOOL forceSlowPoll );
+void RandpeekBytes ( unsigned char *buf , int len );
+void RandgetBytes ( unsigned char *buf , int len, BOOL forceSlowPoll );
 LRESULT CALLBACK MouseProc ( int nCode , WPARAM wParam , LPARAM lParam );
 LRESULT CALLBACK KeyboardProc ( int nCode , WPARAM wParam , LPARAM lParam );
 void ThreadSafeThreadFunction ( void *dummy );

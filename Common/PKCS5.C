@@ -1,7 +1,7 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
    additions to that source code contained in this file are Copyright (c) 2004
-   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
 
@@ -363,8 +363,8 @@ test_pkcs5 ()
 		return FALSE;
 
 	/* Next check ripemd160 with pkcs5 */
-	derive_rmd160_key ("password", 8, "\x12\x34\x56\x78", 4, 2000, dk, 4);
-	if (memcmp (dk, "\xc5\x6b\x27\xdf", 4) != 0)
+	derive_rmd160_key ("password", 8, "\x12\x34\x56\x78", 4, 5, dk, 4);
+	if (memcmp (dk, "\x7a\x3d\x7c\x03", 4) != 0)
 		return FALSE;
 
 	return TRUE;

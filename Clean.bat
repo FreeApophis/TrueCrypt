@@ -22,10 +22,6 @@ cd ..\mount
 del *.aps *.tmp
 rd /s /q release debug
 
-cd ..\service
-del *.aps *.tmp
-rd /s /q release debug
-
 cd ..\setup
 del *.aps *.tmp
 rd /s /q release debug

@@ -66,7 +66,7 @@ extern "C"
 */
 
 #if defined(_MSC_VER)
-#pragma optimize( "s", on )
+//#pragma optimize( "s", on )
 #endif
 
 /* Given the column (c) of the output state variable, the following
@@ -187,7 +187,7 @@ aes_rval aes_encrypt(const unsigned char *in,
 */
 
 #if defined(_MSC_VER)
-#pragma optimize( "t", on )
+//#pragma optimize( "t", on )
 #endif
 
 /* Given the column (c) of the output state variable, the following

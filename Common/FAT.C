@@ -1,7 +1,7 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
    additions to that source code contained in this file are Copyright (c) 2004
-   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
 
@@ -79,7 +79,7 @@ GetFatParams (fatparams * ft)
 		ft->fat_length = (ft->cluster_count * 2 + SECTOR_SIZE + 1) /
 		    SECTOR_SIZE;
 	}
-	if(ft->cluster_count >= 65525) //FAT32
+	if(ft->cluster_count > 66038) // FAT32
 	{
 		ft->size_fat = 32;
 		fatsecs = ft->num_sectors - 32 - ft->cluster_size * SECTOR_SIZE;
@@ -241,19 +241,27 @@ PutFSInfo (unsigned char *sector)
 
 
 int
-FormatFat (fatparams * ft, char *header, HFILE dev, PCRYPTO_INFO cryptoInfo, int nFrequency, diskio_f write, BOOL quickFormat)
+FormatFat (unsigned __int64 startSector, fatparams * ft, HFILE dev, PCRYPTO_INFO cryptoInfo, int nFrequency, diskio_f write, BOOL quickFormat)
 {
 	int write_buf_cnt = 0;
 	char sector[SECTOR_SIZE], *write_buf;
 	int progress = 0;
-	unsigned __int64 nSecNo = 1;
+	unsigned __int64 nSecNo = startSector;
+	LARGE_INTEGER startOffset;
+	LARGE_INTEGER newOffset;
 	int x, n;
 
-	if ((*write) (dev, header, SECTOR_SIZE) == HFILE_ERROR)
-		return ERR_OS_ERROR;
+	// Seek to start sector
+	startOffset.QuadPart = startSector * SECTOR_SIZE;
+	if (SetFilePointerEx ((HANDLE) dev, startOffset, &newOffset, FILE_BEGIN) == 0
+		|| newOffset.QuadPart != newOffset.QuadPart)
+	{
+		return ERR_VOL_SEEKING;
+	}
+
+	/* Write the data area */
 
 	write_buf = TCalloc (WRITE_BUF_SIZE);
-
 	memset (sector, 0, sizeof (sector));
 
 	PutBoot (ft, (unsigned char *) sector);
@@ -271,7 +279,7 @@ FormatFat (fatparams * ft, char *header, HFILE dev, PCRYPTO_INFO cryptoInfo, int
 			goto fail;
 
 		/* reserved */
-		while (nSecNo<=6)
+		while (nSecNo - startSector < 6)
 		{
 			memset (sector, 0, sizeof (sector));
 			sector[508+3]=0xaa; /* TrailSig */
@@ -294,7 +302,7 @@ FormatFat (fatparams * ft, char *header, HFILE dev, PCRYPTO_INFO cryptoInfo, int
 			goto fail;
 
 		/* reserved */
-		while (nSecNo<=32)
+		while (nSecNo - startSector < 32)
 		{
 			memset (sector, 0, sizeof (sector));
 			if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo, &progress,
@@ -302,7 +310,6 @@ FormatFat (fatparams * ft, char *header, HFILE dev, PCRYPTO_INFO cryptoInfo, int
 				goto fail;
 		}
 	}
-
 
 	/* write fat */
 	for (x = 1; x <= ft->fats; x++)
@@ -360,17 +367,21 @@ FormatFat (fatparams * ft, char *header, HFILE dev, PCRYPTO_INFO cryptoInfo, int
 
 	}
 
-	/* write data area */
+	/* Fill the rest of the data area */
+
 	if(!quickFormat)
 	{
-		char key[MAX_CIPHER_KEY];
+		char key[DISKKEY_SIZE];
 
-		// Generate a random key and IV to randomize data area
-		// and support a possible hidden volume
-		RandgetBytes (key, MAX_CIPHER_KEY, FALSE); 
+		/* Generate a random key and IV to be used for "dummy" encryption that will fill the
+		   free disk space (data area) with random data. That will reduce the amount of
+		   predictable plaintext within the volume and also increase the level of plausible
+		   deniability of hidden volumes. */
+		RandgetBytes (key, DISKKEY_SIZE, FALSE); 
 		RandgetBytes (cryptoInfo->iv, sizeof cryptoInfo->iv, FALSE); 
-		init_cipher (cryptoInfo->cipher, key, cryptoInfo->ks);
-		ZeroMemory (sector, 512); 
+		EAInit (cryptoInfo->ea, key, cryptoInfo->ks);
+		RandgetBytes (sector, 256, FALSE); 
+		RandgetBytes (sector + 256, 256, FALSE); 
 
 		x = ft->num_sectors - (ft->size_fat==32 ? 32 : 1) - ft->size_root_dir / SECTOR_SIZE - ft->fat_length * 2;
 		while (x--)
@@ -390,7 +401,7 @@ FormatFat (fatparams * ft, char *header, HFILE dev, PCRYPTO_INFO cryptoInfo, int
 	TCfree (write_buf);
 	return 0;
 
-      fail:
+    fail:
 
 	TCfree (write_buf);
 	return ERR_OS_ERROR;

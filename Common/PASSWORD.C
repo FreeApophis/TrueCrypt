@@ -1,7 +1,7 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
    additions to that source code contained in this file are Copyright (c) 2004
-   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
 
@@ -16,6 +16,7 @@
 #include "dlgcode.h"
 #include "pkcs5.h"
 #include "endian.h"
+#include "resource.h"
 
 #include <io.h>
 
@@ -57,75 +58,116 @@ VerifyPasswordAndUpdate (HWND hwndDlg, HWND hButton, HWND hPassword,
 }
 
 int
-ChangePwd (char *lpszVolume, char *lpszOldPassword, char *lpszPassword, int pkcs5)
+ChangePwd (char *lpszVolume, char *lpszOldPassword, char *lpszPassword, int pkcs5, HWND hwndDlg)
 {
 	int nDosLinkCreated = 0, nStatus;
 	char szDiskFile[TC_MAX_PATH], szCFDevice[TC_MAX_PATH];
 	char szDosDevice[TC_MAX_PATH];
-	char buffer[SECTOR_SIZE], boot[SECTOR_SIZE];
+	char buffer[HEADER_SIZE], bufferHiddenVolume[HEADER_SIZE];
 	PCRYPTO_INFO cryptoInfo = NULL, ci = NULL;
 	void *dev = INVALID_HANDLE_VALUE;
 	OPEN_TEST_STRUCT driver;
-	DISKIO_STRUCT win9x_r0;
 	diskio_f write, read;
 	DWORD dwError;
 	BOOL bDevice;
+	unsigned __int64 volSize = 0;
+	FILETIME ftCreationTime;
+	FILETIME ftLastWriteTime;
+	FILETIME ftLastAccessTime;
+	BOOL bTimeStampValid = FALSE;
 	
 	if (Randinit ()) return 1;
 
 	CreateFullVolumePath (szDiskFile, lpszVolume, &bDevice);
 
-	if (nCurrentOS == WIN_NT || bDevice == FALSE)
+	write = (diskio_f) _lwrite;
+	read = (diskio_f) _lread;
+
+	if (bDevice == FALSE)
 	{
-		write = (diskio_f) _lwrite;
-		read = (diskio_f) _lread;
-
-		if (bDevice == FALSE)
-		{
-			strcpy (szCFDevice, szDiskFile);
-		}
-		else
-		{
-			nDosLinkCreated = FakeDosNameForDevice (szDiskFile, szDosDevice, szCFDevice, FALSE);
-			if (nDosLinkCreated != 0)
-			{
-				return nDosLinkCreated;
-			}
-		}
-
-		dev = CreateFile (szCFDevice, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+		strcpy (szCFDevice, szDiskFile);
 	}
 	else
 	{
-		write = (diskio_f) win9x_io;
-		read = (diskio_f) win9x_io;
+		nDosLinkCreated = FakeDosNameForDevice (szDiskFile, szDosDevice, szCFDevice, FALSE);
+		if (nDosLinkCreated != 0)
+		{
+			return nDosLinkCreated;
+		}
+	}
 
-		if (OpenDevice (lpszVolume, &driver) == FALSE)
+	dev = CreateFile (szCFDevice, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+
+	if (bDevice == TRUE)
+	{
+		/* necessary to determine the hidden volume header offset */
+
+		if (dev == INVALID_HANDLE_VALUE)
 		{
 			return ERR_OS_ERROR;
 		}
-		else if (driver.secstart == driver.seclast)
+		else
 		{
-			return ERR_ACCESS_DENIED;
+			DISK_GEOMETRY driveInfo;
+			DWORD dwResult;
+			int nStatus;
+			BOOL bResult;
+
+			bResult = DeviceIoControl (dev, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0,
+				&driveInfo, sizeof (driveInfo), &dwResult, NULL);
+
+			if (driveInfo.MediaType == FixedMedia)
+			{
+				PARTITION_INFORMATION diskInfo;
+
+				bResult = DeviceIoControl (dev, IOCTL_DISK_GET_PARTITION_INFO, NULL, 0,
+					&diskInfo, sizeof (diskInfo), &dwResult, NULL);
+
+				if (bResult == TRUE)
+				{
+					volSize = diskInfo.PartitionLength.QuadPart;
+
+					if (volSize == 0)
+					{
+						CloseHandle (dev);
+						return ERR_VOL_SIZE_WRONG;
+					}
+				}
+				else
+				{
+					CloseHandle (dev);
+					return ERR_OS_ERROR;
+				}
+			}
+			else
+			{
+				volSize = driveInfo.Cylinders.QuadPart * driveInfo.BytesPerSector *
+					driveInfo.SectorsPerTrack * driveInfo.TracksPerCylinder;
+			}
 		}
-
-		win9x_r0.devicenum = driver.device;
-		win9x_r0.sectorstart = driver.secstart;
-
-		dev = &win9x_r0;
 	}
 
-	if (dev == INVALID_HANDLE_VALUE)
-	{
-		return ERR_OS_ERROR;
-	}
-
+	if (dev == INVALID_HANDLE_VALUE) return ERR_OS_ERROR;
 
 	WaitCursor ();
 
-	win9x_r0.mode = 0;
+	if (!bDevice)
+	{
+		/* Remember the container modification/creation date and time, (used to reset file date and time of
+		file-hosted containers after password change (or attempt to), in order preserve plausible deniability
+		of hidden volumes (last password change time is stored in the volume header). */
 
-	/* Read in volume */
+		if (GetFileTime ((HANDLE) dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
+		{
+			bTimeStampValid = FALSE;
+			MessageBox (hwndDlg, getstr (IDS_GETFILETIME_FAILED_PW), "TrueCrypt", MB_OK | MB_ICONEXCLAMATION);
+		}
+		else
+			bTimeStampValid = TRUE;
+	}
+
+	/* Read in volume header */
+
 	nStatus = (*read) ((HFILE) dev, buffer, sizeof (buffer));
 	if (nStatus != sizeof (buffer))
 	{
@@ -133,10 +175,23 @@ ChangePwd (char *lpszVolume, char *lpszOldPassword, char *lpszPassword, int pkcs
 		goto error;
 	}
 
-	memcpy (boot, buffer, SECTOR_SIZE);
 
-	/* Parse header */
-	nStatus = VolumeReadHeader (buffer, lpszOldPassword, &cryptoInfo);
+	/* Read in possible hidden volume header */
+
+	if (!SeekHiddenVolHeader ((HFILE) dev, volSize, bDevice))
+		return ERR_VOL_SEEKING;
+
+	nStatus = (*read) ((HFILE) dev, bufferHiddenVolume, sizeof (bufferHiddenVolume));
+	if (nStatus != sizeof (bufferHiddenVolume))
+	{
+		nStatus = ERR_VOL_SIZE_WRONG;
+		goto error;
+	}
+
+
+	/* Try to decrypt either of the headers */
+
+	nStatus = VolumeReadHeader (buffer, bufferHiddenVolume, lpszOldPassword, &cryptoInfo);
 	if (nStatus != 0)
 	{
 		cryptoInfo = NULL;
@@ -145,7 +200,12 @@ ChangePwd (char *lpszVolume, char *lpszOldPassword, char *lpszPassword, int pkcs
 
 	/* Change password now */ 
 
-	if (dev != &win9x_r0)
+	if (cryptoInfo->hiddenVolume)
+	{
+		if (!SeekHiddenVolHeader ((HFILE) dev, volSize, bDevice))
+			return ERR_VOL_SEEKING;
+	}
+	else
 	{
 		nStatus = _llseek ((HFILE) dev, 0, FILE_BEGIN);
 
@@ -156,55 +216,61 @@ ChangePwd (char *lpszVolume, char *lpszOldPassword, char *lpszPassword, int pkcs
 		}
 	}
 
-	win9x_r0.mode = 1;
-	win9x_r0.sectorstart -= 1;
-
+	// Change PRF if requested by user
 	if (pkcs5 != 0)
 		cryptoInfo->pkcs5 = pkcs5;
 
-	VolumeWriteHeader (boot,
-		cryptoInfo->cipher,
+	VolumeWriteHeader (cryptoInfo->hiddenVolume ? buffer : bufferHiddenVolume,
+		cryptoInfo->ea,
 		lpszPassword,
 		cryptoInfo->pkcs5,
 		cryptoInfo->master_decrypted_key,
 		cryptoInfo->volume_creation_time,
-		&ci);
+		&ci,
+		cryptoInfo->hiddenVolume ? cryptoInfo->hiddenVolumeSize : 0);
 
 	crypto_close (ci);
 
 	/* Write out new encrypted key + key check */
-	nStatus = (*write) ((HFILE) dev, boot, SECTOR_SIZE);
 
-	if (nStatus != SECTOR_SIZE)
+	nStatus = (*write) ((HFILE) dev, cryptoInfo->hiddenVolume ? buffer : bufferHiddenVolume, HEADER_SIZE);
+
+	if (nStatus != HEADER_SIZE)
 	{
 		nStatus = ERR_VOL_WRITING;
 		goto error;
 	}
 
 	/* That's it done... */
+
 	nStatus = 0;
 
       error:
 
 	burn (buffer, sizeof (buffer));
+	burn (bufferHiddenVolume, sizeof (bufferHiddenVolume));
 
 	if (cryptoInfo != NULL)
 		crypto_close (cryptoInfo);
 
 	dwError = GetLastError ();
 
-	if (dev != &win9x_r0)
+	if (bTimeStampValid)
 	{
-		CloseHandle ((HANDLE) dev);
+		// Restore the container timestamp (to preserve plausible deniability of possible hidden volume). 
+		if (SetFileTime (dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
+			MessageBox (hwndDlg, getstr (IDS_SETFILETIME_FAILED_PW), "TrueCrypt", MB_OK | MB_ICONEXCLAMATION);
+	}
 
-		if (bDevice == TRUE && nDosLinkCreated != 0)
+	CloseHandle ((HANDLE) dev);
+
+	if (bDevice == TRUE && nDosLinkCreated != 0)
+	{
+		int x = RemoveFakeDosName (szDiskFile, szDosDevice);
+		if (x != 0)
 		{
-			int x = RemoveFakeDosName (szDiskFile, szDosDevice);
-			if (x != 0)
-			{
-				dwError = GetLastError ();
-				nStatus = x;
-			}
+			dwError = GetLastError ();
+			nStatus = x;
 		}
 	}
 
@@ -214,3 +280,4 @@ ChangePwd (char *lpszVolume, char *lpszOldPassword, char *lpszPassword, int pkcs
 
 	return nStatus;
 }
+

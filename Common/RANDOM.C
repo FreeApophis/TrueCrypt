@@ -1,7 +1,7 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
    additions to that source code contained in this file are Copyright (c) 2004
-   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
 
@@ -61,6 +61,10 @@ BOOL bDidSlowPoll = FALSE;	/* We do the slow poll only once */
 /* Network library handle for the slowPollWinNT function */
 HANDLE hNetAPI32 = NULL;
 
+// CryptoAPI
+HCRYPTPROV hCryptProv;
+unsigned __int8 buffer[POOLSIZE];
+
 BOOL bRandDidInit = FALSE;
 
 /* Init the random number generator, setup the hooks, and start the thread */
@@ -83,10 +87,21 @@ Randinit ()
 
 	VirtualLock (pRandPool, RANDOMPOOL_ALLOCSIZE);
 
-	hMouse = SetWindowsHookEx (WH_MOUSE, (HOOKPROC)&MouseProc, NULL, GetCurrentThreadId ());
 	hKeyboard = SetWindowsHookEx (WH_KEYBOARD, (HOOKPROC)&KeyboardProc, NULL, GetCurrentThreadId ());
-	if (hMouse == 0 || hKeyboard == 0)
+	if (hKeyboard == 0) handleWin32Error (0);
+
+	hMouse = SetWindowsHookEx (WH_MOUSE, (HOOKPROC)&MouseProc, NULL, GetCurrentThreadId ());
+	if (hMouse == 0)
+	{
+		handleWin32Error (0);
 		goto error;
+	}
+
+	if (!CryptAcquireContext (&hCryptProv, NULL, NULL, PROV_RSA_FULL, 0)
+		&& !CryptAcquireContext (&hCryptProv, NULL, NULL, PROV_RSA_FULL, CRYPT_NEWKEYSET))
+	{
+		handleWin32Error (0);
+	}
 
 	threadID = (HANDLE) _beginthread (ThreadSafeThreadFunction, 8192, NULL);
 	if (threadID == (HANDLE) - 1)
@@ -94,7 +109,7 @@ Randinit ()
 
 	return 0;
 
-      error:
+error:
 	Randfree ();
 	return 1;
 }
@@ -141,6 +156,12 @@ Randfree ()
 	{
 		FreeLibrary (hNetAPI32);
 		hNetAPI32 = NULL;
+	}
+
+	if (hCryptProv)
+	{
+		CryptReleaseContext (hCryptProv, 0);
+		hCryptProv = 0;
 	}
 
 	hMouse = NULL;
@@ -194,7 +215,7 @@ RandaddBuf (void *buf, int len)
 }
 
 void
-RandpeekBytes (char *buf, int len)
+RandpeekBytes (unsigned char *buf, int len)
 {
 	EnterCriticalSection (&critRandProt);
 	memcpy (buf, pRandPool, len);
@@ -203,7 +224,7 @@ RandpeekBytes (char *buf, int len)
 
 /* Get a certain amount of true random bytes from the pool */
 void
-RandgetBytes (char *buf, int len, BOOL forceSlowPoll)
+RandgetBytes (unsigned char *buf, int len, BOOL forceSlowPoll)
 {
 	int i;
 
@@ -229,14 +250,6 @@ RandgetBytes (char *buf, int len, BOOL forceSlowPoll)
 		if (randPoolReadIndex == POOLSIZE) randPoolReadIndex = 0;
 	}
 
-	FastPoll ();
-
-	for (i = 0; i < len; i++)
-	{
-		buf[i] ^= pRandPool[randPoolReadIndex++];
-		if (randPoolReadIndex == POOLSIZE) randPoolReadIndex = 0;
-	}
-
 	/* Now invert the pool */
 	for (i = 0; i < POOLSIZE / 4; i++)
 	{
@@ -244,7 +257,13 @@ RandgetBytes (char *buf, int len, BOOL forceSlowPoll)
 	}
 
 	/* Now remix the pool, creating the new pool */
-	Randmix ();
+	FastPoll ();
+
+	for (i = 0; i < len; i++)
+	{
+		buf[i] ^= pRandPool[randPoolReadIndex++];
+		if (randPoolReadIndex == POOLSIZE) randPoolReadIndex = 0;
+	}
 
 	LeaveCriticalSection (&critRandProt);
 }
@@ -406,7 +425,7 @@ SlowPollWinNT (void)
 	LPBYTE lpBuffer;
 	DWORD dwSize, status;
 	LPWSTR lpszLanW, lpszLanS;
-	int nDrive;
+	int i, nDrive;
 
 	/* Find out whether this is an NT server or workstation if necessary */
 	if (isWorkstation == -1)
@@ -507,27 +526,11 @@ SlowPollWinNT (void)
 		CloseHandle (hDevice);
 	}
 
-	/* Get the performance counters */
-	pPerfData = (PPERF_DATA_BLOCK) TCalloc (cbPerfData);
-	while (pPerfData)
+	// CryptoAPI
+	for (i = 0; i < 100; i++)
 	{
-		dwSize = cbPerfData;
-		status = RegQueryValueEx (HKEY_PERFORMANCE_DATA, "Global", NULL,
-					  NULL, (LPBYTE) pPerfData, &dwSize);
-
-		if (status == ERROR_SUCCESS)
-		{
-			RegCloseKey (HKEY_PERFORMANCE_DATA);
-			if (memcmp (pPerfData->Signature, WIDE ("PERF"), 8) == 0)
-				RandaddBuf (pPerfData, dwSize);
-			TCfree (pPerfData);
-			pPerfData = NULL;
-		}
-		else if (status == ERROR_MORE_DATA)
-		{
-			cbPerfData += 4096;
-			pPerfData = (PPERF_DATA_BLOCK) realloc (pPerfData, cbPerfData);
-		}
+		if (CryptGenRandom(hCryptProv, sizeof (buffer), buffer)) 
+			RandaddBuf (buffer, sizeof (buffer));
 	}
 }
 
@@ -774,4 +777,8 @@ FastPoll (void)
 		DWORD dwTicks = GetTickCount ();
 		RandaddBuf ((unsigned char *) &dwTicks, sizeof (dwTicks));
 	}
+
+	// CryptoAPI
+	if (CryptGenRandom(hCryptProv, sizeof (buffer), buffer)) 
+		RandaddBuf (buffer, sizeof (buffer));
 }

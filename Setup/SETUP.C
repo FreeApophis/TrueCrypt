@@ -1,7 +1,7 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
    additions to that source code contained in this file are Copyright (c) 2004
-   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
 
@@ -290,7 +290,7 @@ DoFilesInstall (HWND hwndDlg, char *szDestDir, BOOL bUninstallSupport)
 	{
 		"ATrueCrypt.exe", "ATrueCrypt Format.exe",
 		"Alicense.txt", "ATrueCrypt User Guide.pdf",
-		"WTrueCrypt Setup.exe", "STrueCryptService.exe", "Dtruecrypt.sys",
+		"WTrueCrypt Setup.exe", "Dtruecrypt.sys"
 	};
 
 	char szTmp[TC_MAX_PATH];
@@ -401,10 +401,10 @@ DoFilesInstall (HWND hwndDlg, char *szDestDir, BOOL bUninstallSupport)
 
 
 			if (bUninstall == FALSE)
-				sprintf (szTmp2, "The installation of '%s' has failed. %s Do you want to continue with the Install?",
+				sprintf (szTmp2, "Installation of '%s' has failed.\n%s\nDo you want to continue installing?",
 					 szTmp, lpMsgBuf);
 			else
-				sprintf (szTmp2, "The uninstallation of '%s' has failed. %s Do you want to continue with the Uninstall?",
+				sprintf (szTmp2, "Uninstallation of '%s' has failed.\n%s\nDo you want to continue uninstalling?",
 					 szTmp, lpMsgBuf);
 
 			LocalFree (lpMsgBuf);
@@ -752,7 +752,7 @@ DoDriverUnload (HWND hwndDlg)
 			if (driver.ulMountedDrives != 0)
 			{
 				bOK = FALSE;
-				MessageBox (hwndDlg, "Volumes are still mounted; all volumes must be dismounted before installation can continue.", lpszTitle, MB_ICONHAND);
+				MessageBox (hwndDlg, "Volumes are still mounted! All volumes must be dismounted before installation can continue.", lpszTitle, MB_ICONHAND);
 			}
 		}
 		else
@@ -769,30 +769,6 @@ DoDriverUnload (HWND hwndDlg)
 	return bOK;
 }
 
-BOOL
-DoServiceInstall (HWND hwndDlg)
-{
-	BOOL bOK = FALSE;
-
-	if (nCurrentOS != WIN_NT)
-		return TRUE;
-
-	ServiceMessage (hwndDlg, "installing TrueCryptService");
-	ServiceMessage (hwndDlg, "starting TrueCryptService");
-
-	if (CheckService ()== FALSE)
-		goto error;
-
-	bOK = TRUE;
-
-      error:
-	if (bOK == FALSE)
-	{
-		MessageBox ((HWND) hwndDlg, "The installation of the service has failed", lpszTitle, MB_ICONHAND);
-	}
-
-	return bOK;
-}
 
 BOOL
 DoDriverInstall (HWND hwndDlg)
@@ -1284,10 +1260,6 @@ DoInstall (void *hwndDlg)
 	{
 		bOK = FALSE;
 	}
-	else if (DoServiceInstall (hwndDlg) == FALSE)
-	{
-		bOK = FALSE;
-	}
 	else if (DoShortcutsInstall (hwndDlg, dlg_file_name,
 				     IsButtonChecked (GetDlgItem ((HWND) hwndDlg, IDC_PROG_GROUP)),
 					 IsButtonChecked (GetDlgItem ((HWND) hwndDlg, IDC_DESKTOP_ICON))) == FALSE)
@@ -1308,61 +1280,6 @@ DoInstall (void *hwndDlg)
 	RebootPrompt (hwndDlg, bOK);
 }
 
-BOOL
-IsAdmin (void)
-{
-	HANDLE hAccessToken;
-	UCHAR InfoBuffer[1024];
-	PTOKEN_GROUPS ptgGroups = (PTOKEN_GROUPS) InfoBuffer;
-	DWORD dwInfoBufferSize;
-	PSID psidAdministrators;
-	SID_IDENTIFIER_AUTHORITY siaNtAuthority = SECURITY_NT_AUTHORITY;
-	BOOL bSuccess;
-	UINT x;
-
-	if (!OpenThreadToken (GetCurrentThread (), TOKEN_QUERY, TRUE,
-			      &hAccessToken))
-	{
-		if (GetLastError ()!= ERROR_NO_TOKEN)
-			return FALSE;
-
-		/* Retry against process token if no thread token exists */
-		if (!OpenProcessToken (GetCurrentProcess (), TOKEN_QUERY,
-				       &hAccessToken))
-			return FALSE;
-	}
-
-	bSuccess = GetTokenInformation (hAccessToken, TokenGroups, InfoBuffer,
-					1024, &dwInfoBufferSize);
-
-	CloseHandle (hAccessToken);
-
-	if (!bSuccess)
-		return FALSE;
-
-	if (!AllocateAndInitializeSid (&siaNtAuthority, 2,
-				       SECURITY_BUILTIN_DOMAIN_RID,
-				       DOMAIN_ALIAS_RID_ADMINS,
-				       0, 0, 0, 0, 0, 0,
-				       &psidAdministrators))
-		return FALSE;
-
-	/* Assume that we don't find the admin SID. */
-	bSuccess = FALSE;
-
-	for (x = 0; x < ptgGroups->GroupCount; x++)
-	{
-		if (EqualSid (psidAdministrators, ptgGroups->Groups[x].Sid))
-		{
-			bSuccess = TRUE;
-			break;
-		}
-
-	}
-
-	FreeSid (psidAdministrators);
-	return bSuccess;
-}
 
 BOOL WINAPI
 InstallDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -1525,7 +1442,7 @@ WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine,
 	}
 
 	if (nCurrentOS == WIN_NT && IsAdmin ()!= TRUE)
-		if (MessageBox (NULL, "To successfully install/uninstall TrueCrypt under Windows NT you must be running as an Administrator, "
+		if (MessageBox (NULL, "To successfully install/uninstall TrueCrypt you must have Administrator rights, "
 				"do you still want to continue?", lpszTitle, MB_YESNO | MB_ICONQUESTION) != IDYES)
 			return 0;
 

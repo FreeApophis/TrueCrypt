@@ -19,13 +19,11 @@ BOOL DoRegInstall ( HWND hwndDlg , char *szDestDir , BOOL bInstallType , BOOL bU
 BOOL DoRegUninstall ( HWND hwndDlg );
 BOOL DoServiceUninstall ( HWND hwndDlg , char *lpszService );
 BOOL DoDriverUnload ( HWND hwndDlg );
-BOOL DoServiceInstall ( HWND hwndDlg );
 BOOL DoDriverInstall ( HWND hwndDlg );
 BOOL DoShortcutsInstall ( HWND hwndDlg , char *szDestDir , BOOL bProgGroup, BOOL bDesktopIcon );
 BOOL DoShortcutsUninstall (HWND hwndDlg, char *szDestDir);
 void RebootPrompt ( HWND hwndDlg , BOOL bOK );
 void DoUninstall ( void *hwndDlg );
 void DoInstall ( void *hwndDlg );
-BOOL IsAdmin ( void );
 BOOL WINAPI InstallDlgProc ( HWND hwndDlg , UINT msg , WPARAM wParam , LPARAM lParam );
 int WINAPI WINMAIN ( HINSTANCE hInstance , HINSTANCE hPrevInstance , char *lpszCommandLine , int nCmdShow );

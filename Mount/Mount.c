@@ -1,37 +1,37 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
    additions to that source code contained in this file are Copyright (c) 2004
-   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
 
 #include "TCdefs.h"
-
+#include <time.h>
+#include <dbt.h>
 #include "crypto.h"
 #include "apidrvr.h"
 #include "dlgcode.h"
 #include "combo.h"
 #include "registry.h"
-#include "../common/resource.h"
-
 #include "resource.h"
 #include "cmdline.h"
 #include "Mount.h"
-
-#include "dismount.h"
-
 #include "Password.h"
-#include <time.h>
+#include "../common/resource.h"
 
 BOOL bExplore = FALSE;				/* Display explorer window after mount */
 BOOL bBeep = FALSE;					/* Donot beep after mount */
 char szFileName[TC_MAX_PATH];		/* Volume to mount */
 char szDriveLetter[3];				/* Drive Letter to mount */
+char commandLineDrive = 0;
 BOOL bCacheInDriver = FALSE;		/* Cache any passwords we see */
 BOOL bHistory = FALSE;				/* Don't save history */
 BOOL bHistoryCmdLine = FALSE;		/* History control is always disabled */
 BOOL bCloseDismountedWindows=TRUE;	/* Close all open explorer windows of dismounted volume */
 BOOL bWipeCacheOnExit = FALSE;		/* Wipe password from chace on exit */
+
+BOOL bForceMount = FALSE;			/* Mount volume even if host file/device already in use */
+BOOL bForceUnmount = FALSE;			/* Unmount volume even if it cannot be locked */
 
 BOOL bWipe = FALSE;					/* Wipe driver passwords */
 BOOL bAuto = FALSE;					/* Do everything without user input */
@@ -39,12 +39,13 @@ BOOL bAuto = FALSE;					/* Do everything without user input */
 BOOL bQuiet = FALSE;				/* No dialogs/messages */
 
 char commandLinePassword[MAX_PASSWORD + 1] = {0};	/* Password passed from command line */
+int cmdUnmountDrive = 0;			/* Volume drive letter to unmount (-1 = all) */
 
 #define VMOUNTED 1
 #define VFREE	0
 
 int nCurrentShowType = 0;			/* current display mode, mount, unmount etc */
-int nSelectedDriveIndex = 0;		/* Item number of selected drive */
+int nSelectedDriveIndex = -1;		/* Item number of selected drive */
 
 void
 localcleanup (void)
@@ -162,8 +163,9 @@ LoadSettings (HWND hwndDlg)
 	bHistory =					ReadRegistryInt ("SaveMountedVolumesHistory", FALSE);
 	bWipeCacheOnExit =			ReadRegistryInt ("WipePasswordCacheOnExit", FALSE);
 
-	// Drive Letter
-	ReadRegistryString ("LastSelectedDrive", "", szDriveLetter, sizeof (szDriveLetter));
+	// Drive letter - command line arg overrides registry
+	if (szDriveLetter[0] == 0)
+		ReadRegistryString ("LastSelectedDrive", "", szDriveLetter, sizeof (szDriveLetter));
 
 	// History
 	if (bHistoryCmdLine != TRUE)
@@ -317,9 +319,19 @@ LoadDriveLetters (HWND hTree, int drive)
 			listItem.pszText = szTmp;
 
 			listItem.iSubItem = 1;
-			ListView_SetItem(hTree, &listItem);
+			ListView_SetItem (hTree, &listItem);
 
-			if(driver.diskLength[i] > 1024I64*1024*1024)
+			if(driver.diskLength[i] > 1024I64*1024*1024*1024*1024*99)
+				sprintf (szTmp,"%I64d PB",driver.diskLength[i]/1024/1024/1024/1024/1024);
+			if(driver.diskLength[i] > 1024I64*1024*1024*1024*1024)
+				sprintf (szTmp,"%.1f PB",(double)(driver.diskLength[i]/1024.0/1024/1024/1024/1024));
+			else if(driver.diskLength[i] > 1024I64*1024*1024*1024*99)
+				sprintf (szTmp,"%I64d TB",driver.diskLength[i]/1024/1024/1024/1024);
+			else if(driver.diskLength[i] > 1024I64*1024*1024*1024)
+				sprintf (szTmp,"%.1f TB",(double)(driver.diskLength[i]/1024.0/1024/1024/1024));
+			else if(driver.diskLength[i] > 1024I64*1024*1024*99)
+				sprintf (szTmp,"%I64d GB",driver.diskLength[i]/1024/1024/1024);
+			else if(driver.diskLength[i] > 1024I64*1024*1024)
 				sprintf (szTmp,"%.1f GB",(double)(driver.diskLength[i]/1024.0/1024/1024));
 			else if(driver.diskLength[i] > 1024I64*1024)
 				sprintf (szTmp, "%I64d MB", driver.diskLength[i]/1024/1024);
@@ -329,12 +341,18 @@ LoadDriveLetters (HWND hTree, int drive)
 				szTmp[0] = 0;
 
 			listItem.iSubItem = 2;
-			ListView_SetItem(hTree, &listItem);
+			ListView_SetItem (hTree, &listItem);
 
-			sprintf (szTmp, "%s", get_cipher_name (driver.cipher[i]));
+			EAGetName (szTmp, driver.ea[i]);
 			listItem.iSubItem = 3;
-			ListView_SetItem(hTree, &listItem);
+			ListView_SetItem (hTree, &listItem);
 
+			if (driver.hiddenVol[i] == FALSE)
+				sprintf (szTmp, "Normal");
+			else
+				sprintf (szTmp, "Hidden");
+			listItem.iSubItem = 4;
+			ListView_SetItem (hTree, &listItem);
 		}
 		else
 		{
@@ -362,11 +380,13 @@ LoadDriveLetters (HWND hTree, int drive)
 				listItem.mask=LVIF_TEXT;   
 				listItem.pszText = "";
 				listItem.iSubItem = 1;
-				ListView_SetItem(hTree, &listItem);
+				ListView_SetItem (hTree, &listItem);
 				listItem.iSubItem = 2;
-				ListView_SetItem(hTree, &listItem);
+				ListView_SetItem (hTree, &listItem);
 				listItem.iSubItem = 3;
-				ListView_SetItem(hTree, &listItem);
+				ListView_SetItem (hTree, &listItem);
+				listItem.iSubItem = 4;
+				ListView_SetItem (hTree, &listItem);
 
 			}
 		}
@@ -396,10 +416,10 @@ PasswordChangeDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			HWND hComboBox = GetDlgItem (hwndDlg, IDC_HASH_CHANGE);
 			int i;
 
-			nID[0] = IDS_PASSWORD_HELP0;
-			nID[1] = IDS_PASSWORD_HELP1;
-			nID[2] = IDS_PASSWORD_HELP2;
-			nID[3] = IDS_PASSWORD_HELP3;
+			nID[0] = IDS_PASSWORD_HELP1;
+			nID[1] = IDS_PASSWORD_HELP2;
+			nID[2] = IDS_PASSWORD_HELP3;
+			nID[3] = IDS_PASSWORD_HELP0;
 
 			SetDefaultUserFont (hwndDlg);
 
@@ -421,6 +441,8 @@ PasswordChangeDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			}
 
 			SendMessage (hComboBox, CB_SETCURSEL, 0, 0);
+
+			CheckCapsLock (hwndDlg, FALSE);
 
 			return 1;
 		}
@@ -455,13 +477,16 @@ PasswordChangeDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			int pkcs5 = SendMessage (GetDlgItem (hwndDlg, IDC_HASH_CHANGE), CB_GETITEMDATA, 
 					SendMessage (GetDlgItem (hwndDlg, IDC_HASH_CHANGE), CB_GETCURSEL, 0, 0), 0);
 
+			if (!CheckPasswordLength (hwndDlg, GetDlgItem (hwndDlg, IDC_PASSWORD)))
+				return 0;
+
 			GetWindowText (GetDlgItem (hParent, IDC_VOLUME), szFileName, sizeof (szFileName));
 
 			GetWindowText (GetDlgItem (hwndDlg, IDC_OLD_PASSWORD), szOldPassword, sizeof (szOldPassword));
 
 			GetWindowText (GetDlgItem (hwndDlg, IDC_PASSWORD), szPassword, sizeof (szPassword));
 
-			nStatus = ChangePwd (szFileName, szOldPassword, szPassword, pkcs5);
+			nStatus = ChangePwd (szFileName, szOldPassword, szPassword, pkcs5, hwndDlg);
 
 			burn (szOldPassword, sizeof (szOldPassword));
 			burn (szPassword, sizeof (szPassword));
@@ -617,12 +642,12 @@ VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			memset (&lvCol,0,sizeof(lvCol));               
 			lvCol.mask = LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM|LVCF_FMT;  
 			lvCol.pszText = "Value";                           
-			lvCol.cx = 220;
+			lvCol.cx = 213;
 			lvCol.fmt = LVCFMT_LEFT ;
 			SendMessage (list,LVM_INSERTCOLUMN,0,(LPARAM)&lvCol);
 
 			lvCol.pszText = "Property";  
-			lvCol.cx = 100;           
+			lvCol.cx = 107;           
 			lvCol.fmt = LVCFMT_LEFT;
 			SendMessage (list,LVM_INSERTCOLUMN,0,(LPARAM)&lvCol);
 	
@@ -642,7 +667,7 @@ VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			listItem.pszText = "Volume Location";
 			listItem.iItem++; 
 			listItem.iSubItem = 0;
-			ListView_InsertItem(list, &listItem);
+			ListView_InsertItem (list, &listItem);
 			listItem.iSubItem++;
 			listItem.pszText = (LPSTR)prop.wszVolume;
 			if (nCurrentOS == WIN_NT)
@@ -651,38 +676,77 @@ VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 				if (prop.wszVolume[0] == '?\\')
 				listItem.pszText = (LPSTR)prop.wszVolume + 4;
 			}
-			ListView_SetItem(list, &listItem);
+			ListView_SetItem (list, &listItem);
 
 			listItem.pszText = "Volume Size";
 			listItem.iItem++;  
 			listItem.iSubItem = 0;
-			ListView_InsertItem(list, &listItem);
+			ListView_InsertItem (list, &listItem);
 			listItem.iSubItem++;
-			sprintf (szTmp, "%I64d bytes", prop.diskLength);
+			sprintf (szTmp, "%I64u bytes", prop.diskLength);
 			listItem.pszText = szTmp;
 			ListView_SetItem (list, &listItem);
 
-			listItem.pszText = "Cipher";
+			listItem.pszText = "Encryption Algorithm";
 			listItem.iItem++; 
 			listItem.iSubItem = 0;
-			ListView_InsertItem(list, &listItem);
+			ListView_InsertItem (list, &listItem);
 			listItem.iSubItem++;
-			listItem.pszText = get_cipher_name (prop.cipher);
+			EAGetName (szTmp, prop.ea);
+			listItem.pszText = szTmp;
 			ListView_SetItem (list, &listItem);
 
 			listItem.pszText = "Key Size";
 			listItem.iItem++;  
 			listItem.iSubItem = 0;
-			ListView_InsertItem(list, &listItem);
+			ListView_InsertItem (list, &listItem);
 			listItem.iSubItem++;
-			sprintf (szTmp, "%d bits", get_key_size (prop.cipher)*8);
+			sprintf (szTmp, "%d bits", EAGetKeySize (prop.ea)*8);
+			listItem.pszText = szTmp;
+			ListView_SetItem (list, &listItem);
+
+			listItem.pszText = "Block Size";
+			listItem.iItem++;  
+			listItem.iSubItem = 0;
+			ListView_InsertItem (list, &listItem);
+			listItem.iSubItem++;
+
+			if (EAGetMode (prop.ea) == INNER_CBC)
+			{
+				// Cascaded ciphers with non-equal block sizes
+				char tmpstr[20];
+				int i = EAGetLastCipher(prop.ea);
+
+				sprintf (tmpstr, "%d", CipherGetBlockSize(i)*8);
+				strcpy (szTmp, tmpstr);
+				
+				while (i = EAGetPreviousCipher(prop.ea, i))
+				{
+					sprintf (tmpstr, "/%d", CipherGetBlockSize(i)*8);
+					strcat (szTmp, tmpstr);
+				}
+				strcat (szTmp, " bits");
+			}
+			else
+			{
+				sprintf (szTmp, "%d bits", CipherGetBlockSize (EAGetFirstCipher(prop.ea))*8);
+			}
+			listItem.pszText = szTmp;
+			ListView_SetItem (list, &listItem);
+
+			listItem.pszText = "Mode";
+			listItem.iItem++; 
+			listItem.iSubItem = 0;
+			ListView_InsertItem (list, &listItem);
+			listItem.iSubItem++;
+			EAGetModeName (szTmp, prop.ea, TRUE);
 			listItem.pszText = szTmp;
 			ListView_SetItem (list, &listItem);
 
 			listItem.pszText = "PKCS5 PRF";
 			listItem.iItem++; 
 			listItem.iSubItem = 0;
-			ListView_InsertItem(list, &listItem);
+			ListView_InsertItem (list, &listItem);
 			listItem.iSubItem++;
 			listItem.pszText = get_hash_name (prop.pkcs5);
 			ListView_SetItem (list, &listItem);
@@ -690,7 +754,7 @@ VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			listItem.pszText = "PKCS5 Iterations";
 			listItem.iItem++;  
 			listItem.iSubItem = 0;
-			ListView_InsertItem(list, &listItem);
+			ListView_InsertItem (list, &listItem);
 			listItem.iSubItem++;
 			sprintf (szTmp, "%d", prop.pkcs5Iterations);
 			listItem.pszText = szTmp;
@@ -738,6 +802,18 @@ VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 				ListView_SetItem (list, &listItem);
 			}
 
+			listItem.pszText = "Volume Type";
+			listItem.iItem++;  
+			listItem.iSubItem = 0;
+			ListView_InsertItem (list, &listItem);
+			listItem.iSubItem++;
+			if (prop.hiddenVolume == TRUE)
+				sprintf (szTmp, "Hidden");
+			else
+				sprintf (szTmp, "Normal");
+			listItem.pszText = szTmp;
+			ListView_SetItem (list, &listItem);
+
 			return 1;
 		}
 
@@ -777,24 +853,29 @@ BuildTree (HWND hTree)
 
 	lvCol.mask = LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM|LVCF_FMT;  
 	lvCol.pszText="Drive";                           
-	lvCol.cx=40;
+	lvCol.cx=37;
 	lvCol.fmt = LVCFMT_COL_HAS_IMAGES|LVCFMT_LEFT ;
 	SendMessage (hTree,LVM_INSERTCOLUMN,0,(LPARAM)&lvCol);
 
 	lvCol.pszText="Volume";  
-	lvCol.cx=290;           
+	lvCol.cx=263;           
 	lvCol.fmt = LVCFMT_LEFT;
 	SendMessage (hTree,LVM_INSERTCOLUMN,1,(LPARAM)&lvCol);
 
 	lvCol.pszText="Size";  
-	lvCol.cx=80;
+	lvCol.cx=55;
 	lvCol.fmt = LVCFMT_RIGHT;
 	SendMessage (hTree,LVM_INSERTCOLUMN,2,(LPARAM)&lvCol);
 
-	lvCol.pszText="Cipher";  
-	lvCol.cx=110;
+	lvCol.pszText="Encryption Algorithm";  
+	lvCol.cx=117;
 	lvCol.fmt = LVCFMT_LEFT;
 	SendMessage (hTree,LVM_INSERTCOLUMN,3,(LPARAM)&lvCol);
+
+	lvCol.pszText="Type";  
+	lvCol.cx=47;
+	lvCol.fmt = LVCFMT_LEFT;
+	SendMessage (hTree,LVM_INSERTCOLUMN,4,(LPARAM)&lvCol);
 
 	hBitmap = LoadBitmap (hInst, MAKEINTRESOURCE (IDB_DRIVEICON));
 	if (hBitmap == NULL)
@@ -822,7 +903,7 @@ GetSelectedLong (HWND hTree)
 	int hItem = ListView_GetSelectionMark (hTree);
 	LVITEM item;
 
-	if (nSelectedDriveIndex != 0)
+	if (nSelectedDriveIndex >= 0)
 		hItem = nSelectedDriveIndex;
 
 	memset(&item, 0, sizeof(LVITEM));
@@ -848,144 +929,6 @@ GetItemLong (HWND hTree, int itemNo)
 		return MAKELONG (0xffff, 0xffff);
 	else
 		return item.lParam;
-}
-
-static BOOL MountVolume (HWND hwndDlg, int driveNo, char *volumePath, char *szPassword, int quiet)
-{
-	MOUNT_STRUCT driver;
-	DWORD dwResult;
-	BOOL bResult, bDevice;
-
-	if (IsMountedVolume (volumePath))
-	{
-		if (!quiet)
-			MessageBox(0, getstr (IDS_ALREADY_MOUNTED), lpszTitle, MB_ICONASTERISK);
-		return FALSE;
-	}
-
-	driver.nDosDriveNo = driveNo;
-	driver.bCache = bCacheInDriver;
-	driver.time = time (NULL);
-	driver.nPasswordLen = strlen (szPassword);
-	strcpy (driver.szPassword, szPassword);
-
-	CreateFullVolumePath ((char *) driver.wszVolume, volumePath, &bDevice);
-
-	if (nCurrentOS == WIN_NT)
-		ToUNICODE ((char *) driver.wszVolume);
-
-	bResult = DeviceIoControl (hDriver, MOUNT, &driver,
-		sizeof (driver), &driver, sizeof (driver), &dwResult, NULL);
-
-	burn (&driver.szPassword, sizeof (driver.szPassword));
-
-	if (bResult == FALSE)
-	{
-		if (!quiet)
-			handleWin32Error (hwndDlg);
-		return bResult;
-	}
-	else
-	{
-		if (driver.nReturnCode == 0)
-		{
-			if (nCurrentOS == WIN_NT)
-			{
-				char *lpszPipeName = "\\\\.\\pipe\\truecryptservice";
-				DWORD bytesRead;
-				char inbuf[80];
-				char outbuf[80];
-
-				sprintf (outbuf, "mount %d", driver.nDosDriveNo);
-
-				bResult = CallNamedPipe (lpszPipeName,
-					outbuf, sizeof (outbuf),
-					inbuf, sizeof (inbuf),
-					&bytesRead, NMPWAIT_WAIT_FOREVER);
-
-				if (bResult == FALSE)
-				{
-					handleWin32Error (hwndDlg);
-				}
-				else
-				{
-					DWORD os_err = 0;
-					int err = 0;
-
-					sscanf (inbuf, "%s %d %lu", outbuf, &err, &os_err);
-
-					if (*inbuf == '-' && !quiet)
-					{
-						if (err == ERR_OS_ERROR)
-						{
-							SetLastError (os_err);
-							handleWin32Error (hwndDlg);
-						}
-						else
-						{
-							handleError (hwndDlg, err);
-						}
-
-						bResult = 0;
-					}
-
-				}
-
-				if (bResult == FALSE && !quiet)
-				{					
-					MessageBox (hwndDlg, getstr (IDS_SYMLINK), lpszTitle, ICON_HAND);
-					return FALSE;
-				}
-
-			}
-			else 
-			{
-				EjectStop ((char)toupper(szFileName[0]), TRUE);
-			}
-		}
-		else
-		{
-			if (!quiet)	handleError (hwndDlg, driver.nReturnCode);
-
-			return FALSE;
-		}
-	}
-
-	return TRUE;
-}
-
-static BOOL IsPasswordCacheEmpty (void)
-{
-	DWORD dw;
-	return !DeviceIoControl (hDriver, CACHE_STATUS, 0, 0, 0, 0, &dw, 0);
-}
-
-static BOOL IsMountedVolume (char *volname)
-{
-	MOUNT_LIST_STRUCT mlist;
-	DWORD dwResult;
-	int i;
-	char volume[TC_MAX_PATH*2+16];
-
-	strcpy (volume, volname);
-	if (nCurrentOS == WIN_NT) 
-	{
-		if (strstr (volname, "\\Device\\") != volname)
-			sprintf(volume, "\\??\\%s", volname);
-		ToUNICODE (volume);
-	}
-
-	memset (&mlist, 0, sizeof (mlist));
-	DeviceIoControl (hDriver, MOUNT_LIST, &mlist,
-		sizeof (mlist), &mlist, sizeof (mlist), &dwResult,
-		NULL);
-
-	for (i=0 ; i<26; i++)
-		if (nCurrentOS != WIN_NT && 0 == strcmp ((char *)mlist.wszVolume[i], volume) 
-			|| nCurrentOS == WIN_NT && 0 == wcscmp (mlist.wszVolume[i], (WCHAR *)volume))
-			return TRUE;
-
-	return FALSE;
 }
 
 static int AskUserPassword (HWND hwndDlg, char *password)
@@ -1023,20 +966,20 @@ static void Mount (HWND hwndDlg)
 
 	// First try cached passwords and if they fail ask user for a new one
 	ArrowWaitCursor ();
-	mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, "", TRUE);
+	mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, "", bCacheInDriver, bForceMount, FALSE);
 	NormalCursor ();
 	
-	while (!mounted)
+	while (mounted == 0)
 	{
 		if (!AskUserPassword (hwndDlg, szPassword))
 			return;
 
 		ArrowWaitCursor ();
-		mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, szPassword, FALSE);
+		mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, szPassword, bCacheInDriver, bForceMount, FALSE);
 		NormalCursor ();
 	}
 
-	if (mounted)
+	if (mounted > 0)
 	{
 		if (bBeep == TRUE)
 			MessageBeep (MB_OK);
@@ -1055,249 +998,109 @@ static void Mount (HWND hwndDlg)
 	return;
 }
 
-void OpenVolumeExplorerWindow (int driveNo)
-{
-	char dosName[5];
-	SHFILEINFO fInfo;
-
-	sprintf (dosName, "%c:\\", (char) driveNo + 'A');
-
-	// Force explorer to discover the drive
-	SHGetFileInfo (dosName, 0, &fInfo, sizeof (fInfo), 0);
-
-	ShellExecute (NULL, "open", dosName, NULL, NULL, SW_SHOWNORMAL);
-}
-
-static BOOL CALLBACK CloseVolumeExplorerWindowsEnum( HWND hwnd, LPARAM driveNo)
-{
-	char get[128], driveStr[10];
-	HWND h;
-
-	GetClassName (hwnd, get, sizeof get);
-
-	if (strcmp (get, "CabinetWClass") == 0)
-	{
-		sprintf (driveStr, "%c:\\", driveNo + 'A');
-
-		// Title bar
-		GetWindowText (hwnd, get, sizeof get);
-		if (strstr (get, driveStr) == get)
-		{
-			PostMessage (hwnd, WM_CLOSE, 0, 0);
-			return TRUE;
-		}
-
-		// URL edit box
-		h = FindWindowEx (hwnd, 0, "WorkerW", 0);
-		if (!h) return TRUE;
-		h = FindWindowEx (h, 0, "ReBarWindow32", 0);
-		if (!h) return TRUE;
-		h = FindWindowEx (h, 0, "ComboBoxEx32", 0);
-		if (h)
-		{
-			SendMessage (h, WM_GETTEXT, sizeof get, (LPARAM) get);
-			if (strstr (get, driveStr) == get)
-				PostMessage (hwnd, WM_CLOSE, 0, 0);
-		}
-	}
-	return TRUE;
-}
-
-void CloseVolumeExplorerWindows (HWND hwnd, int driveNo)
-{
-	EnumWindows (CloseVolumeExplorerWindowsEnum, (LPARAM) driveNo);
-}
 
 static void Dismount (HWND hwndDlg, int nDosDriveNo)
 {
-	char *lpszPipeName = "\\\\.\\pipe\\truecryptservice";
-	DWORD bytesRead;
-	BOOL bResult;
-	char inbuf[80];
-	char outbuf[80];
+	ArrowWaitCursor ();
 
 	if (nDosDriveNo == 0)
 		nDosDriveNo = (char) (HIWORD (GetSelectedLong (GetDlgItem (hwndDlg, IDC_DRIVELIST))) - 'A');
 
-	if (nCurrentOS == WIN_NT)
+	if (bCloseDismountedWindows)
 	{
-
-		if (bCloseDismountedWindows)
-			CloseVolumeExplorerWindows (hwndDlg, nDosDriveNo);
-
-		/* Unmount the volume using the TrueCryptService,
-		this is done to allow non-administrators
-		to unmount volumes */
-
-		sprintf (outbuf, "unmount %d", nDosDriveNo);
-
-		ArrowWaitCursor ();
-
-		bResult = CallNamedPipe (lpszPipeName,
-			outbuf, sizeof (outbuf),
-			inbuf, sizeof (inbuf),
-			&bytesRead, NMPWAIT_WAIT_FOREVER);
-
-		NormalCursor ();
-
-		if (bResult == FALSE)
-		{
-			handleWin32Error (hwndDlg);
-		}
-		else
-		{
-			DWORD os_err = 0;
-			int err = 0;
-
-			sscanf (inbuf, "%s %d %lu", outbuf, &err, &os_err);
-
-			if (*inbuf == '-')
-			{
-				//if (err == ERR_OS_ERROR)
-				//{
-				//	SetLastError (os_err);
-
-				//	handleWin32Error (hwndDlg);
-				//}
-				//else
-				//{
-				//	handleError (hwndDlg, err);
-				//}
-				MessageBox(0, getstr (IDS_UNMOUNT_FAILED), lpszTitle, MB_ICONEXCLAMATION);
-			} 
-			else
-			{
-				//if (bBeep == TRUE)
-				//	MessageBeep (MB_OK);
-
-				RefreshMainDlg(hwndDlg);
-			}
-		}
-
-	}
-	else
-	{
-		int err = 0;
-
-		bResult = CloseSlot (nDosDriveNo, 0, &err);
-
-		if (bResult == FALSE)
-		{
-			handleWin32Error (hwndDlg);
-		}
-		else
-		{
-			if (err != 0)
-			{
-				//handleError (hwndDlg, err);
-				MessageBox(0, getstr (IDS_UNMOUNT_FAILED), lpszTitle, MB_ICONEXCLAMATION);
-			}
-			else
-			{
-				//if (bBeep == TRUE)
-				//	MessageBeep (MB_OK);
-
-				RefreshMainDlg(hwndDlg);
-			}
-		}
+		if (CloseVolumeExplorerWindows (hwndDlg, nDosDriveNo))
+			Sleep (UNMOUNT_WAIT);
 	}
 
+	if (UnmountVolume (hwndDlg, nDosDriveNo, bForceUnmount))
+	{
+		//if (bBeep == TRUE)
+		//	MessageBeep (MB_OK);
+		RefreshMainDlg (hwndDlg);
+	}
+
+	NormalCursor ();
 	return;
 }
 
 
-
-static void DismountAll (HWND hwndDlg)
+static void DismountAll (HWND hwndDlg, BOOL forceUnmount)
 {
-	char *lpszPipeName = "\\\\.\\pipe\\truecryptservice";
-	DWORD bytesRead;
+	MOUNT_LIST_STRUCT mountList;
+	DWORD dwResult;
+	UNMOUNT_STRUCT unmount;
 	BOOL bResult;
-	int nDosDriveNo;
-	char inbuf[80];
-	char outbuf[80];
+	BOOL shouldWait;
+	unsigned __int32 prevMountedDrives = 0;
+	int i;
 
-	nDosDriveNo = (char) (HIWORD (GetSelectedLong (GetDlgItem (hwndDlg, IDC_DRIVELIST))) -
-		'A');
-
+retry:
 	ArrowWaitCursor();
 
-	if (nCurrentOS == WIN_NT)
+	DeviceIoControl (hDriver, MOUNT_LIST, &mountList, sizeof (mountList), &mountList, sizeof (mountList), &dwResult, NULL);
+	prevMountedDrives = mountList.ulMountedDrives;
+
+	shouldWait = FALSE;
+
+	for (i = 0; i < 26; i++)
 	{
-		if (bCloseDismountedWindows)
+		if (mountList.ulMountedDrives & (1 << i))
 		{
-			MOUNT_LIST_STRUCT driver;
-			DWORD dwResult;
+			if (bCloseDismountedWindows)
+				shouldWait = CloseVolumeExplorerWindows (hwndDlg, i) ? TRUE : shouldWait;
 
-			if (DeviceIoControl (hDriver, MOUNT_LIST, &driver, sizeof (driver), &driver, sizeof (driver), &dwResult, NULL))
-			{
-				int i;
-				for (i = 0; i < 26; i++)
-					if ((driver.ulMountedDrives & 1 << i))
-						CloseVolumeExplorerWindows (hwndDlg, i); 
-
-			}
+			BroadcastDeviceChange (DBT_DEVICEREMOVEPENDING, i);
 		}
+	}
 
-		/* Unmount the volume using the TrueCryptService,
-		this is done to allow non-administrators
-		to unmount volumes */
+	if (shouldWait)
+		Sleep (UNMOUNT_WAIT);
 
-		strcpy (outbuf, "unmountall");
+	unmount.nDosDriveNo = 0;
+	unmount.ignoreOpenFiles = forceUnmount;
 
-		ArrowWaitCursor ();
+	bResult = DeviceIoControl (hDriver, UNMOUNT_ALL, &unmount,
+		sizeof (unmount), &unmount, sizeof (unmount), &dwResult, NULL);
 
-		bResult = CallNamedPipe (lpszPipeName,
-			outbuf, sizeof (outbuf),
-			inbuf, sizeof (inbuf),
-			&bytesRead, NMPWAIT_WAIT_FOREVER);
 
-		NormalCursor ();
+	if (bResult == FALSE)
+	{
+		NormalCursor();
+		handleWin32Error (hwndDlg);
+		return;
+	}
 
-		if (bResult == FALSE)
+	DeviceIoControl (hDriver, MOUNT_LIST, &mountList, sizeof (mountList), &mountList, sizeof (mountList), &dwResult, NULL);
+	for (i = 0; i < 26; i++)
+	{
+		if ((prevMountedDrives & ~mountList.ulMountedDrives) & (1 << i))
+			BroadcastDeviceChange (DBT_DEVICEREMOVECOMPLETE, i);
+	}
+
+	RefreshMainDlg(hwndDlg);
+	NormalCursor();
+
+	if (unmount.nReturnCode != 0)
+	{
+		if (unmount.nReturnCode == ERR_FILES_OPEN)
 		{
-			handleWin32Error (hwndDlg);
-		}
-		else
-		{
-			DWORD os_err = 0;
-			int err = 0;
-
-			sscanf (inbuf, "%s %d %lu", outbuf, &err, &os_err);
-
-			if (*inbuf == '-')
+			if (IDYES == MessageBox (hwndDlg, getstr (IDS_UNMOUNTALL_LOCK_FAILED),
+				lpszTitle, MB_YESNO | MB_DEFBUTTON2 | MB_ICONEXCLAMATION))
 			{
-				//if (err == ERR_OS_ERROR)
-				//{
-				//	SetLastError (os_err);
-
-				//	handleWin32Error (hwndDlg);
-				//}
-				//else
-				//{
-				//	handleError (hwndDlg, err);
-				//}
-
-				RefreshMainDlg(hwndDlg);
-				MessageBox(0, getstr (IDS_UNMOUNT_FAILED), lpszTitle, MB_ICONEXCLAMATION);
+				forceUnmount = TRUE;
+				goto retry;
 			}
-			else
-			{
-				if (bBeep == TRUE)
-					MessageBeep (MB_OK);
-			}
+
+			return;
 		}
+		
+		MessageBox (hwndDlg, getstr (IDS_UNMOUNT_FAILED), lpszTitle, MB_ICONERROR);
 	}
 	else
 	{
-		DWORD os_error;
-		int i, err;
-
-		for (i=0; i<26; i++)
-			CloseSlot (i, 0, &err);
+		if (bBeep == TRUE)
+			MessageBeep (MB_OK);
 	}
-
-	RefreshMainDlg (hwndDlg);
-	NormalCursor();
 }
 
 static void MountAllPartitions (HWND hwndDlg)
@@ -1305,6 +1108,8 @@ static void MountAllPartitions (HWND hwndDlg)
 	HWND driveList = GetDlgItem (hwndDlg, IDC_DRIVELIST);
 	int i, n, selDrive = ListView_GetSelectionMark (driveList);
 	char szPassword[MAX_PASSWORD + 1];
+	int mounted;
+	BOOL shared = FALSE;
 
 	// User is always asked for password as we can't tell 
 	// for sure if it is needed or not
@@ -1318,7 +1123,8 @@ static void MountAllPartitions (HWND hwndDlg)
 	{
 		BOOL drivePresent = FALSE;
 
-		for (n = 1; n <= 32; n++)
+		// Include partition 0 (whole disk)
+		for (n = 0; n <= 32; n++)
 		{
 			char szFileName[TC_MAX_PATH];
 			OPEN_TEST_STRUCT driver;
@@ -1343,9 +1149,12 @@ static void MountAllPartitions (HWND hwndDlg)
 					goto ret;
 
 				// First try user password then cached passwords
-				if (MountVolume (hwndDlg, nDosDriveNo, szFileName, szPassword, TRUE)
-					|| MountVolume (hwndDlg, nDosDriveNo, szFileName, "", TRUE))
+				if ((mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, szPassword, bCacheInDriver, bForceMount, TRUE)) > 0
+					|| (mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, "", bCacheInDriver, bForceMount, TRUE)) > 0)
 				{
+					if (mounted == 2)
+						shared = TRUE;
+
 					LoadDriveLetters (driveList, (HIWORD (GetItemLong (GetDlgItem (hwndDlg, IDC_DRIVELIST), selDrive))));
 					selDrive++;
 
@@ -1359,6 +1168,9 @@ static void MountAllPartitions (HWND hwndDlg)
 			}
 		}
 	}
+
+	if (shared)
+		MessageBox (hwndDlg, getstr (IDS_DEVICE_IN_USE_INFO), lpszTitle, MB_ICONEXCLAMATION);
 
 ret:
 	burn (szPassword, sizeof (szPassword));
@@ -1390,7 +1202,7 @@ static void ChangePassword (HWND hwndDlg)
 
 static void SelectContainer (HWND hwndDlg)
 {
-	if (BrowseFiles (hwndDlg, IDS_OPEN_TITLE, szFileName) == FALSE)
+	if (BrowseFiles (hwndDlg, IDS_OPEN_TITLE, szFileName, bHistory) == FALSE)
 		return;
 
 	AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), szFileName);
@@ -1428,6 +1240,11 @@ static void WipeCache (HWND hwndDlg)
 	}
 }
 
+static void Benchmark (HWND hwndDlg)
+{
+	int nResult = DialogBoxParam (hInst, MAKEINTRESOURCE (IDD_BENCHMARK_DLG), hwndDlg,
+		(DLGPROC) BenchmarkDlgProc, (LPARAM) NULL);
+}
 
 /* Except in response to the WM_INITDIALOG message, the dialog box procedure
    should return nonzero if it processes the message, and zero if it does
@@ -1459,7 +1276,6 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 			BuildTree (GetDlgItem (hwndDlg, IDC_DRIVELIST));
 
-
 			if (*szDriveLetter != 0)
 			{
 				SelectItem (GetDlgItem (hwndDlg, IDC_DRIVELIST), *szDriveLetter);
@@ -1480,17 +1296,21 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			// Automount
 			if (bAuto == TRUE && IsWindowEnabled (GetDlgItem (hwndDlg, IDOK)))
 			{
+				// No drive letter specified on command line
+				if (commandLineDrive == 0)
+					szDriveLetter[0] = GetFirstAvailableDrive () + 'A';
+
 				if (!IsMountedVolume (szFileName))
 				{
 					BOOL mounted;
 
 					// Cached password
-					mounted = MountVolume (hwndDlg, szDriveLetter[0] - 'A', szFileName, "", TRUE);
+					mounted = MountVolume (hwndDlg, szDriveLetter[0] - 'A', szFileName, "", bCacheInDriver, bForceMount, FALSE);
 
 					if (!mounted && commandLinePassword[0] != 0)
 					{
 						// Command line password
-						mounted = MountVolume (hwndDlg, szDriveLetter[0] - 'A', szFileName, commandLinePassword, TRUE);
+						mounted = MountVolume (hwndDlg, szDriveLetter[0] - 'A', szFileName, commandLinePassword, bCacheInDriver, bForceMount, TRUE);
 						burn (commandLinePassword, sizeof (commandLinePassword));
 					}
 
@@ -1503,12 +1323,12 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 							break;
 
 						ArrowWaitCursor ();
-						mounted = MountVolume (hwndDlg, szDriveLetter[0] - 'A', szFileName, szPassword, FALSE);
+						mounted = MountVolume (hwndDlg, szDriveLetter[0] - 'A', szFileName, szPassword, bCacheInDriver, bForceMount, FALSE);
 						burn (szPassword, sizeof (szPassword));
 						NormalCursor ();
 					}
 
-					if (mounted)
+					if (mounted > 0)
 					{
 						if (bBeep == TRUE) MessageBeep (MB_OK);
 						if (bExplore == TRUE) OpenVolumeExplorerWindow (szDriveLetter[0] - 'A');
@@ -1518,7 +1338,13 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					
 					RefreshMainDlg(hwndDlg);
 				}
+				else if (bExplore == TRUE) OpenVolumeExplorerWindow (szDriveLetter[0] - 'A');
 			}
+
+			if (cmdUnmountDrive > 0)
+				Dismount (hwndDlg, (char)toupper(szDriveLetter[0]) - 'A');
+			else if (cmdUnmountDrive == -1)
+				DismountAll (hwndDlg, bForceUnmount);
 
 			if (bQuiet) ExitProcess (0);
 
@@ -1601,7 +1427,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		if ((lw == IDOK || lw == ID_MOUNT_VOLUME || lw == IDC_MOUNTALL) 
 			&& LOWORD (GetSelectedLong (GetDlgItem (hwndDlg, IDC_DRIVELIST))) == 0xffff)
 		{
-			MessageBox (hwndDlg, "No drive selected.","TrueCrypt", MB_ICONEXCLAMATION);
+			MessageBox (hwndDlg, "Please select a free drive letter from the list.","TrueCrypt", MB_ICONEXCLAMATION);
 			return 1;
 		}
 
@@ -1614,7 +1440,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		if (lw == IDUNMOUNTALL)
 		{
-			DismountAll (hwndDlg);
+			DismountAll (hwndDlg, bForceUnmount);
 			return 1;
 		}
 
@@ -1688,7 +1514,19 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	
 		if (lw == ID_WEBSITE)
 		{
-			ShellExecute (NULL, "open", "http://truecrypt.sourceforge.net/applink.php?version="VERSION_STRING, NULL, NULL, SW_SHOWNORMAL);
+			char tmpstr [256];
+
+			sprintf (tmpstr, "http://truecrypt.sourceforge.net/applink.php?version=%s", VERSION_STRING);
+			ShellExecute (NULL, "open", (LPCTSTR) tmpstr, NULL, NULL, SW_SHOWNORMAL);
+			return 1;
+		}
+
+		if (lw == ID_FORUMS)
+		{
+			char tmpstr [256];
+
+			sprintf (tmpstr, "http://truecrypt.sourceforge.net/applink.php?version=%s&dest=forum", VERSION_STRING);
+			ShellExecute (NULL, "open", (LPCTSTR) tmpstr, NULL, NULL, SW_SHOWNORMAL);
 			return 1;
 		}
 
@@ -1700,6 +1538,13 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			return 1;
 		}
 
+		if (lw == ID_BENCHMARK)
+		{
+			Benchmark (hwndDlg);
+			return 1;
+		}
+
+
 		if (lw == IDC_VOLUME_PROPERTIES)
 		{
 			DialogBoxParam (hInst, 
@@ -1710,7 +1555,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		if (lw == IDC_VOLUME && hw == CBN_EDITCHANGE)
 		{
-			PostMessage (hwndDlg, WM_USER, 0, 0);
+			EnableDisableButtons (hwndDlg);
 			return 1;
 		}
 
@@ -1718,13 +1563,19 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		{
 			UpdateComboOrder (GetDlgItem (hwndDlg, IDC_VOLUME));
 			MoveEditToCombo ((HWND) lParam);
-			PostMessage (hwndDlg, WM_USER, 0, 0);
+			PostMessage (hwndDlg, WM_USER+100, 0, 0);
+			return 1;
+		}
+
+		if (lw == IDC_NO_HISTORY)
+		{
+			bHistory = !IsButtonChecked (GetDlgItem (hwndDlg, IDC_NO_HISTORY));
 			return 1;
 		}
 
 		return 0;
 
-	case WM_USER:
+	case WM_USER+100:
 		EnableDisableButtons (hwndDlg);
 		return 1;
 
@@ -1752,18 +1603,19 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 		{
 			argument args[]=
 			{
-				{"/volume", "/v"},
-				{"/letter", "/l"},
-				{"/explore", "/e"},
-				{"/beep", "/b"},
-				{"/password", "/p"},
 				{"/auto", "/a"},
+				{"/beep", "/b"},
 				{"/cache", "/c"},
-				{"/history", "/h"},
-				{"/wipecache", "/w"},
-				{"/quiet", "/q"},
+				{"/dismount", "/d"},
+				{"/explore", "/e"},
+				{"/force", "/f"},
 				{"/help", "/?"},
-				{"/dismount", "/d"}
+				{"/history", "/h"},
+				{"/letter", "/l"},
+				{"/password", "/p"},
+				{"/quiet", "/q"},
+				{"/volume", "/v"},
+				{"/wipecache", "/w"}
 			};
 
 			argumentspec as;
@@ -1782,9 +1634,9 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 
 				if (HAS_ARGUMENT == GetArgumentValue (lpszCommandLineArgs, nArgPos, &i, nNoCommandLineArgs,
 				     szDriveLetter, sizeof (szDriveLetter)))
-					Dismount (hwndDlg, (char)toupper(szDriveLetter[0]) - 'A');
+					cmdUnmountDrive = toupper(szDriveLetter[0]) - 'A';
 				else 
-					DismountAll (hwndDlg);
+					cmdUnmountDrive = -1;
 
 				break;
 
@@ -1808,7 +1660,7 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 			case 'l':
 				GetArgumentValue (lpszCommandLineArgs, nArgPos, &i, nNoCommandLineArgs,
 				     szDriveLetter, sizeof (szDriveLetter));
-				*szDriveLetter = (char) toupper (*szDriveLetter);
+				commandLineDrive = *szDriveLetter = (char) toupper (*szDriveLetter);
 				break;
 
 			case 'e':
@@ -1817,6 +1669,11 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 
 			case 'b':
 				bBeep = TRUE;
+				break;
+
+			case 'f':
+				bForceMount = TRUE;
+				bForceUnmount = TRUE;
 				break;
 
 			case 'p':

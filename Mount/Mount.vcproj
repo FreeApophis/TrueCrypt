@@ -32,9 +32,9 @@
 				BrowseInformation="0"
 				BrowseInformationFile=""
 				WarningLevel="2"
-				Detect64BitPortabilityProblems="TRUE"
+				Detect64BitPortabilityProblems="FALSE"
 				DebugInformationFormat="4"
-				DisableSpecificWarnings="4311;4312"/>
+				DisableSpecificWarnings="4311"/>
 			<Tool
 				Name="VCCustomBuildTool"/>
 			<Tool
@@ -84,9 +84,9 @@
 				AssemblerOutput="2"
 				AssemblerListingLocation="$(IntDir)/"
 				WarningLevel="2"
-				Detect64BitPortabilityProblems="TRUE"
+				Detect64BitPortabilityProblems="FALSE"
 				DebugInformationFormat="0"
-				DisableSpecificWarnings="4311;4312"/>
+				DisableSpecificWarnings="4311"/>
 			<Tool
 				Name="VCCustomBuildTool"/>
 			<Tool
@@ -149,9 +149,6 @@
 					RelativePath="..\Common\Crypto.c">
 				</File>
 				<File
-					RelativePath="..\Common\Dismount.c">
-				</File>
-				<File
 					RelativePath="..\Common\Dlgcode.c">
 				</File>
 				<File
@@ -203,10 +200,10 @@
 				RelativePath="..\Common\Registry.h">
 			</File>
 			<File
-				RelativePath=".\resource.h">
+				RelativePath="..\Common\resource.h">
 			</File>
 			<File
-				RelativePath="..\Common\resource.h">
+				RelativePath=".\resource.h">
 			</File>
 			<File
 				RelativePath="..\Common\Tcdefs.h">

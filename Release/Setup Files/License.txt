@@ -1,11 +1,15 @@
 TRUECRYPT LICENSE
 
-This software may be used free of charge by individuals, non-profit 
+This product may be used free of charge by individuals, non-profit 
 organizations, commercial organizations, and government agencies, on single or
-multiple computers for non-commercial and/or commercial uses. 
+multiple computers/systems for non-commercial and/or commercial uses. 
 
-This software, including the source code and the documentation, may be copied
-and distributed free of charge. 
+This product, including the source code and the documentation, may be copied
+and/or distributed free of charge. 
+
+This product contains no mechanism or facility that would allow partial or
+complete recovery of your encrypted data without knowing the correct password
+or the key used to encrypt the data.
 
 AS THIS PRODUCT IS FREE, THERE IS NO WARRANTY FOR THE PRODUCT, TO THE EXTENT 
 PERMITTED BY APPLICABLE LAW. UNLESS OTHERWISE STATED THE PRODUCT IS PROVIDED 
@@ -23,10 +27,6 @@ INABILITY TO USE THE PROGRAM, INCLUDING BUT NOT LIMITED TO LOSS OF DATA OR DATA
 BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A
 FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS, EVEN IF SUCH HOLDER
 OR OTHER PARTY HAD PREVIOUSLY BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
-
-This product contains no mechanism or facility that would allow partial or
-complete recovery of your encrypted data without knowing the correct password
-or the key used to encrypt the data.
 
 You may modify this product and its source code, and distribute such
 modifications, and you may derive new works based on this product, provided
@@ -71,6 +71,9 @@ that the following conditions are met:
   6. If you use any part of the source code by Markus Friedl in your product,
      you must in addition follow his terms and conditions.
 
+  7. If you use any part of the source code by Dag Arne Osvik in your product,
+     you must in addition follow his terms and conditions.
+
 Where applicable, the specific licenses attached to parts of the source code
 might take precedence over this general license. Each of the specific licenses
 applies only to the part of the source code it is attached to.
@@ -89,8 +92,9 @@ Copyright (c) 2004 TrueCrypt Foundation. All Rights Reserved.
 Copyright (c) 1998-2000 Paul Le Roux. All Rights Reserved.
 Copyright (c) 2004 TrueCrypt Team. All Rights Reserved.
 Copyright (c) 1995-1997 Eric Young. All Rights Reserved.
-Copyright (c) 2003-2004 Dr. Brian Gladman, Worcester, UK. All Rights Reserved.
+Copyright (c) 1999-2004 Dr. Brian Gladman, Worcester, UK. All Rights Reserved.
 Copyright (c) 2001 Markus Friedl. All Rights Reserved.
+Copyright (c) 2000 Dag Arne Osvik. All Rights Reserved.
 
 For more information, see the legal notices attached to parts of the source code.
 
@@ -186,6 +190,43 @@ DISCLAIMER
 This software is provided 'as is' with no explicit or implied warranties
 in respect of its properties, including, but not limited to, correctness
 and/or fitness for purpose.
+____________________________________________________________
+
+This is an independent implementation of the encryption algorithm:  
+                                                                    
+        Twofish by Bruce Schneier and colleagues                    
+                                                                    
+which is a candidate algorithm in the Advanced Encryption Standard  
+programme of the US National Institute of Standards and Technology. 
+                                                                    
+Copyright in this implementation is held by Dr B R Gladman but I    
+hereby give permission for its free direct or derivative use subject
+to acknowledgment of its origin and compliance with any conditions  
+that the originators of the algorithm place on its exploitation.    
+                                                                    
+My thanks to Doug Whiting and Niels Ferguson for comments that led  
+to improvements in this implementation.                             
+                                                                    
+Dr Brian Gladman (gladman@seven77.demon.co.uk) 14th January 1999    
+____________________________________________________________
+
+Except as noted below copyright in this code is held by Dr B.R. Gladman 
+but free direct or derivative use is permitted subject to acknowledgement
+of its origin and subject to any constraints placed on the use of the 
+algorithm by its designers (if such constraints may exist, this will be 
+indicated below).  
+
+Dr. B. R. Gladman (                            ). 25th January 2000.
+
+This is an implementation of Serpent, an encryption algorithm designed
+by Anderson, Biham and Knudsen and submitted as a candidate for the 
+Advanced Encryption Standard programme of the US National Institute of 
+Standards and Technology.  
+
+The designers of Serpent have not placed any constraints on the use of
+this algorithm. 
+
+The S box expressions used below are Copyright (C) 2000 Dag Arne Osvik.
 ____________________________________________________________
 
 Copyright (c) 2001 Markus Friedl.  All rights reserved.

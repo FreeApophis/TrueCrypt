@@ -2,10 +2,13 @@
 // Microsoft Visual C++ generated include file.
 // Used by Common.rc
 //
+#define ID_PERFORM_BENCHMARK            2
+#define IDD_DIALOGBAR                   103
 #define IDI_TRUECRYPT_ICON              107
 #define IDI_TRUECRYPT_ICON_B            109
 #define IDB_BITMAP1                     112
 #define IDB_BITMAP2                     114
+#define IDD_BENCHMARK_DLG               118
 #define IDC_DEVICELIST                  1004
 #define IDC_COMBOBOXEX1                 1007
 #define IDC_ANIMATE1                    1008
@@ -13,9 +16,17 @@
 #define IDC_ABOUT_IMG                   1011
 #define IDB_ABOUT                       1011
 #define IDT_ABOUT_VERSION               1013
+#define IDC_BOX_BENCHMARK_INFO          1013
 #define IDT_ABOUT_COPYRIGHT             1014
 #define IDT_ABOUT_MAILTO                1015
+#define ID_ABOUT_FORUMS                 1015
+#define IDC_FORUMS                      1015
+#define IDC_ABOUT_CREDITS               1017
+#define IDC_BENCMARK_SORT_METHOD        1021
 #define IDC_COMMANDHELP_TEXT            1025
+#define IDC_RESULTS                     1026
+#define IDC_BENCHMARK_BUFFER_SIZE       2006
+#define IDC_BENCHMARK_SORT_METHOD       2007
 #define IDI_TRUECRYPT                   25002
 #define IDS_ABOUTBOX                    25005
 #define IDS_NOFONT                      25006
@@ -27,12 +38,16 @@
 #define IDS_PASSWORD_HELP3              25012
 #define IDS_NODRIVER                    25013
 #define IDS_RAWDEVICES                  25014
-#define IDS_NOSERVICE                   25015
-#define IDS_SERVICE_NOT_RUNNING         25016
+#define IDS_ALREADY_MOUNTED             25015
+#define IDS_DEVICE_IN_USE_FAILED        25016
 #define IDS_INIT_MUTEX                  25017
 #define IDS_TWO_INSTANCES               25018
 #define IDS_HELP_ERROR                  25019
 #define IDS_HELP_READER_ERROR           25020
+#define IDS_CIPHER_TEST_CASCADE         25021
+#define IDS_DEVICE_IN_USE               25021
+#define IDS_SETFILETIME_FAILED          25022
+#define IDS_SETFILETIME_FAILED_PW       25022
 #define IDS_VOL_FORMAT_BAD              25023
 #define IDS_PASSWORD_WRONG              25024
 #define IDS_OPENFILES_DRIVER            25025
@@ -69,22 +84,46 @@
 #define IDS_DRIVER_VERSION              25056
 #define IDS_NEW_VERSION_REQUIRED        25057
 #define IDD_ABOUT_DLG                   25058
-#define IDD_COMMANDHELP_DLG             25059
-#define IDD_RAWDEVICES_DLG              25060
-#define IDD_WARNING_DLG1                25061
-#define IDD_WARNING_DLG                 25061
+#define IDS_SETFILETIME_FAILED_GENERIC  25058
+#define IDS_PASSWORD_HIDDENVOL_HOST_HELP0 25059
+#define IDD_COMMANDHELP_DLG             25060
+#define IDS_AUTOTEST_FAILED_WIZ         25060
+#define IDS_AUTOTEST_FAILED_WIZARD      25060
+#define IDS_PASSWORD_HIDDENVOL_HELP0    25061
+#define IDD_RAWDEVICES_DLG              25062
+#define IDS_CAPSLOCK_ON                 25062
+#define IDD_WARNING_DLG                 25063
+#define IDS_VOL_MOUNT_FAILED_CAPSLOCK_ON 25063
+#define IDS_GETFILETIME_FAILED_GENERIC  25064
+#define IDS_GETFILETIME_FAILED          25065
+#define IDS_GETFILETIME_FAILED_PW       25066
+#define IDS_GETFILETIME_FAILED_IMPLANT  25067
+#define IDS_SETFILETIME_FAILED_IMPLANT  25068
+#define IDS_SETFILETIME_FAILED_PREP_IMPLANT 25069
+#define IDS_PASSWORD_WRONG_CAPSLOCK_ON  25070
+#define IDS_FILE_IN_USE_FAILED          25071
+#define IDS_UNMOUNT_LOCK_FAILED         25072
+#define IDS_FILE_IN_USE                 25073
+#define IDS_UNMOUNT_FAILED              25074
+#define IDS_PASSWORD_LENGTH_WARNING     25075
+#define IDS_ADMIN_PRIVILEGES_WARN_DEVICES 25076
+#define IDS_ADMIN_PRIVILEGES_WARN_NTFS  25077
+#define IDS_ADMIN_PRIVILEGES_WARN_HIDVOL 25078
+#define IDS_DEVICE_PARTITIONS_WARN      25079
+#define IDS_DEVICE_IN_USE_FORMAT        25080
 #define IDC_NEVER_SHOW                  25200
 #define IDC_WARNING_TEXT                25201
 #define ID_WEBSITE                      25202
+#define IDC_HOMEPAGE                    25202
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
-#define _APS_NEXT_RESOURCE_VALUE        115
+#define _APS_NEXT_RESOURCE_VALUE        118
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1016
+#define _APS_NEXT_CONTROL_VALUE         1022
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -27,8 +27,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 2,1,0,0
- PRODUCTVERSION 2,1,0,0
+ FILEVERSION 3,0,0,0
+ PRODUCTVERSION 3,0,0,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -45,12 +45,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Setup"
-            VALUE "FileVersion", "2.1"
+            VALUE "FileVersion", "3.0"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "OriginalFilename", "TrueCrypt Setup.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "2.1"
-            VALUE "SpecialBuild", "June 2004"
+            VALUE "ProductVersion", "3.0"
+            VALUE "SpecialBuild", "December 2004"
         END
     END
     BLOCK "VarFileInfo"
@@ -105,7 +105,7 @@ BEGIN
     PUSHBUTTON      "Cancel",IDCANCEL,348,246,50,14
     CONTROL         "Add TrueCrypt to &Start menu",IDC_PROG_GROUP,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,15,211,174,10
-    GROUPBOX        "Installation Options",IDC_STATIC,6,167,392,73
+    GROUPBOX        "Installation Options",IDC_STATIC,7,167,392,73
     CONTROL         "Add TrueCrypt icon to &desktop",IDC_DESKTOP_ICON,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,15,224,174,10
     CONTROL         "Create System &Restore point",IDC_SYSTEM_RESTORE,"Button",

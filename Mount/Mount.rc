@@ -52,16 +52,16 @@ BEGIN
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDFRAME,1,1,323,128
 END
 
-IDD_VOLUME_PROPERTIES DIALOGEX 60, 30, 235, 141
+IDD_VOLUME_PROPERTIES DIALOGEX 60, 30, 235, 151
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | 
     WS_SYSMENU
 CAPTION "Volume Properties"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    DEFPUSHBUTTON   "OK",IDOK,92,120,50,14
+    DEFPUSHBUTTON   "OK",IDOK,92,130,50,14
     CONTROL         "",IDC_VOLUME_PROPERTIES_LIST,"SysListView32",LVS_REPORT | 
                     LVS_ALIGNLEFT | LVS_NOSORTHEADER | WS_BORDER | 
-                    WS_TABSTOP,9,6,216,105
+                    WS_TABSTOP,9,6,216,115
 END
 
 IDD_PASSWORDCHANGE_DLG DIALOGEX 0, 0, 304, 157
@@ -83,7 +83,7 @@ BEGIN
     LTEXT           "BOX HELP",IDC_BOX_HELP,18,86,270,64
     RTEXT           "PKCS-5 PRF Algorithm",IDC_STATIC,7,67,88,10,
                     SS_CENTERIMAGE
-    COMBOBOX        IDC_HASH_CHANGE,101,65,83,90,CBS_DROPDOWNLIST | 
+    COMBOBOX        IDC_HASH_CHANGE,101,65,91,90,CBS_DROPDOWNLIST | 
                     WS_TABSTOP
 END
 
@@ -160,7 +160,7 @@ BEGIN
         LEFTMARGIN, 7
         RIGHTMARGIN, 228
         TOPMARGIN, 7
-        BOTTOMMARGIN, 134
+        BOTTOMMARGIN, 144
     END
 
     IDD_PASSWORDCHANGE_DLG, DIALOG
@@ -193,8 +193,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 2,1,0,0
- PRODUCTVERSION 2,1,0,0
+ FILEVERSION 3,0,0,0
+ PRODUCTVERSION 3,0,0,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -211,12 +211,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt"
-            VALUE "FileVersion", "2.1"
+            VALUE "FileVersion", "3.0"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "OriginalFilename", "TrueCrypt.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "2.1"
-            VALUE "SpecialBuild", "June 2004"
+            VALUE "ProductVersion", "3.0"
+            VALUE "SpecialBuild", "December 2004"
         END
     END
     BLOCK "VarFileInfo"
@@ -289,6 +289,7 @@ BEGIN
     END
     POPUP "Tools"
     BEGIN
+        MENUITEM "Benchmark",                   ID_BENCHMARK
         MENUITEM "Volume Creation Wizard",      IDC_CREATE_VOLUME
         MENUITEM SEPARATOR
         MENUITEM "Clear Volume History",        IDC_CLEAR_HISTORY
@@ -300,7 +301,9 @@ BEGIN
     BEGIN
         MENUITEM "User's Guide",                IDM_HELP
         MENUITEM "License",                     ID_LICENSE
-        MENUITEM "TrueCrypt on the Web",        ID_WEBSITE
+        MENUITEM SEPARATOR
+        MENUITEM "TrueCrypt Website",           ID_WEBSITE
+        MENUITEM "TrueCrypt Forums",            ID_FORUMS
         MENUITEM SEPARATOR
         MENUITEM "About...",                    IDM_ABOUT
     END
@@ -316,8 +319,11 @@ STRINGTABLE
 BEGIN
     IDS_MOUNT_BUTTON        "&Mount"
     IDS_UNMOUNT_BUTTON      "&Dismount"
+    IDS_UNMOUNTALL_LOCK_FAILED 
+                            "Some volumes contain files or folders being\nused by applications or system.\n\nForce dismount?"
     IDS_OPEN_TITLE          "Select a TrueCrypt Volume"
     IDS_TITLE               "TrueCrypt"
+    IDS_DEVICE_IN_USE_INFO  "WARNING: Some of the mounted devices/partitions were already already in use!\n\nIgnoring this can cause undesired results including system instability.\n\nWe strongly recommend that you close any application that might be using\nthe devices/partitions."
 END
 
 STRINGTABLE 
@@ -327,9 +333,7 @@ END
 
 STRINGTABLE 
 BEGIN
-    IDS_ALREADY_MOUNTED     "Volume is already mounted."
-    IDS_MOUNTED_NOPWCHANGE  "Password of a mounted volume cannot be changed.\nDismount the volume first before changing password."
-    IDS_UNMOUNT_FAILED      "Dismount failed!\n\nVolume cannot be dismounted if it contains files\nor directories used by system or applications."
+    IDS_MOUNTED_NOPWCHANGE  "Volume password cannot be changed while the volume is mounted.\nPlease dismount the volume first."
 END
 
 #endif    // English (U.S.) resources

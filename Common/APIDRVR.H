@@ -1,7 +1,7 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
    additions to that source code contained in this file are Copyright (c) 2004
-   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
 
@@ -62,12 +62,11 @@ etc... */
 #define ALLOW_FAST_SHUTDOWN 466984	/* Fast shutdown under win98 (only Win9x) */
 #define CACHE_STATUS		466988	/* Get password cache status */
 #define VOLUME_PROPERTIES	466992	/* Get mounted volume properties */
-
-#define UNMOUNT_PENDING		475112	/* Flush the device with this api
-					   before sending UNMOUNT */
+#define RESOLVE_SYMLINK		466996	/* Resolve symbolic link to target */
+#define UNMOUNT_ALL			475112	/* Unmount all volumes */
 
 #define TC_FIRST_PRIVATE	MOUNT	/* First private control code */
-#define TC_LAST_PRIVATE	UNMOUNT_PENDING	/* Last private control code */
+#define TC_LAST_PRIVATE	UNMOUNT_ALL	/* Last private control code */
 
 /* Start of driver interface structures, the size of these structures may
    change between versions; so make sure you first send DRIVER_VERSION to
@@ -80,17 +79,22 @@ typedef struct
 {
 	int nReturnCode;	/* Return code back from driver */
 	short wszVolume[TC_MAX_PATH];	/* Volume to be mounted */
-	char szPassword[MAX_PASSWORD + 1];	/* User password or SHA1 hash */
+	char szPassword[MAX_PASSWORD + 1];	/* User password */
 	int nPasswordLen;	/* User password length */
 	BOOL bCache;		/* Cache passwords in driver */
 	int nDosDriveNo;	/* Drive number to mount */
+	BOOL bMountReadOnly;	/* Mount volume in read-only mode */
+	BOOL bMountRemovable;	/* Mount volume as removable media */
+	BOOL bExclusiveAccess;	/* Open host file/device in exclusive access mode */
+	BOOL bMountManager;		/* Announce volume to mount manager */
 	long time;		/* Time when this volume was mounted */
 } MOUNT_STRUCT;
 
 typedef struct
 {
-	int nReturnCode;	/* Return code back from driver */
 	int nDosDriveNo;	/* Drive letter to unmount */
+	BOOL ignoreOpenFiles;
+	int nReturnCode;	/* Return code back from driver */
 } UNMOUNT_STRUCT;
 
 typedef struct
@@ -98,7 +102,8 @@ typedef struct
 	unsigned long ulMountedDrives;	/* Bitfield of all mounted drive letters */
 	short wszVolume[26][64];	/* Volume names of mounted volumes */
 	unsigned __int64 diskLength[26];
-	int cipher[26];
+	int ea[26];
+	BOOL hiddenVol[26];
 } MOUNT_LIST_STRUCT;
 
 typedef struct
@@ -106,13 +111,20 @@ typedef struct
 	int driveNo;
 	short wszVolume[64];
 	unsigned __int64 diskLength;
-	int cipher;
+	int ea;
 	int pkcs5;
 	int pkcs5Iterations;
+	BOOL hiddenVolume;
 	unsigned __int64 volumeCreationTime;
 	unsigned __int64 headerCreationTime;
 	//int readOnly;
 } VOLUME_PROPERTIES_STRUCT;
+
+typedef struct
+{
+	WCHAR symLinkName[TC_MAX_PATH];
+	WCHAR targetName[TC_MAX_PATH];
+} RESOLVE_SYMLINK_STRUCT;
 
 typedef struct
 {

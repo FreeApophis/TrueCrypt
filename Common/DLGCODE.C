@@ -1,18 +1,23 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
    additions to that source code contained in this file are Copyright (c) 2004
-   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
 
 #include "TCdefs.h"
 
 #include <stdlib.h>
+#include <time.h>
+#include <shlobj.h>
+#include <dbt.h>
 
 #include "resource.h"
 #include "crypto.h"
 #include "apidrvr.h"
 #include "dlgcode.h"
+#include "volumes.h"
+
 
 char szHelpFile[TC_MAX_PATH];
 HFONT hSmallFont = NULL;
@@ -24,6 +29,7 @@ HFONT hFixedFont = NULL;
 HFONT hUserFont = NULL;
 HFONT hUserUnderlineFont = NULL;
 HFONT hUserBoldFont = NULL;
+HFONT hUserUnderlineBoldFont = NULL;
 
 char *lpszTitle = NULL;
 int nCurrentOS = 0;
@@ -45,6 +51,35 @@ ATOM hDlgClass, hSplashClass;
 #define TC_DLG_CLASS "CustomDlg"
 #define TC_SPLASH_CLASS "SplashDlg"
 
+/* Benchmark */
+#ifndef SETUP
+#define BENCHMARK_MAX_ITEMS 100
+#define BENCHMARK_DEFAULT_BUF_SIZE (1*BYTES_PER_MB)
+
+enum 
+{
+	BENCHMARK_SORT_BY_NAME = 0,
+	BENCHMARK_SORT_BY_SPEED
+};
+
+typedef struct 
+{
+	int id;
+	char name[100];
+	unsigned __int64 encSpeed;
+	unsigned __int64 decSpeed;
+	unsigned __int64 meanBytesPerSec;
+} BENCHMARK_REC;
+
+BENCHMARK_REC benchmarkTable [BENCHMARK_MAX_ITEMS];
+int benchmarkTotalItems = 0;
+int benchmarkBufferSize = BENCHMARK_DEFAULT_BUF_SIZE;
+int benchmarkLastBufferSize = BENCHMARK_DEFAULT_BUF_SIZE;
+int benchmarkSortMethod = BENCHMARK_SORT_BY_SPEED;
+LARGE_INTEGER benchmarkPerformanceFrequency;
+#endif	// #ifndef SETUP
+
+
 void
 cleanup ()
 {
@@ -65,6 +100,8 @@ cleanup ()
 		DeleteObject (hUserUnderlineFont);
 	if (hUserBoldFont != NULL)
 		DeleteObject (hUserBoldFont);
+	if (hUserUnderlineBoldFont != NULL)
+		DeleteObject (hUserUnderlineBoldFont);
 	/* Cleanup our dialog class */
 	if (hDlgClass)
 		UnregisterClass (TC_DLG_CLASS, hInst);
@@ -200,6 +237,12 @@ AbortProcess (UINT nID)
 	exit (1);
 }
 
+void
+AbortProcessSilent (void)
+{
+	exit (1);
+}
+
 void *
 err_malloc (size_t size)
 {
@@ -219,7 +262,7 @@ err_strdup (char *lpszText)
 	return z;
 }
 
-void
+DWORD
 handleWin32Error (HWND hwndDlg)
 {
 	LPVOID lpMsgBuf;
@@ -237,6 +280,8 @@ handleWin32Error (HWND hwndDlg)
 
 	MessageBox (hwndDlg, lpMsgBuf, lpszTitle, ICON_HAND);
 	LocalFree (lpMsgBuf);
+
+	return dwError;
 }
 
 BOOL
@@ -267,12 +312,43 @@ AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 	case WM_INITDIALOG:
 		{
 			char szTmp[32];
+			char credits[5000];
 
 			SetDefaultUserFont (hwndDlg);
-			SendMessage (GetDlgItem (hwndDlg, IDT_ABOUT_VERSION), WM_SETFONT, (WPARAM) hUserBoldFont, 0);
 
+			SendMessage (GetDlgItem (hwndDlg, IDC_HOMEPAGE), WM_SETFONT, (WPARAM) hUserUnderlineFont, 0);
+			SendMessage (GetDlgItem (hwndDlg, IDC_FORUMS), WM_SETFONT, (WPARAM) hUserUnderlineFont, 0);
+
+			// Version
+			SendMessage (GetDlgItem (hwndDlg, IDT_ABOUT_VERSION), WM_SETFONT, (WPARAM) hUserBoldFont, 0);
 			sprintf (szTmp, "TrueCrypt %s", VERSION_STRING);
 			SetDlgItemText (hwndDlg, IDT_ABOUT_VERSION, szTmp);
+
+			// Credits
+			SendMessage (GetDlgItem (hwndDlg, IDC_ABOUT_CREDITS), WM_SETFONT, (WPARAM) hUserFont, (LPARAM) 0);
+			sprintf (credits,"\
+Based on E4M by Paul Le Roux.\r\n\
+Portions of this software are based in part on the works of the following people: \
+Bruce Schneier, \
+Horst Feistel, Don Coppersmith, \
+Whitfield Diffie, Martin Hellman, Walt Tuchmann, \
+Joan Daemen, Vincent Rijmen, \
+Lars Knudsen, Ross Anderson, Eli Biham, \
+David Wagner, John Kelsey, Niels Ferguson, Doug Whiting, Chris Hall, \
+Carlisle Adams, Stafford Tavares, \
+Hans Dobbertin, Antoon Bosselaers, Bart Preneel, \
+Peter Gutmann, and many others.\r\n\r\n\
+Portions of this software:\r\n\
+Copyright \xA9 2004 TrueCrypt Foundation. All Rights Reserved.\r\n\
+Copyright \xA9 1998-2000 Paul Le Roux. All Rights Reserved.\r\n\
+Copyright \xA9 2004 TrueCrypt Team. All Rights Reserved.\r\n\
+Copyright \xA9 1995-1997 Eric Young. All Rights Reserved.\r\n\
+Copyright \xA9 1999-2004 Dr. Brian Gladman. All Rights Reserved.\r\n\
+Copyright \xA9 2001 Markus Friedl. All Rights Reserved.\r\n\
+Copyright \xA9 2000 Dag Arne Osvik. All Rights Reserved.\r\n\r\n\
+A TrueCrypt Foundation Release");
+			SetWindowText (GetDlgItem (hwndDlg, IDC_ABOUT_CREDITS), credits);
+
 			return 1;
 		}
 
@@ -280,6 +356,37 @@ AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 		if (lw == IDOK || lw == IDCANCEL)
 		{
 			EndDialog (hwndDlg, 0);
+			return 1;
+		}
+
+		if (lw == IDC_HOMEPAGE)
+		{
+			char tmpstr [256];
+
+			ArrowWaitCursor ();
+			sprintf (tmpstr, "http://truecrypt.sourceforge.net/applink.php?version=%s", VERSION_STRING);
+			ShellExecute (NULL, "open", (LPCTSTR) tmpstr, NULL, NULL, SW_SHOWNORMAL);
+			Sleep (200);
+			NormalCursor ();
+			return 1;
+		}
+
+		if (lw == IDC_FORUMS)
+		{
+			char tmpstr [256];
+
+			ArrowWaitCursor ();
+			sprintf (tmpstr, "http://truecrypt.sourceforge.net/applink.php?version=%s&dest=forum", VERSION_STRING);
+			ShellExecute (NULL, "open", (LPCTSTR) tmpstr, NULL, NULL, SW_SHOWNORMAL);
+			Sleep (200);
+			NormalCursor ();
+			return 1;
+		}
+
+		// Disallow modification of credits
+		if (HIWORD (wParam) == EN_UPDATE)
+		{
+			SendMessage (hwndDlg, WM_INITDIALOG, 0, 0);
 			return 1;
 		}
 
@@ -484,6 +591,8 @@ InitDialog (HWND hwndDlg)
 	hMenu = GetSystemMenu (hwndDlg, FALSE);
 	AppendMenu (hMenu, MF_SEPARATOR, 0, NULL);
 	AppendMenu (hMenu, MF_ENABLED | MF_STRING, IDC_ABOUT, getstr (IDS_ABOUTBOX));
+
+	SetDefaultUserFont(hwndDlg);
 }
 
 HDC
@@ -679,186 +788,8 @@ InitApp (HINSTANCE hInstance)
 		else
 			AbortProcess (IDS_TWO_INSTANCES);
 	}
-
-#ifndef SETUP
-	/* Setup the service if it's not present */
-	if (CheckService ()== FALSE)
-		AbortProcess (IDS_NOSERVICE);
-#endif
-
 }
 
-BOOL
-InstallService (SC_HANDLE schSCManager, char *SZSERVICENAME, char *SZSERVICEDISPLAYNAME)
-{
-	SC_HANDLE schService;
-
-	schService = CreateService (
-					   schSCManager,	/* SCManager database */
-					   SZSERVICENAME,	/* name of service */
-					   SZSERVICEDISPLAYNAME,	/* name to display */
-					   SERVICE_ALL_ACCESS,	/* desired access */
-					   SERVICE_WIN32_OWN_PROCESS,	/* service type */
-					   SERVICE_AUTO_START,	/* start type */
-					   SERVICE_ERROR_NORMAL,	/* error control type */
-					   "TrueCryptService.exe",	/* service's binary */
-					   NULL,	/* no load ordering
-							   group */
-					   NULL,	/* no tag identifier */
-					   "",	/* dependencies */
-					   NULL,	/* LocalSystem account */
-					   NULL);	/* no password */
-
-	if (schService != NULL)
-	{
-		CloseServiceHandle (schService);
-		return TRUE;
-	}
-
-	return FALSE;
-}
-
-BOOL
-CheckService ()
-{
-
-	SC_HANDLE schService = NULL;
-	SC_HANDLE schSCManager = NULL;
-	BOOL bInstall = FALSE;
-	BOOL bAdmin = TRUE;
-	BOOL bResult = TRUE;
-
-	if (nCurrentOS != WIN_NT)
-		return TRUE;
-
-	schSCManager = OpenSCManager (
-					     NULL,	/* machine (NULL ==
-							   local) */
-					     NULL,	/* database (NULL ==
-							   default) */
-					     SC_MANAGER_ALL_ACCESS	/* access required */
-	    );
-
-	if (schSCManager == NULL)
-	{
-		schSCManager = OpenSCManager (
-						     NULL,	/* machine (NULL ==
-								   local) */
-						     NULL,	/* database (NULL ==
-								   default) */
-						     SC_MANAGER_CONNECT | SC_MANAGER_ENUMERATE_SERVICE | SC_MANAGER_QUERY_LOCK_STATUS	/* access required */
-		    );
-
-		bAdmin = FALSE;
-	}
-
-	if (schSCManager == NULL)
-		goto error;
-
-	if (bAdmin == TRUE)
-		schService = OpenService (schSCManager, "TrueCryptService", SERVICE_ALL_ACCESS);
-	else
-		schService = OpenService (schSCManager, "TrueCryptService", SERVICE_QUERY_STATUS);
-
-	if (schService == NULL)
-	{
-		BOOL bOK;
-
-		if (bAdmin == FALSE)
-		{
-			handleWin32Error (NULL);
-			CloseServiceHandle (schSCManager);
-#ifndef SETUP
-			AbortProcess (IDS_NOSERVICE);
-#else
-			return FALSE;
-#endif
-		}
-
-		if (bInstall == TRUE)
-			goto error;
-
-		bInstall = TRUE;
-
-		bOK = InstallService (schSCManager, "TrueCryptService", "TrueCrypt Service");
-
-		if (bOK == FALSE)
-			goto error;
-
-		schService = OpenService (schSCManager, "TrueCryptService", SERVICE_ALL_ACCESS);
-	}
-
-	if (schService != NULL)
-	{
-		SERVICE_STATUS status;
-		BOOL bOK;
-		int i;
-
-		bOK = QueryServiceStatus (schService, &status);
-
-		if (bOK == FALSE)
-			goto error;
-
-		if (status.dwCurrentState == SERVICE_RUNNING || status.dwCurrentState == SERVICE_START_PENDING)
-			goto success;
-
-		if (bAdmin == FALSE)
-		{
-			CloseServiceHandle (schService);
-			CloseServiceHandle (schSCManager);
-#ifndef SETUP
-			AbortProcess (IDS_SERVICE_NOT_RUNNING);
-#else
-			return FALSE;
-#endif
-
-		}
-
-		bOK = StartService (schService, 0, NULL);
-
-		if (bOK == FALSE)
-			goto error;
-
-#define WAIT_PERIOD 3
-
-		for (i = 0; i < WAIT_PERIOD; i++)
-		{
-			Sleep (1000);
-			bOK = QueryServiceStatus (schService, &status);
-
-			if (bOK == FALSE)
-				goto error;
-
-
-			if (status.dwCurrentState == SERVICE_RUNNING)
-				break;
-		}
-
-		if (i == WAIT_PERIOD)
-			bOK = FALSE;
-
-		if (bOK == FALSE)
-			goto error;
-		else
-			goto success;
-	}
-
-
-      error:
-	if (GetLastError ()!= 0)
-		handleWin32Error (NULL);
-
-	bResult = FALSE;
-
-      success:
-	if (schService != NULL)
-		CloseServiceHandle (schService);
-
-	if (schSCManager != NULL)
-		CloseServiceHandle (schSCManager);
-
-	return bResult;
-}
 
 BOOL
 OpenDevice (char *lpszPath, OPEN_TEST_STRUCT * driver)
@@ -928,12 +859,13 @@ GetAvailableFixedDisks (HWND hComboBox, char *lpszRootPath)
 {
 	int i, n;
 	int line = 0;
+	LVITEM LvItem;
 
 	for (i = 0; i < 64; i++)
 	{
 		BOOL drivePresent = FALSE;
 
-		for (n = 1; n <= 32; n++)
+		for (n = 0; n <= 32; n++)
 		{
 			char szTmp[TC_MAX_PATH], item1[100]={0}, item2[100]={0};
 			OPEN_TEST_STRUCT driver;
@@ -946,22 +878,8 @@ GetAvailableFixedDisks (HWND hComboBox, char *lpszRootPath)
 				DWORD dwResult;
 				BOOL bResult;
 				PARTITION_INFORMATION diskInfo;
-				
-				LVITEM LvItem;
-
 				char szDosDevice[TC_MAX_PATH], szCFDevice[TC_MAX_PATH];
 
-				if(!drivePresent)
-				{
-					LVITEM LvItem;
-					memset(&LvItem,0,sizeof(LvItem));
-					LvItem.mask=LVIF_TEXT;
-					LvItem.iItem= line++;
-
-					sprintf(szDosDevice, " Harddisk %d:", i);
-					LvItem.pszText = szDosDevice;
-					SendMessage(hComboBox, LVM_INSERTITEM, 0, (LPARAM)&LvItem);
-				}
 				drivePresent = TRUE;
 
 				if (nCurrentOS == WIN_NT)
@@ -969,7 +887,7 @@ GetAvailableFixedDisks (HWND hComboBox, char *lpszRootPath)
 					nDosLinkCreated = FakeDosNameForDevice (szTmp, szDosDevice,
 						szCFDevice, FALSE);
 
-					dev = CreateFile (szCFDevice, GENERIC_READ, FILE_SHARE_WRITE , NULL, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, NULL);
+					dev = CreateFile (szCFDevice, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE , NULL, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, NULL);
 
 					bResult = DeviceIoControl (dev, IOCTL_DISK_GET_PARTITION_INFO, NULL, 0,
 						&diskInfo, sizeof (diskInfo), &dwResult, NULL);
@@ -983,13 +901,16 @@ GetAvailableFixedDisks (HWND hComboBox, char *lpszRootPath)
 
 						switch(diskInfo.PartitionType)
 						{
-						case PARTITION_ENTRY_UNUSED:	strcpy(partType, "Empty"); break;
+						case PARTITION_ENTRY_UNUSED:	strcpy(partType, "Empty/unused"); break;
+						case PARTITION_XINT13_EXTENDED:
 						case PARTITION_EXTENDED:		strcpy(partType, "Extended"); break;
-						case PARTITION_HUGE:			strcpy(partType, "FAT"); break;
+						case PARTITION_HUGE:			sprintf(partType, "Unformatted (0x%02X)", diskInfo.PartitionType); break;
 						case PARTITION_FAT_12:			strcpy(partType, "FAT12"); break;
 						case PARTITION_FAT_16:			strcpy(partType, "FAT16"); break;
 						case PARTITION_FAT32:		
 						case PARTITION_FAT32_XINT13:	strcpy(partType, "FAT32"); break;
+						case 0x08:						strcpy(partType, "DELL (spanning)"); break;
+						case 0x12:						strcpy(partType, "Config/diagnostics"); break;
 						case 0x11:
 						case 0x14:
 						case 0x16:
@@ -998,15 +919,60 @@ GetAvailableFixedDisks (HWND hComboBox, char *lpszRootPath)
 						case 0x1e:						strcpy(partType, "Hidden FAT"); break;
 						case PARTITION_IFS:				strcpy(partType, "NTFS"); break;
 						case 0x17:						strcpy(partType, "Hidden NTFS"); break;
-						case PARTITION_LDM:				strcpy(partType, "LDM"); break;
+						case 0x3c:						strcpy(partType, "PMagic recovery"); break;
+						case 0x3d:						strcpy(partType, "Hidden NetWare"); break;
+						case 0x41:						strcpy(partType, "Linux/MINIX"); break;
+						case 0x42:						strcpy(partType, "SFS/LDM/Linux Swap"); break;
+						case 0x51:
+						case 0x64:
+						case 0x65:
+						case 0x66:
+						case 0x67:
+						case 0x68:
+						case 0x69:						strcpy(partType, "Novell"); break;
+						case 0x55:						strcpy(partType, "EZ-Drive"); break;
+						case PARTITION_OS2BOOTMGR:		strcpy(partType, "OS/2 BM"); break;
+						case PARTITION_XENIX_1:
+						case PARTITION_XENIX_2:			strcpy(partType, "Xenix"); break;
 						case PARTITION_UNIX:			strcpy(partType, "UNIX"); break;
-						case 0x83:						strcpy(partType, "Linux"); break;
+						case 0x74:						strcpy(partType, "Scramdisk"); break;
+						case 0x78:						strcpy(partType, "XOSL FS"); break;
+						case 0x80:
+						case 0x81:						strcpy(partType, "MINIX"); break;
 						case 0x82:						strcpy(partType, "Linux Swap"); break;
-
-						default:						sprintf(partType, "Unknown (0x%02x)", diskInfo.PartitionType); break;
+						case 0x43:
+						case 0x83:						strcpy(partType, "Linux"); break;
+						case 0xc2:
+						case 0x93:						strcpy(partType, "Hidden Linux"); break;
+						case 0x86:
+						case 0x87:						strcpy(partType, "NTFS volume set"); break;
+						case 0x9f:						strcpy(partType, "BSD/OS"); break;
+						case 0xa0:
+						case 0xa1:						strcpy(partType, "Hibernation"); break;
+						case 0xa5:						strcpy(partType, "BSD"); break;
+						case 0xa8:						strcpy(partType, "Mac OS-X"); break;
+						case 0xa9:						strcpy(partType, "NetBSD"); break;
+						case 0xab:						strcpy(partType, "Mac OS-X Boot"); break;
+						case 0xb8:						strcpy(partType, "BSDI BSD/386 swap"); break;
+						case 0xc3:						strcpy(partType, "Hidden Linux swap"); break;
+						case 0xfb:						strcpy(partType, "VMware"); break;
+						case 0xfc:						strcpy(partType, "VMware swap"); break;
+						case 0xfd:						strcpy(partType, "Linux RAID"); break;
+						case 0xfe:						strcpy(partType, "WinNT hidden"); break;
+						default:						sprintf(partType, "0x%02X", diskInfo.PartitionType); break;
 						}
 
-						if(diskInfo.PartitionLength.QuadPart > 1024I64*1024*1024)
+						if (diskInfo.PartitionLength.QuadPart > 1024I64*1024*1024*1024*1024*99)
+							sprintf (item1,"%d PB", diskInfo.PartitionLength.QuadPart/1024/1024/1024/1024/1024);
+						else if (diskInfo.PartitionLength.QuadPart > 1024I64*1024*1024*1024*1024)
+							sprintf (item1,"%.1f PB",(double)(diskInfo.PartitionLength.QuadPart/1024.0/1024/1024/1024/1024));
+						else if (diskInfo.PartitionLength.QuadPart > 1024I64*1024*1024*1024*99)
+							sprintf (item1,"%d TB",diskInfo.PartitionLength.QuadPart/1024.0/1024/1024/1024);
+						else if (diskInfo.PartitionLength.QuadPart > 1024I64*1024*1024*1024)
+							sprintf (item1,"%.1f TB",(double)(diskInfo.PartitionLength.QuadPart/1024.0/1024/1024/1024));
+						else if (diskInfo.PartitionLength.QuadPart > 1024I64*1024*1024*99)
+							sprintf (item1,"%d GB",diskInfo.PartitionLength.QuadPart/1024/1024/1024);
+						else if (diskInfo.PartitionLength.QuadPart > 1024I64*1024*1024)
 							sprintf (item1,"%.1f GB",(double)(diskInfo.PartitionLength.QuadPart/1024.0/1024/1024));
 						else
 							sprintf (item1,"%d MB", diskInfo.PartitionLength.QuadPart/1024/1024);
@@ -1015,34 +981,64 @@ GetAvailableFixedDisks (HWND hComboBox, char *lpszRootPath)
 					}
 				}
 
-				memset(&LvItem,0,sizeof(LvItem));
-				LvItem.mask=LVIF_TEXT;   
-				LvItem.iItem= line++;   
+				if (n == 0)
+					sprintf (szTmp, "Harddisk %d:", i);
 
-				LvItem.pszText=szTmp;
-				SendMessage(hComboBox,LVM_INSERTITEM,0,(LPARAM)&LvItem);
+				memset (&LvItem,0,sizeof(LvItem));
+				LvItem.mask = LVIF_TEXT;   
+				LvItem.iItem = line++;   
 
-				LvItem.iSubItem=1;
-				LvItem.pszText=item1;
-				SendMessage(hComboBox,LVM_SETITEM,0,(LPARAM)&LvItem); 
+				// Device Name
+				LvItem.pszText = szTmp;
+				SendMessage (hComboBox,LVM_INSERTITEM,0,(LPARAM)&LvItem);
 
-				LvItem.iSubItem=2;
-				LvItem.pszText=item2;
-				SendMessage(hComboBox,LVM_SETITEM,0,(LPARAM)&LvItem); 
+				// Size
+				LvItem.iSubItem = 2;
+				LvItem.pszText = item1;
+				SendMessage (hComboBox,LVM_SETITEM,0,(LPARAM)&LvItem); 
+
+				if (n > 0)
+				{
+					char drive[] = { 0, ':', 0 };
+					char device[MAX_PATH * 2];
+					int driveNo;
+
+					// Drive letter
+					strcpy (device, szTmp);
+					ToUNICODE (device);
+					driveNo = GetDiskDeviceDriveLetter ((PWSTR) device);
+					drive[0] = driveNo == -1 ? 0 : 'A' + driveNo;
+
+					LvItem.iSubItem = 1;
+					LvItem.pszText = drive;
+					SendMessage (hComboBox,LVM_SETITEM,0,(LPARAM)&LvItem);
+
+					// Partition type
+					LvItem.iSubItem = 3;
+					LvItem.pszText = item2;
+					SendMessage (hComboBox,LVM_SETITEM,0,(LPARAM)&LvItem);
+				}
+
+				// Mark device with partitions
+				if (n == 1)
+				{
+					LvItem.iItem = line - 2;
+					LvItem.iSubItem = 3;
+					LvItem.pszText = " ";
+					SendMessage (hComboBox,LVM_SETITEM,0,(LPARAM)&LvItem);
+				}
+
 			}
-
-
 		}
 
-		if(drivePresent)
+		if (drivePresent)
 		{
-			LVITEM LvItem;
-			memset(&LvItem,0,sizeof(LvItem));
-			LvItem.mask=LVIF_TEXT;   
-			LvItem.iItem= line++;   
+			memset (&LvItem,0,sizeof(LvItem));
+			LvItem.mask = LVIF_TEXT;   
+			LvItem.iItem = line++;   
 
-			LvItem.pszText="";
-			SendMessage(hComboBox,LVM_INSERTITEM,0,(LPARAM)&LvItem);
+			LvItem.pszText = "";
+			SendMessage (hComboBox,LVM_INSERTITEM,0,(LPARAM)&LvItem);
 		}
 	}
 
@@ -1065,19 +1061,30 @@ GetAvailableRemovables (HWND hComboBox, char *lpszRootPath)
 	if (nCurrentOS != WIN_NT)
 		return 0;
 
-	memset(&LvItem,0,sizeof(LvItem));
+	memset (&LvItem,0,sizeof(LvItem));
 	LvItem.mask = LVIF_TEXT;   
 	LvItem.iItem = SendMessage (hComboBox, LVM_GETITEMCOUNT, 0, 0)+1;   
 
 	if (QueryDosDevice ("A:", szTmp, sizeof (szTmp)) != 0)
 	{
-		LvItem.pszText="Floppy (A:)";
-		SendMessage(hComboBox,LVM_INSERTITEM,0,(LPARAM)&LvItem);
+		LvItem.pszText = "\\Device\\Floppy0";
+		LvItem.iItem = SendMessage (hComboBox,LVM_INSERTITEM,0,(LPARAM)&LvItem);
+
+		LvItem.iSubItem = 1;
+		LvItem.pszText = "A:";
+		SendMessage (hComboBox,LVM_SETITEM,0,(LPARAM)&LvItem);
+
 	}
 	if (QueryDosDevice ("B:", szTmp, sizeof (szTmp)) != 0)
 	{
-		LvItem.pszText="Floppy (B:)";
-		SendMessage(hComboBox,LVM_INSERTITEM,0,(LPARAM)&LvItem);
+		LvItem.pszText = "\\Device\\Floppy1";
+		LvItem.iSubItem = 0;
+		LvItem.iItem = SendMessage (hComboBox, LVM_GETITEMCOUNT, 0, 0)+1;   
+		LvItem.iItem = SendMessage (hComboBox,LVM_INSERTITEM,0,(LPARAM)&LvItem);
+
+		LvItem.iSubItem = 1;
+		LvItem.pszText = "B:";
+		SendMessage (hComboBox,LVM_SETITEM,0,(LPARAM)&LvItem);
 	}
 
 	i = SendMessage (hComboBox, LVM_GETITEMCOUNT, 0, 0);
@@ -1105,26 +1112,31 @@ RawDevicesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 
 			SetDefaultUserFont (hwndDlg);
 
-			SendMessage(hList,LVM_SETEXTENDEDLISTVIEWSTYLE,0,
+			SendMessage (hList,LVM_SETEXTENDEDLISTVIEWSTYLE,0,
 				LVS_EX_FULLROWSELECT|LVS_EX_HEADERDRAGDROP|LVS_EX_TWOCLICKACTIVATE 
 				); 
 
-			memset(&LvCol,0,sizeof(LvCol));               
+			memset (&LvCol,0,sizeof(LvCol));               
 			LvCol.mask = LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM|LVCF_FMT;  
 			LvCol.pszText = "Device";                           
-			LvCol.cx =160;
+			LvCol.cx =154;
 			LvCol.fmt = LVCFMT_LEFT;
-			SendMessage(hList,LVM_INSERTCOLUMN,0,(LPARAM)&LvCol);
+			SendMessage (hList,LVM_INSERTCOLUMN,0,(LPARAM)&LvCol);
+
+			LvCol.pszText = "Drive";  
+			LvCol.cx = 38;           
+			LvCol.fmt = LVCFMT_LEFT;
+			SendMessage (hList,LVM_INSERTCOLUMN,1,(LPARAM)&LvCol);
 
 			LvCol.pszText = "Size";  
-			LvCol.cx = 64;           
+			LvCol.cx = 62;           
 			LvCol.fmt = LVCFMT_RIGHT;
-			SendMessage(hList,LVM_INSERTCOLUMN,1,(LPARAM)&LvCol);
+			SendMessage (hList,LVM_INSERTCOLUMN,2,(LPARAM)&LvCol);
 
 			LvCol.pszText = "Type";  
-			LvCol.cx = 92;
+			LvCol.cx = 112;
 			LvCol.fmt = LVCFMT_LEFT;
-			SendMessage(hList,LVM_INSERTCOLUMN,2,(LPARAM)&LvCol);
+			SendMessage (hList,LVM_INSERTCOLUMN,3,(LPARAM)&LvCol);
 
 			nCount = GetAvailableFixedDisks (hList, "\\Device\\Harddisk%d\\Partition%d");
 			nCount += GetAvailableRemovables (hList, "\\Device\\Floppy%d");
@@ -1142,7 +1154,6 @@ RawDevicesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 
 	case WM_COMMAND:
 	case WM_NOTIFY:
-
 		// catch non-device line selected
 		if (msg == WM_NOTIFY && ((LPNMHDR) lParam)->code == LVN_ITEMCHANGED && (((LPNMLISTVIEW) lParam)->uNewState & LVIS_FOCUSED ))
 		{
@@ -1161,7 +1172,7 @@ RawDevicesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 		if (msg == WM_COMMAND && lw == IDOK || msg == WM_NOTIFY && ((NMHDR *)lParam)->code == LVN_ITEMACTIVATE)
 		{
 			LVITEM LvItem;
-			memset(&LvItem,0,sizeof(LvItem));
+			memset (&LvItem,0,sizeof(LvItem));
 			LvItem.mask = LVIF_TEXT;   
 			LvItem.iItem =  SendMessage (GetDlgItem (hwndDlg, IDC_DEVICELIST), LVM_GETSELECTIONMARK, 0, 0);
 			LvItem.pszText = lpszFileName;
@@ -1169,7 +1180,28 @@ RawDevicesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 
 			SendMessage (GetDlgItem (hwndDlg, IDC_DEVICELIST), LVM_GETITEMTEXT, LvItem.iItem, (LPARAM) &LvItem);
 
-			if(lpszFileName[0]==0 || lpszFileName[0]==' ')
+			if (lpszFileName[0] == 'H')
+			{
+				// Whole device selected
+				int driveNo;
+				char tmp[10];
+
+				sscanf (lpszFileName, "Harddisk %d", &driveNo);
+				sprintf (lpszFileName, "\\Device\\Harddisk%d\\Partition0", driveNo);
+
+#ifdef VOLFORMAT
+				// Warn if device contains partitions
+				LvItem.iSubItem = 3;
+				LvItem.pszText = tmp;
+				SendMessage (GetDlgItem (hwndDlg, IDC_DEVICELIST), LVM_GETITEMTEXT, LvItem.iItem, (LPARAM) &LvItem);
+				if (tmp[0] == ' ')
+				{
+					MessageBox (hwndDlg, getstr (IDS_DEVICE_PARTITIONS_WARN), lpszTitle, MB_OK|MB_ICONWARNING);
+				}
+#endif
+			}
+
+			if (lpszFileName[0] == 0)
 				break; // non-device line selected
 
 			EndDialog (hwndDlg, IDOK);
@@ -1227,8 +1259,40 @@ DriverAttach (void)
 	return 0;
 }
 
+
+// Sets file pointer to hidden volume header
+BOOL SeekHiddenVolHeader (HFILE dev, unsigned __int64 volSize, BOOL deviceFlag)
+{
+	LARGE_INTEGER offset, offsetNew;
+
+	if (deviceFlag)
+	{
+		// Partition/device
+
+		offset.QuadPart = volSize - HIDDEN_VOL_HEADER_OFFSET;
+
+		if (SetFilePointerEx ((HANDLE) dev, offset, &offsetNew, FILE_BEGIN) == 0)
+			return FALSE;
+
+		if (offsetNew.QuadPart != offset.QuadPart)
+			return FALSE;
+	}
+	else
+	{
+		// File-hosted volume
+
+		offset.QuadPart = - HIDDEN_VOL_HEADER_OFFSET;
+
+		if (SetFilePointerEx ((HANDLE) dev, offset, &offsetNew, FILE_END) == 0)
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+
 BOOL
-BrowseFiles (HWND hwndDlg, UINT nTitleID, char *lpszFileName)
+BrowseFiles (HWND hwndDlg, UINT nTitleID, char *lpszFileName, BOOL keepHistory)
 {
 	OPENFILENAME ofn;
 	char szFileTitle[TC_MAX_PATH];
@@ -1246,7 +1310,7 @@ BrowseFiles (HWND hwndDlg, UINT nTitleID, char *lpszFileName)
 	ofn.nMaxFileTitle = TC_MAX_PATH;
 	ofn.lpstrInitialDir = NULL;
 	ofn.lpstrTitle = getstr (nTitleID);
-	ofn.Flags = OFN_HIDEREADONLY | OFN_PATHMUSTEXIST;
+	ofn.Flags = OFN_HIDEREADONLY | OFN_PATHMUSTEXIST | (keepHistory ? 0 : OFN_DONTADDTORECENT);
 	//ofn.lpstrDefExt = "tc";
 
 	if (!GetOpenFileName (&ofn))
@@ -1270,7 +1334,7 @@ handleError (HWND hwndDlg, int code)
 		MessageBox (hwndDlg, getstr (IDS_OUTOFMEMORY), lpszTitle, ICON_HAND);
 		break;
 	case ERR_PASSWORD_WRONG:
-		MessageBox (hwndDlg, getstr (IDS_PASSWORD_WRONG), lpszTitle, MB_ICONEXCLAMATION);
+		MessageBox (hwndDlg, getstr (CheckCapsLock (NULL, TRUE) ? IDS_PASSWORD_WRONG_CAPSLOCK_ON : IDS_PASSWORD_WRONG), lpszTitle, MB_ICONEXCLAMATION);
 		break;
 	case ERR_VOL_FORMAT_BAD:
 		MessageBox (hwndDlg, getstr (IDS_VOL_FORMAT_BAD), lpszTitle, ICON_HAND);
@@ -1315,7 +1379,7 @@ handleError (HWND hwndDlg, int code)
 		MessageBox (hwndDlg, getstr (IDS_FILE_OPEN_FAILED), lpszTitle, ICON_HAND);
 		break;
 	case ERR_VOL_MOUNT_FAILED:
-		MessageBox (hwndDlg, getstr (IDS_VOL_MOUNT_FAILED), lpszTitle, MB_ICONEXCLAMATION);
+		MessageBox (hwndDlg, getstr (CheckCapsLock (NULL, TRUE) ? IDS_VOL_MOUNT_FAILED_CAPSLOCK_ON : IDS_VOL_MOUNT_FAILED), lpszTitle, MB_ICONEXCLAMATION);
 		break;
 	case ERR_NO_FREE_SLOTS:
 		MessageBox (hwndDlg, getstr (IDS_NO_FREE_SLOTS), lpszTitle, ICON_HAND);
@@ -1361,6 +1425,9 @@ void SetDefaultUserFont (HWND hwnd)
 		metric.cbSize = sizeof (NONCLIENTMETRICS);
 		SystemParametersInfo (SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &metric, 0);
 
+		metric.lfMessageFont.lfHeight = -11;
+		metric.lfMessageFont.lfWidth = 0;
+
 		hUserFont = CreateFontIndirect (&metric.lfMessageFont);
 
 		metric.lfMessageFont.lfUnderline = TRUE;
@@ -1369,7 +1436,844 @@ void SetDefaultUserFont (HWND hwnd)
 		metric.lfMessageFont.lfUnderline = FALSE;
 		metric.lfMessageFont.lfWeight = FW_BOLD;
 		hUserBoldFont = CreateFontIndirect (&metric.lfMessageFont);
+
+		metric.lfMessageFont.lfUnderline = TRUE;
+		metric.lfMessageFont.lfWeight = FW_BOLD;
+		hUserUnderlineBoldFont = CreateFontIndirect (&metric.lfMessageFont);
 	}
 
 	EnumChildWindows (hwnd, SetDefaultUserFontEnum, (LPARAM) hUserFont);
+}
+
+void OpenVolumeExplorerWindow (int driveNo)
+{
+	char dosName[5];
+	SHFILEINFO fInfo;
+
+	sprintf (dosName, "%c:\\", (char) driveNo + 'A');
+
+	// Force explorer to discover the drive
+	SHGetFileInfo (dosName, 0, &fInfo, sizeof (fInfo), 0);
+
+	ShellExecute (NULL, "open", dosName, NULL, NULL, SW_SHOWNORMAL);
+}
+
+static BOOL explorerCloseSent;
+
+static BOOL CALLBACK CloseVolumeExplorerWindowsEnum( HWND hwnd, LPARAM driveNo)
+{
+	char get[128], driveStr[10];
+	HWND h;
+
+	GetClassName (hwnd, get, sizeof get);
+
+	if (strcmp (get, "CabinetWClass") == 0)
+	{
+		sprintf (driveStr, "%c:\\", driveNo + 'A');
+
+		// Title bar
+		GetWindowText (hwnd, get, sizeof get);
+		if (strstr (get, driveStr) == get)
+		{
+			PostMessage (hwnd, WM_CLOSE, 0, 0);
+			explorerCloseSent = TRUE;
+			return TRUE;
+		}
+
+		// URL edit box
+		h = FindWindowEx (hwnd, 0, "WorkerW", 0);
+		if (!h) return TRUE;
+		h = FindWindowEx (h, 0, "ReBarWindow32", 0);
+		if (!h) return TRUE;
+		h = FindWindowEx (h, 0, "ComboBoxEx32", 0);
+		if (h)
+		{
+			SendMessage (h, WM_GETTEXT, sizeof get, (LPARAM) get);
+			if (strstr (get, driveStr) == get)
+			{
+				PostMessage (hwnd, WM_CLOSE, 0, 0);
+				explorerCloseSent = TRUE;
+			}
+		}
+	}
+	return TRUE;
+}
+
+BOOL CloseVolumeExplorerWindows (HWND hwnd, int driveNo)
+{
+	explorerCloseSent = FALSE;
+	EnumWindows (CloseVolumeExplorerWindowsEnum, (LPARAM) driveNo);
+
+	return explorerCloseSent;
+}
+
+
+#ifndef SETUP
+void GetSpeedString (unsigned __int64 speed, char *str)
+{
+	if (speed > 1024I64*1024*1024*1024*1024*99)
+		sprintf (str,"%d PB/s", speed/1024/1024/1024/1024/1024);
+	else if (speed > 1024I64*1024*1024*1024*1024)
+		sprintf (str,"%.1f PB/s",(double)(speed/1024.0/1024/1024/1024/1024));
+	else if (speed > 1024I64*1024*1024*1024*99)
+		sprintf (str,"%d TB/s",speed/1024/1024/1024/1024);
+	else if (speed > 1024I64*1024*1024*1024)
+		sprintf (str,"%.1f TB/s",(double)(speed/1024.0/1024/1024/1024));
+	else if (speed > 1024I64*1024*1024*99)
+		sprintf (str,"%d GB/s",speed/1024/1024/1024);
+	else if (speed > 1024I64*1024*1024)
+		sprintf (str,"%.1f GB/s",(double)(speed/1024.0/1024/1024));
+	else if (speed > 1024I64*1024*99)
+		sprintf (str,"%d MB/s", speed/1024/1024);
+	else if (speed > 1024I64*1024)
+		sprintf (str,"%.1f MB/s",(double)(speed/1024.0/1024));
+	else
+		sprintf (str,"%d KB/s", speed/1024);
+}
+
+static void DisplayBenchmarkResults (HWND hwndDlg)
+{
+	BENCHMARK_REC tmp_line;
+	char item1[100]={0};
+	int line = 0;
+	LVITEM LvItem;
+	HWND hList = GetDlgItem (hwndDlg, IDC_RESULTS);
+	int ea, i;
+	BOOL unsorted = TRUE;
+	unsigned __int64 encBytesPerSec;
+	unsigned __int64 decBytesPerSec;
+
+	/* Sort the list */
+
+	switch (benchmarkSortMethod)
+	{
+	case BENCHMARK_SORT_BY_SPEED:
+
+		while (unsorted)
+		{
+			unsorted = FALSE;
+			for (i = 0; i < benchmarkTotalItems - 1; i++)
+			{
+				if (benchmarkTable[i].meanBytesPerSec < benchmarkTable[i+1].meanBytesPerSec)
+				{
+					unsorted = TRUE;
+					memcpy (&tmp_line, &benchmarkTable[i], sizeof(BENCHMARK_REC));
+					memcpy (&benchmarkTable[i], &benchmarkTable[i+1], sizeof(BENCHMARK_REC));
+					memcpy (&benchmarkTable[i+1], &tmp_line, sizeof(BENCHMARK_REC));
+				}
+			}
+		}
+		break;
+
+	case BENCHMARK_SORT_BY_NAME:
+
+		while (unsorted)
+		{
+			unsorted = FALSE;
+			for (i = 0; i < benchmarkTotalItems - 1; i++)
+			{
+				if (benchmarkTable[i].id > benchmarkTable[i+1].id)
+				{
+					unsorted = TRUE;
+					memcpy (&tmp_line, &benchmarkTable[i], sizeof(BENCHMARK_REC));
+					memcpy (&benchmarkTable[i], &benchmarkTable[i+1], sizeof(BENCHMARK_REC));
+					memcpy (&benchmarkTable[i+1], &tmp_line, sizeof(BENCHMARK_REC));
+				}
+			}
+		}
+		break;
+	}
+  
+	/* Render the results */
+
+	SendMessage (hList,LVM_DELETEALLITEMS,0,(LPARAM)&LvItem);
+
+	for (i = 0; i < benchmarkTotalItems; i++)
+	{
+		ea = benchmarkTable[i].id;
+
+		memset (&LvItem,0,sizeof(LvItem));
+		LvItem.mask = LVIF_TEXT;
+		LvItem.iItem = line++;
+		LvItem.iSubItem = 0;
+		LvItem.pszText = benchmarkTable[i].name;
+
+		SendMessage (hList,LVM_INSERTITEM,0,(LPARAM)&LvItem);
+
+		GetSpeedString((unsigned __int64) (benchmarkLastBufferSize / ((float) benchmarkTable[i].encSpeed / benchmarkPerformanceFrequency.QuadPart)), item1);
+		LvItem.iSubItem = 1;
+		LvItem.pszText = item1;
+
+		SendMessage (hList,LVM_SETITEM,0,(LPARAM)&LvItem); 
+		GetSpeedString((unsigned __int64) (benchmarkLastBufferSize / ((float) benchmarkTable[i].decSpeed / benchmarkPerformanceFrequency.QuadPart)), item1);
+		LvItem.iSubItem = 2;
+		LvItem.pszText = item1;
+
+		SendMessage (hList,LVM_SETITEM,0,(LPARAM)&LvItem); 
+
+		GetSpeedString(benchmarkTable[i].meanBytesPerSec, item1);
+		LvItem.iSubItem = 3;
+		LvItem.pszText = item1;
+
+		SendMessage (hList,LVM_SETITEM,0,(LPARAM)&LvItem); 
+	}
+}
+
+static BOOL PerformBenchmark(HWND hwndDlg)
+{
+    LARGE_INTEGER performanceCountStart, performanceCountEnd;
+	BYTE *lpTestBuffer;
+	HWND hList = GetDlgItem (hwndDlg, IDC_RESULTS);
+	LVITEM LvItem;
+	int ea, i;
+	unsigned char iv[DISK_IV_SIZE];
+	unsigned char ks[MAX_EXPANDED_KEY];
+	unsigned char key[DISKKEY_SIZE];
+
+	if (QueryPerformanceFrequency (&benchmarkPerformanceFrequency) == 0)
+	{
+		MessageBox (hwndDlg, "Error: Your hardware does not support a high-resolution performance counter.", lpszTitle, ICON_HAND);
+		return FALSE;
+	}
+
+	ArrowWaitCursor ();
+
+	lpTestBuffer = malloc(benchmarkBufferSize - (benchmarkBufferSize % 16));
+	if (lpTestBuffer == NULL)
+	{
+		NormalCursor ();
+		MessageBox (hwndDlg, "Error: Cannot allocate memory.", lpszTitle, ICON_HAND);
+		return FALSE;
+	}
+	VirtualLock (lpTestBuffer, benchmarkBufferSize - (benchmarkBufferSize % 16));
+
+	benchmarkTotalItems = 0;
+	
+	for (ea = EAGetFirst(); ea != 0; ea = EAGetNext(ea))
+	{
+		EAInit (ea, key, ks);
+        
+		if (QueryPerformanceCounter (&performanceCountStart) == 0)
+			goto counter_error;
+
+		EncryptBuffer ((unsigned long *) lpTestBuffer, (unsigned __int64) benchmarkBufferSize, ks, iv, iv, ea);
+
+		if (QueryPerformanceCounter (&performanceCountEnd) == 0)
+			goto counter_error;
+
+		benchmarkTable[benchmarkTotalItems].encSpeed = performanceCountEnd.QuadPart - performanceCountStart.QuadPart;
+
+		if (QueryPerformanceCounter (&performanceCountStart) == 0)
+			goto counter_error;
+
+		DecryptBuffer ((unsigned long *) lpTestBuffer, (unsigned __int64) benchmarkBufferSize, ks, iv, iv, ea);
+		
+		if (QueryPerformanceCounter (&performanceCountEnd) == 0)
+			goto counter_error;
+
+		benchmarkTable[benchmarkTotalItems].decSpeed = performanceCountEnd.QuadPart - performanceCountStart.QuadPart;
+		benchmarkTable[benchmarkTotalItems].id = ea;
+		benchmarkTable[benchmarkTotalItems].meanBytesPerSec = ((unsigned __int64) (benchmarkBufferSize / ((float) benchmarkTable[benchmarkTotalItems].encSpeed / benchmarkPerformanceFrequency.QuadPart)) + (unsigned __int64) (benchmarkBufferSize / ((float) benchmarkTable[benchmarkTotalItems].decSpeed / benchmarkPerformanceFrequency.QuadPart))) / 2;
+		EAGetName (benchmarkTable[benchmarkTotalItems].name, ea);
+
+		benchmarkTotalItems++;
+
+	}
+
+	VirtualUnlock (lpTestBuffer, benchmarkBufferSize - (benchmarkBufferSize % 16));
+
+	free(lpTestBuffer);
+
+	benchmarkLastBufferSize = benchmarkBufferSize;
+
+	DisplayBenchmarkResults(hwndDlg);
+
+	EnableWindow (GetDlgItem (hwndDlg, ID_PERFORM_BENCHMARK), TRUE);
+	EnableWindow (GetDlgItem (hwndDlg, IDCLOSE), TRUE);
+
+	NormalCursor ();
+	return TRUE;
+
+counter_error:
+
+	VirtualUnlock (lpTestBuffer, benchmarkBufferSize - (benchmarkBufferSize % 16));
+
+	free(lpTestBuffer);
+
+	NormalCursor ();
+
+	EnableWindow (GetDlgItem (hwndDlg, ID_PERFORM_BENCHMARK), TRUE);
+	EnableWindow (GetDlgItem (hwndDlg, IDCLOSE), TRUE);
+
+	MessageBox (hwndDlg, "Error: Could not retrieve value of performance counter.", lpszTitle, ICON_HAND);
+	return FALSE;
+}
+
+
+BOOL WINAPI BenchmarkDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	WORD lw = LOWORD (wParam);
+	LPARAM nIndex;
+	HWND hCboxSortMethod = GetDlgItem (hwndDlg, IDC_BENCHMARK_SORT_METHOD);
+	HWND hCboxBufferSize = GetDlgItem (hwndDlg, IDC_BENCHMARK_BUFFER_SIZE);
+
+	switch (msg)
+	{
+	case WM_INITDIALOG:
+		{
+			LVCOLUMN LvCol;
+			HWND hList = GetDlgItem (hwndDlg, IDC_RESULTS);
+			char buf[100];
+
+			SetDefaultUserFont (hwndDlg);
+
+			benchmarkBufferSize = BENCHMARK_DEFAULT_BUF_SIZE;
+			benchmarkSortMethod = BENCHMARK_SORT_BY_SPEED;
+
+			SendMessage (hList,LVM_SETEXTENDEDLISTVIEWSTYLE,0,
+				LVS_EX_FULLROWSELECT|LVS_EX_HEADERDRAGDROP|LVS_EX_TWOCLICKACTIVATE 
+				); 
+
+			memset (&LvCol,0,sizeof(LvCol));               
+			LvCol.mask = LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM|LVCF_FMT;  
+			LvCol.pszText = "Algorithm";                           
+			LvCol.cx =114;
+			LvCol.fmt = LVCFMT_LEFT;
+			SendMessage (hList,LVM_INSERTCOLUMN,0,(LPARAM)&LvCol);
+
+			LvCol.pszText = "Encryption";  
+			LvCol.cx = 80;           
+			LvCol.fmt = LVCFMT_RIGHT;
+			SendMessage (hList,LVM_INSERTCOLUMN,1,(LPARAM)&LvCol);
+
+			LvCol.pszText = "Decryption";  
+			LvCol.cx = 80;
+			LvCol.fmt = LVCFMT_RIGHT;
+			SendMessage (hList,LVM_INSERTCOLUMN,2,(LPARAM)&LvCol);
+
+			LvCol.pszText = "Mean";  
+			LvCol.cx = 80;
+			LvCol.fmt = LVCFMT_RIGHT;
+			SendMessage (hList,LVM_INSERTCOLUMN,3,(LPARAM)&LvCol);
+
+			/* Combo boxes */
+
+			// Sort method
+
+			SendMessage (hCboxSortMethod, CB_RESETCONTENT, 0, 0);
+
+			nIndex = SendMessage (hCboxSortMethod, CB_ADDSTRING, 0, (LPARAM) "Alphabetical/Categorized");
+			SendMessage (hCboxSortMethod, CB_SETITEMDATA, nIndex, (LPARAM) 0);
+
+			nIndex = SendMessage (hCboxSortMethod, CB_ADDSTRING, 0, (LPARAM) "Mean Speed (Descending)");
+			SendMessage (hCboxSortMethod, CB_SETITEMDATA, nIndex, (LPARAM) 0);
+
+			SendMessage (hCboxSortMethod, CB_SETCURSEL, 1, 0);		// Default sort method
+
+			// Buffer size
+
+			SendMessage (hCboxBufferSize, CB_RESETCONTENT, 0, 0);
+
+			nIndex = SendMessage (hCboxBufferSize, CB_ADDSTRING, 0, (LPARAM) "5 KB");
+			SendMessage (hCboxBufferSize, CB_SETITEMDATA, nIndex, (LPARAM) 5 * BYTES_PER_KB);
+
+			nIndex = SendMessage (hCboxBufferSize, CB_ADDSTRING, 0, (LPARAM) "100 KB");
+			SendMessage (hCboxBufferSize, CB_SETITEMDATA, nIndex, (LPARAM) 100 * BYTES_PER_KB);
+
+			nIndex = SendMessage (hCboxBufferSize, CB_ADDSTRING, 0, (LPARAM) "500 KB");
+			SendMessage (hCboxBufferSize, CB_SETITEMDATA, nIndex, (LPARAM) 500 * BYTES_PER_KB);
+
+			nIndex = SendMessage (hCboxBufferSize, CB_ADDSTRING, 0, (LPARAM) "1 MB");
+			SendMessage (hCboxBufferSize, CB_SETITEMDATA, nIndex, (LPARAM) 1 * BYTES_PER_MB);
+
+			nIndex = SendMessage (hCboxBufferSize, CB_ADDSTRING, 0, (LPARAM) "5 MB");
+			SendMessage (hCboxBufferSize, CB_SETITEMDATA, nIndex, (LPARAM) 5 * BYTES_PER_MB);
+
+			nIndex = SendMessage (hCboxBufferSize, CB_ADDSTRING, 0, (LPARAM) "10 MB");
+			SendMessage (hCboxBufferSize, CB_SETITEMDATA, nIndex, (LPARAM) 10 * BYTES_PER_MB);
+
+			nIndex = SendMessage (hCboxBufferSize, CB_ADDSTRING, 0, (LPARAM) "50 MB");
+			SendMessage (hCboxBufferSize, CB_SETITEMDATA, nIndex, (LPARAM) 50 * BYTES_PER_MB);
+
+			nIndex = SendMessage (hCboxBufferSize, CB_ADDSTRING, 0, (LPARAM) "100 MB");
+			SendMessage (hCboxBufferSize, CB_SETITEMDATA, nIndex, (LPARAM) 100 * BYTES_PER_MB);
+
+			nIndex = SendMessage (hCboxBufferSize, CB_ADDSTRING, 0, (LPARAM) "200 MB");
+			SendMessage (hCboxBufferSize, CB_SETITEMDATA, nIndex, (LPARAM) 200 * BYTES_PER_MB);
+
+			nIndex = SendMessage (hCboxBufferSize, CB_ADDSTRING, 0, (LPARAM) "500 MB");
+			SendMessage (hCboxBufferSize, CB_SETITEMDATA, nIndex, (LPARAM) 500 * BYTES_PER_MB);
+
+			nIndex = SendMessage (hCboxBufferSize, CB_ADDSTRING, 0, (LPARAM) "1 GB");
+			SendMessage (hCboxBufferSize, CB_SETITEMDATA, nIndex, (LPARAM) 1 * BYTES_PER_GB);
+
+			SendMessage (hCboxBufferSize, CB_SETCURSEL, 3, 0);		// Default size
+
+			return 1;
+		}
+		break;
+
+	case WM_COMMAND:
+	case WM_NOTIFY:
+
+		if (lw == IDC_BENCHMARK_SORT_METHOD)
+		{
+			nIndex = SendMessage (hCboxSortMethod, CB_GETCURSEL, 0, 0);
+			if (nIndex != benchmarkSortMethod)
+			{
+				benchmarkSortMethod = nIndex;
+				DisplayBenchmarkResults (hwndDlg);
+			}
+		}
+
+		if (lw == ID_PERFORM_BENCHMARK)
+		{
+			nIndex = SendMessage (hCboxBufferSize, CB_GETCURSEL, 0, 0);
+			benchmarkBufferSize = SendMessage (hCboxBufferSize, CB_GETITEMDATA, nIndex, 0);
+
+			if (PerformBenchmark(hwndDlg) == FALSE)
+			{
+				EndDialog (hwndDlg, IDCLOSE);
+			}
+			return 0;
+		}
+		if (lw == IDCLOSE)
+		{
+			EndDialog (hwndDlg, IDCLOSE);
+			return 0;
+		}
+		return 0;
+
+		break;
+
+	case WM_CLOSE:
+		EndDialog (hwndDlg, IDCLOSE);
+		return 0;
+
+		break;
+
+	}
+
+	return 0;
+}
+#endif	// #ifndef SETUP
+
+
+BOOL CheckCapsLock (HWND hwnd, BOOL quiet)
+{
+	if ((GetKeyState(VK_CAPITAL) & 1) != 0)	
+	{
+		if (!quiet)
+		{
+			MessageBox (hwnd, getstr (IDS_CAPSLOCK_ON), lpszTitle, MB_ICONEXCLAMATION);
+		}
+		return TRUE;
+	}
+	return FALSE;
+}
+
+
+BOOL CheckPasswordLength (HWND hwndDlg, HWND hwndItem)			
+{
+	if (GetWindowTextLength (hwndItem) < PASSWORD_LEN_WARNING)
+	{
+		if (MessageBox (hwndDlg, getstr (IDS_PASSWORD_LENGTH_WARNING), lpszTitle, MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2) != IDYES)
+			return FALSE;
+	}
+	return TRUE;
+}
+
+
+int GetFirstAvailableDrive ()
+{
+	DWORD dwUsedDrives = GetLogicalDrives();
+	int i;
+
+	for (i = 3; i < 26; i++)
+	{
+		if (!(dwUsedDrives & 1 << i))
+			return i;
+	}
+
+	return -1;
+}
+
+
+int GetLastAvailableDrive ()
+{
+	DWORD dwUsedDrives = GetLogicalDrives();
+	int i;
+
+	for (i = 25; i > 2; i--)
+	{
+		if (!(dwUsedDrives & 1 << i))
+			return i;
+	}
+
+	return -1;
+}
+
+
+BOOL IsDriveAvailable (int driveNo)
+{
+	return (GetLogicalDrives() & (1 << driveNo)) == 0;
+}
+
+
+int DriverUnmountVolume (HWND hwndDlg, int nDosDriveNo, BOOL forced)
+{
+	UNMOUNT_STRUCT unmount;
+	DWORD dwResult;
+
+	BOOL bResult;
+	
+	unmount.nDosDriveNo = nDosDriveNo;
+	unmount.ignoreOpenFiles = forced;
+
+	bResult = DeviceIoControl (hDriver, UNMOUNT, &unmount,
+		sizeof (unmount), &unmount, sizeof (unmount), &dwResult, NULL);
+
+	if (bResult == FALSE)
+	{
+		handleWin32Error (hwndDlg);
+		return 1;
+	}
+
+	return unmount.nReturnCode;
+}
+
+
+void BroadcastDeviceChange (WPARAM message, int nDosDriveNo)
+{
+	DEV_BROADCAST_VOLUME dbv;
+	char root[] = {nDosDriveNo + 'A', ':', '\\', 0 };
+
+	if (message == DBT_DEVICEREMOVECOMPLETE)
+		SHChangeNotify(SHCNE_DRIVEREMOVED, SHCNF_PATH, root, NULL);
+
+	dbv.dbcv_size = sizeof(dbv); 
+	dbv.dbcv_devicetype = DBT_DEVTYP_VOLUME; 
+	dbv.dbcv_reserved = 0;
+	dbv.dbcv_unitmask = 1 << nDosDriveNo;
+	dbv.dbcv_flags = 0; 
+
+	SendMessage (HWND_BROADCAST, WM_DEVICECHANGE, message, (LPARAM)(&dbv));
+}
+
+
+
+// Returns:
+// -1 = user aborted mount / error
+// 0  = mount failed
+// 1  = mount OK
+// 2  = mount OK in shared mode
+
+int MountVolume (HWND hwndDlg,
+				 int driveNo,
+				 char *volumePath,
+				 char *szPassword,
+				 BOOL cachePassword,
+				 BOOL sharedAccess,
+				 BOOL quiet)
+{
+	MOUNT_STRUCT driver;
+	DWORD dwResult;
+	BOOL bResult, bDevice;
+
+	if (IsMountedVolume (volumePath))
+	{
+		if (!quiet)
+			MessageBox(0, getstr (IDS_ALREADY_MOUNTED), lpszTitle, MB_ICONASTERISK);
+		return -1;
+	}
+
+	if (!IsDriveAvailable (driveNo))
+		return -1;
+
+	// If using cached passwords, check cache status first
+	if (szPassword[0] == 0 && IsPasswordCacheEmpty ())
+		return 0;
+
+	ZeroMemory (&driver, sizeof (driver));
+	driver.bExclusiveAccess = sharedAccess ? FALSE : TRUE;
+retry:
+	driver.nDosDriveNo = driveNo;
+	driver.bCache = cachePassword;
+	driver.time = time (NULL);
+	driver.nPasswordLen = strlen (szPassword);
+	strcpy (driver.szPassword, szPassword);
+	driver.bMountReadOnly = FALSE;
+	driver.bMountRemovable = FALSE;
+	driver.bMountManager = TRUE;
+
+	// Windows 2000 mount manager causes problems with remounted volumes
+	if (CurrentOSMajor == 5 && CurrentOSMinor == 0)
+		driver.bMountManager = FALSE;
+
+	CreateFullVolumePath ((char *) driver.wszVolume, volumePath, &bDevice);
+
+	if (nCurrentOS == WIN_NT)
+		ToUNICODE ((char *) driver.wszVolume);
+
+	bResult = DeviceIoControl (hDriver, MOUNT, &driver,
+		sizeof (driver), &driver, sizeof (driver), &dwResult, NULL);
+
+	burn (&driver.szPassword, sizeof (driver.szPassword));
+
+	if (bResult == FALSE)
+	{
+		// Volume already open by another process
+		if (GetLastError() == ERROR_SHARING_VIOLATION)
+		{
+			if (driver.bExclusiveAccess == FALSE)
+			{
+				if (!quiet)
+					MessageBox (hwndDlg, getstr (bDevice ? IDS_DEVICE_IN_USE_FAILED : IDS_FILE_IN_USE_FAILED),
+						lpszTitle, MB_ICONSTOP);
+
+				return -1;
+			}
+			else
+			{
+				if (quiet)
+				{
+					driver.bExclusiveAccess = FALSE;
+					goto retry;
+				}
+
+				// Ask user 
+				if (IDYES == MessageBox (hwndDlg, getstr (bDevice ? IDS_DEVICE_IN_USE : IDS_FILE_IN_USE),
+					lpszTitle, MB_YESNO | MB_DEFBUTTON2 | MB_ICONEXCLAMATION))
+				{
+					driver.bExclusiveAccess = FALSE;
+					goto retry;
+				}
+			}
+
+			return -1;
+		}
+
+		if (!quiet)
+			handleWin32Error (hwndDlg);
+
+		return -1;
+	}
+
+	if (driver.nReturnCode != 0)
+	{
+		// If using cached passwords, do not report wrong password
+		if (szPassword[0] == 0 && driver.nReturnCode == ERR_PASSWORD_WRONG)
+			return 0;
+
+		if (!quiet)	handleError (hwndDlg, driver.nReturnCode);
+
+		return 0;
+	}
+
+	BroadcastDeviceChange (DBT_DEVICEARRIVAL, driveNo);
+
+	if (driver.bExclusiveAccess == FALSE)
+		return 2;
+
+	return 1;
+}
+
+
+BOOL UnmountVolume (HWND hwndDlg , int nDosDriveNo, BOOL forceUnmount)
+{
+	int result;
+	BOOL bResult;
+	BOOL forced = forceUnmount;
+
+	BroadcastDeviceChange (DBT_DEVICEREMOVEPENDING, nDosDriveNo);
+
+retry:
+	result = DriverUnmountVolume (hwndDlg, nDosDriveNo, forced);
+
+	if (result != 0)
+	{
+		if (result == ERR_FILES_OPEN)
+		{
+			if (IDYES == MessageBox (hwndDlg, getstr (IDS_UNMOUNT_LOCK_FAILED),
+				lpszTitle, MB_YESNO | MB_DEFBUTTON2 | MB_ICONEXCLAMATION))
+			{
+				forced = TRUE;
+				goto retry;
+			}
+
+			return FALSE;
+		}
+
+		MessageBox (hwndDlg, getstr (IDS_UNMOUNT_FAILED),
+				lpszTitle, MB_ICONERROR);
+
+		return FALSE;
+	} 
+	
+	BroadcastDeviceChange (DBT_DEVICEREMOVECOMPLETE, nDosDriveNo);
+
+	return TRUE;
+}
+
+
+BOOL IsPasswordCacheEmpty (void)
+{
+	DWORD dw;
+	return !DeviceIoControl (hDriver, CACHE_STATUS, 0, 0, 0, 0, &dw, 0);
+}
+
+BOOL IsMountedVolume (char *volname)
+{
+	MOUNT_LIST_STRUCT mlist;
+	DWORD dwResult;
+	int i;
+	char volume[TC_MAX_PATH*2+16];
+
+	strcpy (volume, volname);
+	if (nCurrentOS == WIN_NT) 
+	{
+		if (strstr (volname, "\\Device\\") != volname)
+			sprintf(volume, "\\??\\%s", volname);
+		ToUNICODE (volume);
+	}
+
+	memset (&mlist, 0, sizeof (mlist));
+	DeviceIoControl (hDriver, MOUNT_LIST, &mlist,
+		sizeof (mlist), &mlist, sizeof (mlist), &dwResult,
+		NULL);
+
+	for (i=0 ; i<26; i++)
+		if (nCurrentOS != WIN_NT && 0 == strcmp ((char *)mlist.wszVolume[i], volume) 
+			|| nCurrentOS == WIN_NT && 0 == wcscmp (mlist.wszVolume[i], (WCHAR *)volume))
+			return TRUE;
+
+	return FALSE;
+}
+
+
+BOOL IsAdmin (void)
+{
+	HANDLE hAccessToken;
+	UCHAR InfoBuffer[1024];
+	PTOKEN_GROUPS ptgGroups = (PTOKEN_GROUPS) InfoBuffer;
+	DWORD dwInfoBufferSize;
+	PSID psidAdministrators;
+	SID_IDENTIFIER_AUTHORITY siaNtAuthority = SECURITY_NT_AUTHORITY;
+	BOOL bSuccess;
+	UINT x;
+
+	if (!OpenThreadToken (GetCurrentThread (), TOKEN_QUERY, TRUE,
+			      &hAccessToken))
+	{
+		if (GetLastError ()!= ERROR_NO_TOKEN)
+			return FALSE;
+
+		/* Retry against process token if no thread token exists */
+		if (!OpenProcessToken (GetCurrentProcess (), TOKEN_QUERY,
+				       &hAccessToken))
+			return FALSE;
+	}
+
+	bSuccess = GetTokenInformation (hAccessToken, TokenGroups, InfoBuffer,
+					1024, &dwInfoBufferSize);
+
+	CloseHandle (hAccessToken);
+
+	if (!bSuccess)
+		return FALSE;
+
+	if (!AllocateAndInitializeSid (&siaNtAuthority, 2,
+				       SECURITY_BUILTIN_DOMAIN_RID,
+				       DOMAIN_ALIAS_RID_ADMINS,
+				       0, 0, 0, 0, 0, 0,
+				       &psidAdministrators))
+		return FALSE;
+ 
+	/* Assume that we don't find the admin SID. */
+	bSuccess = FALSE;
+
+	for (x = 0; x < ptgGroups->GroupCount; x++)
+	{
+		if (EqualSid (psidAdministrators, ptgGroups->Groups[x].Sid))
+		{
+			bSuccess = TRUE;
+			break;
+		}
+
+	}
+
+	FreeSid (psidAdministrators);
+	return bSuccess;
+}
+
+
+BOOL ResolveSymbolicLink (PWSTR symLinkName, PWSTR targetName)
+{
+	BOOL bResult;
+	DWORD dwResult;
+	RESOLVE_SYMLINK_STRUCT resolve;
+
+	memset (&resolve, 0, sizeof(resolve));
+	wcscpy ((PWSTR) &resolve.symLinkName, symLinkName);
+
+	bResult = DeviceIoControl (hDriver, RESOLVE_SYMLINK, &resolve,
+		sizeof (resolve), &resolve, sizeof (resolve), &dwResult,
+		NULL);
+
+	wcscpy (targetName, (PWSTR) &resolve.targetName);
+
+	return bResult;
+}
+
+
+// Returns drive letter number assigned to device (-1 if none)
+int GetDiskDeviceDriveLetter (PWSTR deviceName)
+{
+	int i;
+	WCHAR link[MAX_PATH];
+	WCHAR target[MAX_PATH];
+	WCHAR device[MAX_PATH];
+	char msg[100];
+
+	if (!ResolveSymbolicLink (deviceName, device))
+		wcscpy (device, deviceName);
+
+	for (i = 0; i < 26; i++)
+	{
+		WCHAR drive[] = { i + 'A', ':', 0 };
+
+		wcscpy (link, L"\\DosDevices\\");
+		wcscat (link, drive);
+
+		ResolveSymbolicLink (link, target);
+
+		if (wcscmp (device, target) == 0)
+			return i;
+	}
+
+	return -1;
+}
+
+
+HANDLE DismountDrive (int driveNo)
+{
+	char volMountName[32];
+	char dosName[3];
+	DWORD dwResult;
+	BOOL bResult;
+	HANDLE hVolume;
+
+	dosName[0] = (char) (driveNo + 'A');
+	dosName[1] = ':';
+	dosName[2] = 0;
+
+	sprintf (volMountName, "\\\\.\\%s", dosName);
+
+	hVolume = CreateFile (volMountName, GENERIC_READ | GENERIC_WRITE,
+		FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+
+	bResult = DeviceIoControl (hVolume, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0, &dwResult, NULL);
+	bResult = DeviceIoControl (hVolume, FSCTL_DISMOUNT_VOLUME, NULL, 0, NULL, 0, &dwResult, NULL);
+
+	return hVolume;
 }

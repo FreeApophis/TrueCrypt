@@ -143,10 +143,16 @@
 				RelativePath=".\Rmd160.c">
 			</File>
 			<File
+				RelativePath=".\Serpent.c">
+			</File>
+			<File
 				RelativePath=".\Set_key.c">
 			</File>
 			<File
 				RelativePath=".\Sha1.c">
+			</File>
+			<File
+				RelativePath=".\Twofish.c">
 			</File>
 		</Filter>
 		<Filter
@@ -196,6 +202,9 @@
 				RelativePath=".\Rmd160.h">
 			</File>
 			<File
+				RelativePath=".\Serpent.h">
+			</File>
+			<File
 				RelativePath=".\Set_key.h">
 			</File>
 			<File
@@ -206,6 +215,9 @@
 			</File>
 			<File
 				RelativePath=".\Spr.h">
+			</File>
+			<File
+				RelativePath=".\Twofish.h">
 			</File>
 		</Filter>
 		<Filter
