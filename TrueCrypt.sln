@@ -1,0 +1,171 @@
+Microsoft Visual Studio Solution File, Format Version 8.00
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Mount", "Mount\Mount.vcproj", "{E4C40F94-E7F9-4981-86E4-186B46F993F3}"
+	ProjectSection(ProjectDependencies) = postProject
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7} = {993245CF-6B70-47EE-91BB-39F8FC6DC0E7}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Crypto", "Crypto\Crypto.vcproj", "{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}"
+	ProjectSection(ProjectDependencies) = postProject
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Format", "Format\Format.vcproj", "{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}"
+	ProjectSection(ProjectDependencies) = postProject
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7} = {993245CF-6B70-47EE-91BB-39F8FC6DC0E7}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Setup", "Setup\Setup.vcproj", "{DF5F654D-BD44-4E31-B92E-B68074DC37A8}"
+	ProjectSection(ProjectDependencies) = postProject
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Service", "Service\Service.vcproj", "{12F44689-F5F2-4096-A176-C084A5759B2D}"
+	ProjectSection(ProjectDependencies) = postProject
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Driver", "Driver\Driver.vcproj", "{EF5EF444-18D0-40D7-8DFA-775EC4448602}"
+	ProjectSection(ProjectDependencies) = postProject
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7} = {993245CF-6B70-47EE-91BB-39F8FC6DC0E7}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Driver VXD", "Driver VXD\Driver VXD.vcproj", "{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}"
+	ProjectSection(ProjectDependencies) = postProject
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7} = {993245CF-6B70-47EE-91BB-39F8FC6DC0E7}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfiguration) = preSolution
+		All = All
+		All Debug = All Debug
+		Driver = Driver
+		Driver Debug = Driver Debug
+		Format = Format
+		Format Debug = Format Debug
+		Mount = Mount
+		Mount Debug = Mount Debug
+		Service = Service
+		Service Debug = Service Debug
+		Setup = Setup
+		Setup Debug = Setup Debug
+	EndGlobalSection
+	GlobalSection(ProjectConfiguration) = postSolution
+		{E4C40F94-E7F9-4981-86E4-186B46F993F3}.All.ActiveCfg = Release|Win32
+		{E4C40F94-E7F9-4981-86E4-186B46F993F3}.All.Build.0 = Release|Win32
+		{E4C40F94-E7F9-4981-86E4-186B46F993F3}.All Debug.ActiveCfg = Debug|Win32
+		{E4C40F94-E7F9-4981-86E4-186B46F993F3}.All Debug.Build.0 = Debug|Win32
+		{E4C40F94-E7F9-4981-86E4-186B46F993F3}.Driver.ActiveCfg = Release|Win32
+		{E4C40F94-E7F9-4981-86E4-186B46F993F3}.Driver Debug.ActiveCfg = Debug|Win32
+		{E4C40F94-E7F9-4981-86E4-186B46F993F3}.Format.ActiveCfg = Release|Win32
+		{E4C40F94-E7F9-4981-86E4-186B46F993F3}.Format Debug.ActiveCfg = Debug|Win32
+		{E4C40F94-E7F9-4981-86E4-186B46F993F3}.Mount.ActiveCfg = Release|Win32
+		{E4C40F94-E7F9-4981-86E4-186B46F993F3}.Mount.Build.0 = Release|Win32
+		{E4C40F94-E7F9-4981-86E4-186B46F993F3}.Mount Debug.ActiveCfg = Debug|Win32
+		{E4C40F94-E7F9-4981-86E4-186B46F993F3}.Mount Debug.Build.0 = Debug|Win32
+		{E4C40F94-E7F9-4981-86E4-186B46F993F3}.Service.ActiveCfg = Release|Win32
+		{E4C40F94-E7F9-4981-86E4-186B46F993F3}.Service Debug.ActiveCfg = Debug|Win32
+		{E4C40F94-E7F9-4981-86E4-186B46F993F3}.Setup.ActiveCfg = Release|Win32
+		{E4C40F94-E7F9-4981-86E4-186B46F993F3}.Setup Debug.ActiveCfg = Debug|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.All.ActiveCfg = Release|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.All.Build.0 = Release|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.All Debug.ActiveCfg = Debug|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.All Debug.Build.0 = Debug|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.Driver.ActiveCfg = Release|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.Driver.Build.0 = Release|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.Driver Debug.ActiveCfg = Debug|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.Driver Debug.Build.0 = Debug|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.Format.ActiveCfg = Release|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.Format.Build.0 = Release|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.Format Debug.ActiveCfg = Debug|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.Format Debug.Build.0 = Debug|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.Mount.ActiveCfg = Release|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.Mount.Build.0 = Release|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.Mount Debug.ActiveCfg = Debug|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.Mount Debug.Build.0 = Debug|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.Service.ActiveCfg = Release|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.Service Debug.ActiveCfg = Debug|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.Setup.ActiveCfg = Release|Win32
+		{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}.Setup Debug.ActiveCfg = Debug|Win32
+		{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}.All.ActiveCfg = Release|Win32
+		{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}.All.Build.0 = Release|Win32
+		{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}.All Debug.ActiveCfg = Debug|Win32
+		{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}.All Debug.Build.0 = Debug|Win32
+		{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}.Driver.ActiveCfg = Release|Win32
+		{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}.Driver Debug.ActiveCfg = Debug|Win32
+		{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}.Format.ActiveCfg = Release|Win32
+		{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}.Format.Build.0 = Release|Win32
+		{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}.Format Debug.ActiveCfg = Debug|Win32
+		{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}.Format Debug.Build.0 = Debug|Win32
+		{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}.Mount.ActiveCfg = Release|Win32
+		{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}.Mount Debug.ActiveCfg = Debug|Win32
+		{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}.Service.ActiveCfg = Release|Win32
+		{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}.Service Debug.ActiveCfg = Debug|Win32
+		{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}.Setup.ActiveCfg = Release|Win32
+		{9DC1ABE2-D18B-48FB-81D2-8C50ADC57BCF}.Setup Debug.ActiveCfg = Debug|Win32
+		{DF5F654D-BD44-4E31-B92E-B68074DC37A8}.All.ActiveCfg = Release|Win32
+		{DF5F654D-BD44-4E31-B92E-B68074DC37A8}.All.Build.0 = Release|Win32
+		{DF5F654D-BD44-4E31-B92E-B68074DC37A8}.All Debug.ActiveCfg = Debug|Win32
+		{DF5F654D-BD44-4E31-B92E-B68074DC37A8}.All Debug.Build.0 = Debug|Win32
+		{DF5F654D-BD44-4E31-B92E-B68074DC37A8}.Driver.ActiveCfg = Release|Win32
+		{DF5F654D-BD44-4E31-B92E-B68074DC37A8}.Driver Debug.ActiveCfg = Debug|Win32
+		{DF5F654D-BD44-4E31-B92E-B68074DC37A8}.Format.ActiveCfg = Release|Win32
+		{DF5F654D-BD44-4E31-B92E-B68074DC37A8}.Format Debug.ActiveCfg = Debug|Win32
+		{DF5F654D-BD44-4E31-B92E-B68074DC37A8}.Mount.ActiveCfg = Release|Win32
+		{DF5F654D-BD44-4E31-B92E-B68074DC37A8}.Mount Debug.ActiveCfg = Debug|Win32
+		{DF5F654D-BD44-4E31-B92E-B68074DC37A8}.Service.ActiveCfg = Release|Win32
+		{DF5F654D-BD44-4E31-B92E-B68074DC37A8}.Service Debug.ActiveCfg = Debug|Win32
+		{DF5F654D-BD44-4E31-B92E-B68074DC37A8}.Setup.ActiveCfg = Release|Win32
+		{DF5F654D-BD44-4E31-B92E-B68074DC37A8}.Setup.Build.0 = Release|Win32
+		{DF5F654D-BD44-4E31-B92E-B68074DC37A8}.Setup Debug.ActiveCfg = Debug|Win32
+		{DF5F654D-BD44-4E31-B92E-B68074DC37A8}.Setup Debug.Build.0 = Debug|Win32
+		{12F44689-F5F2-4096-A176-C084A5759B2D}.All.ActiveCfg = Release|Win32
+		{12F44689-F5F2-4096-A176-C084A5759B2D}.All.Build.0 = Release|Win32
+		{12F44689-F5F2-4096-A176-C084A5759B2D}.All Debug.ActiveCfg = Debug|Win32
+		{12F44689-F5F2-4096-A176-C084A5759B2D}.All Debug.Build.0 = Debug|Win32
+		{12F44689-F5F2-4096-A176-C084A5759B2D}.Driver.ActiveCfg = Release|Win32
+		{12F44689-F5F2-4096-A176-C084A5759B2D}.Driver Debug.ActiveCfg = Debug|Win32
+		{12F44689-F5F2-4096-A176-C084A5759B2D}.Format.ActiveCfg = Release|Win32
+		{12F44689-F5F2-4096-A176-C084A5759B2D}.Format Debug.ActiveCfg = Debug|Win32
+		{12F44689-F5F2-4096-A176-C084A5759B2D}.Mount.ActiveCfg = Release|Win32
+		{12F44689-F5F2-4096-A176-C084A5759B2D}.Mount Debug.ActiveCfg = Debug|Win32
+		{12F44689-F5F2-4096-A176-C084A5759B2D}.Service.ActiveCfg = Release|Win32
+		{12F44689-F5F2-4096-A176-C084A5759B2D}.Service.Build.0 = Release|Win32
+		{12F44689-F5F2-4096-A176-C084A5759B2D}.Service Debug.ActiveCfg = Debug|Win32
+		{12F44689-F5F2-4096-A176-C084A5759B2D}.Service Debug.Build.0 = Debug|Win32
+		{12F44689-F5F2-4096-A176-C084A5759B2D}.Setup.ActiveCfg = Release|Win32
+		{12F44689-F5F2-4096-A176-C084A5759B2D}.Setup Debug.ActiveCfg = Debug|Win32
+		{EF5EF444-18D0-40D7-8DFA-775EC4448602}.All.ActiveCfg = Release|Win32
+		{EF5EF444-18D0-40D7-8DFA-775EC4448602}.All.Build.0 = Release|Win32
+		{EF5EF444-18D0-40D7-8DFA-775EC4448602}.All Debug.ActiveCfg = Debug|Win32
+		{EF5EF444-18D0-40D7-8DFA-775EC4448602}.All Debug.Build.0 = Debug|Win32
+		{EF5EF444-18D0-40D7-8DFA-775EC4448602}.Driver.ActiveCfg = Release|Win32
+		{EF5EF444-18D0-40D7-8DFA-775EC4448602}.Driver.Build.0 = Release|Win32
+		{EF5EF444-18D0-40D7-8DFA-775EC4448602}.Driver Debug.ActiveCfg = Debug|Win32
+		{EF5EF444-18D0-40D7-8DFA-775EC4448602}.Driver Debug.Build.0 = Debug|Win32
+		{EF5EF444-18D0-40D7-8DFA-775EC4448602}.Format.ActiveCfg = Release|Win32
+		{EF5EF444-18D0-40D7-8DFA-775EC4448602}.Format Debug.ActiveCfg = Debug|Win32
+		{EF5EF444-18D0-40D7-8DFA-775EC4448602}.Mount.ActiveCfg = Release|Win32
+		{EF5EF444-18D0-40D7-8DFA-775EC4448602}.Mount Debug.ActiveCfg = Debug|Win32
+		{EF5EF444-18D0-40D7-8DFA-775EC4448602}.Service.ActiveCfg = Release|Win32
+		{EF5EF444-18D0-40D7-8DFA-775EC4448602}.Service Debug.ActiveCfg = Debug|Win32
+		{EF5EF444-18D0-40D7-8DFA-775EC4448602}.Setup.ActiveCfg = Release|Win32
+		{EF5EF444-18D0-40D7-8DFA-775EC4448602}.Setup Debug.ActiveCfg = Debug|Win32
+		{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}.All.ActiveCfg = Release|Win32
+		{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}.All.Build.0 = Release|Win32
+		{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}.All Debug.ActiveCfg = Debug|Win32
+		{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}.All Debug.Build.0 = Debug|Win32
+		{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}.Driver.ActiveCfg = Release|Win32
+		{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}.Driver.Build.0 = Release|Win32
+		{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}.Driver Debug.ActiveCfg = Debug|Win32
+		{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}.Driver Debug.Build.0 = Debug|Win32
+		{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}.Format.ActiveCfg = Release|Win32
+		{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}.Format Debug.ActiveCfg = Debug|Win32
+		{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}.Mount.ActiveCfg = Release|Win32
+		{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}.Mount Debug.ActiveCfg = Debug|Win32
+		{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}.Service.ActiveCfg = Release|Win32
+		{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}.Service Debug.ActiveCfg = Debug|Win32
+		{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}.Setup.ActiveCfg = Release|Win32
+		{AE7315FF-FE0B-490E-B8E0-3F7C2A8BC1CE}.Setup Debug.ActiveCfg = Debug|Win32
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+	EndGlobalSection
+	GlobalSection(ExtensibilityAddIns) = postSolution
+	EndGlobalSection
+EndGlobal

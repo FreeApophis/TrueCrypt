@@ -1,0 +1,183 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "afxres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// English (U.S.) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x37L
+#ifdef _DEBUG
+ FILEFLAGS 0x21L
+#else
+ FILEFLAGS 0x20L
+#endif
+ FILEOS 0x4L
+ FILETYPE 0x0L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "truecrypt.org"
+            VALUE "FileDescription", "TrueCrypt Setup"
+            VALUE "FileVersion", "1.0"
+            VALUE "LegalCopyright", "truecrypt.org"
+            VALUE "OriginalFilename", "TrueCrypt Setup.exe"
+            VALUE "ProductName", "TrueCrypt"
+            VALUE "ProductVersion", "1.0"
+            VALUE "SpecialBuild", "February 2004"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_UNINSTALL DIALOGEX 0, 0, 349, 234
+STYLE DS_SETFONT | DS_SETFOREGROUND | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | 
+    WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "TITLE"
+CLASS "CustomDlg"
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    LTEXT           "Uninstall TrueCrypt fr&om:",IDC_INSTRUCTION,8,10,87,8
+    EDITTEXT        IDC_DESTINATION,7,21,277,14,ES_AUTOHSCROLL
+    PUSHBUTTON      "&Browse",IDC_BROWSE,292,21,50,14
+    LISTBOX         IDC_FILES,7,44,335,128,LBS_NOINTEGRALHEIGHT | LBS_NOSEL | 
+                    WS_VSCROLL
+    DEFPUSHBUTTON   "&Uninstall",IDOK,236,213,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,292,213,50,14
+    LTEXT           "All TrueCrypt files except '\\WINDOWS\\TrueCrypt Setup.exe' will be removed. No TrueCrypt volume will be deleted. The registry entries at HKLM\\SYSTEM\\ControlSet001\\Enum\\Root\\LEGACY_TRUECRYPT cannot be removed as Windows does not allow their deletion.",
+                    IDC_STATIC,9,179,333,29
+END
+
+IDD_INSTALL DIALOGEX 0, 0, 405, 265
+STYLE DS_SETFONT | DS_SETFOREGROUND | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | 
+    WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "TITLE"
+CLASS "CustomDlg"
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    LTEXT           "Install &to:",IDC_INSTRUCTION,15,182,32,8
+    EDITTEXT        IDC_DESTINATION,49,179,284,14,ES_AUTOHSCROLL
+    PUSHBUTTON      "&Browse",IDC_BROWSE,337,179,50,14
+    LTEXT           "License Agreement:",IDC_STATIC,9,7,64,8
+    EDITTEXT        IDC_LICENSE,7,18,392,88,ES_MULTILINE | ES_READONLY | 
+                    WS_VSCROLL | NOT WS_TABSTOP
+    CONTROL         "Associate '.tc' file &extension with TrueCrypt",
+                    IDC_FILE_TYPE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,192,
+                    198,159,10
+    CONTROL         "Install TrueCrypt &Uninstaller",IDC_UNINSTALL,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,192,211,172,10
+    DEFPUSHBUTTON   "&Install",IDOK,291,246,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,348,246,50,14
+    CONTROL         "Add TrueCrypt to &Start menu",IDC_PROG_GROUP,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,15,211,174,10
+    GROUPBOX        "Installation Options",IDC_STATIC,6,167,392,73
+    CONTROL         "Add TrueCrypt icon to &desktop",IDC_DESKTOP_ICON,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,15,224,174,10
+    CONTROL         "Create System &Restore point",IDC_SYSTEM_RESTORE,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,192,224,172,10
+    LISTBOX         IDC_FILES,7,109,392,56,LBS_NOINTEGRALHEIGHT | 
+                    LBS_DISABLENOSCROLL | LBS_NOSEL | WS_VSCROLL
+    CONTROL         "Install for all users",IDC_ALL_USERS,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,15,198,174,10
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDI_SETUP               ICON                    "setup.ico"
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""afxres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO 
+BEGIN
+    IDD_UNINSTALL, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 342
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 229
+    END
+
+    IDD_INSTALL, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 398
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 260
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+#endif    // English (U.S.) resources
+/////////////////////////////////////////////////////////////////////////////
+
+

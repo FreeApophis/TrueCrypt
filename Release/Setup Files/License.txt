@@ -1,0 +1,76 @@
+                        TRUECRYPT LICENSE
+
+DEFINITIONS
+
+0. Unless the context requires otherwise, the terms "program" and
+   "product", below, refer to TrueCrypt, to any of its parts, and/or
+   to its source code.
+
+
+TERMS AND CONDITIONS FOR INSTALLATION AND USAGE
+
+1. YOU UNDERSTAND THAT THIS PRODUCT UTILIZES STRONG CRYPTOGRAPHY, AND
+   THAT SHOULD THIS TECHNOLOGY BE REGULATED OR ILLEGAL IN YOUR
+   COUNTRY, THE AUTHORS OF THE PRODUCT WILL NOT BE RESPONSIBLE FOR
+   ANY CONSEQUENCES THAT YOUR IMPORTING AND/OR USING IT IN SUCH A
+   COUNTRY MIGHT HAVE.
+
+2. YOU UNDERSTAND THAT THE AUTHORS OF THE PRODUCT CANNOT BE HELD
+   RESPONSIBLE FOR LOSS OF YOUR DATA OR ANY OTHER DAMAGE, DIRECT OR
+   INDIRECT, CAUSED BY USING OR INSTALLING THE PRODUCT.
+
+3. YOU UNDERSTAND THAT THIS PRODUCT CONTAINS NO "BACKDOOR", THAT
+   WOULD ALLOW PARTIAL OR COMPLETE RECOVERY OF YOUR DATA WITHOUT
+   KNOWING THE CORRECT PASSWORD.
+
+4. YOU UNDERSTAND THAT THE AUTHORS OF THE PROGRAM CANNOT HELP YOU TO
+   RECOVER YOUR DATA SHOULD YOU FORGET YOUR PASSWORD.
+
+
+TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION, MODIFICATION
+
+5. This product cannot be (re)distributed (including but not
+   limited to distribution via the Internet) without prior written
+   permission from TrueCrypt Team <info@truecrypt.org>. Making
+   copies of the product for personal use is allowed.
+
+6. You may modify your copy or copies of the program or any portion
+   of it and/or base your own work on the program. Modified versions
+   of the product cannot be distributed without prior written
+   permission from TrueCrypt Team.
+
+7. In case you base your own work on the product, you may distribute
+   such work, provided that the following conditions are met:
+
+   a) Any work based on/derived from the product must not be called
+      "TrueCrypt" and its name must not contain the name "TrueCrypt".
+
+   b) Source code of any work based on/derived from the product must
+      always be freely and publicly available.
+
+   c) Phrase "Based on TrueCrypt" must be displayed by your program
+      and/or contained in its documentation.
+
+8. You may not distribute, sublicense, or modify the product except
+   as explicitly provided under this license. Any attempt otherwise
+   to distribute, sublicense, or modify the product is void, and will
+   terminate your rights under this license.
+
+9. You are not required to accept this license. However, by
+   installing, using, modifying, or attempting to distribute this
+   product or any work based on it, you indicate your acceptance of
+   this license as a whole.
+
+
+NO WARRANTY
+
+10. THE PROGRAM IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND,
+    EITHER EXPRESSED OR IMPLIED. SHOULD THE PROGRAM PROVE DEFECTIVE,
+    YOU ASSUME THE COST OF ALL NECESSARY REPAIR, CORRECTION, OR
+    SERVICING.
+
+11. NONE OF THE AUTHORS OF THE PROGRAM (OR ANY OTHER PARTY WHO MAY
+    MODIFY AND/OR REDISTRIBUTE IT AS PERMITTED ABOVE) WILL BE LIABLE
+    TO YOU FOR ANY DAMAGES, INCLUDING GENERAL, INCIDENTAL, SPECIAL,
+    OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR INABILITY TO
+    USE THE PROGRAM.

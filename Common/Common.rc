@@ -1,0 +1,278 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "afxres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// English (U.S.) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_ABOUT_DLG DIALOGEX 31, 51, 292, 199
+STYLE DS_SETFONT | DS_MODALFRAME | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | 
+    WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "About TrueCrypt"
+CLASS "SplashDlg"
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,121,178,50,14
+    LTEXT           "Copyright © 2004 TrueCrypt Team",IDT_ABOUT_COPYRIGHT,18,
+                    71,154,8
+    LTEXT           "Based on E4M by Paul Le Roux.",IDC_STATIC,18,114,104,8
+    LTEXT           "Portions of this software are based in part on the works of the following people:",
+                    IDC_STATIC,18,122,256,8
+    LTEXT           "Contact: info@truecrypt.org",IDT_ABOUT_MAILTO,185,87,
+                    104,8
+    LTEXT           "Bruce Schneier, Eric Young, Peter Gutmann, Xuejia Lai, James Massey,",
+                    IDC_STATIC,18,130,226,8
+    LTEXT           "Walt Tuchmann, Whitfield Diffie, Martin Hellman, Don Coppersmith,",
+                    IDC_STATIC,18,138,218,8
+    LTEXT           "Horst Feistel, Carlisle Adams, Stafford Tavares, and others.",
+                    IDC_STATIC,18,146,195,8
+    CONTROL         1011,IDC_ABOUT_IMG,"Static",SS_BITMAP,0,0,293,49,
+                    WS_EX_STATICEDGE
+    LTEXT           "TrueCrypt x.x",IDT_ABOUT_VERSION,18,61,117,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,167,291,1,
+                    WS_EX_STATICEDGE
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,169,291,1,
+                    WS_EX_STATICEDGE
+    LTEXT           "www.truecrypt.org",ID_WEBSITE,18,87,79,8,SS_NOTIFY
+END
+
+IDD_COMMANDHELP_DLG DIALOGEX 0, 0, 272, 146
+STYLE DS_SETFONT | DS_MODALFRAME | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | 
+    WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Command Line Help"
+CLASS "CustomDlg"
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    DEFPUSHBUTTON   "&OK",IDOK,96,124,59,14
+    LTEXT           "Static",IDC_COMMANDHELP_TEXT,20,16,191,96
+    CONTROL         "",IDC_STATIC,"Static",SS_BITMAP | NOT WS_VISIBLE,222,21,
+                    21,20
+END
+
+IDD_RAWDEVICES_DLG DIALOGEX 0, 0, 305, 140
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | 
+    WS_SYSMENU
+CAPTION "Select a Partition or Device"
+FONT 8, "MS Shell Dlg", 400, 0, 0x0
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,239,7,59,14
+    PUSHBUTTON      "Cancel",IDCANCEL,239,24,59,14
+    CONTROL         "",IDC_DEVICELIST,"SysListView32",LVS_REPORT | 
+                    LVS_SINGLESEL | LVS_EDITLABELS | LVS_ALIGNLEFT | 
+                    LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,7,227,126
+END
+
+IDD_WARNING_DLG DIALOGEX 0, 0, 272, 103
+STYLE DS_SETFONT | DS_MODALFRAME | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | 
+    WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Warning"
+CLASS "CustomDlg"
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    DEFPUSHBUTTON   "&OK",IDOK,96,81,59,14
+    CONTROL         "&Never show this warning again",IDC_NEVER_SHOW,"Button",
+                    BS_AUTOCHECKBOX | BS_LEFT | WS_TABSTOP,48,63,176,10
+    LTEXT           "Static",IDC_WARNING_TEXT,20,16,191,32
+    ICON            101,IDC_STATIC,222,21,20,20
+END
+
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""afxres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO 
+BEGIN
+    IDD_COMMANDHELP_DLG, DIALOG
+    BEGIN
+        BOTTOMMARGIN, 138
+    END
+
+    IDD_RAWDEVICES_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 298
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 133
+    END
+
+    IDD_WARNING_DLG, DIALOG
+    BEGIN
+        BOTTOMMARGIN, 95
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDI_TRUECRYPT_ICON      ICON                    "..\\common\\TrueCrypt.ico"
+IDI_TRUECRYPT_ICON_B    ICON                    "..\\common\\TrueCrypt_Volume.ico"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE 
+BEGIN
+    IDS_ABOUTBOX            "&About..."
+    IDS_NOFONT              "Could not create fonts."
+    IDS_OUTOFMEMORY         "Out of Memory"
+END
+
+STRINGTABLE 
+BEGIN
+    IDS_INIT_REGISTER       "Unable to initialize the application. Failed to register the Dialog class."
+    IDS_PASSWORD_HELP0      "It is very important that you choose a good password. You should avoid choosing a password that only contains a single word that can be "
+    IDS_PASSWORD_HELP1      "found in a dictionary (or a combination of 2, 3, or 4 such words). It should not contain any names or dates of birth. It should not be "
+    IDS_PASSWORD_HELP2      "easy to guess. A good password is a combination of upper and lower case letters, numbers, and special characters, such as @ ^ & $ * + etc."
+    IDS_PASSWORD_HELP3      " The longer the password, the better. A TrueCrypt volume password must consist of at least 12 characters. The maximum password length is 64 characters."
+    IDS_NODRIVER            "Unable to connect to the Device Driver.\n\nPlease make sure it is running, and that it is the correct version."
+    IDS_RAWDEVICES          "Unable to list raw devices installed on your system!"
+    IDS_NOSERVICE           "Cannot start the TrueCrypt service. If this is the first time this program is run, you must be logged on as Administrator, so that the TrueCrypt service can be installed."
+    IDS_SERVICE_NOT_RUNNING "You must tell an administrator to start the 'TrueCrypt service' on your machine. Otherwise this program will not run."
+    IDS_INIT_MUTEX          "Unable to initialize the application. Failed to create a required mutex object."
+    IDS_TWO_INSTANCES       "Mutltiple instances of TrueCrypt are not allowed."
+    IDS_HELP_ERROR          "Document not found!"
+    IDS_HELP_READER_ERROR   "You need Adobe Acrobat Reader installed to read user guide.\nDownload is available at http://www.adobe.com/reader"
+    IDS_VOL_FORMAT_BAD      "The format of this volume not recognized. The volume might be corrupted."
+END
+
+STRINGTABLE 
+BEGIN
+    IDS_PASSWORD_WRONG      "Incorrect password or not a TrueCrypt volume."
+    IDS_OPENFILES_DRIVER    "The driver is unable to dismount the volume. Some files located on the volume are probably still open."
+    IDS_BAD_DRIVE_LETTER    "Invalid drive letter."
+    IDS_UNKNOWN             "The device driver returned an unrecognized error, code = %d"
+    IDS_NOT_FOUND           "The DOS drive letter you specified has not been found."
+    IDS_VOL_SIZE_WRONG      "This volume is too large or too small to be a valid TrueCrypt volume."
+    IDS_COMPRESSION_NOT_SUPPORTED 
+                            "The volume has been compressed on an NTFS partition. This is not supported. Please remove the compression attribute."
+    IDS_DRIVELETTERS        "Could not get available drive letters."
+    IDS_OPENFILES_LOCK      "Unable to lock the volume. There are still open files on the volume. Therefore, it cannot be dismounted."
+    IDS_SYMLINK             "Could not assign a DOS drive letter to the device."
+    IDS_SYMLINK_REMOVE      "Could not remove the DOS drive letter assigned to the device."
+    IDS_INIT_RAND           "Failed to initialize the random number generator!"
+    IDS_CREATE_FAILED       "Failed to create volume %s"
+    IDS_ACCESSMODEFAIL      "The read-only attribute on your old volume could not be changed. Please check the file access permissions."
+    IDS_OVERWRITEPROMPT     "The volume '%s' already exists.\nAre you sure you want to replace it?"
+    IDS_OVERWRITEPROMPT_DEVICE 
+                            "Are you sure you want to format '%s'?\nWarning: All data currently stored on the device will be lost!"
+END
+
+STRINGTABLE 
+BEGIN
+    IDS_WIPE_CACHE          "Passwords stored in the device driver cache have been wiped."
+    IDS_VOL_TOO_SMALL       "The volume is too small - it is an invalid volume."
+    IDS_WRONG_VOL_VERSION   "Cannot change passwords of old-format volumes."
+    IDS_WRONG_VOL_TYPE      "TrueCrypt cannot change the password of a foreign volume."
+    IDS_VOL_SEEKING         "Error seeking the correct location in volume."
+    IDS_VOL_WRITING         "Error writing data to volume."
+    IDS_PASSWORD_CHANGED    "Password successfully changed."
+    IDS_NO_OS_VER           "Could not determine your operating system version or you are using an unsupported operating system."
+    IDS_VOL_ALREADY_MOUNTED "The volume you are trying to mount is already mounted. "
+    IDS_NO_FREE_DRIVES      "No drive letters available."
+    IDS_NO_FREE_SLOTS       "On this operating system, the device driver only supports 8 mounted volumes."
+    IDS_VOL_MOUNT_FAILED    "Incorrect password or not a TrueCrypt volume."
+    IDS_FILE_OPEN_FAILED    "The file could not be opened."
+    IDS_INVALID_DEVICE      "Invalid drive or partition specified. Use the following syntax to mount partitions: \\Device\\Harddisk0\\Partition4"
+    IDS_VOL_READING         "Error reading data from volume."
+    IDS_ACCESS_DENIED       "The partition you are trying to access is either 0 sectors long, or it is the boot device and access has been denied."
+END
+
+STRINGTABLE 
+BEGIN
+    IDS_DRIVER_VERSION      "This program requires version %s of the TrueCrypt driver. Please reinstall the software."
+    IDS_NEW_VERSION_REQUIRED 
+                            "This volume requires a new version of TrueCrypt.\nNew version is available at http://www.truecrypt.org"
+END
+
+#endif    // English (U.S.) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// English (U.K.) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENG)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_UK
+#pragma code_page(1252)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Bitmap
+//
+
+IDB_ABOUT               BITMAP                  "..\\common\\about.bmp"
+#endif    // English (U.K.) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

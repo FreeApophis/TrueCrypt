@@ -1,0 +1,437 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "afxres.h"
+#include "..\\common\\resource.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// English (U.S.) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x37L
+#ifdef _DEBUG
+ FILEFLAGS 0x21L
+#else
+ FILEFLAGS 0x20L
+#endif
+ FILEOS 0x4L
+ FILETYPE 0x0L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "truecrypt.org"
+            VALUE "FileDescription", "TrueCrypt Format"
+            VALUE "FileVersion", "1.0"
+            VALUE "LegalCopyright", "truecrypt.org"
+            VALUE "OriginalFilename", "TrueCrypt Format.exe"
+            VALUE "ProductName", "TrueCrypt"
+            VALUE "ProductVersion", "1.0"
+            VALUE "SpecialBuild", "February 2004"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_MKFS_DLG DIALOGEX 0, 0, 400, 209
+STYLE DS_SETFONT | DS_SETFOREGROUND | DS_FIXEDSYS | DS_CENTER | 
+    WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "TITLE"
+CLASS "CustomDlg"
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    LTEXT           "BOX TITLE",IDC_BOX_TITLE,160,8,220,17
+    LTEXT           "",IDC_POS_BOX,160,24,226,152
+    PUSHBUTTON      "PREV",IDC_PREV,235,189,50,14
+    DEFPUSHBUTTON   "NEXT/FINISH",IDC_NEXT,285,189,50,14
+    PUSHBUTTON      "&Help",9,176,189,50,14
+    GROUPBOX        "",IDC_STATIC,4,0,392,183
+    CONTROL         122,IDC_STATIC,"Static",SS_BITMAP | SS_SUNKEN,10,9,137,
+                    169
+    PUSHBUTTON      "&Cancel",IDCANCEL,343,189,50,14
+END
+
+IDD_CIPHER_PAGE_DLG DIALOGEX 0, 0, 217, 152
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    COMBOBOX        IDC_COMBO_BOX,7,26,137,89,CBS_DROPDOWNLIST | WS_VSCROLL | 
+                    WS_TABSTOP
+    CONTROL         "HMAC-SHA-1",IDC_SHA1,"Button",BS_AUTORADIOBUTTON | NOT 
+                    WS_VISIBLE | WS_GROUP,5,101,204,10
+    CONTROL         "HMAC-RIPEMD-160",IDC_RIPEMD160,"Button",
+                    BS_AUTORADIOBUTTON | NOT WS_VISIBLE | WS_DISABLED,5,113,
+                    203,10
+    LTEXT           "BOX HELP",IDC_BOX_HELP,7,43,205,42
+    PUSHBUTTON      "&Test",IDC_CIPHER_TEST,149,25,59,14
+    GROUPBOX        "Cipher",IDC_STATIC,0,13,217,75
+    GROUPBOX        "PRF (PKCS-5 v2.0 and random number generator)",
+                    IDC_STATIC,0,89,217,51,NOT WS_VISIBLE
+END
+
+IDD_PASSWORD_PAGE_DLG DIALOGEX 0, 0, 217, 154
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    RTEXT           "P&assword:",IDC_STATIC,0,22,34,8
+    EDITTEXT        IDC_PASSWORD,40,17,124,14,ES_PASSWORD | ES_AUTOHSCROLL
+    RTEXT           "&Confirm:",IDC_STATIC,0,38,34,8
+    EDITTEXT        IDC_VERIFY,40,34,124,14,ES_PASSWORD | ES_AUTOHSCROLL
+    LTEXT           "BOX HELP",IDC_BOX_HELP,0,57,214,77
+END
+
+IDD_SIZE_PAGE_DLG DIALOGEX 0, 0, 218, 129
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    EDITTEXT        IDC_SIZEBOX,0,22,71,14,ES_AUTOHSCROLL | ES_NUMBER
+    CONTROL         "&KB",IDC_KB,"Button",BS_AUTORADIOBUTTON | WS_GROUP | 
+                    WS_TABSTOP,80,25,25,10
+    CONTROL         "&MB",IDC_MB,"Button",BS_AUTORADIOBUTTON,119,25,27,10
+    LTEXT           "BOX HELP",IDC_BOX_HELP,0,75,214,47
+    LTEXT           "SPACE LEFT ON DEVICE = nnnnn",IDC_SPACE_LEFT,0,44,214,
+                    21
+END
+
+IDD_FILE_PAGE_DLG DIALOGEX 0, 0, 217, 137
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    COMBOBOX        IDC_COMBO_BOX,0,18,148,80,CBS_DROPDOWN | CBS_AUTOHSCROLL | 
+                    WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON      "Select &File...",IDC_BROWSE_FILES,155,18,62,14
+    PUSHBUTTON      "Select &Device...",IDC_BROWSE_DEVICES,155,34,62,14
+    LTEXT           "BOX HELP",IDC_BOX_HELP,0,62,214,70
+    CONTROL         "&Never save history",IDC_NO_HISTORY,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,3,37,137,10
+END
+
+IDD_FORMAT_PAGE_DLG DIALOGEX 0, 0, 217, 156
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    RTEXT           "Key Salt:",IDC_STATIC,5,44,43,8
+    LTEXT           "",IDC_KEY_SALT,53,44,160,8
+    RTEXT           "Master Key:",IDC_STATIC,7,52,41,8
+    LTEXT           "",IDC_DISK_KEY,53,52,160,8
+    RTEXT           "Random Pool:",IDC_STATIC,3,36,45,8
+    LTEXT           "",IDC_RANDOM_BYTES,53,36,160,8
+    COMBOBOX        IDC_CLUSTERSIZE,99,10,44,90,CBS_DROPDOWNLIST | 
+                    WS_TABSTOP
+    LTEXT           "Cluster",IDC_STATIC,75,13,24,9
+    LTEXT           "",IDC_BOX_HELP,1,110,212,42
+    GROUPBOX        "Format Options",IDC_STATIC,0,2,217,25
+    PUSHBUTTON      "Abort",IDC_CANCEL_BAR,162,73,50,14
+    CONTROL         "",IDC_PROGRESS_BAR,"msctls_progress32",WS_BORDER | 0x1,
+                    6,74,151,12
+    RTEXT           "",IDC_TIMEREMAIN,166,91,45,11,SS_CENTERIMAGE,
+                    WS_EX_STATICEDGE
+    RTEXT           "",IDC_WRITESPEED,98,91,45,11,SS_CENTERIMAGE,
+                    WS_EX_STATICEDGE
+    RTEXT           "",IDC_BYTESWRITTEN,25,91,45,11,SS_CENTERIMAGE,
+                    WS_EX_STATICEDGE
+    RTEXT           "Done",IDC_STATIC,6,92,18,8
+    RTEXT           "Speed",IDC_STATIC,73,92,23,8
+    RTEXT           "Left",IDC_STATIC,151,92,13,8
+    GROUPBOX        "",IDC_STATIC,0,65,217,41
+    GROUPBOX        "",IDC_STATIC,0,29,217,35
+    CONTROL         "Quick Format",IDC_QUICKFORMAT,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,9,12,58,10
+END
+
+IDD_VOLSTATS_DLG DIALOGEX 0, 0, 229, 146
+STYLE DS_SETFONT | DS_MODALFRAME | DS_SETFOREGROUND | DS_FIXEDSYS | 
+    DS_CENTER | WS_CAPTION
+CAPTION "Volume Creation Completed"
+CLASS "CustomDlg"
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    GROUPBOX        "",-1,2,0,225,144
+    LTEXT           "The volume has been successfully created and is ready for use.\n\nFile system details:",
+                    -1,14,15,208,35
+    LTEXT           "STATS BOX",IDC_STATS_BOX,14,50,201,61
+    DEFPUSHBUTTON   "OK",IDOK,89,120,50,14
+END
+
+IDD_CIPHER_TEST_DLG DIALOGEX 0, 0, 268, 191
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | 
+    WS_SYSMENU
+CAPTION "TEST DIALOG TITLE"
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    GROUPBOX        "[ Hexadecimal Key ] Big Endian",IDC_STATIC,8,3,252,31
+    RTEXT           "0x",IDC_STATIC,21,16,15,8
+    EDITTEXT        IDC_KEY,41,14,213,14,ES_AUTOHSCROLL
+    GROUPBOX        "[ Hexadecimal &Plaintext ] Big Endian",IDC_STATIC,8,36,
+                    252,31
+    RTEXT           "0x",IDC_STATIC,21,49,15,8
+    EDITTEXT        IDC_PLAINTEXT,41,47,213,14,ES_AUTOHSCROLL
+    GROUPBOX        "Cip&her Configuration (all sizes in bytes)",IDC_STATIC,
+                    8,69,252,34
+    RTEXT           "Key",IDC_STATIC,21,84,15,8
+    COMBOBOX        IDC_KEY_SIZE,41,82,36,40,CBS_DROPDOWNLIST | WS_VSCROLL | 
+                    WS_TABSTOP
+    RTEXT           "Plaintext",IDC_STATIC,89,84,51,8
+    COMBOBOX        IDC_PLAINTEXT_SIZE,149,82,36,30,CBS_DROPDOWNLIST | 
+                    WS_DISABLED | WS_VSCROLL | WS_TABSTOP
+    GROUPBOX        "[ Hexadecimal &Ciphertext ] Big Endian",IDC_STATIC,8,
+                    106,252,31
+    RTEXT           "0x",IDC_STATIC,21,118,15,8
+    EDITTEXT        IDC_CIPHERTEXT,41,116,213,14,ES_AUTOHSCROLL
+    RTEXT           "TESTS MESSAGE",IDC_TESTS_MESSAGE,29,148,153,10
+    CONTROL         "",IDC_REDTICK,"REDTICK",0x0,187,149,10,8
+    PUSHBUTTON      "&Reset",IDC_RESET,148,170,52,14
+    PUSHBUTTON      "&Auto-Test All Algorithms",IDC_AUTO,208,142,52,23,
+                    BS_MULTILINE
+    DEFPUSHBUTTON   "&Encrypt",IDOK,8,170,52,14
+    PUSHBUTTON      "&Decrypt",IDC_DECRYPT,68,170,52,14
+    PUSHBUTTON      "Cancel",IDCANCEL,208,170,52,14
+END
+
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""afxres.h""\r\n"
+    "#include ""..\\\\common\\\\resource.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "#include ""..\\\\common\\\\common.rc""\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO 
+BEGIN
+    IDD_MKFS_DLG, DIALOG
+    BEGIN
+        RIGHTMARGIN, 393
+        TOPMARGIN, 1
+        BOTTOMMARGIN, 207
+        HORZGUIDE, 196
+    END
+
+    IDD_CIPHER_PAGE_DLG, DIALOG
+    BEGIN
+        RIGHTMARGIN, 214
+        BOTTOMMARGIN, 117
+    END
+
+    IDD_PASSWORD_PAGE_DLG, DIALOG
+    BEGIN
+        RIGHTMARGIN, 214
+        BOTTOMMARGIN, 125
+    END
+
+    IDD_SIZE_PAGE_DLG, DIALOG
+    BEGIN
+        RIGHTMARGIN, 215
+        BOTTOMMARGIN, 122
+    END
+
+    IDD_FILE_PAGE_DLG, DIALOG
+    BEGIN
+        RIGHTMARGIN, 214
+        BOTTOMMARGIN, 132
+    END
+
+    IDD_FORMAT_PAGE_DLG, DIALOG
+    BEGIN
+        BOTTOMMARGIN, 137
+        HORZGUIDE, 80
+        HORZGUIDE, 96
+    END
+
+    IDD_VOLSTATS_DLG, DIALOG
+    BEGIN
+        RIGHTMARGIN, 222
+        TOPMARGIN, 1
+        BOTTOMMARGIN, 122
+    END
+
+    IDD_CIPHER_TEST_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 261
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 184
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog Info
+//
+
+IDD_FILE_PAGE_DLG DLGINIT
+BEGIN
+    IDC_COMBO_BOX, 0x403, 1, 0
+"\000" 
+    0
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Bitmap
+//
+
+IDB_TRUECRYPT           BITMAP                  "TrueCrypt_Wizard.bmp"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE 
+BEGIN
+    IDS_SIZE_TITLE          "Step 3: Volume Size"
+    IDS_MDCSHA_HELP0        "Invented by Peter Gutmann, MDC turns one-way hash functions such as SHA into ciphers. "
+    IDS_MDCSHA_HELP1        "MDC when used with SHA has a 160-bit block size, and a 512-bit key. This cipher is fast, however "
+    IDS_MDCSHA_HELP2        "hash based ciphers are new, and may be insecure. SHA used here is the original, not the 1994 modification. "
+    IDS_MDCSHA_HELP3        "SHA is NIST's Secure Hash Algorithm (FIPS 180)."
+    IDS_NEXT                "&Next >"
+    IDS_FINISH              "&Format"
+    IDS_OPEN_TITLE          "Specify Path and File Name"
+    IDS_FILE_TITLE          "Step 1: Volume Type and Location"
+    IDS_FILE_HELP0          "You can create file-hosted volumes or encrypt entire hard disk partitions, floppy disks, ZIP disks, and other storage devices. Click 'Select File...' to specify the name and path of the file that you wish to host the new volume, or Click 'Select "
+    IDS_SIZE_PARTITION_HELP "Size of a device cannot be modified. Make sure the size of the selected device is correct and click Next."
+    IDS_FILE_HELP1          " Device...' to choose a partition or device to encrypt.\n\nCollection of random data has begun. The sources of the data include your mouse movements, mouse clicks, and key presses."
+    IDS_FORMAT_ABORT        "Abort format?"
+    IDS_WARN_QUICK_FORMAT   "You should only use quick format in the following cases:\n\n1) The partition contains random data (e.g. has already been fully encrypted)\n2) You are going to use all available space immediately\n3) You are not concerned with security (testing)"
+END
+
+STRINGTABLE 
+BEGIN
+    IDS_FORMAT_TITLE        "Last Step: Volume Format"
+    IDS_PASSWORD_TITLE      "Step 4: Volume Password"
+    IDS_PREV                "< &Prev"
+    IDS_SIZE_HELP0          "Please specify the size of the volume to create. The minimum size of a TrueCrypt volume is 19 KB. The maximum size of a file-hosted volume is limited by "
+    IDS_SIZE_HELP1          "the file system. A container stored on FAT32 cannot be larger than 4 GB and on NTFS it cannot be larger than 64 GB. "
+    IDS_FORMAT_HELP0        "Here you can set additional options that will affect the format of the new volume. Please refer to the documentation for more information. "
+END
+
+STRINGTABLE 
+BEGIN
+    IDS_TITLE               "TrueCrypt Volume Creation Wizard"
+    IDS_VOL_STATUS0         "Volume size:\t\t%d sectors (%I64d MB)\nFile system:\t\tFAT%d\n"
+    IDS_VOL_STATUS1         "FAT size:\t\t%d bytes\nCluster size:\t\t%d bytes\nClusters available:\t%d"
+    IDS_VOL_STATUS2         "\n\nFormatting took %lu seconds."
+    IDS_VOL_NO_LABEL        "no volume label."
+    IDS_VOL_LABEL           "volume label %s\n"
+    IDS_FORMAT_HELP1        "When done, click 'Format' to create your new volume. "
+    IDS_FORMAT_HELP2        "There will be a short pause while your system is being polled for extra random data."
+    IDS_READONLYPROMPT      "The volume '%s' exists, and is read-only. Are you sure you want to replace it?"
+    IDS_CIPHER_NONE_HELP0   "Encryption disabled."
+    IDS_DISK_FREE_BYTES     "Drive %s has %.2f  bytes available."
+END
+
+STRINGTABLE 
+BEGIN
+    IDS_CIPHER_TITLE        "Step 2: Encryption Options"
+END
+
+STRINGTABLE 
+BEGIN
+    IDS_DISK_FREE_KB        "Drive %s has %.2f  KB available."
+    IDS_DISK_FREE_MB        "Free space on drive %s is %.2f MB."
+    IDS_CANNOT_CALC_SPACE   "Cannot access device. Make sure the selected device exists and is not used by system."
+    IDS_DEVICE_FREE_BYTES   "The size of the device %s is %.2f bytes."
+    IDS_DEVICE_FREE_KB      "The size of the device %s is %.2f KB."
+    IDS_DEVICE_FREE_MB      "The size of the device %s is %.2f MB."
+    IDS_DES_HELP0           "This is the US government's Data Encryption Standard, by IBM and the NSA. The standard was published as FIPS PUB 46."
+    IDS_DES_HELP1           "This algorithm has a 56 bit key, and 64-bit block size."
+    IDS_BLOWFISH_HELP0      "Designed by Bruce Schneier in 1993. Unpatented, license-free, available free for all uses. "
+    IDS_BLOWFISH_HELP1      "TrueCrypt uses Blowfish with 16 rounds and 448-bit key. Blowfish is the fastest of the implemented ciphers."
+    IDS_IDEA_HELP0          "Designed by Xuejia Lai and James Massey in 1990 (published in 1992). Uses a 128-bit key. Described in U.S. patent number "
+    IDS_IDEA_HELP1          "5,214,703. Requires license from Ascom Tech AG for commercial use."
+END
+
+STRINGTABLE 
+BEGIN
+    IDS_TRIPLEDES_HELP0     "Tripple-DES, published in 1978, is 3 iterations of the DES cipher designed by IBM and NSA (1976). Inner-CBC mode and 3 independent 56-bit keys are used (1 per "
+    IDS_TRIPLEDES_HELP1     "iteration). Note that this cipher is very slow."
+    IDS_CAST_HELP0          "Designed by Carlisle Adams and Stafford Tavares, published in 1997. Uses a 128-bit key. "
+    IDS_CAST_HELP1          "CAST is royalty-free both for commercial and non-commercial uses."
+    IDS_DRIVE_TOO_BIG       "TrueCrypt volume cannot be larger than 2000 GB."
+    IDS_EXT_PARTITION       "Please create a logical drive for this extended partition, and then try again."
+    IDS_CIPHER_TEST         "%s Cipher Test"
+    IDS_TESTS_PASSED        "Self-tests of all algorithms passed"
+    IDS_TESTS_FAILED        "Self-tests failed!"
+    IDS_TEST_KEY_SIZE       "The test key you have supplied is too long or short."
+    IDS_TEST_PLAINTEXT_SIZE "The test plaintext you have supplied is too long or short."
+    IDS_TEST_CIPHERTEXT_SIZE 
+                            "The test ciphertext you have supplied is too long or short."
+END
+
+#endif    // English (U.S.) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+#include "..\\common\\common.rc"
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+
