@@ -2,7 +2,6 @@
 // Microsoft Visual C++ generated include file.
 // Used by Mount.rc
 //
-#define IDCANCEL3                       3
 #define IDUNMOUNTALL                    3
 #define IDS_MOUNT_BUTTON                6
 #define IDS_UNMOUNT_BUTTON              7
@@ -21,6 +20,8 @@
 #define IDD_PREFERENCES_DLG             128
 #define IDD_VOLUME_PROPERTIES           129
 #define IDC_CIPHERTEXT                  1003
+#define IDC_PREF_MOUNT_READONLY         1003
+#define IDC_PREF_MOUNT_REMOVABLE        1004
 #define IDC_VERIFY                      1008
 #define IDC_OLD_PASSWORD                1009
 #define IDC_BOX_HELP                    1011
@@ -34,9 +35,19 @@
 #define IDC_PREF_OPEN_EXPLORER          1029
 #define IDC_VOLUME_PROPERTIES_LIST      1030
 #define IDC_PREF_CLOSE_DISMOUNTED_WINDOWS 1030
+#define IDC_CHECK2                      1030
 #define IDC_PREF_WIPE_CACHE_ON_EXIT     1031
 #define IDC_HASH_CHANGE                 1032
 #define IDC_PREF_CACHE_PASSWORDS        1033
+#define IDC_DIRECTORY                   1034
+#define IDC_BROWSE_DIRS                 1035
+#define IDC_AUTORUN_DISABLE             1036
+#define IDC_AUTORUN_START               1037
+#define IDC_AUTORUN_MOUNT               1038
+#define IDC_VOLUME_NAME                 1039
+#define IDC_COPY_WIZARD                 1041
+#define IDC_BUTTON3                     1046
+#define IDC_MOUNT_OPTIONS               1046
 #define IDC_VOLUME                      2006
 #define IDC_PASSWORD                    2007
 #define IDC_NO_DRIVES_STATIC            2011
@@ -51,6 +62,7 @@
 #define IDC_BROWSE_DEVICES3             2021
 #define IDC_MOUNTALL                    2021
 #define IDC_BROWSE_DEVICES4             2022
+#define IDD_TRAVELLER_DLG               2023
 #define ID_VOLUME_DISMOUNT              40003
 #define IDM_HELP                        40010
 #define IDM_ABOUT                       40011
@@ -66,15 +78,19 @@
 #define ID_FORUMS                       40044
 #define ID_BENCHMARK                    40046
 #define ID_TOOLS_VERIFYCIPHERS          40047
+#define IDM_TRAVELLER                   40049
+#define IDM_MOUNT_VOLUME_OPTIONS        40051
+#define IDM_FAQ                         40052
+#define IDM_REFRESH_DRIVE_LETTERS       40054
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
-#define _APS_NEXT_RESOURCE_VALUE        130
-#define _APS_NEXT_COMMAND_VALUE         40048
-#define _APS_NEXT_CONTROL_VALUE         1034
+#define _APS_NEXT_RESOURCE_VALUE        131
+#define _APS_NEXT_COMMAND_VALUE         40055
+#define _APS_NEXT_CONTROL_VALUE         1047
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -1,6 +1,6 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004
+   additions to that source code contained in this file are Copyright (c) 2004-2005
    TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
@@ -26,7 +26,7 @@
 #pragma alloc_text(INIT,DriverEntry)
 #pragma alloc_text(INIT,TCCreateRootDeviceObject)
 
-/* Sync. mutex for above password data */
+/* Sync mutex for the entire driver */
 KMUTEX driverMutex;
 
 /* DriverEntry initialize's the dispatch addresses to be passed back to NT.
@@ -434,6 +434,19 @@ TCCreateDeviceObject (PDRIVER_OBJECT DriverObject,
 	return STATUS_SUCCESS;
 }
 
+
+void DriverMutexWait ()
+{
+	KeWaitForMutexObject (&driverMutex, Executive, KernelMode, FALSE, NULL);
+}
+
+
+void DriverMutexRelease ()
+{
+	KeReleaseMutex (&driverMutex, FALSE);
+}
+
+
 /* TCDeviceControl handles certain requests from NT, these are needed for NT
    to recognize the drive, also this function handles our device specific
    function codes, such as mount/unmount */
@@ -661,6 +674,8 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 		}
 		break;
 
+	// Private IOCTLs 
+
 	case DRIVER_VERSION:
 		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < 4)
 		{
@@ -717,12 +732,9 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 		break;
 
 	case WIPE_CACHE:
-		KeWaitForMutexObject (&driverMutex, Executive, KernelMode,
-				      FALSE, NULL);
-
+		DriverMutexWait ();
 		WipeCache ();
-
-		KeReleaseMutex (&driverMutex, FALSE);
+		DriverMutexRelease ();
 
 		Irp->IoStatus.Status = STATUS_SUCCESS;
 		Irp->IoStatus.Information = 0;
@@ -750,6 +762,8 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 			MOUNT_LIST_STRUCT *list = (MOUNT_LIST_STRUCT *) Irp->AssociatedIrp.SystemBuffer;
 			PDEVICE_OBJECT ListDevice;
 
+			DriverMutexWait ();
+
 			list->ulMountedDrives = 0;
 			for (ListDevice = DeviceObject->DriverObject->DeviceObject;
 			     ListDevice != (PDEVICE_OBJECT) NULL; ListDevice = ListDevice->NextDevice)
@@ -765,6 +779,8 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 					list->hiddenVol[ListExtension->nDosDriveNo] = ListExtension->cryptoInfo->hiddenVolume;
 				}
 			}
+
+			DriverMutexRelease ();
 
 			Irp->IoStatus.Status = STATUS_SUCCESS;
 			Irp->IoStatus.Information = sizeof (MOUNT_LIST_STRUCT);
@@ -784,6 +800,8 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 
 			Irp->IoStatus.Status = STATUS_INVALID_PARAMETER;
 			Irp->IoStatus.Information = 0;
+
+			DriverMutexWait ();
 
 			for (ListDevice = DeviceObject->DriverObject->DeviceObject;
 			     ListDevice != (PDEVICE_OBJECT) NULL; ListDevice = ListDevice->NextDevice)
@@ -806,6 +824,8 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 					break;
 				}
 			}
+
+			DriverMutexRelease ();
 		}
 		break;
 
@@ -843,7 +863,10 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 			MOUNT_STRUCT *mount = (MOUNT_STRUCT *) Irp->AssociatedIrp.SystemBuffer;
 
 			Irp->IoStatus.Information = sizeof (MOUNT_STRUCT);
+
+			DriverMutexWait ();
 			Irp->IoStatus.Status = MountDevice (DeviceObject, mount);
+			DriverMutexRelease ();
 		}
 		break;
 
@@ -869,7 +892,9 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 				if (ListExtension->bRootDevice == FALSE
 					&& unmount->nDosDriveNo == ListExtension->nDosDriveNo)
 				{
+					DriverMutexWait ();
 					unmount->nReturnCode = UnmountDevice (ListDevice, unmount->ignoreOpenFiles);
+					DriverMutexRelease ();
 					break;
 				}	
 			}
@@ -992,6 +1017,23 @@ TCStopThread (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension)
 
 	Dump ("Thread exited!\n");
 }
+
+
+// Suspend current thread for a number of milliseconds
+void TCSleep (int milliSeconds)
+{
+	PKTIMER timer = (PKTIMER) TCalloc (sizeof (KTIMER));
+	LARGE_INTEGER duetime;
+
+	duetime.QuadPart = (__int64) milliSeconds * -10000;
+	KeInitializeTimerEx(timer, NotificationTimer);
+	KeSetTimerEx(timer, duetime, 0, NULL);
+
+	KeWaitForSingleObject (timer, UserRequest, UserMode, FALSE, NULL);
+
+	TCfree (timer);
+}
+
 
 /* TCThreadIRP does all the work of processing IRP's, and dispatching them
    to either the ReadWrite function or the DeviceControl function */
@@ -1296,6 +1338,16 @@ TCTranslateCode (ULONG ulCode)
 		return (LPWSTR) _T ("MOUNT_LIST");
 	else if (ulCode == OPEN_TEST)
 		return (LPWSTR) _T ("OPEN_TEST");
+	else if (ulCode == VOLUME_PROPERTIES)
+		return (LPWSTR) _T ("VOLUME_PROPERTIES");
+	else if (ulCode == DRIVER_VERSION)
+		return (LPWSTR) _T ("DRIVER_VERSION");
+	else if (ulCode == CACHE_STATUS)
+		return (LPWSTR) _T ("CACHE_STATUS");
+	else if (ulCode == WIPE_CACHE)
+		return (LPWSTR) _T ("WIPE_CACHE");
+	else if (ulCode == RESOLVE_SYMLINK)
+		return (LPWSTR) _T ("RESOLVE_SYMLINK");
 	else
 	{
 		Dump("Unknown IOCTL recieved: DeviceType = 0x%x Function = 0x%x\n", (int)(ulCode>>16), (int)((ulCode&0x1FFF)>>2));
@@ -1709,6 +1761,8 @@ UnmountAllDevices (PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles)
 
 	Dump ("Unmounting all volumes\n");
 
+	DriverMutexWait ();
+
 	for (ListDevice = DeviceObject->DriverObject->DeviceObject;
 		ListDevice != (PDEVICE_OBJECT) NULL;
 		ListDevice = ListDevice->NextDevice)
@@ -1720,6 +1774,8 @@ UnmountAllDevices (PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles)
 			status = ntStatus == 0 ? status : ntStatus;
 		}
 	}
+
+	DriverMutexRelease ();
 
 	return status;
 }

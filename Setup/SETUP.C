@@ -1,6 +1,6 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004
+   additions to that source code contained in this file are Copyright (c) 2004-2005
    TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
@@ -370,12 +370,12 @@ DoFilesInstall (HWND hwndDlg, char *szDestDir, BOOL bUninstallSupport)
 
 		if (bUninstall == FALSE)
 		{
-			bResult = CopyFile (szFiles[i] + 1, szTmp, FALSE);
+			bResult = TCCopyFile (szFiles[i] + 1, szTmp);
 			if (!bResult)
 			{
 				char s[256];
 				sprintf (s, "Setup Files\\%s", szFiles[i] + 1);
-				bResult = CopyFile (s, szTmp, FALSE);
+				bResult = TCCopyFile (s, szTmp);
 			}
 		}
 		else
@@ -615,13 +615,13 @@ DoServiceUninstall (HWND hwndDlg, char *lpszService)
 	SC_HANDLE hManager, hService = NULL;
 	BOOL bOK = FALSE, bRet;
 	SERVICE_STATUS status;
+	BOOL firstTry = TRUE;
 	char szTmp[128];
 	int x;
 
-	if (nCurrentOS != WIN_NT)
-		return TRUE;
-	else
-		memset (&status, 0, sizeof (status));	/* Keep VC6 quiet */
+	memset (&status, 0, sizeof (status));	/* Keep VC6 quiet */
+
+retry:
 
 	hManager = OpenSCManager (NULL, NULL, SC_MANAGER_ALL_ACCESS);
 	if (hManager == NULL)
@@ -674,7 +674,8 @@ DoServiceUninstall (HWND hwndDlg, char *lpszService)
 			goto error;
 	}
 
-      try_delete:
+try_delete:
+
 	sprintf (szTmp, "deleting %s", lpszService);
 	ServiceMessage (hwndDlg, szTmp);
 
@@ -694,11 +695,25 @@ DoServiceUninstall (HWND hwndDlg, char *lpszService)
 
 	bRet = DeleteService (hService);
 	if (bRet == FALSE)
+	{
+		if (firstTry && GetLastError () == ERROR_SERVICE_MARKED_FOR_DELETE)
+		{
+			// Second try for an eventual no-install driver instance
+			CloseServiceHandle (hService);
+			CloseServiceHandle (hManager);
+
+			Sleep(1000);
+			firstTry = FALSE;
+			goto retry;
+		}
+
 		goto error;
+	}
 
 	bOK = TRUE;
 
-      error:
+error:
+
 	if (bOK == FALSE && GetLastError ()!= ERROR_SERVICE_DOES_NOT_EXIST)
 	{
 		handleWin32Error (hwndDlg);
@@ -1434,12 +1449,6 @@ WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine,
 
 	/* Call InitApp to initialize the common code */
 	InitApp (hInstance);
-
-	if (CurrentOSMajor < 5)
-	{
-		MessageBox (NULL, "TrueCrypt requires at least Windows 2000 to run.", lpszTitle, MB_ICONSTOP);
-		return 0;
-	}
 
 	if (nCurrentOS == WIN_NT && IsAdmin ()!= TRUE)
 		if (MessageBox (NULL, "To successfully install/uninstall TrueCrypt you must have Administrator rights, "

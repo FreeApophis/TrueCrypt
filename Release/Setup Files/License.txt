@@ -12,7 +12,7 @@ complete recovery of your encrypted data without knowing the correct password
 or the key used to encrypt the data.
 
 AS THIS PRODUCT IS FREE, THERE IS NO WARRANTY FOR THE PRODUCT, TO THE EXTENT 
-PERMITTED BY APPLICABLE LAW. UNLESS OTHERWISE STATED THE PRODUCT IS PROVIDED 
+PERMITTED BY APPLICABLE LAW. UNLESS OTHERWISE STATED, THE PRODUCT IS PROVIDED 
 "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, 
 BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
 A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE 
@@ -21,7 +21,7 @@ ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
 
 IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING WILL ANY
 COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR REDISTRIBUTE THE
-PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY
+PROGRAM AS PERMITTED BELOW, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY
 GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR
 INABILITY TO USE THE PROGRAM, INCLUDING BUT NOT LIMITED TO LOSS OF DATA OR DATA
 BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A
@@ -47,20 +47,34 @@ that the following conditions are met:
      which states: "This product uses components written by Paul Le Roux
      <pleroux@swprofessionals.com>"
 
-  3. If you use any part of the source code by the TrueCrypt Foundation and/or
-     the TrueCrypt Team (with or without modification) in your product, then
-     the following additional conditions must be met:
+  3. If you use any part of TrueCrypt (e.g., the source code, graphics, user
+     interface, texts, etc.) created by the TrueCrypt Foundation and/or by the 
+     TrueCrypt Team (with or without modification) in your product or if you
+     modify any of these parts (including, but not limited to, translation into
+     another language, localization, porting to another platform, or adding a
+     new feature/functionality), then the following additional conditions must
+     be met:
 
-     a. Complete source code of the product must be freely and publicly
-        available.
+     a. The product or the modified version must not be called TrueCrypt and
+        its name must not contain the name TrueCrypt (for example, the
+        following names are not allowed: TrueCrypt+, TrueCrypt Professional,
+        etc.) or any of its variations that can be easily confused with the
+        name TrueCrypt (e.g., Truecrypt, TrueKrypt, etc.)
+
+     b. Complete source code of the product or of the modified version must be
+        freely and publicly available.
  
-     b. TrueCrypt Foundation and TrueCrypt Team must be given attribution as
+     c. TrueCrypt Foundation and TrueCrypt Team must be given attribution as
         the authors of the parts used. This can be in the form of a textual
-        message at program startup or in product documentation. The legal
-        notices attached to parts of the source code must be retained in full. 
+        message at program startup or in product documentation. 
 
-     c. The product must not be called TrueCrypt, and its name must not contain
-        the name TrueCrypt (nor any of its variations, e.g., Truecrypt).
+     d. The licence and distribution terms of these modified or unmodified
+        parts must not be changed (i.e., none of these parts can be put under 
+        another distribution licence). The legal notices attached to parts of
+        the source code must be retained in full. 
+
+     e. Phrase "Based on TrueCrypt" must be displayed by the product or by the
+        modified version and/or contained in its documentation. 
 
   4. If you use any part of the source code originally by Eric Young, you must
      in addition follow his terms and conditions.
@@ -88,7 +102,7 @@ product or its derivative works. These actions are prohibited by law if you do
 not accept this license.
 
 Portions of this software are:
-Copyright (c) 2004 TrueCrypt Foundation. All Rights Reserved.
+Copyright (c) 2004-2005 TrueCrypt Foundation. All Rights Reserved.
 Copyright (c) 1998-2000 Paul Le Roux. All Rights Reserved.
 Copyright (c) 2004 TrueCrypt Team. All Rights Reserved.
 Copyright (c) 1995-1997 Eric Young. All Rights Reserved.

@@ -129,6 +129,7 @@
 #define IDD_INTRO_PAGE_DLG              124
 #define IDS_SERPENT_HELP1               124
 #define IDS_SERPENT_HELP0               125
+#define IDS_ERR_MOUNTED_FILESYSTEMS     126
 #define IDD_CIPHER_TEST_DLG             145
 #define IDD_INFO_PAGE_DLG               146
 #define IDD_HIDVOL_HOST_FILL_PAGE_DLG   147

@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 3,0,0,0
- PRODUCTVERSION 3,0,0,0
+ FILEVERSION 3,1,0,0
+ PRODUCTVERSION 3,1,0,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -46,12 +46,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Format"
-            VALUE "FileVersion", "3.0"
+            VALUE "FileVersion", "3.1"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "OriginalFilename", "TrueCrypt Format.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "3.0"
-            VALUE "SpecialBuild", "December 2004"
+            VALUE "ProductVersion", "3.1"
+            VALUE "SpecialBuild", "January 2005"
         END
     END
     BLOCK "VarFileInfo"
@@ -73,15 +73,15 @@ CAPTION "TITLE"
 CLASS "CustomDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    LTEXT           "BOX TITLE",IDC_BOX_TITLE,160,8,220,17
     LTEXT           "",IDC_POS_BOX,160,24,226,152
+    PUSHBUTTON      "&Help",9,176,189,50,14
     PUSHBUTTON      "PREV",IDC_PREV,235,189,50,14
     DEFPUSHBUTTON   "NEXT/FINISH",IDC_NEXT,285,189,50,14
-    PUSHBUTTON      "&Help",9,176,189,50,14
+    PUSHBUTTON      "&Cancel",IDCANCEL,343,189,50,14
+    LTEXT           "BOX TITLE",IDC_BOX_TITLE,160,8,220,17
     GROUPBOX        "",IDC_STATIC,4,0,392,183
     CONTROL         122,IDC_STATIC,"Static",SS_BITMAP | SS_SUNKEN,10,9,137,
                     169
-    PUSHBUTTON      "&Cancel",IDCANCEL,343,189,50,14
 END
 
 IDD_CIPHER_PAGE_DLG DIALOGEX 0, 0, 217, 152
@@ -90,15 +90,15 @@ FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     COMBOBOX        IDC_COMBO_BOX,7,23,137,126,CBS_DROPDOWNLIST | WS_VSCROLL | 
                     WS_TABSTOP
+    PUSHBUTTON      "&Test",IDC_CIPHER_TEST,149,22,59,14
+    PUSHBUTTON      "&Benchmark",IDC_WIZ_BENCHMARK,149,80,59,14
     CONTROL         "SHA-1",IDC_SHA1,"Button",BS_AUTORADIOBUTTON | WS_GROUP,
                     6,118,68,10
     CONTROL         "RIPEMD-160",IDC_RIPEMD160,"Button",BS_AUTORADIOBUTTON,6,
                     130,66,10
     LTEXT           "BOX HELP",IDC_BOX_HELP,7,40,205,40
-    PUSHBUTTON      "&Test",IDC_CIPHER_TEST,149,22,59,14
     GROUPBOX        "Encryption Algorithm",IDC_STATIC,0,10,217,92
     GROUPBOX        "Hash Algorithm",IDC_STATIC,0,106,217,40
-    PUSHBUTTON      "&Benchmark",IDC_WIZ_BENCHMARK,149,80,59,14
 END
 
 IDD_PASSWORD_PAGE_DLG DIALOGEX 0, 0, 217, 154
@@ -133,15 +133,21 @@ BEGIN
                     WS_VSCROLL | WS_TABSTOP
     PUSHBUTTON      "Select &File...",IDC_BROWSE_FILES,155,14,62,14
     PUSHBUTTON      "Select &Device...",IDC_BROWSE_DEVICES,155,30,62,14
-    LTEXT           "BOX HELP",IDC_BOX_HELP,0,56,214,94
     CONTROL         "&Never save history",IDC_NO_HISTORY,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,3,33,137,10
+    LTEXT           "BOX HELP",IDC_BOX_HELP,0,56,214,94
 END
 
 IDD_FORMAT_PAGE_DLG DIALOGEX 0, 0, 217, 156
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
+    COMBOBOX        IDC_FILESYS,41,12,36,90,CBS_DROPDOWNLIST | WS_TABSTOP
+    COMBOBOX        IDC_CLUSTERSIZE,106,12,42,90,CBS_DROPDOWNLIST | 
+                    WS_TABSTOP
+    CONTROL         "Quick Format",IDC_QUICKFORMAT,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,155,14,56,10
+    PUSHBUTTON      "Abort",IDC_CANCEL_BAR,162,73,50,14
     RTEXT           "Header Key:",IDC_STATIC,5,45,43,8
     LTEXT           "",IDC_HEADER_KEY,52,45,160,8
     RTEXT           "Master Key:",IDC_STATIC,7,53,41,8
@@ -150,7 +156,6 @@ BEGIN
     RTEXT           "Cluster",IDC_STATIC,81,15,23,8
     LTEXT           "",IDC_BOX_HELP,1,110,212,42
     GROUPBOX        "Options",IDC_STATIC,0,3,217,27
-    PUSHBUTTON      "Abort",IDC_CANCEL_BAR,162,73,50,14
     CONTROL         "",IDC_PROGRESS_BAR,"msctls_progress32",WS_BORDER | 0x1,
                     6,74,151,12
     RTEXT           "",IDC_TIMEREMAIN,166,91,45,11,SS_CENTERIMAGE,
@@ -163,12 +168,7 @@ BEGIN
     RTEXT           "Speed",IDC_STATIC,73,92,23,8
     RTEXT           "Left",IDC_STATIC,151,92,13,8
     GROUPBOX        "",IDC_STATIC,0,65,217,41
-    CONTROL         "Quick Format",IDC_QUICKFORMAT,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,155,14,56,10
     RTEXT           "Filesystem",IDC_STATIC,3,15,36,8,0,WS_EX_RIGHT
-    COMBOBOX        IDC_FILESYS,41,12,36,90,CBS_DROPDOWNLIST | WS_TABSTOP
-    COMBOBOX        IDC_CLUSTERSIZE,106,12,42,90,CBS_DROPDOWNLIST | 
-                    WS_TABSTOP
     RTEXT           "Random Pool:",IDC_STATIC,3,37,45,8
     GROUPBOX        "",IDC_STATIC,0,30,217,35
     CONTROL         "Check2",IDC_SHOW_KEYS,"Button",BS_AUTOCHECKBOX | 
@@ -195,33 +195,33 @@ STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION |
 CAPTION "TEST DIALOG TITLE"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    GROUPBOX        "[ Hexadecimal Key ] Big Endian",IDC_STATIC,8,3,252,31
-    RTEXT           "0x",IDC_STATIC,21,16,15,8
     EDITTEXT        IDC_KEY,41,14,213,14,ES_AUTOHSCROLL
-    GROUPBOX        "[ Hexadecimal &Plaintext ] Big Endian",IDC_STATIC,8,36,
-                    252,31
-    RTEXT           "0x",IDC_STATIC,21,49,15,8
     EDITTEXT        IDC_PLAINTEXT,41,47,213,14,ES_AUTOHSCROLL
-    GROUPBOX        "Cip&her Configuration (all sizes in bytes)",IDC_STATIC,
-                    8,69,252,34
-    RTEXT           "Key",IDC_STATIC,21,84,15,8
     COMBOBOX        IDC_KEY_SIZE,41,82,36,40,CBS_DROPDOWNLIST | WS_VSCROLL | 
                     WS_TABSTOP
-    RTEXT           "Plaintext",IDC_STATIC,89,84,51,8
     COMBOBOX        IDC_PLAINTEXT_SIZE,149,82,36,30,CBS_DROPDOWNLIST | 
                     WS_DISABLED | WS_VSCROLL | WS_TABSTOP
-    GROUPBOX        "[ Hexadecimal &Ciphertext ] Big Endian",IDC_STATIC,8,
-                    106,252,31
-    RTEXT           "0x",IDC_STATIC,21,118,15,8
     EDITTEXT        IDC_CIPHERTEXT,41,116,213,14,ES_AUTOHSCROLL
-    RTEXT           "TESTS MESSAGE",IDC_TESTS_MESSAGE,29,148,153,10
-    CONTROL         "",IDC_REDTICK,"REDTICK",0x0,187,149,10,8
-    PUSHBUTTON      "&Reset",IDC_RESET,148,170,52,14
     PUSHBUTTON      "&Auto-Test All Algorithms",IDC_AUTO,208,142,52,23,
                     BS_MULTILINE
     DEFPUSHBUTTON   "&Encrypt",IDOK,8,170,52,14
     PUSHBUTTON      "&Decrypt",IDC_DECRYPT,68,170,52,14
+    PUSHBUTTON      "&Reset",IDC_RESET,148,170,52,14
     PUSHBUTTON      "Close",IDCANCEL,208,170,52,14
+    GROUPBOX        "[ Hexadecimal Key ] Big Endian",IDC_STATIC,8,3,252,31
+    RTEXT           "0x",IDC_STATIC,21,16,15,8
+    GROUPBOX        "[ Hexadecimal &Plaintext ] Big Endian",IDC_STATIC,8,36,
+                    252,31
+    RTEXT           "0x",IDC_STATIC,21,49,15,8
+    GROUPBOX        "Cip&her Configuration (all sizes in bytes)",IDC_STATIC,
+                    8,69,252,34
+    RTEXT           "Key",IDC_STATIC,21,84,15,8
+    RTEXT           "Plaintext",IDC_STATIC,89,84,51,8
+    GROUPBOX        "[ Hexadecimal &Ciphertext ] Big Endian",IDC_STATIC,8,
+                    106,252,31
+    RTEXT           "0x",IDC_STATIC,21,118,15,8
+    RTEXT           "TESTS MESSAGE",IDC_TESTS_MESSAGE,29,148,153,10
+    CONTROL         "",IDC_REDTICK,"REDTICK",0x0,187,149,10,8
 END
 
 IDD_INTRO_PAGE_DLG DIALOGEX 0, 0, 217, 156
@@ -449,8 +449,8 @@ BEGIN
     IDS_PASSWORD_TITLE      "Volume Password"
     IDS_INTRO_HELP3         "and other values obtained from the system. The data should be as random as possible, so the more randomly you move the mouse, the better."
     IDS_INTRO_HELP0         "This wizard will help you to create a new TrueCrypt volume.\n"
-    IDS_INTRO_HELP1         "To create a hidden volume within another volume, select the corresponding wizard mode above.\n\n"
-    IDS_INTRO_HELP2         "Collection of random data has begun. The data will be used in generating the master key, salt, and values used to create the IV and 'whitening' values for the new volume. The collected data include your mouse movements, mouse clicks, key presses, "
+    IDS_INTRO_HELP1         "To create a hidden volume within another volume, select the corresponding wizard mode above.\n\nCollection of random data has begun. The data will be used in generating the master key,"
+    IDS_INTRO_HELP2         " salt, and values used to create the IV and 'whitening' values for the new volume. The collected data include your mouse movements within this window, mouse clicks, key presses, "
     IDS_HIDVOL_HOST_PRE_CIPHER_TITLE "Outer Volume"
     IDS_HIDVOL_HOST_PRE_CIPHER_HELP0 
                             "\n\nIn the next steps you will set the options for the outer volume (within which the hidden volume will be created later on). "
@@ -591,6 +591,8 @@ BEGIN
     IDS_TWOFISH_HELP1       "Twofish was one of the AES finalists."
     IDS_SERPENT_HELP1       "Serpent was one of the AES finalists."
     IDS_SERPENT_HELP0       "Designed by Ross Anderson, Eli Biham, and Lars Knudsen. Published in 1998. 256-bit key, 128-bit block. "
+    IDS_ERR_MOUNTED_FILESYSTEMS 
+                            "There may be mounted filesystems located on the device to be formatted.\nPlease either disable quick format or remove all partitions on the device\nto enable safe formatting of the device."
 END
 
 #endif    // English (U.S.) resources

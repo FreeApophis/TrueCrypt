@@ -1,6 +1,6 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004
+   additions to that source code contained in this file are Copyright (c) 2004-2005
    TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
@@ -259,18 +259,18 @@ GetArgumentValue (char **lpszCommandLineArgs, int nArgPos, int *nArgIdx,
 	{
 		/* Handles the case of no space between parameter code and
 		   value */
-		memcpy (lpszValue, &lpszCommandLineArgs[*nArgIdx][nArgPos], nValueSize * sizeof (char));
+		strncpy (lpszValue, &lpszCommandLineArgs[*nArgIdx][nArgPos], nValueSize);
 		lpszValue[nValueSize - 1] = 0;
 		return HAS_ARGUMENT;
 	}
-	else if (*nArgIdx + 1 != nNoCommandLineArgs)
+	else if (*nArgIdx + 1 < nNoCommandLineArgs)
 	{
 		int x = GetArgSepPosOffset (lpszCommandLineArgs[*nArgIdx + 1]);
 		if (x == 0)
 		{
 			/* Handles the case of space between parameter code
 			   and value */
-			memcpy (lpszValue, &lpszCommandLineArgs[*nArgIdx + 1][x], nValueSize * sizeof (char));
+			strncpy (lpszValue, &lpszCommandLineArgs[*nArgIdx + 1][x], nValueSize);
 			lpszValue[nValueSize - 1] = 0;
 			(*nArgIdx)++;
 			return HAS_ARGUMENT;

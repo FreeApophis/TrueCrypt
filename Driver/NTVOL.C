@@ -1,6 +1,6 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004
+   additions to that source code contained in this file are Copyright (c) 2004-2005
    TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
@@ -30,7 +30,6 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	       PWSTR pwszMountVolume,
 	       BOOL bRawDevice)
 {
-	struct msdos_boot_sector *boot_sector = NULL;
 	FILE_STANDARD_INFORMATION FileStandardInfo;
 	FILE_BASIC_INFORMATION FileBasicInfo;
 	OBJECT_ATTRIBUTES oaFileAttributes;
@@ -39,7 +38,7 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	LARGE_INTEGER lDiskLength;
 	char *readBuffer = 0;
 	char *readBufferHiddenVol = 0;
-	NTSTATUS ntStatus;
+	NTSTATUS ntStatus = 0;
 	BOOL bTimeStampValid = FALSE;
 
 	Extension->pfoDeviceFile = NULL;
@@ -52,6 +51,7 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	// If we are opening a device, query its size first
 	if (bRawDevice)
 	{
+		PARTITION_INFORMATION pi;
 		DISK_GEOMETRY dg;
 
 		ntStatus = IoGetDeviceObjectPointer (&FullFileName,
@@ -66,40 +66,25 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 
 		DeviceObject->StackSize = (CCHAR) (Extension->pFsdDevice->StackSize + 1);
 
-		if (wcscmp (Extension->pFsdDevice->DriverObject->DriverName.Buffer, WIDE ("\\FileSystem\\RAW")) != 0)
-		{
-			/* FAT/NTFS "knows" about this device */
-			ntStatus = STATUS_SHARING_VIOLATION;
-			goto error;
-		}
-
+		// Query partition size
 		ntStatus = TCSendDeviceIoControlRequest (DeviceObject,
-				   Extension, IOCTL_DISK_GET_DRIVE_GEOMETRY,
-						 (char *) &dg, sizeof (dg));
+			Extension, IOCTL_DISK_GET_PARTITION_INFO,
+			(char *) &pi, sizeof (pi));
 
-		if (!NT_SUCCESS (ntStatus))
+		if (NT_SUCCESS (ntStatus))
 		{
-			goto error;
-		}
-
-		if (dg.MediaType == FixedMedia)
-		{
-			PARTITION_INFORMATION pi;
-
-			ntStatus = TCSendDeviceIoControlRequest (DeviceObject,
-				   Extension, IOCTL_DISK_GET_PARTITION_INFO,
-						 (char *) &pi, sizeof (pi));
-
-			if (!NT_SUCCESS (ntStatus))
-			{
-				goto error;
-			}
-			else
-				lDiskLength.QuadPart = pi.PartitionLength.QuadPart;
-
+			lDiskLength.QuadPart = pi.PartitionLength.QuadPart;
 		}
 		else
 		{
+			// Drive geometry info is used only when IOCTL_DISK_GET_PARTITION_INFO fails
+			ntStatus = TCSendDeviceIoControlRequest (DeviceObject,
+				Extension, IOCTL_DISK_GET_DRIVE_GEOMETRY,
+				(char *) &dg, sizeof (dg));
+
+			if (!NT_SUCCESS (ntStatus))
+				goto error;
+
 			lDiskLength.QuadPart = dg.Cylinders.QuadPart * dg.SectorsPerTrack *
 				dg.TracksPerCylinder * dg.BytesPerSector;
 		}
@@ -287,9 +272,6 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 
 	/* Attempt to recognize the volume */
 
-	KeWaitForMutexObject (&driverMutex, Executive, KernelMode,
-			      FALSE, NULL);
-
 	mount->nReturnCode = VolumeReadHeaderCache (
 								mount->bCache,
 								readBuffer,
@@ -297,8 +279,6 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 								mount->szPassword,
 								strlen (mount->szPassword),
 								&Extension->cryptoInfo);
-
-	KeReleaseMutex (&driverMutex, FALSE);
 
 	if (mount->nReturnCode == 0)
 	{
@@ -804,6 +784,9 @@ TCSendDeviceIoControlRequest (PDEVICE_OBJECT DeviceObject,
 		Dump ("IRP allocation failed\n");
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
+
+	// Disk device may be used by filesystem driver which needs file object
+	IoGetNextIrpStackLocation (Irp) -> FileObject = Extension->pfoDeviceFile;
 
 	ntStatus = IoCallDriver (Extension->pFsdDevice, Irp);
 	if (ntStatus == STATUS_PENDING)

@@ -1,6 +1,6 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004
+   additions to that source code contained in this file are Copyright (c) 2004-2005
    TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
@@ -87,9 +87,6 @@ typedef struct EXTENSION
 #define Dump
 #endif
 
-/* Sync. mutex for entire driver */
-extern KMUTEX driverMutex;
-
 #ifdef USE_KERNEL_MUTEX
 #pragma message ("Compiling " __FILE__ " with USE_KERNEL_MUTEX on")
 #endif
@@ -108,6 +105,7 @@ NTSTATUS TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIR
 NTSTATUS TCStartThread (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, MOUNT_STRUCT * mount);
 void TCStopThread (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension);
 VOID TCThreadIRP (PVOID Context);
+void TCSleep (int milliSeconds);
 void TCGetNTNameFromNumber (LPWSTR ntname, int nDriveNo);
 void TCGetDosNameFromNumber (LPWSTR dosname, int nDriveNo);
 LPWSTR TCTranslateCode (ULONG ulCode);
@@ -123,3 +121,6 @@ NTSTATUS MountDevice (PDEVICE_OBJECT deviceObject, MOUNT_STRUCT *mount);
 NTSTATUS UnmountDevice (PDEVICE_OBJECT deviceObject, BOOL ignoreOpenFiles);
 NTSTATUS UnmountAllDevices (PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles);
 NTSTATUS SymbolicLinkToTarget (PWSTR symlinkName, PWSTR targetName, USHORT maxTargetNameLength);
+void DriverMutexWait ();
+void DriverMutexRelease ();
+

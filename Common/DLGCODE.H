@@ -1,13 +1,16 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004
+   additions to that source code contained in this file are Copyright (c) 2004-2005
    TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
 
+#include "common.h"
+
 #define IDC_ABOUT 0x7fff	/* ID for AboutBox on system menu in wm_user range */
 
-#define UNMOUNT_WAIT	250
+#define UNMOUNT_MAX_AUTO_RETRIES 5
+#define UNMOUNT_AUTO_RETRY_DELAY 50
 
 extern char szHelpFile[TC_MAX_PATH];
 extern HFONT hSmallFont;
@@ -38,8 +41,6 @@ extern HINSTANCE hInst;
 #else
 #define WINMAIN WinMain
 #endif
-
-/* Everything below this line is automatically updated by the -mkproto-tool- */
 
 void cleanup ( void );
 void LowerCaseCopy ( char *lpszDest , char *lpszSource );
@@ -76,6 +77,7 @@ int GetAvailableFixedDisks ( HWND hComboBox , char *lpszRootPath );
 int GetAvailableRemovables ( HWND hComboBox , char *lpszRootPath );
 BOOL WINAPI RawDevicesDlgProc ( HWND hwndDlg , UINT msg , WPARAM wParam , LPARAM lParam );
 BOOL WINAPI BenchmarkDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
+BOOL WINAPI MountOptionsDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
 int DriverAttach ( void );
 BOOL SeekHiddenVolHeader (HFILE dev, unsigned __int64 volSize, BOOL deviceFlag);
 BOOL BrowseFiles ( HWND hwndDlg , UINT nTitleID , char *lpszFileName, BOOL keepHistory );
@@ -89,8 +91,8 @@ int GetFirstAvailableDrive ();
 int GetLastAvailableDrive ();
 BOOL IsDriveAvailable (int driveNo);
 int DriverUnmountVolume (HWND hwndDlg, int nDosDriveNo, BOOL forced);
-void BroadcastDeviceChange (WPARAM message, int nDosDriveNo);
-int MountVolume (HWND hwndDlg, int driveNo, char *volumePath, char *szPassword, BOOL cachePassword, BOOL sharedAccess, BOOL quiet);
+void BroadcastDeviceChange (WPARAM message, int nDosDriveNo, DWORD driveMap);
+int MountVolume (HWND hwndDlg, int driveNo, char *volumePath, char *szPassword, BOOL cachePassword, BOOL sharedAccess, MountOptions *mountOptions, BOOL quiet);
 BOOL UnmountVolume (HWND hwndDlg , int nDosDriveNo, BOOL forceUnmount);
 BOOL IsPasswordCacheEmpty (void);
 BOOL IsMountedVolume (char *volname);
@@ -99,3 +101,5 @@ BOOL IsAdmin (void);
 BOOL ResolveSymbolicLink (PWSTR symLinkName, PWSTR targetName);
 int GetDiskDeviceDriveLetter (PWSTR deviceName);
 HANDLE DismountDrive (int driveNo);
+BOOL TCCopyFile (char *sourceFileName, char *destinationFile);
+BOOL IsNonInstallMode ();

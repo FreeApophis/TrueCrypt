@@ -92,6 +92,7 @@
 				LinkIncremental="1"
 				IgnoreAllDefaultLibraries="TRUE"
 				GenerateDebugInformation="FALSE"
+				GenerateMapFile="TRUE"
 				SubSystem="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"

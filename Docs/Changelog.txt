@@ -1,3 +1,149 @@
+-- Version 3.1 - Released 2005/01/22 --
+
+	* D:/Projects/Cvs/TrueCrypt/Common/FAT.C 1.13:
+	* D:/Projects/Cvs/TrueCrypt/Format/TCFORMAT.C 1.38:
+		FAT32 format default cluster sizes changed, user selection is 
+		checked and corrected if needed
+
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.49:
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.H 1.25:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.63:
+		Dismount of volume in use is retried five times for 250ms before 
+		offering forced dismount
+
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.61:
+		Command line option '/auto devices' auto-mounts devices
+
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.47:
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.H 1.24:
+	* D:/Projects/Cvs/TrueCrypt/Common/TCDEFS.H 1.13:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.58:
+		WM_DEVICECHANGE sent only once for all dismounted drives
+
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.59:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.rc 1.26:
+	* D:/Projects/Cvs/TrueCrypt/Mount/resource.h 1.14:
+		'Refresh Drive Letters' forces broadcast of WM_DEVICECHANGE for 
+		all drives
+
+	* D:/Projects/Cvs/TrueCrypt/Format/Format.rc 1.26:
+	* D:/Projects/Cvs/TrueCrypt/Format/TCFORMAT.C 1.36:
+	* D:/Projects/Cvs/TrueCrypt/Format/resource.h 1.11:
+		Volume wizard dismounts all filesytems on a device to be 
+		formatted (partition0).
+
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.45:
+		Support for removable media improved in device selector
+
+	* D:/Projects/Cvs/TrueCrypt/Driver/NTVOL.C 1.19:
+	* D:/Projects/Cvs/TrueCrypt/Format/TCFORMAT.C 1.35:
+		Device size is obtained via IOCTL_DISK_GET_PARTITION_INFO, only 
+		if it fails is IOCTL_DISK_GET_DRIVE_GEOMETRY used. Fixes missing 
+		sectors on removable media.
+
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.44:
+		Volume wizard is not limited to one instance
+
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.41:
+		Device selection dialog will not display partitions of a device 
+		if its partition0 and partition1 have equal size
+
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.56:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.rc 1.25:
+	* D:/Projects/Cvs/TrueCrypt/Mount/resource.h 1.13:
+		FAQ link added to menu
+
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.43:
+	* D:/Projects/Cvs/TrueCrypt/Setup/SETUP.C 1.18:
+		OS version checked on startup
+
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.50:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.rc 1.21:
+		'Auto-mount partitions' renamed to 'Auto-mount devices'
+
+	* D:/Projects/Cvs/TrueCrypt/Common/Common.h 1.1:
+	* D:/Projects/Cvs/TrueCrypt/Common/Common.rc 1.29:
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.39:
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.H 1.23:
+	* D:/Projects/Cvs/TrueCrypt/Common/resource.h 1.14:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.48:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.rc 1.19:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.vcproj 1.6:
+	* D:/Projects/Cvs/TrueCrypt/Mount/resource.h 1.11:
+		Mount options added, allows mounting of volumes read-only and as
+                removable media, default mount options saved in registry and set
+                from preferences, command line option /mountoption {ro|rm} added
+
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.53:
+		Automount skips other partitions of a disk if partition0 is 
+		mounted
+
+	* D:/Projects/Cvs/TrueCrypt/Common/Common.rc 1.30:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.49:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.rc 1.20:
+	* D:/Projects/Cvs/TrueCrypt/Mount/resource.h 1.12:
+		Mount options link added to password dialog
+
+	* D:/Projects/Cvs/TrueCrypt/Common/Common.rc 1.28:
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.38:
+	* D:/Projects/Cvs/TrueCrypt/Common/resource.h 1.13:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.46:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.rc 1.18:
+	* D:/Projects/Cvs/TrueCrypt/Mount/resource.h 1.10:
+		Traveller disk creation support
+
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.47:
+		Drag&drop support
+
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.37:
+		SendMessageTimeout used for broadcasting device changes to avoid 
+		hanging together with stuck applications
+
+	* D:/Projects/Cvs/TrueCrypt/Driver/NTDRIVER.C 1.19:
+	* D:/Projects/Cvs/TrueCrypt/Driver/NTDRIVER.H 1.12:
+	* D:/Projects/Cvs/TrueCrypt/Driver/NTVOL.C 1.17:
+		All volume operations performed by root device are now mutex-
+		synchronized
+
+	* D:/Projects/Cvs/TrueCrypt/Driver/NTDRIVER.C 1.18:
+	* D:/Projects/Cvs/TrueCrypt/Driver/NTDRIVER.H 1.11:
+		Sleep function added for testing purposes
+
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.36:
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.H 1.22:
+	* D:/Projects/Cvs/TrueCrypt/Format/TCFORMAT.C 1.33:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.45:
+		Options are not saved to registry in non-install mode
+
+	* D:/Projects/Cvs/TrueCrypt/Common/APIDRVR.H 1.14:
+	* D:/Projects/Cvs/TrueCrypt/Common/Common.rc 1.26:
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.35:
+	* D:/Projects/Cvs/TrueCrypt/Common/TCDEFS.H 1.12:
+	* D:/Projects/Cvs/TrueCrypt/Common/resource.h 1.12:
+	* D:/Projects/Cvs/TrueCrypt/Setup/SETUP.C 1.17:
+		Mount and Format dynamically load TC driver on start if needed (
+		no-install operation)
+
+	* D:/Projects/Cvs/TrueCrypt/Driver/NTVOL.C 1.15:
+		Device-hosted volumes can be mounted also if there are other 
+		drivers already attached to the hosting device
+
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.34:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.44:
+		Message DBT_DEVICEREMOVEPENDING not sent before dismount
+
+	* D:/Projects/Cvs/TrueCrypt/Common/CMDLINE.C 1.6:
+		Command line argument handling fixed
+
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.32:
+		Shell notified of a new volume also via SHCNE_DRIVEADD
+
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.33:
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.H 1.21:
+	* D:/Projects/Cvs/TrueCrypt/Common/TCDEFS.H 1.11:
+	* D:/Projects/Cvs/TrueCrypt/Setup/SETUP.C 1.16:
+		Setup does not use system CopyFile()
+
 
 -- Version 3.0a - Released 2004/12/11 --
 

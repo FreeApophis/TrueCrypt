@@ -27,29 +27,35 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 // Dialog
 //
 
-IDD_PREFERENCES_DLG DIALOGEX 0, 0, 325, 130
+IDD_PREFERENCES_DLG DIALOGEX 0, 0, 271, 212
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | 
     WS_SYSMENU
 CAPTION "Preferences"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    DEFPUSHBUTTON   "OK",IDOK,268,12,50,14
-    PUSHBUTTON      "Cancel",IDCANCEL,268,28,50,14
+    DEFPUSHBUTTON   "OK",IDOK,153,190,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,209,190,50,14
     CONTROL         "Open Explorer window for successfully mounted volume",
                     IDC_PREF_OPEN_EXPLORER,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,19,83,203,11
+                    WS_TABSTOP,22,145,203,11
     CONTROL         "Close all Explorer windows of volume being dismounted",
                     IDC_PREF_CLOSE_DISMOUNTED_WINDOWS,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,19,99,228,11
+                    BS_AUTOCHECKBOX | WS_TABSTOP,22,161,228,11
     CONTROL         "Wipe cached passwords on exit",
                     IDC_PREF_WIPE_CACHE_ON_EXIT,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,19,24,127,11
-    GROUPBOX        "Windows Explorer",IDC_STATIC,11,68,247,51
+                    WS_TABSTOP,22,24,127,11
+    GROUPBOX        "Windows Explorer",IDC_STATIC,11,129,248,55
     GROUPBOX        "Security",IDC_STATIC,11,8,248,55
     CONTROL         "Cache passwords in driver memory",
                     IDC_PREF_CACHE_PASSWORDS,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,19,40,127,11
-    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDFRAME,1,1,323,128
+                    WS_TABSTOP,22,40,127,11
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDFRAME,2,2,268,209
+    GROUPBOX        "Default Mount Options",IDC_STATIC,11,69,248,55
+    CONTROL         "Mount volumes as read-only",IDC_PREF_MOUNT_READONLY,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,22,86,106,10
+    CONTROL         "Mount volumes as removable media",
+                    IDC_PREF_MOUNT_REMOVABLE,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,22,102,129,10
 END
 
 IDD_VOLUME_PROPERTIES DIALOGEX 60, 30, 235, 151
@@ -95,27 +101,27 @@ MENU IDR_MENU
 CLASS "CustomDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    COMBOBOX        IDC_VOLUME,56,192,212,74,CBS_DROPDOWN | CBS_AUTOHSCROLL | 
-                    WS_VSCROLL | WS_TABSTOP
-    PUSHBUTTON      "Select &File...",IDC_BROWSE_FILES,276,192,84,14
-    CONTROL         "&Never save history",IDC_NO_HISTORY,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,56,207,112,10
-    PUSHBUTTON      "Select D&evice...",IDC_BROWSE_DEVICES,276,211,84,14
-    PUSHBUTTON      "Change &Password...",IDC_CHANGE_PASSWORD,184,211,84,14
-    DEFPUSHBUTTON   "&Mount",IDOK,8,243,84,18,WS_GROUP
-    PUSHBUTTON      "Di&smount All",IDUNMOUNTALL,192,243,84,18,WS_GROUP
     CONTROL         "",IDC_DRIVELIST,"SysListView32",LVS_REPORT | 
                     LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_ALIGNLEFT | 
                     LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,5,360,135
-    PUSHBUTTON      "&Create Volume",IDC_CREATE_VOLUME,16,159,84,14
-    PUSHBUTTON      "&Auto-Mount Partitions",IDC_MOUNTALL,100,243,84,18
-    GROUPBOX        "Volume",IDC_STATIC,8,179,360,53
-    PUSHBUTTON      "&Wipe Cache",IDC_WIPE_CACHE,276,159,84,14
+    PUSHBUTTON      "Select &File...",IDC_BROWSE_FILES,276,192,84,14
+    PUSHBUTTON      "Select D&evice...",IDC_BROWSE_DEVICES,276,211,84,14
+    COMBOBOX        IDC_VOLUME,56,192,212,74,CBS_DROPDOWN | CBS_AUTOHSCROLL | 
+                    WS_VSCROLL | WS_TABSTOP
+    CONTROL         "&Never save history",IDC_NO_HISTORY,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,56,207,112,10
+    DEFPUSHBUTTON   "&Mount",IDOK,8,243,84,18,WS_GROUP
+    PUSHBUTTON      "&Auto-Mount Devices",IDC_MOUNTALL,100,243,84,18
+    PUSHBUTTON      "Di&smount All",IDUNMOUNTALL,192,243,84,18,WS_GROUP
     PUSHBUTTON      "E&xit",IDCANCEL,284,243,84,18,WS_GROUP
+    PUSHBUTTON      "&Create Volume",IDC_CREATE_VOLUME,16,159,84,14
     PUSHBUTTON      "&Volume Properties...",IDC_VOLUME_PROPERTIES,146,159,84,
                     14
+    PUSHBUTTON      "&Wipe Cache",IDC_WIPE_CACHE,276,159,84,14
+    PUSHBUTTON      "Change &Password...",IDC_CHANGE_PASSWORD,184,211,84,14
     CONTROL         1027,IDB_LOGO,"Static",SS_BITMAP | SS_NOTIFY | WS_BORDER,
                     16,192,27,31
+    GROUPBOX        "Volume",IDC_STATIC,8,179,360,53
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDFRAME,1,0,373,147
     GROUPBOX        "",IDC_STATIC,282,238,88,24
     GROUPBOX        "",IDC_STATIC,190,238,88,24
@@ -124,7 +130,7 @@ BEGIN
     GROUPBOX        "",IDC_STATIC,1,147,373,123,BS_CENTER
 END
 
-IDD_PASSWORD_DLG DIALOGEX 0, 0, 281, 50
+IDD_PASSWORD_DLG DIALOGEX 0, 0, 281, 54
 STYLE DS_SETFONT | DS_MODALFRAME | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | 
     WS_POPUP | WS_VISIBLE | WS_CAPTION
 CAPTION "Enter Volume Password"
@@ -132,10 +138,56 @@ FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     RTEXT           "P&assword:",IDC_STATIC,8,11,34,8
     EDITTEXT        IDC_PASSWORD,48,9,153,14,ES_PASSWORD | ES_AUTOHSCROLL
-    DEFPUSHBUTTON   "OK",IDOK,213,9,59,14
-    PUSHBUTTON      "Cancel",IDCANCEL,213,27,59,14
+    DEFPUSHBUTTON   "OK",IDOK,211,3,64,14
+    PUSHBUTTON      "Cancel",IDCANCEL,211,19,64,14
+    PUSHBUTTON      "Mount Options...",IDC_MOUNT_OPTIONS,211,36,64,14
     CONTROL         "Cache password in driver memory",IDC_CACHE,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,52,28,132,10
+END
+
+IDD_TRAVELLER_DLG DIALOGEX 0, 0, 285, 271
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | 
+    WS_SYSMENU
+CAPTION "TrueCrypt Traveller Disk Setup"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    EDITTEXT        IDC_DIRECTORY,17,29,198,13,ES_AUTOHSCROLL
+    PUSHBUTTON      "Browse...",IDC_BROWSE_DIRS,221,28,50,14
+    CONTROL         "Include TrueCrypt Volume Creation Wizard",
+                    IDC_COPY_WIZARD,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,19,
+                    48,152,10
+    CONTROL         "Do nothing",IDC_AUTORUN_DISABLE,"Button",
+                    BS_AUTORADIOBUTTON,15,97,51,10
+    CONTROL         "Start TrueCrypt",IDC_AUTORUN_START,"Button",
+                    BS_AUTORADIOBUTTON,15,108,112,11
+    CONTROL         "Auto-mount TrueCrypt volume (specified below)",
+                    IDC_AUTORUN_MOUNT,"Button",BS_AUTORADIOBUTTON,15,120,174,
+                    11
+    EDITTEXT        IDC_VOLUME_NAME,21,158,186,13,ES_AUTOHSCROLL
+    PUSHBUTTON      "Browse...",IDC_BROWSE_FILES,213,158,50,14
+    COMBOBOX        IDC_DRIVELIST,95,175,61,69,CBS_DROPDOWNLIST | WS_VSCROLL | 
+                    WS_TABSTOP
+    CONTROL         "Open Explorer window for mounted volume",
+                    IDC_PREF_OPEN_EXPLORER,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,22,193,153,10
+    CONTROL         "Cache password in driver memory",
+                    IDC_PREF_CACHE_PASSWORDS,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,22,219,124,10
+    DEFPUSHBUTTON   "Create",IDOK,167,249,53,16
+    PUSHBUTTON      "Cancel",IDCANCEL,225,249,53,16
+    GROUPBOX        "AutoRun Configuration (autorun.inf)",IDC_STATIC,5,70,
+                    275,172
+    LTEXT           "TrueCrypt volume to mount (relative to traveller disk root):",
+                    IDC_STATIC,21,147,190,8
+    GROUPBOX        "File Settings",IDC_STATIC,6,7,274,59
+    LTEXT           "Mount as drive letter:",IDC_STATIC,23,177,70,8
+    LTEXT           "Create traveller disk files at (destination directory):",
+                    IDC_STATIC,18,19,165,8
+    GROUPBOX        "Auto-Mount Settings",IDC_STATIC,13,134,259,100
+    CONTROL         "Mount volume as read-only",IDC_MOUNT_READONLY,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,22,206,103,10
+    LTEXT           "Upon insertion of traveller disk: ",IDC_STATIC,13,84,
+                    103,8
 END
 
 
@@ -150,9 +202,9 @@ BEGIN
     IDD_PREFERENCES_DLG, DIALOG
     BEGIN
         LEFTMARGIN, 7
-        RIGHTMARGIN, 318
+        RIGHTMARGIN, 264
         TOPMARGIN, 7
-        BOTTOMMARGIN, 123
+        BOTTOMMARGIN, 205
     END
 
     IDD_VOLUME_PROPERTIES, DIALOG
@@ -181,7 +233,15 @@ BEGIN
     IDD_PASSWORD_DLG, DIALOG
     BEGIN
         RIGHTMARGIN, 278
-        BOTTOMMARGIN, 44
+        BOTTOMMARGIN, 48
+    END
+
+    IDD_TRAVELLER_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 278
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 264
     END
 END
 #endif    // APSTUDIO_INVOKED
@@ -193,8 +253,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 3,0,0,0
- PRODUCTVERSION 3,0,0,0
+ FILEVERSION 3,1,0,0
+ PRODUCTVERSION 3,1,0,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -211,12 +271,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt"
-            VALUE "FileVersion", "3.0"
+            VALUE "FileVersion", "3.1"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "OriginalFilename", "TrueCrypt.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "3.0"
-            VALUE "SpecialBuild", "December 2004"
+            VALUE "ProductVersion", "3.1"
+            VALUE "SpecialBuild", "January 2005"
         END
     END
     BLOCK "VarFileInfo"
@@ -277,10 +337,11 @@ BEGIN
         MENUITEM "Select File...",              IDC_BROWSE_FILES
         MENUITEM "Select Device...",            IDC_BROWSE_DEVICES
         MENUITEM SEPARATOR
-        MENUITEM "Mount Selected Volume",       ID_MOUNT_VOLUME
-        MENUITEM "Auto-Mount All TrueCrypt Partitions", IDC_MOUNTALL
+        MENUITEM "Mount Volume",                ID_MOUNT_VOLUME
+        MENUITEM "Mount Volume with Options",   IDM_MOUNT_VOLUME_OPTIONS
+        MENUITEM "Auto-Mount All Device-Hosted Volumes", IDC_MOUNTALL
         MENUITEM SEPARATOR
-        MENUITEM "Dismount Selected Volume",    ID_UNMOUNT_VOLUME
+        MENUITEM "Dismount Volume",             ID_UNMOUNT_VOLUME
         MENUITEM "Dismount All Mounted Volumes", IDUNMOUNTALL
         MENUITEM SEPARATOR
         MENUITEM "Create New Volume",           IDC_CREATE_VOLUME
@@ -290,7 +351,10 @@ BEGIN
     POPUP "Tools"
     BEGIN
         MENUITEM "Benchmark",                   ID_BENCHMARK
+        MENUITEM "Traveller Disk Setup",        IDM_TRAVELLER
         MENUITEM "Volume Creation Wizard",      IDC_CREATE_VOLUME
+        MENUITEM SEPARATOR
+        MENUITEM "Refresh Drive Letters",       IDM_REFRESH_DRIVE_LETTERS
         MENUITEM SEPARATOR
         MENUITEM "Clear Volume History",        IDC_CLEAR_HISTORY
         MENUITEM "Wipe Cached Passwords",       IDC_WIPE_CACHE
@@ -304,6 +368,7 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "TrueCrypt Website",           ID_WEBSITE
         MENUITEM "TrueCrypt Forums",            ID_FORUMS
+        MENUITEM "Frequently Asked Questions",  40052
         MENUITEM SEPARATOR
         MENUITEM "About...",                    IDM_ABOUT
     END

@@ -33,8 +33,10 @@ CAPTION "About TrueCrypt"
 CLASS "SplashDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
+    EDITTEXT        IDC_ABOUT_CREDITS,7,111,277,45,ES_MULTILINE | WS_VSCROLL | 
+                    NOT WS_TABSTOP
     DEFPUSHBUTTON   "OK",IDOK,121,178,50,14
-    LTEXT           "Copyright © 2004 TrueCrypt Foundation",
+    LTEXT           "Copyright © 2004-2005 TrueCrypt Foundation",
                     IDT_ABOUT_COPYRIGHT,18,71,207,8
     LTEXT           "TrueCrypt Forums",IDC_FORUMS,192,87,82,8,SS_NOTIFY
     CONTROL         1011,IDC_ABOUT_IMG,"Static",SS_BITMAP,0,0,293,49,
@@ -46,8 +48,6 @@ BEGIN
                     WS_EX_STATICEDGE
     LTEXT           "truecrypt.sourceforge.net",IDC_HOMEPAGE,18,87,113,8,
                     SS_NOTIFY
-    EDITTEXT        IDC_ABOUT_CREDITS,7,111,277,45,ES_MULTILINE | WS_VSCROLL | 
-                    NOT WS_TABSTOP
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,107,291,1,
                     WS_EX_STATICEDGE
 END
@@ -63,17 +63,17 @@ BEGIN
     LTEXT           "Static",IDC_COMMANDHELP_TEXT,20,11,208,129
 END
 
-IDD_RAWDEVICES_DLG DIALOGEX 0, 0, 272, 158
+IDD_RAWDEVICES_DLG DIALOGEX 0, 0, 272, 156
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | 
     WS_SYSMENU
 CAPTION "Select a Partition or Device"
 FONT 8, "MS Shell Dlg", 400, 0, 0x0
 BEGIN
-    DEFPUSHBUTTON   "OK",IDOK,142,138,59,14
-    PUSHBUTTON      "Cancel",IDCANCEL,206,138,59,14
     CONTROL         "",IDC_DEVICELIST,"SysListView32",LVS_REPORT | 
                     LVS_SINGLESEL | LVS_EDITLABELS | LVS_ALIGNLEFT | 
                     LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,7,258,126
+    DEFPUSHBUTTON   "OK",IDOK,159,138,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,215,138,50,14
 END
 
 IDD_WARNING_DLG DIALOGEX 0, 0, 272, 103
@@ -95,6 +95,20 @@ STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     LTEXT           "TODO: layout dialog bar",IDC_STATIC,126,4,77,8
+END
+
+IDD_MOUNT_OPTIONS DIALOGEX 0, 0, 220, 45
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | 
+    WS_CAPTION | WS_SYSMENU
+CAPTION "Mount Options"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,153,7,60,14
+    PUSHBUTTON      "Cancel",IDCANCEL,153,24,60,14
+    CONTROL         "Mount volume as read-only",IDC_MOUNT_READONLY,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,12,11,103,10
+    CONTROL         "Mount volume as removable medium",IDC_MOUNT_REMOVABLE,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,25,131,10
 END
 
 
@@ -156,6 +170,14 @@ BEGIN
         RIGHTMARGIN, 323
         TOPMARGIN, 7
         BOTTOMMARGIN, 9
+    END
+
+    IDD_MOUNT_OPTIONS, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 213
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 38
     END
 END
 #endif    // APSTUDIO_INVOKED
@@ -224,7 +246,7 @@ BEGIN
     IDS_ACCESSMODEFAIL      "The read-only attribute on your old volume could not be changed. Please check the file access permissions."
     IDS_OVERWRITEPROMPT     "Warning: The volume '%s' already exists!\nAre you sure you want to replace it and lose all data it contains?"
     IDS_OVERWRITEPROMPT_DEVICE 
-                            "WARNING: All data currently stored on the device will be lost!\nAre you sure you want to format '%s' %s?"
+                            "WARNING: All data currently stored on the\n%s '%s' %s will be lost!\n\nAre you sure you want to proceed with format?"
 END
 
 STRINGTABLE 
@@ -293,9 +315,19 @@ BEGIN
     IDS_ADMIN_PRIVILEGES_WARN_HIDVOL 
                             "In order to create a hidden volume you need to be\nlogged into an account with administrator privileges."
     IDS_DEVICE_PARTITIONS_WARN 
-                            "WARNING: Selected device contains partitions!\n\nFormatting the device will destroy its partition table\nand may lead to data loss and/or system instability.\n\nYou should either select a partition located on the\ndevice or remove all its partitions first."
+                            "WARNING: Selected device contains partitions!\n\nFormatting the device will destroy its partitions and\nmay lead to data loss and/or system instability.\nYou should either select a partition located on the\ndevice or remove all its partitions first.\n\nContinue?"
     IDS_DEVICE_IN_USE_FORMAT 
                             "WARNING: Device is in use!\n\nThe device to be formatted is used by system or applications.\nFormatting it may lead to data loss or system instability.\n\nProceed with format?"
+    IDS_DRIVER_NOT_FOUND    "TrueCrypt driver not found!\n\nPlease copy file 'truecrypt.sys' to the same\ndirectory where the application is located."
+    IDS_ADMIN_PRIVILEGES_DRIVER 
+                            "In order to load TrueCrypt driver you need to be\nlogged into an account with administrator privileges."
+    IDS_SELECT_DEST_DIR     "Select destination directory"
+    IDS_TRAVELLER_DISK_CREATED 
+                            "TrueCrypt traveller disk has been successfully created.\n\nNote that you need administrator privileges in order to able to run TrueCrypt in traveller mode. "
+    IDS_NO_PATH_SELECTED    "No path selected!"
+    IDS_NO_FILE_SELECTED    "No file selected!"
+    IDS_TRAVELLER_DISK_CREATED2 
+                            "Also note that, after examining the registry file, it may be possible to tell that TrueCrypt was run on a Windows system even if it is run in traveller mode."
 END
 
 #endif    // English (U.S.) resources
@@ -322,18 +354,18 @@ STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP |
 CAPTION "TrueCrypt - Encryption Algorithm Benchmark"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    DEFPUSHBUTTON   "Close",IDCLOSE,265,55,58,14
+    COMBOBOX        IDC_BENCHMARK_BUFFER_SIZE,52,7,77,129,CBS_DROPDOWNLIST | 
+                    CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    COMBOBOX        IDC_BENCHMARK_SORT_METHOD,207,7,116,74,CBS_DROPDOWNLIST | 
+                    CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    DEFPUSHBUTTON   "Benchmark",ID_PERFORM_BENCHMARK,265,37,58,14
+    PUSHBUTTON      "Close",IDCLOSE,265,55,58,14
     CONTROL         "",IDC_RESULTS,"SysListView32",LVS_REPORT | 
                     LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_ALIGNLEFT | 
                     LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,37,249,160
-    COMBOBOX        IDC_BENCHMARK_BUFFER_SIZE,52,7,77,129,CBS_DROPDOWNLIST | 
-                    CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
-    DEFPUSHBUTTON   "Benchmark",ID_PERFORM_BENCHMARK,265,37,58,14
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,2,29,328,1,
                     WS_EX_STATICEDGE
     LTEXT           "Buffer Size:",IDC_STATIC,8,9,38,8,0,WS_EX_RIGHT
-    COMBOBOX        IDC_BENCHMARK_SORT_METHOD,207,7,116,74,CBS_DROPDOWNLIST | 
-                    CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
     LTEXT           "Sort Method:",IDC_BENCMARK_SORT_METHOD,156,9,45,8,0,
                     WS_EX_RIGHT
     LTEXT           "Speed is affected by CPU load and storage device characteristics.\n\nThese tests take place in RAM.",

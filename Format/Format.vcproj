@@ -91,6 +91,7 @@
 				LinkIncremental="1"
 				IgnoreAllDefaultLibraries="TRUE"
 				GenerateDebugInformation="FALSE"
+				GenerateMapFile="TRUE"
 				SubSystem="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
@@ -237,10 +238,10 @@
 				RelativePath="..\Common\Registry.h">
 			</File>
 			<File
-				RelativePath=".\resource.h">
+				RelativePath="..\Common\resource.h">
 			</File>
 			<File
-				RelativePath="..\Common\resource.h">
+				RelativePath=".\resource.h">
 			</File>
 			<File
 				RelativePath="..\Common\Tcdefs.h">

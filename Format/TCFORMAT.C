@@ -1,6 +1,6 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004
+   additions to that source code contained in this file are Copyright (c) 2004-2005
    TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
@@ -19,6 +19,7 @@
 #include "dlgcode.h"
 #include "combo.h"
 #include "registry.h"
+#include "../common/common.h"
 #include "../common/resource.h"
 #include "random.h"
 #include "fat.h"
@@ -133,6 +134,8 @@ LoadSettings (HWND hwndDlg)
 void
 SaveSettings (HWND hwndDlg)
 {
+	if (IsNonInstallMode ()) return;
+
 	if (hwndDlg != NULL)
 		DumpCombo (GetDlgItem (hwndDlg, IDC_COMBO_BOX), "LastMountedVolume", !bHistory);
 
@@ -447,8 +450,15 @@ formatThreadFunction (void *hwndDlg)
 		if (!(bHiddenVol && !bHiddenVolHost))	// Do not ask for permission to overwrite an existing volume if we're creating a hidden volume within it
 		{
 			char drive[] = { driveNo == -1 ? 0 : '(', driveNo + 'A', ':', ')', ' ', 0 };
+			char type[20];
 
-			sprintf (szTmp, getstr (IDS_OVERWRITEPROMPT_DEVICE), szFileName, drive);
+			if (strstr (szFileName, "Partition"))
+				strcpy (type, strstr (szFileName, "Partition0") == NULL ? "partition" : "device");
+			else
+				strcpy (type, "device");
+
+			sprintf (szTmp, getstr (IDS_OVERWRITEPROMPT_DEVICE), type, szFileName, drive);
+
 			x = MessageBox (hwndDlg, szTmp, lpszTitle, YES_NO|MB_ICONWARNING|MB_DEFBUTTON2);
 			if (x != IDYES)
 				goto cancel;
@@ -460,18 +470,42 @@ formatThreadFunction (void *hwndDlg)
 			CloseHandle (DismountDrive (driveNo));
 		}
 
-		if (nCurrentOS == WIN_NT)
+		// If we are encrypting whole device, dismount all partitions located on it first
+		if (strstr (szFileName, "\\Partition0"))
 		{
-			nDosLinkCreated = FakeDosNameForDevice (szDiskFile, szDosDevice, szCFDevice, FALSE);
-			if (nDosLinkCreated != 0)
-			{
-				handleWin32Error (hwndDlg);
-				goto cancel;
+			int i, diskNo;
+			if (sscanf (szFileName, "\\Device\\Harddisk%d\\", &diskNo) == 1)
+			{	
+				for (i = 1; i < 32; i++)
+				{
+					sprintf ((char *)deviceName, "\\Device\\Harddisk%d\\Partition%d", diskNo, i);
+					ToUNICODE ((char *)deviceName);
+
+					driveNo = GetDiskDeviceDriveLetter (deviceName);
+
+					if (driveNo != -1)
+					{
+						if (quickFormat && i > 1)
+						{ 
+							// Quickformat prevents overwriting of existing filesystems and
+							// an eventual remount could corrupt the volume
+							MessageBox (hwndDlg, getstr (IDS_ERR_MOUNTED_FILESYSTEMS), lpszTitle, MB_ICONSTOP);
+							goto cancel;
+						}
+
+						// Handle to dismounted volumes intentionally left open till program exit
+						// to prevent remount during format
+						DismountDrive (driveNo); 
+					}
+				}
 			}
 		}
-		else
+
+		nDosLinkCreated = FakeDosNameForDevice (szDiskFile, szDosDevice, szCFDevice, FALSE);
+		if (nDosLinkCreated != 0)
 		{
-			strcpy (szCFDevice, szDiskFile);
+			handleWin32Error (hwndDlg);
+			goto cancel;
 		}
 	}
 
@@ -961,6 +995,7 @@ QueryFreeSpace (HWND hwndDlg, HWND hwndTextBox, BOOL display)
 		else
 		{
 			DISK_GEOMETRY driveInfo;
+			PARTITION_INFORMATION diskInfo;
 			DWORD dwResult;
 			int nStatus;
 			BOOL bResult;
@@ -969,16 +1004,12 @@ QueryFreeSpace (HWND hwndDlg, HWND hwndTextBox, BOOL display)
 			if (nStatus != 0)
 				handleWin32Error (hwndDlg);
 
-			bResult = DeviceIoControl (dev, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0,
-			   &driveInfo, sizeof (driveInfo), &dwResult, NULL);
+			// Query partition size
+			bResult = DeviceIoControl (dev, IOCTL_DISK_GET_PARTITION_INFO, NULL, 0,
+				&diskInfo, sizeof (diskInfo), &dwResult, NULL);
 
-			if (driveInfo.MediaType == FixedMedia)
+			if (bResult == TRUE)
 			{
-				PARTITION_INFORMATION diskInfo;
-
-				bResult = DeviceIoControl (dev, IOCTL_DISK_GET_PARTITION_INFO, NULL, 0,
-							   &diskInfo, sizeof (diskInfo), &dwResult, NULL);
-
 				if (bResult == TRUE)
 				{
 					nVolumeSize = diskInfo.PartitionLength.QuadPart;
@@ -997,7 +1028,16 @@ QueryFreeSpace (HWND hwndDlg, HWND hwndTextBox, BOOL display)
 						return FALSE;
 					}
 				}
-				else
+			}
+			else
+			{
+				LARGE_INTEGER lDiskFree;
+
+				// Drive geometry info is used only when IOCTL_DISK_GET_PARTITION_INFO fails
+				bResult = DeviceIoControl (dev, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0,
+					&driveInfo, sizeof (driveInfo), &dwResult, NULL);
+
+				if (!bResult)
 				{
 					if (display)
 						DisplaySizingErrorText (hwndTextBox);
@@ -1005,11 +1045,6 @@ QueryFreeSpace (HWND hwndDlg, HWND hwndTextBox, BOOL display)
 					CloseHandle (dev);
 					return FALSE;
 				}
-
-			}
-			else if (bResult == TRUE)
-			{
-				LARGE_INTEGER lDiskFree;
 
 				lDiskFree.QuadPart = driveInfo.Cylinders.QuadPart * driveInfo.BytesPerSector *
 				    driveInfo.SectorsPerTrack * driveInfo.TracksPerCylinder;
@@ -1020,14 +1055,6 @@ QueryFreeSpace (HWND hwndDlg, HWND hwndTextBox, BOOL display)
 					nMultiplier = PrintFreeSpace (hwndTextBox, szDiskFile, &lDiskFree);
 
 				nUIVolumeSize = lDiskFree.QuadPart / nMultiplier;
-			}
-			else
-			{
-				if (display)
-					DisplaySizingErrorText (hwndTextBox);
-
-				CloseHandle (dev);
-				return FALSE;
 			}
 
 			CloseHandle (dev);
@@ -2150,6 +2177,20 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				clusterSize = SendMessage (GetDlgItem (hCurPage, IDC_CLUSTERSIZE), CB_GETITEMDATA
 					,SendMessage (GetDlgItem (hCurPage, IDC_CLUSTERSIZE), CB_GETCURSEL, 0, 0) , 0);
 
+				// Increase cluster size if it's too small for this volume size
+				if (fileSystem == FILESYS_FAT && clusterSize > 0)
+				{
+					BOOL fixed = FALSE;
+					while (clusterSize < 128 
+						&& nVolumeSize / clusterSize > 17179869184I64)
+					{
+						clusterSize *= 2;
+						fixed = TRUE;
+					}
+					if (fixed)
+						MessageBox (hwndDlg, "The selected cluster size is too small for this volume size.\nA greater cluster size will be used instead.", lpszTitle, MB_ICONWARNING);
+				}
+				
 				_beginthread (formatThreadFunction, 4096, hwndDlg);
 				return 1;
 			}
@@ -2516,6 +2557,7 @@ efsf_error:
 // Mounts a volume within which the user intends to create a hidden volume
 int MountHiddenVolHost (HWND hwndDlg, char *volumePath, int *driveNo, char *lpszPassword)
 {
+	MountOptions mountOptions;
 	DWORD os_error;
 	int err;
 
@@ -2527,7 +2569,10 @@ int MountHiddenVolHost (HWND hwndDlg, char *volumePath, int *driveNo, char *lpsz
 		return ERR_NO_FREE_DRIVES;
 	}
 
-	if (MountVolume (hwndDlg, *driveNo, volumePath, lpszPassword, FALSE, TRUE, FALSE) < 1)
+	mountOptions.ReadOnly = FALSE;
+	mountOptions.Removable = FALSE;
+
+	if (MountVolume (hwndDlg, *driveNo, volumePath, lpszPassword, FALSE, TRUE, &mountOptions, FALSE) < 1)
 	{
 		*driveNo = -3;
 		return ERR_VOL_MOUNT_FAILED;

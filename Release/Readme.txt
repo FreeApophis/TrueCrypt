@@ -1,11 +1,23 @@
-This archive contains TrueCrypt 3.0a setup and documentation.
+This archive contains TrueCrypt 3.1 setup and documentation.
 
 
-IMPORTANT: TrueCrypt volumes encrypted using the IDEA encryption
+IMPORTANT NOTES
+
+If you are upgrading from an older version of TrueCrypt, it is normally
+not necessary to uninstall it first (this does not apply to Windows
+ 2000 users). However, if the installer reports any errors, we recommend 
+that you uninstall the older version (Start Menu -> Settings -> 
+-> Control Panel -> Add or Remove Programs -> TrueCrypt ->
+-> Change/Remove) and restart the operating system before installing
+the new version.
+Note that uninstalling TrueCrypt never removes any TrueCrypt volumes.
+You will be able to mount your TrueCrypt volumes again after you
+reinstall TrueCrypt. 
+
+WARNING: TrueCrypt volumes encrypted using the IDEA encryption
 algorithm cannot be mounted using this version. If you have such a
 volume, before upgrading, please create a new TrueCrypt volume using
 a cipher other than IDEA and move your files to this new volume.
-
 
 Before installing TrueCrypt, we recommend that you read the TrueCrypt
 User's Guide. It is located in the 'Setup Files' folder. To view or
@@ -21,7 +33,7 @@ REQUIREMENTS
 - Free disk space: approximately 1.4 MB
 
 - One of the following operating systems:
-  Windows XP, Windows 2000, Windows 2003
+  Windows XP, Windows 2000, Windows Server 2003
 
 
 INSTALLATION
@@ -29,14 +41,8 @@ INSTALLATION
 To install TrueCrypt, run the file 'TrueCrypt Setup.exe'. It is not
 necessary to restart the operating system after the installation
 finishes.
-
-If you are upgrading from an older version of TrueCrypt, it should not
-be necessary to uninstall it first. However, if the installer reports
-any errors, we recommend uninstalling the older version first
-(Start Menu -> Settings -> Control Panel -> Add or Remove Programs).
-Note that uninstalling TrueCrypt never removes any TrueCrypt volumes.
-You will be able to mount your TrueCrypt volumes again after you
-reinstall TrueCrypt. 
+Remark: It is also possible to run 'TrueCrypt.exe' directly from the
+'Setup Files' folder without installation ('traveller' mode).
 
 
 LICENSING INFORMATION
@@ -46,131 +52,77 @@ license displayed in the TrueCrypt Setup window (the text of the
 license is also contained in the file 'License.txt').
 
 
-WHAT IS NEW IN TRUECRYPT 3.0A
-
-Bug fixes:
-
-- Data corruption will not occur when data is written to a volume
-  encrypted with Twofish or Serpent while another TrueCrypt volume
-  is mounted (applies also to volumes encrypted using a cascade of
-  ciphers, out of which one is Twofish or Serpent).
-
-- Other minor bug fixes
-
-
-WHAT IS NEW IN TRUECRYPT 3.0
-
-New Features:
-
-- Ability to create and mount a hidden TrueCrypt volume (file container 
-  or partition/device). This allows solving situations where the user is 
-  forced by an adversary to reveal the password and cannot refuse to do 
-  so (for example, when the adversary uses violence).
-  
-  The principle is that a TrueCrypt volume is created within another 
-  TrueCrypt volume (within the free space on the volume). Even when the 
-  outer volume is mounted, it is impossible to tell whether there is a 
-  hidden volume within it or not, because free space on any TrueCrypt 
-  volume is always filled with random data when the volume is created 
-  and no part of the hidden volume can be distinguished from random 
-  data.
-  
-  The password for the hidden volume must be different from the password 
-  for the outer volume. To the outer volume, (before creating the hidden 
-  volume within it) you should copy some sensitive-looking files that 
-  you do NOT really want to hide. These files will be there for anyone 
-  who would force you to hand over the password. You will reveal only 
-  the password for the outer volume, not for the hidden one. Files that 
-  are really sensitive will be stored on the hidden volume. 
-  
-  As it is very difficult or even impossible for an inexperienced user 
-  to set the size of the hidden volume such that the hidden volume does 
-  not overwrite any data on the outer volume, the Volume Creation Wizard 
-  automatically scans the cluster bitmap of the outer volume (before the 
-  hidden volume is created within it) and determines the maximum 
-  possible size of the hidden volume.
-
-  More information on the hidden volume feature may be found at:
-  http://truecrypt.sourceforge.net/hiddenvolume.php
-
-- Serpent encryption algorithm (256-bit key)
-
-- Twofish encryption algorithm (256-bit key)
-
-- Forced/"brutal" dismount (allows dismounting a volume containing files 
-  being used by the system or an application).
-
-- Cascades of ciphers added (e.g., AES-Twofish-Serpent, AES-Blowfish, 
-  etc.) Each of the ciphers in a cascade uses its own encryption key 
-  (the keys are mutually independent).
-
-- Ability to mount a TrueCrypt volume that is being used by the system 
-  or an application (shared access mode). 
-
-- Ability to encrypt devices/partitions that are being used by the 
-  system or an application (shared access mode).
-
-- The 'Select Device' dialog and the 'Auto-Mount Partitions' facility 
-  now support devices that do not contain any partitions.
-
-- Encryption Algorithm Benchmark facility added to the Tools menu and to 
-  the Volume Creation Wizard.
-
-- A warning is displayed if Caps Lock is on when creating a new volume 
-  or changing a password.
-
-- When /l is omitted and /a is used, the first free drive letter is used 
-  (command line usage)
-
-- New command line option: /force or /f enables forced ("brutal") 
-  dismount or mounting in shared mode (i.e., without exclusive access).
-
-- Drive letters are now displayed in the 'Select Device' window
- 
-
-Bug fixes:
-
-- 'Blue screen' errors (system crashes) will not occur when dismounting 
-  a volume (remark: this bug was inherited from E4M).
-  
-- The 'Select Device' dialog will display also partitions being used by 
-  the system or an application.
-
-- Users without administrator privileges can now create file containers 
-  under Windows Server 2003.
-  
-- If the size of a partition/device was not a multiple of 1024 bytes, 
-  its last sector (512 bytes) was not used for TrueCrypt volume (the 
-  volume was 512 bytes shorter than the partition/device). Remark: This 
-  bug was inherited from E4M, so it applies also to encrypted 
-  partitions/devices created by E4M.
-  
-- FAT volumes that are exactly 129 MB in size will not have zero size of 
-  free space (129-MB FAT volumes created by the previous versions had no 
-  free space available). 
-  
-- Other minor bug fixes
-
+WHAT IS NEW IN TRUECRYPT 3.1
 
 Improvements:
 
-- The timestamp of a container (date and time that the container was 
-  last accessed, and last modified) will not be updated when TrueCrypt 
-  accesses the container (i.e., after dismounting, attempting to mount, 
-  changing or attempting to change the password, or creating a hidden 
-  volume within it). 
+- Partitions/devices that are already in use by another driver (usually 
+  an anti-virus utility) can now be mounted.
   
-- The TrueCrypt Service is no longer necessary and has been removed 
-  because its functions are now handled by the TrueCrypt driver.
+- It is now possible to run multiple instances of the TrueCrypt Volume 
+  Creation Wizard.
   
-- When 'Never save history' is checked, Windows is prevented from saving 
-  the file names of the last accessed file containers to the 'Recent 
-  Documents' and File Selector history. 
+
+New Features:
+
+- TrueCrypt can now run in 'traveller' mode, which means that it does 
+  not have to be installed on the operating system under which it is 
+  run. There are two ways to run TrueCrypt in 'traveller' mode:
+ 
+  1) After you unpack the binary distribution archive, you can directly 
+  run 'TrueCrypt.exe'. 
+
+  2) You can use the new 'Traveller Disk Setup' facility (accessible 
+  from the 'Tools' menu) to prepare a special 'traveller' disk and 
+  launch TrueCrypt from it. This facility can also configure a
+  'traveller' disk in a way that when it is inserted, TrueCrypt is
+  automatically started or a specified volume is mounted (note that this
+  works only when the 'traveller' disk is a removable medium such as a
+  CD or DVD; Windows XP SP2 is required in case of USB memory sticks). 
   
-- Other minor improvements
+- Volumes can now be mounted as read-only. This can be set in the newly 
+  implemented 'Mount Options' dialog, which can be opened from the 
+  password entry dialog or by holding Control while clicking 'Mount'. 
+  (Command line usage: '/mountoption ro')
 
+- Volumes can now be mounted as removable media (for example to prevent 
+  Windows from creating the 'Recycled' and/or 'System Volume 
+  Information' folders on the volume). This can be set in the newly 
+  implemented 'Mount Options' dialog, which can be opened from the 
+  password entry dialog or by holding Control while clicking 'Mount'. 
+  (Command line usage: '/mountoption rm')
+  
+- Default mount options can be configured in the main program 
+  preferences (Tools -> Preferences).
+  
+- 'Refresh Drive Letters' function added to the tools menu. It can be 
+  used when Windows Explorer fails to register a newly mounted volume 
+  (for example when it is not shown in the 'My Computer' list).
+  
+- Volume can now be selected by dragging its icon to the TrueCrypt 
+  program window (this also allows to avoid the Windows file selector).
 
-Miscellaneous:
+- '/auto devices' auto-mounts all device/partition-hosted TrueCrypt 
+  volumes (command line usage)
+  
 
-- TrueCrypt has been successfully tested on the Windows "Longhorn" 
-  operating system (beta version of the future successor to Windows XP).
+Bug fixes:
+
+- The 'Auto-Mount Devices' facility will not mount 'phantom' partitions 
+  on some removable media (e.g. USB memory sticks). 
+  
+- In some cases TrueCrypt did not use all available space on some 
+  removable media (such as USB memory sticks). 
+  Remark: This bug was inherited from E4M, so it applies also to volumes 
+  created by E4M.
+
+- Freezing caused by applications not responding to drive change 
+  messages when mounting/dismounting TrueCrypt volumes will no longer 
+  occur.
+  
+- Users are now prevented from setting a too small cluster size when 
+  creating a FAT volume (which caused various problems).
+  
+- The command line parser no longer causes TrueCrypt to crash.
+  
+- Other minor bug fixes

@@ -9,6 +9,7 @@
 #define IDB_BITMAP1                     112
 #define IDB_BITMAP2                     114
 #define IDD_BENCHMARK_DLG               118
+#define IDD_MOUNT_OPTIONS               119
 #define IDC_DEVICELIST                  1004
 #define IDC_COMBOBOXEX1                 1007
 #define IDC_ANIMATE1                    1008
@@ -23,6 +24,8 @@
 #define IDC_FORUMS                      1015
 #define IDC_ABOUT_CREDITS               1017
 #define IDC_BENCMARK_SORT_METHOD        1021
+#define IDC_MOUNT_READONLY              1022
+#define IDC_MOUNT_REMOVABLE             1023
 #define IDC_COMMANDHELP_TEXT            1025
 #define IDC_RESULTS                     1026
 #define IDC_BENCHMARK_BUFFER_SIZE       2006
@@ -111,6 +114,13 @@
 #define IDS_ADMIN_PRIVILEGES_WARN_HIDVOL 25078
 #define IDS_DEVICE_PARTITIONS_WARN      25079
 #define IDS_DEVICE_IN_USE_FORMAT        25080
+#define IDS_DRIVER_NOT_FOUND            25081
+#define IDS_ADMIN_PRIVILEGES_DRIVER     25082
+#define IDS_SELECT_DEST_DIR             25083
+#define IDS_TRAVELLER_DISK_CREATED      25084
+#define IDS_NO_PATH_SELECTED            25085
+#define IDS_NO_FILE_SELECTED            25086
+#define IDS_TRAVELLER_DISK_CREATED2     25087
 #define IDC_NEVER_SHOW                  25200
 #define IDC_WARNING_TEXT                25201
 #define ID_WEBSITE                      25202
@@ -121,9 +131,9 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
-#define _APS_NEXT_RESOURCE_VALUE        118
+#define _APS_NEXT_RESOURCE_VALUE        120
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1022
+#define _APS_NEXT_CONTROL_VALUE         1024
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -1,6 +1,6 @@
 /* The source code contained in this file has been derived from the source code
    of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004
+   additions to that source code contained in this file are Copyright (c) 2004-2005
    TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
@@ -20,22 +20,21 @@ void
 GetFatParams (fatparams * ft)
 {
 	int fatsecs;
-
-	if(ft->cluster_size == 0)
+	if(ft->cluster_size == 0)	// 'Default' cluster size
 	{
-		if (ft->num_sectors >= 1024I64 *1024*1024*2)
+		if (ft->num_sectors * 512I64 >= 512*BYTES_PER_GB)
 			ft->cluster_size = 128;
-		else if (ft->num_sectors >= 256*1024*1024*2)
+		else if (ft->num_sectors * 512I64 >= 256*BYTES_PER_GB)
 			ft->cluster_size = 64;
-		else if (ft->num_sectors >= 32*1024*1024*2)
+		else if (ft->num_sectors * 512I64 >= 128*BYTES_PER_GB)
 			ft->cluster_size = 32;
-		else if (ft->num_sectors >= 8*1024*1024*2)
+		else if (ft->num_sectors * 512I64 >= 64*BYTES_PER_GB)
 			ft->cluster_size = 16;
-		else if (ft->num_sectors >= 512*1024*2)
+		else if (ft->num_sectors * 512I64 >= 32*BYTES_PER_GB)
 			ft->cluster_size = 8;
-		else if (ft->num_sectors >= 64*1024*2)
+		else if (ft->num_sectors * 512I64 >= 16*BYTES_PER_GB)
 			ft->cluster_size = 4;
-		else if (ft->num_sectors >= 66600)
+		else if (ft->num_sectors * 512I64 >= 8*BYTES_PER_GB)
 			ft->cluster_size = 2;
 		else
 			ft->cluster_size = 1;
@@ -71,7 +70,7 @@ GetFatParams (fatparams * ft)
 	ft->fat_length = (((ft->cluster_count * 3 + 1) >> 1) + SECTOR_SIZE + 1) /
 	    SECTOR_SIZE;
 
-	if (ft->cluster_count >= 4085) //FAT16
+	if (ft->cluster_count > 4087) // FAT16
 	{
 		ft->size_fat = 16;
 		ft->cluster_count = (int) (((__int64) fatsecs * SECTOR_SIZE) /
