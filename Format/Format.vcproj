@@ -211,7 +211,13 @@
 				RelativePath="..\Common\Endian.h">
 			</File>
 			<File
+				RelativePath="..\Common\Fat.h">
+			</File>
+			<File
 				RelativePath="..\Common\Format.h">
+			</File>
+			<File
+				RelativePath="..\Common\Pkcs5.h">
 			</File>
 			<File
 				RelativePath="..\Common\Progress.h">
@@ -226,10 +232,10 @@
 				RelativePath="..\Common\Registry.h">
 			</File>
 			<File
-				RelativePath=".\resource.h">
+				RelativePath="..\Common\resource.h">
 			</File>
 			<File
-				RelativePath="..\Common\resource.h">
+				RelativePath=".\resource.h">
 			</File>
 			<File
 				RelativePath="..\Common\Tcdefs.h">

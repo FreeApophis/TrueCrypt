@@ -1,4 +1,4 @@
-/* Copyright (C) 2004 TrueCrypt Team, truecrypt.org
+/* Copyright (C) 2004 TrueCrypt Foundation
    This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
 
 #include "TCdefs.h"
@@ -18,7 +18,7 @@
 	/ SHA_DIGESTSIZE ) * SHA_DIGESTSIZE
 
 unsigned char *pRandPool = NULL;
-int nRandIndex = 0;
+int nRandIndex = 0, randPoolReadIndex = 0;
 
 /* Macro to add a single byte to the pool */
 #define RandaddByte(x) {\
@@ -74,6 +74,8 @@ Randinit ()
 		goto error;
 	else
 		memset (pRandPool, 0, RANDOMPOOL_ALLOCSIZE);
+
+	VirtualLock (pRandPool, RANDOMPOOL_ALLOCSIZE);
 
 	hMouse = SetWindowsHookEx (WH_MOUSE, (HOOKPROC)&MouseProc, NULL, GetCurrentThreadId ());
 	hKeyboard = SetWindowsHookEx (WH_KEYBOARD, (HOOKPROC)&KeyboardProc, NULL, GetCurrentThreadId ());
@@ -185,34 +187,39 @@ RandpeekBytes (char *buf, int len)
 
 /* Get a certain amount of true random bytes from the pool */
 void
-RandgetBytes (char *buf, int len)
+RandgetBytes (char *buf, int len, BOOL forceSlowPoll)
 {
 	int i;
 
 	EnterCriticalSection (&critRandProt);
 
-	FastPoll ();
-
-	if (bDidSlowPoll == FALSE)
+	if (bDidSlowPoll == FALSE || forceSlowPoll)
 	{
 		bDidSlowPoll = TRUE;
-
-#ifndef _DEBUG
-		if (nCurrentOS == WIN_NT)
-			SlowPollWinNT ();
-		else
-			SlowPollWin9x ();
-#endif
+		SlowPollWinNT ();
 	}
-	/* Then mix the pool */
-	Randmix ();
+
+	FastPoll ();
 
 	/* There's never more than POOLSIZE worth of randomess */
 	if (len > POOLSIZE)
 		len = POOLSIZE;
 
-	/* Extract out the random bytes needed */
-	memcpy (buf, pRandPool, len);
+	// Requested number of bytes is copied from pool to output buffer,
+	// pool is rehashed, and output buffer is XORed with new data from pool
+	for (i = 0; i < len; i++)
+	{
+		buf[i] = pRandPool[randPoolReadIndex++];
+		if (randPoolReadIndex == POOLSIZE) randPoolReadIndex = 0;
+	}
+
+	FastPoll ();
+
+	for (i = 0; i < len; i++)
+	{
+		buf[i] ^= pRandPool[randPoolReadIndex++];
+		if (randPoolReadIndex == POOLSIZE) randPoolReadIndex = 0;
+	}
 
 	/* Now invert the pool */
 	for (i = 0; i < POOLSIZE / 4; i++)

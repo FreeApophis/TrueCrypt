@@ -1,4 +1,4 @@
-/* Copyright (C) 2004 TrueCrypt Team, truecrypt.org
+/* Copyright (C) 2004 TrueCrypt Foundation
    This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
 
 #include "TCdefs.h"
@@ -33,6 +33,7 @@ BOOL bWipe = FALSE;					/* Wipe driver passwords */
 BOOL bAuto = FALSE;					/* Do everything without user input */
 
 BOOL bQuiet = FALSE;				/* No dialogs/messages */
+char commandLinePassword[MAX_PASSWORD + 1] = {0};	/* Password passed from command line */
 
 #define VMOUNTED 1
 #define VFREE	0
@@ -65,7 +66,7 @@ void
 EndMainDlg (HWND hwndDlg)
 {
 	MoveEditToCombo (GetDlgItem (hwndDlg, IDC_VOLUME));
-	SaveSettings (hwndDlg);
+	if (!bQuiet) SaveSettings (hwndDlg);
 
 	if (bWipeCacheOnExit)
 	{
@@ -908,10 +909,8 @@ static BOOL MountVolume (HWND hwndDlg, int driveNo, char *volumePath, char *szPa
 				}
 
 				if (bResult == FALSE && !quiet)
-				{
-					if (bQuiet == FALSE)
-						MessageBox (hwndDlg, getstr (IDS_SYMLINK), lpszTitle, ICON_HAND);
-
+				{					
+					MessageBox (hwndDlg, getstr (IDS_SYMLINK), lpszTitle, ICON_HAND);
 					return FALSE;
 				}
 
@@ -923,12 +922,7 @@ static BOOL MountVolume (HWND hwndDlg, int driveNo, char *volumePath, char *szPa
 		}
 		else
 		{
-			if (bQuiet == FALSE)
-			{
-				if (!quiet) handleError (hwndDlg, driver.nReturnCode);
-			}
-			else
-				EndMainDlg (hwndDlg);
+			if (!quiet)	handleError (hwndDlg, driver.nReturnCode);
 
 			return FALSE;
 		}
@@ -1091,16 +1085,16 @@ void CloseVolumeExplorerWindows (HWND hwnd, int driveNo)
 	EnumWindows (CloseVolumeExplorerWindowsEnum, (LPARAM) driveNo);
 }
 
-static void Dismount (HWND hwndDlg)
+static void Dismount (HWND hwndDlg, int nDosDriveNo)
 {
 	char *lpszPipeName = "\\\\.\\pipe\\truecryptservice";
 	DWORD bytesRead;
 	BOOL bResult;
-	int nDosDriveNo;
 	char inbuf[80];
 	char outbuf[80];
 
-	nDosDriveNo = (char) (HIWORD (GetSelectedLong (GetDlgItem (hwndDlg, IDC_DRIVELIST))) - 'A');
+	if (nDosDriveNo == 0)
+		nDosDriveNo = (char) (HIWORD (GetSelectedLong (GetDlgItem (hwndDlg, IDC_DRIVELIST))) - 'A');
 
 	if (nCurrentOS == WIN_NT)
 	{
@@ -1427,7 +1421,9 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 	case WM_INITDIALOG:
 		{
-			LoadSettings (hwndDlg);
+			ExtractCommandLine (hwndDlg, (char *) lParam);
+
+			if (!bQuiet) LoadSettings (hwndDlg);
 
 			/* Call the common dialog init code */
 			InitDialog (hwndDlg);
@@ -1440,7 +1436,6 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 			BuildTree (GetDlgItem (hwndDlg, IDC_DRIVELIST));
 
-			ExtractCommandLine (hwndDlg, (char *) lParam);
 
 			if (*szDriveLetter != 0)
 			{
@@ -1456,12 +1451,52 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 			if (bWipe == TRUE)
 			{
-				SendMessage (GetDlgItem (hwndDlg, IDC_WIPE_CACHE), BM_CLICK, 0, 0);
+				WipeCache (hwndDlg);
+				if (bQuiet) ExitProcess (0);
 			}
 
+			// Automount
 			if (bAuto == TRUE && IsWindowEnabled (GetDlgItem (hwndDlg, IDOK)))
 			{
-				SendMessage (GetDlgItem (hwndDlg, IDOK), BM_CLICK, 0, 0);
+				if (!IsMountedVolume (szFileName))
+				{
+					BOOL mounted;
+
+					// Cached password
+					mounted = MountVolume (hwndDlg, szDriveLetter[0] - 'A', szFileName, "", TRUE);
+
+					if (!mounted && commandLinePassword[0] != 0)
+					{
+						// Command line password
+						mounted = MountVolume (hwndDlg, szDriveLetter[0] - 'A', szFileName, commandLinePassword, TRUE);
+						burn (commandLinePassword, sizeof (commandLinePassword));
+					}
+
+					// Ask user for password
+					while (!mounted)
+					{
+						char szPassword[MAX_PASSWORD + 1];
+
+						if (!AskUserPassword (hwndDlg, szPassword))
+							break;
+
+						ArrowWaitCursor ();
+						mounted = MountVolume (hwndDlg, szDriveLetter[0] - 'A', szFileName, szPassword, FALSE);
+						burn (szPassword, sizeof (szPassword));
+						NormalCursor ();
+					}
+
+					if (mounted)
+					{
+						if (bBeep == TRUE) MessageBeep (MB_OK);
+						if (bExplore == TRUE) OpenVolumeExplorerWindow (szDriveLetter[0] - 'A');
+						if (bQuiet) ExitProcess (0);
+					}
+					else if (bQuiet) ExitProcess (1);
+					
+					RefreshMainDlg(hwndDlg);
+				}
+				else if (bQuiet) ExitProcess (0);
 			}
 
 			SetFocus (GetDlgItem (hwndDlg, IDC_DRIVELIST));
@@ -1550,7 +1585,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		if (lw == IDOK && LOWORD (GetSelectedLong (GetDlgItem (hwndDlg, IDC_DRIVELIST))) == VMOUNTED
 			|| lw == ID_UNMOUNT_VOLUME)
 		{
-			Dismount (hwndDlg);
+			Dismount (hwndDlg, 0);
 			return 1;
 		}
 
@@ -1615,7 +1650,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		if (lw == ID_WEBSITE)
 		{
-			ShellExecute (NULL, "open", "http://www.truecrypt.org", NULL, NULL, SW_SHOWNORMAL);
+			ShellExecute (NULL, "open", "http://www.google.com/search?q=truecrypt", NULL, NULL, SW_SHOWNORMAL);
 			return 1;
 		}
 		
@@ -1687,10 +1722,10 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 				{"/auto", "/a"},
 				{"/cache", "/c"},
 				{"/history", "/h"},
-				{"/wipecache", "/wc"},
+				{"/wipecache", "/w"},
 				{"/quiet", "/q"},
 				{"/help", "/?"},
-				{"/dismountall", "/d"}
+				{"/dismount", "/d"}
 			};
 
 			argumentspec as;
@@ -1706,14 +1741,31 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 			switch (x)
 			{
 			case 'd':
-				DismountAll (hwndDlg);
+
+				if (HAS_ARGUMENT == GetArgumentValue (lpszCommandLineArgs, nArgPos, &i, nNoCommandLineArgs,
+				     szDriveLetter, sizeof (szDriveLetter)))
+					Dismount (hwndDlg, (char)toupper(szDriveLetter[0]) - 'A');
+				else 
+					DismountAll (hwndDlg);
+
 				ExitProcess (0);
 				break;
 
 			case 'v':
 				if (HAS_ARGUMENT == GetArgumentValue (lpszCommandLineArgs, nArgPos, &i,
 								      nNoCommandLineArgs, szFileName, sizeof (szFileName)))
+				{
+					// Relative path must be converted to absolute
+					if (szFileName[0] != '\\' && strchr (szFileName, ':') == 0)
+					{
+						char path[MAX_PATH*2];
+						GetCurrentDirectory (MAX_PATH, path);
+						strcat (path, "\\");
+						strcat (path, szFileName);
+						strncpy (szFileName, path, MAX_PATH-1);
+					}
 					AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), szFileName);
+				}
 				break;
 
 			case 'l':
@@ -1731,26 +1783,8 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 				break;
 
 			case 'p':
-				{
-					char szTmp[MAX_PASSWORD + 1];
-					
-					GetArgumentValue (lpszCommandLineArgs, nArgPos, &i, nNoCommandLineArgs,
-						     szTmp, sizeof (szTmp));
-
-					if (strlen(szTmp) == 1 && *szTmp == '?') 
-					{
-
-						int result = DialogBoxParam (hInst, 
-									MAKEINTRESOURCE (IDD_PASSWORD_DLG), hwndDlg,
-					   				(DLGPROC) PasswordDlgProc, (LPARAM) szTmp);
-
-						if (result != IDOK)
-							*szTmp = 0;
-					}
-
-					SetWindowText (GetDlgItem (hwndDlg, IDC_PASSWORD), szTmp);
-					burn (szTmp, sizeof (szTmp));
-				}
+				GetArgumentValue (lpszCommandLineArgs, nArgPos, &i, nNoCommandLineArgs,
+						     commandLinePassword, sizeof (commandLinePassword));
 				break;
 
 			case 'a':
@@ -1804,7 +1838,18 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 
 				// no option = file name
 			default:
-					AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), lpszCommandLineArgs[0]);
+				{
+					strncpy (szFileName, lpszCommandLineArgs[0], MAX_PATH-1);
+					if (szFileName[0] != '\\' && strchr (szFileName, ':') == 0)
+					{
+						char path[MAX_PATH*2];
+						GetCurrentDirectory (MAX_PATH, path);
+						strcat (path, "\\");
+						strcat (path, szFileName);
+						strncpy (szFileName, path, MAX_PATH-1);
+					}
+					AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), szFileName);
+				}
 			}
 		}
 	}

@@ -183,6 +183,9 @@
 				RelativePath="..\Common\Apidrvr.h">
 			</File>
 			<File
+				RelativePath="..\Common\Cmdline.h">
+			</File>
+			<File
 				RelativePath="..\Common\Combo.h">
 			</File>
 			<File

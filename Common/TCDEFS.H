@@ -1,11 +1,11 @@
-/* Copyright (C) 2004 TrueCrypt Team, truecrypt.org
+/* Copyright (C) 2004 TrueCrypt Foundation
    This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
 
 // Version displayed to user 
-#define VERSION_STRING                  "1.0a"
+#define VERSION_STRING                  "2.0"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x010a
+#define VERSION_NUM						0x0200
 
 // Version number written to volume header during format,
 // specifies the minimum program version required to mount the volume

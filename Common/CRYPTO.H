@@ -1,4 +1,4 @@
-/* Copyright (C) 2004 TrueCrypt Team, truecrypt.org
+/* Copyright (C) 2004 TrueCrypt Foundation
    This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
 
 
@@ -34,12 +34,13 @@
 /* The encryption algorithm ID  */
 #define NONE				0
 #define BLOWFISH			1
-#define CAST				2
-#define IDEA				3
-#define TRIPLEDES			4
+#define AES					2
+#define CAST				3
+#define IDEA				4
+#define TRIPLEDES			5
 #define DES56				100			// Used only for DES test vectors
 
-#define LAST_CIPHER_ID		4			// Last cipher used for volume encryption
+#define LAST_CIPHER_ID		5			// Last cipher used for volume encryption
 
 // Length in bytes of the longest key used by encryption algorithms
 #define	MAX_CIPHER_KEY		56			// Blowfish 448 bits
@@ -49,12 +50,14 @@
 #define DES_KS				128
 #define TRIPLEDES_KS		(DES_KS*3)
 #define BLOWFISH_KS			4168
+#define AES_KS				240
 #define CAST_KS				128
 
 #define MAX_EXPANDED_KEY		4168
 
 #include "des.h"
 #include "blowfish.h"
+#include "aes.h"
 #include "idea.h"
 #include "sha.h"
 #include "sha1.h"
@@ -95,6 +98,7 @@ typedef struct CRYPTO_INFO_t
 #define decipher_block(cipher, data, ks) \
 {\
 	if (cipher == BLOWFISH) BF_decrypt ((void *) data, (void *) ks); \
+	else if (cipher == AES) aes_decrypt ((void *) data, (void *) data, (void *)((char *)(ks)+sizeof(aes_encrypt_ctx))); \
 	else if (cipher == IDEA) ideaCrypt ((void *) data,(void *)  data, (void *) ((char *) ks + IDEA_KS)); \
 	else if (cipher == DES56) des_encrypt ((void *) data, (void *) ks, 0); \
 	else if (cipher == CAST) CAST_ecb_encrypt((void *) data,(void *) data,(void*)ks,0);  \
@@ -105,6 +109,7 @@ typedef struct CRYPTO_INFO_t
 #define encipher_block(cipher, data, ks) \
 {\
 	if (cipher == BLOWFISH) BF_encrypt ((void *) data, (void *) ks); \
+	else if (cipher == AES) aes_encrypt ((void *) data, (void *) data, (void *) ks); \
 	else if (cipher == IDEA) ideaCrypt ((void *) data, (void *) data, (void *) ks); \
 	else if (cipher == DES56) des_encrypt ((void *) data, (void *) ks, 1); \
 	else if (cipher == CAST) CAST_ecb_encrypt((void *) data,(void *) data,(void*)ks,1);  \
@@ -115,6 +120,7 @@ typedef struct CRYPTO_INFO_t
 #define init_cipher(cipher, key, ks) \
 {\
 	if (cipher == BLOWFISH) BF_set_key ((void*)ks, 56, (void*) (key)); \
+	else if (cipher == AES) {aes_encrypt_key((void*)(key), 32, (void*)ks); aes_decrypt_key((void*)(key), 32, (void*)((char *)(ks)+sizeof(aes_encrypt_ctx)));} \
 	else if (cipher == IDEA) ideaExpandKey ((void*) (key), (void*)ks, (void *) ((char *) ks + IDEA_KS)); \
 	else if (cipher == DES56) des_key_sched ((void*) (key), (void*)ks); \
 	else if (cipher == CAST) CAST_set_key((void*)ks, 16, (void*)(key)); \
@@ -124,13 +130,6 @@ typedef struct CRYPTO_INFO_t
 		des_key_sched ((void*) ((char*)(key)+16), (void*)((char*)ks+DES_KS*2)); \
 	} \
 }
-
-#define is_valid_tc_cipher(cipher) \
-	(cipher == BLOWFISH || \
-	 cipher == IDEA || \
-	cipher == DES56 || \
-	cipher == CAST || \
-	cipher == TRIPLEDES)
 
 
 PCRYPTO_INFO crypto_open (void);

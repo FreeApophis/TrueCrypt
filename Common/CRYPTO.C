@@ -1,4 +1,4 @@
-/* Copyright (C) 2004 TrueCrypt Team, truecrypt.org
+/* Copyright (C) 2004 TrueCrypt Foundation
    This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
 
 #include "TCdefs.h"
@@ -10,6 +10,10 @@ crypto_open ()
 {
 	/* Do the crt allocation */
 	PCRYPTO_INFO cryptoInfo = TCalloc (sizeof (CRYPTO_INFO));
+#ifndef DEVICE_DRIVER
+	VirtualLock (cryptoInfo, sizeof (CRYPTO_INFO));
+#endif
+
 	if (cryptoInfo == NULL)
 		return NULL;
 
@@ -29,14 +33,19 @@ void
 crypto_close (PCRYPTO_INFO cryptoInfo)
 {
 	burn (cryptoInfo, sizeof (CRYPTO_INFO));
+#ifndef DEVICE_DRIVER
+	VirtualUnlock (cryptoInfo, sizeof (CRYPTO_INFO));
+#endif
 	TCfree (cryptoInfo);
 }
 
 int
 get_block_size (int cipher)
 {
-	if (cipher);		/* remove warning */
-	return 8;
+	if (cipher == AES)
+		return 16;
+	else
+		return 8;
 }
 
 int
@@ -48,6 +57,8 @@ get_key_size (int cipher)
 		return 16;
 	else if (cipher == BLOWFISH)
 		return 56;
+	else if (cipher == AES)
+		return 32;
 	else if (cipher == TRIPLEDES)
 		return 21;
 	else if (cipher == CAST)
@@ -63,6 +74,8 @@ get_cipher_name (int cipher)
 {
 	if (cipher == BLOWFISH)
 		return "Blowfish";
+	if (cipher == AES)
+		return "AES";
 	else if (cipher == IDEA)
 		return "IDEA";
 	else if (cipher == DES56)

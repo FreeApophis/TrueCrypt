@@ -1,4 +1,4 @@
-/* Copyright (C) 2004 TrueCrypt Team, truecrypt.org
+/* Copyright (C) 2004 TrueCrypt Foundation
    This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
 
 #include "TCdefs.h"
@@ -395,19 +395,28 @@ ServiceStart (DWORD dwArgc, LPTSTR * lpszArgv)
 			mountManager = CreateFileW (MOUNTMGR_DOS_DEVICE_NAME, FILE_READ_DATA|FILE_WRITE_DATA, FILE_SHARE_WRITE|FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 			if(mountManager != INVALID_HANDLE_VALUE)
 			{
-				WCHAR arrVolume[64], tmp[] = {0,0};
-				char buf[200];
-				PMOUNTMGR_TARGET_NAME in = (PMOUNTMGR_TARGET_NAME) buf;
+				// W2k MMGR support disabled for now to prevent remount bug
+				OSVERSIONINFO os;
+				os.dwOSVersionInfoSize = sizeof (OSVERSIONINFO);
+				GetVersionEx (&os);
+				if (!(os.dwPlatformId == VER_PLATFORM_WIN32_NT 
+					&& os.dwMajorVersion == 5 && os.dwMinorVersion == 0))
+				{
 
-				tmp[0] = (WCHAR)dosName[0];
-				wcscpy (arrVolume, TC_MOUNT_PREFIX);
-				wcscat (arrVolume, tmp);
+					WCHAR arrVolume[64], tmp[] = {0,0};
+					char buf[200];
+					PMOUNTMGR_TARGET_NAME in = (PMOUNTMGR_TARGET_NAME) buf;
 
-				in->DeviceNameLength = (USHORT) wcslen(arrVolume) * 2;
-				wcscpy(in->DeviceName, arrVolume);
+					tmp[0] = (WCHAR)dosName[0];
+					wcscpy (arrVolume, TC_MOUNT_PREFIX);
+					wcscat (arrVolume, tmp);
 
-				bResult = DeviceIoControl (mountManager, IOCTL_MOUNTMGR_VOLUME_ARRIVAL_NOTIFICATION, in,
-					sizeof (in->DeviceNameLength) + wcslen(arrVolume) * 2, 0, 0, &dwResult, NULL);
+					in->DeviceNameLength = (USHORT) wcslen(arrVolume) * 2;
+					wcscpy(in->DeviceName, arrVolume);
+
+					bResult = DeviceIoControl (mountManager, IOCTL_MOUNTMGR_VOLUME_ARRIVAL_NOTIFICATION, in,
+						sizeof (in->DeviceNameLength) + wcslen(arrVolume) * 2, 0, 0, &dwResult, NULL);
+				}
 
 				CloseHandle (mountManager);
 			}

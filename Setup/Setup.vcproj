@@ -137,9 +137,6 @@
 				Name="Common"
 				Filter="">
 				<File
-					RelativePath="..\Common\Dismount.c">
-				</File>
-				<File
 					RelativePath="..\Common\Dlgcode.c">
 				</File>
 			</Filter>

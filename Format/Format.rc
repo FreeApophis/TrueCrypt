@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,0
- PRODUCTVERSION 1,0,0,0
+ FILEVERSION 2,0,0,0
+ PRODUCTVERSION 2,0,0,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -44,14 +44,14 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "CompanyName", "truecrypt.org"
+            VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Format"
-            VALUE "FileVersion", "1.0"
-            VALUE "LegalCopyright", "truecrypt.org"
+            VALUE "FileVersion", "2.0"
+            VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "OriginalFilename", "TrueCrypt Format.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "1.0"
-            VALUE "SpecialBuild", "February 2004"
+            VALUE "ProductVersion", "2.0"
+            VALUE "SpecialBuild", "June 2004"
         END
     END
     BLOCK "VarFileInfo"
@@ -88,8 +88,8 @@ IDD_CIPHER_PAGE_DLG DIALOGEX 0, 0, 217, 152
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    COMBOBOX        IDC_COMBO_BOX,7,26,137,89,CBS_DROPDOWNLIST | WS_VSCROLL | 
-                    WS_TABSTOP
+    COMBOBOX        IDC_COMBO_BOX,7,26,137,89,CBS_DROPDOWNLIST | CBS_SORT | 
+                    WS_VSCROLL | WS_TABSTOP
     CONTROL         "HMAC-SHA-1",IDC_SHA1,"Button",BS_AUTORADIOBUTTON | NOT 
                     WS_VISIBLE | WS_GROUP,5,101,204,10
     CONTROL         "HMAC-RIPEMD-160",IDC_RIPEMD160,"Button",
@@ -350,7 +350,7 @@ BEGIN
     IDS_FINISH              "&Format"
     IDS_OPEN_TITLE          "Specify Path and File Name"
     IDS_FILE_TITLE          "Step 1: Volume Type and Location"
-    IDS_FILE_HELP0          "You can create file-hosted volumes or encrypt entire hard disk partitions, floppy disks, ZIP disks, and other storage devices. Click 'Select File...' to specify the name and path of the file that you wish to host the new volume, or Click 'Select "
+    IDS_FILE_HELP0          "You can create file-hosted volumes or encrypt entire hard disk partitions, floppy disks, ZIP disks, and other storage devices. Click 'Select File...' to specify the name and path of the file to be created to host the new volume, or Click 'Select "
     IDS_SIZE_PARTITION_HELP "Size of a device cannot be modified. Make sure the size of the selected device is correct and click Next."
     IDS_FILE_HELP1          " Device...' to choose a partition or device to encrypt.\n\nCollection of random data has begun. The sources of the data include your mouse movements, mouse clicks, and key presses."
     IDS_FORMAT_ABORT        "Abort format?"
@@ -363,7 +363,7 @@ BEGIN
     IDS_PASSWORD_TITLE      "Step 4: Volume Password"
     IDS_PREV                "< &Prev"
     IDS_SIZE_HELP0          "Please specify the size of the volume to create. The minimum size of a TrueCrypt volume is 19 KB. The maximum size of a file-hosted volume is limited by "
-    IDS_SIZE_HELP1          "the file system. A container stored on FAT32 cannot be larger than 4 GB and on NTFS it cannot be larger than 64 GB. "
+    IDS_SIZE_HELP1          "the file system. A container stored on FAT32 cannot be larger than 4 GB."
     IDS_FORMAT_HELP0        "Here you can set additional options that will affect the format of the new volume. Please refer to the documentation for more information. "
 END
 
@@ -401,6 +401,8 @@ BEGIN
     IDS_BLOWFISH_HELP1      "TrueCrypt uses Blowfish with 16 rounds and 448-bit key. Blowfish is the fastest of the implemented ciphers."
     IDS_IDEA_HELP0          "Designed by Xuejia Lai and James Massey in 1990 (published in 1992). Uses a 128-bit key. Described in U.S. patent number "
     IDS_IDEA_HELP1          "5,214,703. Requires license from Ascom Tech AG for commercial use."
+    IDS_AES_HELP0           "FIPS-approved cryptographic algorithm (Rijndael, published in 1998) that may be used by US "
+    IDS_AES_HELP1           "federal departments and agencies to cryptographically protect sensitive (unclassified) information. 256-bit key, 14 rounds (AES-256, published in 2001)."
 END
 
 STRINGTABLE 

@@ -111,6 +111,15 @@
 			Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx"
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}">
 			<File
+				RelativePath=".\Aescrypt.c">
+			</File>
+			<File
+				RelativePath=".\Aeskey.c">
+			</File>
+			<File
+				RelativePath=".\Aestab.c">
+			</File>
+			<File
 				RelativePath=".\Bf_ecb.c">
 			</File>
 			<File
@@ -160,6 +169,15 @@
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}">
+			<File
+				RelativePath=".\Aes.h">
+			</File>
+			<File
+				RelativePath=".\Aesopt.h">
+			</File>
+			<File
+				RelativePath=".\aestab.h">
+			</File>
 			<File
 				RelativePath=".\Bf_locl.h">
 			</File>

@@ -34,13 +34,12 @@ CLASS "SplashDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     DEFPUSHBUTTON   "OK",IDOK,121,178,50,14
-    LTEXT           "Copyright © 2004 TrueCrypt Team",IDT_ABOUT_COPYRIGHT,18,
-                    71,154,8
+    LTEXT           "Copyright © 2004 TrueCrypt Foundation",
+                    IDT_ABOUT_COPYRIGHT,18,71,207,8
     LTEXT           "Based on E4M by Paul Le Roux.",IDC_STATIC,18,114,104,8
     LTEXT           "Portions of this software are based in part on the works of the following people:",
                     IDC_STATIC,18,122,256,8
-    LTEXT           "Contact: info@truecrypt.org",IDT_ABOUT_MAILTO,185,87,
-                    104,8
+    LTEXT           "Contact: ",IDT_ABOUT_MAILTO,185,87,104,8,NOT WS_VISIBLE
     LTEXT           "Bruce Schneier, Eric Young, Peter Gutmann, Xuejia Lai, James Massey,",
                     IDC_STATIC,18,130,226,8
     LTEXT           "Walt Tuchmann, Whitfield Diffie, Martin Hellman, Don Coppersmith,",
@@ -54,7 +53,7 @@ BEGIN
                     WS_EX_STATICEDGE
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,169,291,1,
                     WS_EX_STATICEDGE
-    LTEXT           "www.truecrypt.org",ID_WEBSITE,18,87,79,8,SS_NOTIFY
+    LTEXT           "www.google.com",ID_WEBSITE,18,87,79,8,SS_NOTIFY
 END
 
 IDD_COMMANDHELP_DLG DIALOGEX 0, 0, 272, 146
@@ -239,7 +238,7 @@ STRINGTABLE
 BEGIN
     IDS_DRIVER_VERSION      "This program requires version %s of the TrueCrypt driver. Please reinstall the software."
     IDS_NEW_VERSION_REQUIRED 
-                            "This volume requires a new version of TrueCrypt.\nNew version is available at http://www.truecrypt.org"
+                            "This volume requires a new version of TrueCrypt."
 END
 
 #endif    // English (U.S.) resources

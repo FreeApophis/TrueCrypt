@@ -1,4 +1,4 @@
-/* Copyright (C) 2004 TrueCrypt Team, truecrypt.org
+/* Copyright (C) 2004 TrueCrypt Foundation
    This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
 
 #include "TCdefs.h"
@@ -71,19 +71,13 @@ FormatVolume (char *lpszFilename,
 	ft->num_sectors = (int) (size / SECTOR_SIZE);
 	memcpy (ft->volume_name, "           ", 11);
 
-	{
-		// Avoid random init delay before time counters start
-		char tmp[1];
-		RandgetBytes(&tmp, 1);
-	}
-
-	InitProgressBar (ft->num_sectors);
-
 	/* Calculate the fats, root dir etc, and update ft */
 	GetFatParams (ft);
 
 	/* Copies any header structures into ft->header, but does not do any
 	   disk io */
+	VirtualLock (&ft->header, sizeof (ft->header));
+
 	nStatus = VolumeWriteHeader (ft->header,
 				     cipher,
 				     lpszPassword,
@@ -92,10 +86,14 @@ FormatVolume (char *lpszFilename,
 					 0,
 				     &cryptoInfo);
 
+	VirtualUnlock (&ft->header, sizeof (ft->header));
+
 	if (nStatus != 0)
 		return nStatus;
 
 	KillTimer (hwndDlg, 0xff);
+
+	InitProgressBar (ft->num_sectors);
 
 	/* This does the disk io, both copying out the header, init the
 	   sectors, and writing the FAT tables etc */

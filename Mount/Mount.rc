@@ -189,8 +189,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,0
- PRODUCTVERSION 1,0,0,0
+ FILEVERSION 2,0,0,0
+ PRODUCTVERSION 2,0,0,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -205,14 +205,14 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "CompanyName", "truecrypt.org"
+            VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt"
-            VALUE "FileVersion", "1.0"
-            VALUE "LegalCopyright", "truecrypt.org"
+            VALUE "FileVersion", "2.0"
+            VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "OriginalFilename", "TrueCrypt.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "1.0"
-            VALUE "SpecialBuild", "February 2004"
+            VALUE "ProductVersion", "2.0"
+            VALUE "SpecialBuild", "June 2004"
         END
     END
     BLOCK "VarFileInfo"
@@ -295,7 +295,7 @@ BEGIN
     POPUP "Help"
     BEGIN
         MENUITEM "User's Guide",                IDM_HELP
-        MENUITEM "TrueCrypt Website",           ID_WEBSITE
+        MENUITEM "TrueCrypt on the Web",        25202
         MENUITEM SEPARATOR
         MENUITEM "About...",                    IDM_ABOUT
     END

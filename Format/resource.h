@@ -46,6 +46,8 @@
 #define IDS_BLOWFISH_HELP1              73
 #define IDS_IDEA_HELP0                  74
 #define IDS_IDEA_HELP1                  75
+#define IDS_AES_HELP0                   76
+#define IDS_AES_HELP1                   77
 #define IDS_TRIPLEDES_HELP0             82
 #define IDS_TRIPLEDES_HELP1             83
 #define IDS_CAST_HELP0                  84

@@ -206,4 +206,3 @@ void main( void )
 		puts( "Decrypt bang." );
 	}
 #endif /* 0 */
-

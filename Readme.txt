@@ -1,6 +1,6 @@
 
-TrueCrypt 1.0a Source Code Distribution
-Copyright (C) 2004 TrueCrypt Team, truecrypt.org
+TrueCrypt 2.0 Source Code Distribution
+Copyright (C) 2004 TrueCrypt Foundation
 
 See 'Docs\License.txt' file for license covering this distribution.
 See 'Release\Setup files\TrueCrypt User Guide.pdf' file for more information.

@@ -1,3 +1,92 @@
+-- Version 2.0 - Released 2004/06/07 --
+
+	* TrueCrypt/Service/NTSERVICE.C 1.2:
+		Mount manager support disabled on Windows 2000 to prevent 
+		remount bug
+
+	* TrueCrypt/Setup/SETUP.C 1.4:
+	* TrueCrypt/Setup/Setup.vcproj 1.2:
+		Setup does not try to dismount volumes, user is asked to do so
+
+	* TrueCrypt/Setup/SETUP.C 1.3:
+		User is advised to reboot before upgrading on Windows 2000
+
+	* TrueCrypt/Format/TCFORMAT.C 1.3:
+		Closing wizard window during format requires confirmation
+
+	* TrueCrypt/Common/CRYPTO.C 1.3:
+	* TrueCrypt/Common/CRYPTO.H 1.2:
+	* TrueCrypt/Common/Common.rc 1.2:
+	* TrueCrypt/Common/TCDEFS.H 1.2:
+	* TrueCrypt/Common/VOLUMES.C 1.6:
+	* TrueCrypt/Crypto/Aes.h 1.1:
+	* TrueCrypt/Crypto/Aescrypt.c 1.1:
+	* TrueCrypt/Crypto/Aeskey.c 1.1:
+	* TrueCrypt/Crypto/Aesopt.h 1.1:
+	* TrueCrypt/Crypto/Aestab.c 1.1:
+	* TrueCrypt/Crypto/Aestab.h 1.1:
+	* TrueCrypt/Crypto/Crypto.vcproj 1.2:
+	* TrueCrypt/Format/Format.rc 1.2:
+	* TrueCrypt/Format/TCFORMAT.C 1.2:
+	* TrueCrypt/Format/TESTCRYPT.C 1.2:
+	* TrueCrypt/Format/resource.h 1.2:
+		AES cipher added
+
+	* TrueCrypt/Mount/Mount.c 1.5:
+		Relative path passed with /volume option is converted to 
+		absolute
+
+	* TrueCrypt/Setup/SETUP.C 1.2:
+		Default program installation path determined by 
+		SHGetSpecialFolderLocation()
+
+	* TrueCrypt/Common/VOLUMES.C 1.5:
+		Sector IV corruption fixed
+
+	* TrueCrypt/Common/RANDOM.C 1.3:
+		RandgetBytes() does not return plain random pool contents
+
+	* TrueCrypt/Common/RANDOM.C 1.4:
+		Slow mode can be forced when calling RandgetBytes()
+
+	* TrueCrypt/Common/CRYPTO.C 1.2:
+	* TrueCrypt/Common/FORMAT.C 1.2:
+	* TrueCrypt/Common/RANDOM.C 1.2:
+	* TrueCrypt/Common/VOLUMES.C 1.2:
+		Memory pages containing sensitive data are locked to prevent 
+		swapping
+
+	* TrueCrypt/Common/VOLUMES.C 1.3:
+		Salt is generated after disk key
+
+	* TrueCrypt/Common/RANDOM.H 1.2:
+		Slow mode can be forced when calling RandgetBytes()
+
+	* TrueCrypt/Common/FAT.C 1.2:
+		RandgetBytes() params
+
+	* TrueCrypt/Common/VOLUMES.C 1.4:
+		SlowPoll is forced when generating disk key and salt
+
+	* TrueCrypt/Common/FORMAT.C 1.3:
+		Preinit RandgetBytes() not called
+
+	* TrueCrypt/Mount/Mount.c 1.2:
+		Command line volume mounting fixed
+
+	* TrueCrypt/Common/DLGCODE.C 1.2:
+		Partition selection dialog ignores holes in partition and disk 
+		numbering
+
+	* TrueCrypt/Mount/Mount.c 1.3:
+		Settings are not saved in quiet mode
+		/wipecache option supports quiet mode
+
+	* TrueCrypt/Mount/Mount.c 1.4:
+		Settings are not loaded from registry in quiet mode
+		/dismountall renamed to /dismount, supports dismounting of specified volumes
+		Bad passwords are reported during command line auto-mounting
+
 
 -- Version 1.0a - Released 2004/02/03 --
 

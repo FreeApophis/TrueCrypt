@@ -1,4 +1,4 @@
-/* Copyright (C) 2004 TrueCrypt Team, truecrypt.org */
+/* Copyright (C) 2004 TrueCrypt Foundation */
 
 #include "TCdefs.h"
 

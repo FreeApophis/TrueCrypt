@@ -1,4 +1,4 @@
-/* Copyright (C) 2004 TrueCrypt Team, truecrypt.org
+/* Copyright (C) 2004 TrueCrypt Foundation
    This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
 
 #include "TCdefs.h"
@@ -166,6 +166,11 @@ ComboSelChangeCipher (HWND hwndDlg)
 		case BLOWFISH:
 			nID[0] = IDS_BLOWFISH_HELP0;
 			nID[1] = IDS_BLOWFISH_HELP1;
+			SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
+			break;
+		case AES:
+			nID[0] = IDS_AES_HELP0;
+			nID[1] = IDS_AES_HELP1;
 			SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
 			break;
 		case IDEA:
@@ -1328,8 +1333,15 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		return 0;
 
 	case WM_CLOSE:
-		EndMainDlg (hwndDlg);
-		return 1;
+		{
+			if (bThreadRunning && MessageBox (hwndDlg, getstr (IDS_FORMAT_ABORT), lpszTitle, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2 ) == IDYES)
+			{
+				bThreadCancel = TRUE;
+				return 1;
+			}
+			return 0;
+		}
+
 	}
 
 	return 0;

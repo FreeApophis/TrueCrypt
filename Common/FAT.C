@@ -1,4 +1,4 @@
-/* Copyright (C) 2004 TrueCrypt Team, truecrypt.org
+/* Copyright (C) 2004 TrueCrypt Foundation
    This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
 
 #include "TCdefs.h"
@@ -394,8 +394,8 @@ Format (fatparams * ft, HFILE dev, PCRYPTO_INFO cryptoInfo, int nFrequency, disk
 
 		// Generate a random key and IV to randomize data area
 		// and support a possible hidden volume
-		RandgetBytes (key, MAX_CIPHER_KEY); 
-		RandgetBytes (cryptoInfo->iv, sizeof cryptoInfo->iv); 
+		RandgetBytes (key, MAX_CIPHER_KEY, FALSE); 
+		RandgetBytes (cryptoInfo->iv, sizeof cryptoInfo->iv, FALSE); 
 		init_cipher (cryptoInfo->cipher, key, cryptoInfo->ks);
 		ZeroMemory (sector, 512); 
 

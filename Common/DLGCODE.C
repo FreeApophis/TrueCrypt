@@ -1,4 +1,4 @@
-/* Copyright (C) 2004 TrueCrypt Team, truecrypt.org
+/* Copyright (C) 2004 TrueCrypt Foundation
    This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
 
 #include "TCdefs.h"
@@ -283,7 +283,7 @@ AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 		if (lw == ID_WEBSITE)
 		{
 			ArrowWaitCursor ();
-			ShellExecute (NULL, "open", "http://www.truecrypt.org", NULL, NULL, SW_SHOWNORMAL);
+			ShellExecute (NULL, "open", "http://www.google.com/search?q=truecrypt", NULL, NULL, SW_SHOWNORMAL);
 			Sleep (200);
 			NormalCursor ();
 			return 1;
@@ -1035,23 +1035,19 @@ GetAvailableFixedDisks (HWND hComboBox, char *lpszRootPath)
 				LvItem.pszText=item2;
 				SendMessage(hComboBox,LVM_SETITEM,0,(LPARAM)&LvItem); 
 			}
-			else
-			{
-				if(drivePresent)
-				{
-					LVITEM LvItem;
-					memset(&LvItem,0,sizeof(LvItem));
-					LvItem.mask=LVIF_TEXT;   
-					LvItem.iItem= line++;   
 
-					LvItem.pszText="";
-					SendMessage(hComboBox,LVM_INSERTITEM,0,(LPARAM)&LvItem);
-				}
 
-				if (n == 1)
-					i = 64;
-				break;
-			}
+		}
+
+		if(drivePresent)
+		{
+			LVITEM LvItem;
+			memset(&LvItem,0,sizeof(LvItem));
+			LvItem.mask=LVIF_TEXT;   
+			LvItem.iItem= line++;   
+
+			LvItem.pszText="";
+			SendMessage(hComboBox,LVM_INSERTITEM,0,(LPARAM)&LvItem);
 		}
 	}
 

@@ -1,4 +1,4 @@
-/* Copyright (C) 2004 TrueCrypt Team, truecrypt.org
+/* Copyright (C) 2004 TrueCrypt Foundation
    This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
 
 #include "TCdefs.h"
@@ -8,7 +8,6 @@
 
 #include "apidrvr.h"
 #include "dlgcode.h"
-#include "dismount.h"
 #include "../common/resource.h"
 
 #include "resource.h"
@@ -737,43 +736,25 @@ DoDriverUnload (HWND hwndDlg)
 
 	if (hDriver != INVALID_HANDLE_VALUE)
 	{
-		DWORD dwError;
-		int x;
+		MOUNT_LIST_STRUCT driver;
+		DWORD dwResult;
+		BOOL bResult;
 
+		bResult = DeviceIoControl (hDriver, MOUNT_LIST, &driver, sizeof (driver), &driver,
+			sizeof (driver), &dwResult, NULL);
 
-		if (nCurrentOS == WIN_NT)
+		if (bResult == TRUE)
 		{
-			ServiceMessage (hwndDlg, "dismounting any mounted volumes");
-
-			if (UnmountAllVolumes (hwndDlg, &dwError, &x) == FALSE)
+			if (driver.ulMountedDrives != 0)
 			{
 				bOK = FALSE;
-				MessageBox (hwndDlg, "Volumes are still mounted; all volumes must be dismounted before uninstallation can continue", lpszTitle, MB_ICONHAND);
+				MessageBox (hwndDlg, "Volumes are still mounted; all volumes must be dismounted before installation can continue.", lpszTitle, MB_ICONHAND);
 			}
 		}
 		else
 		{
-
-			MOUNT_LIST_STRUCT driver;
-			DWORD dwResult;
-			BOOL bResult;
-
-			bResult = DeviceIoControl (hDriver, MOUNT_LIST, &driver, sizeof (driver), &driver,
-					  sizeof (driver), &dwResult, NULL);
-
-			if (bResult == TRUE)
-			{
-				if (driver.ulMountedDrives != 0)
-				{
-					bOK = FALSE;
-					MessageBox (hwndDlg, "Volumes are still mounted; all volumes must be dismounted before uninstallation can continue", lpszTitle, MB_ICONHAND);
-				}
-			}
-			else
-			{
-				bOK = FALSE;
-				handleWin32Error (hwndDlg);
-			}
+			bOK = FALSE;
+			handleWin32Error (hwndDlg);
 		}
 
 		CloseHandle (hDriver);
@@ -1386,7 +1367,14 @@ InstallDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 		SetDefaultUserFont (hwndDlg);
 		InitDialog (hwndDlg);
 
-		SetWindowText (GetDlgItem (hwndDlg, IDC_DESTINATION), "C:\\Program Files\\TrueCrypt");
+		{
+			char path[MAX_PATH+20];
+			ITEMIDLIST *i;
+			SHGetSpecialFolderLocation (hwndDlg, CSIDL_PROGRAM_FILES, &i);
+			SHGetPathFromIDList (i, path);
+			strcat (path, "\\TrueCrypt");
+			SetWindowText (GetDlgItem (hwndDlg, IDC_DESTINATION), path);
+		}
 
 		if (bUninstall == FALSE)
 		{
@@ -1526,6 +1514,9 @@ WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine,
 		MessageBox (NULL, "TrueCrypt requires at least Windows 2000 to run.", lpszTitle, MB_ICONSTOP);
 		return 0;
 	}
+
+	if (CurrentOSMajor == 5 && CurrentOSMinor == 0)
+		MessageBox (NULL, "If you are upgrading from a previous version of TrueCrypt\nyou should first uninstall TrueCrypt and reboot OS.", lpszTitle, MB_ICONINFORMATION);
 
 	if (nCurrentOS == WIN_NT && IsAdmin ()!= TRUE)
 		if (MessageBox (NULL, "To successfully install/uninstall TrueCrypt under Windows NT you must be running as an Administrator, "

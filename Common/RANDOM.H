@@ -1,4 +1,4 @@
-/* Copyright (C) 2004 TrueCrypt Team, truecrypt.org
+/* Copyright (C) 2004 TrueCrypt Foundation
    This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
 
 /* Everything below this line is automatically updated by the -mkproto-tool- */
@@ -9,7 +9,7 @@ void Randfree ( void );
 void Randmix ( void );
 void RandaddBuf ( void *buf , int len );
 void RandpeekBytes ( char *buf , int len );
-void RandgetBytes ( char *buf , int len );
+void RandgetBytes ( char *buf , int len, BOOL forceSlowPoll );
 LRESULT CALLBACK MouseProc ( int nCode , WPARAM wParam , LPARAM lParam );
 LRESULT CALLBACK KeyboardProc ( int nCode , WPARAM wParam , LPARAM lParam );
 void ThreadSafeThreadFunction ( void *dummy );

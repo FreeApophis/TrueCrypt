@@ -1,4 +1,4 @@
-/* Copyright (C) 2004 TrueCrypt Team, truecrypt.org
+/* Copyright (C) 2004 TrueCrypt Foundation
    This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
 
 #pragma warning(disable : 4295)
@@ -1082,6 +1082,26 @@ CAST_TEST cast_ecb_vectors[CAST_TEST_COUNT] = {
 	"\x23\x8B\x4F\xE5\x84\x7E\x44\xB2"
 	};
 
+// AES ECB test vectors FIPS-197
+
+#define AES_TEST_COUNT 1
+
+typedef struct {
+	unsigned char key[32];
+	unsigned char plaintext[16];
+	unsigned char ciphertext[16];
+	} AES_TEST;
+
+AES_TEST aes_ecb_vectors[1] = {
+0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,
+0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1a,0x1b,0x1c,0x1d,0x1e,0x1f,
+
+0x00,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff,
+
+0x8e,0xa2,0xb7,0xca,0x51,0x67,0x45,0xbf,0xea,0xfc,0x49,0x90,0x4b,0x49,0x60,0x89
+};
+
+
 unsigned char ks_tmp[MAX_EXPANDED_KEY]; 
 
 void
@@ -1093,6 +1113,10 @@ init_cipher2(int cipher, void* key, void* ks, int key_len)
 	{
 	case BLOWFISH:
 		BF_set_key (ks, key_len,  key); 
+		break;
+
+	case AES:
+		init_cipher(cipher,key,ks);
 		break;
 
 	case IDEA:
@@ -1148,6 +1172,7 @@ ResetCipherTest(HWND hwndDlg, int nCipherChoice)
 		SetWindowText(GetDlgItem(hwndDlg, IDC_KEY), "0000000000000000");
 	} 
 
+
 	if (nCipherChoice == IDEA || nCipherChoice == CAST)
 	{
 		ndx = SendMessage (GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_ADDSTRING, 0,(LPARAM) "16");
@@ -1174,6 +1199,22 @@ ResetCipherTest(HWND hwndDlg, int nCipherChoice)
 	
 	SetWindowText(GetDlgItem(hwndDlg, IDC_PLAINTEXT), "0000000000000000");
 	SetWindowText(GetDlgItem(hwndDlg, IDC_CIPHERTEXT), "0000000000000000");
+
+	if (nCipherChoice == AES)
+	{
+		ndx = SendMessage (GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_ADDSTRING, 0,(LPARAM) "32");
+		SendMessage(GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_SETITEMDATA, ndx,(LPARAM) 32);
+		SendMessage(GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_SETCURSEL, ndx,0);
+
+		SendMessage (GetDlgItem(hwndDlg, IDC_PLAINTEXT_SIZE), CB_RESETCONTENT, 0,0);
+		ndx = SendMessage (GetDlgItem(hwndDlg, IDC_PLAINTEXT_SIZE), CB_ADDSTRING, 0,(LPARAM) "16");
+		SendMessage(GetDlgItem(hwndDlg, IDC_PLAINTEXT_SIZE), CB_SETITEMDATA, ndx,(LPARAM) 16);
+		SendMessage(GetDlgItem(hwndDlg, IDC_PLAINTEXT_SIZE), CB_SETCURSEL, ndx,0);
+
+		SetWindowText(GetDlgItem(hwndDlg, IDC_KEY), "0000000000000000000000000000000000000000000000000000000000000000");
+		SetWindowText(GetDlgItem(hwndDlg, IDC_PLAINTEXT), "00000000000000000000000000000000");
+		SetWindowText(GetDlgItem(hwndDlg, IDC_CIPHERTEXT), "00000000000000000000000000000000");
+	}
 }
 
 BOOL Des56TestLoop(void *test_vectors, int nVectorCount, int enc)
@@ -1255,7 +1296,7 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		if (lw == IDC_AUTO)
 		{
 			char key[32];
-			unsigned char tmp[8];
+			unsigned char tmp[16];
 			BOOL bFailed = FALSE;
 			int i;
 
@@ -1343,6 +1384,19 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			if (Des56TestLoop(des56_ecb_vectors_dp, DES56_TEST_COUNT_DP,1)!=TRUE)
 				bFailed = TRUE;
 			if (Des56TestLoop(des56_ecb_vectors_sb, DES56_TEST_COUNT_SB,1)!=TRUE)
+				bFailed = TRUE;
+
+			for (i = 0; i < AES_TEST_COUNT; i++)
+			{			
+				int cipher = AES;
+				memcpy(key, aes_ecb_vectors[i].key, 32);
+				memcpy(tmp, aes_ecb_vectors[i].plaintext, 16);
+				init_cipher(cipher, key, ks_tmp);
+				encipher_block(cipher, tmp, ks_tmp);
+				if (memcmp(aes_ecb_vectors[i].ciphertext, tmp, 16)!=0)
+					break;
+			}
+			if (i != AES_TEST_COUNT)
 				bFailed = TRUE;
 
 			if (!test_pkcs5())

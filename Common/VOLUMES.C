@@ -1,4 +1,4 @@
-/* Copyright (C) 2004 TrueCrypt Team, truecrypt.org
+/* Copyright (C) 2004 TrueCrypt Foundation
    This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
 
 #include "TCdefs.h"
@@ -26,9 +26,10 @@ EncryptSector8 (unsigned long *data,
 		unsigned char *iv,
 		int cipher)
 {
+	unsigned __int64 *iv64 = (unsigned __int64 *) iv;
+	unsigned __int64 IV64[3];
+	unsigned long *IV = (unsigned long *) IV64;
 	unsigned long sectorIV[2];
-	unsigned long *IV = (unsigned long *) iv;
-	unsigned __int64 *IV64 = (unsigned __int64 *) iv;
 	unsigned long x1, x2;
 	unsigned long j;
 
@@ -36,19 +37,15 @@ EncryptSector8 (unsigned long *data,
 	{
 		// Sector encryption is implemented by making IV unique for each
 		// sector and obfuscating cipher text
-		IV64[0] ^= secNo;
-		IV64[1] ^= secNo;
-		IV64[2] ^= secNo;
+		IV64[0] = iv64[0] ^ secNo;
+		IV64[1] = iv64[1] ^ secNo;
+		IV64[2] = iv64[2] ^ secNo;
 
 		sectorIV[0] = IV[0];
 		sectorIV[1] = IV[1];
 
 		x1 = crc32long ( &IV[2] ) ^ crc32long ( &IV[5] );
 		x2 = crc32long ( &IV[3] ) ^ crc32long ( &IV[4] );
-
-		IV64[0] ^= secNo;
-		IV64[1] ^= secNo;
-		IV64[2] ^= secNo;
 
 		// CBC encrypt the entire sector
 		for (j = 0; j < 64; j++)
@@ -82,27 +79,24 @@ DecryptSector8 (unsigned long *data,
 		unsigned char *iv,
 		int cipher)
 {
+	unsigned __int64 *iv64 = (unsigned __int64 *) iv;
+	unsigned __int64 IV64[3];
+	unsigned long *IV = (unsigned long *) IV64;
 	unsigned long sectorIV[2];
-	unsigned long *IV = (unsigned long *) iv;
-	unsigned __int64 *IV64 = (unsigned __int64 *) iv;
 	unsigned long x1, x2;
 	int j;
 
 	while (noSectors--)
 	{
-		IV64[0] ^= secNo;
-		IV64[1] ^= secNo;
-		IV64[2] ^= secNo;
+		IV64[0] = iv64[0] ^ secNo;
+		IV64[1] = iv64[1] ^ secNo;
+		IV64[2] = iv64[2] ^ secNo;
 
 		sectorIV[0] = IV[0];
 		sectorIV[1] = IV[1];
 
 		x1 = crc32long ( &IV[2] ) ^ crc32long ( &IV[5] );
 		x2 = crc32long ( &IV[3] ) ^ crc32long ( &IV[4] );
-
-		IV64[0] ^= secNo;
-		IV64[1] ^= secNo;
-		IV64[2] ^= secNo;
 
 		// CBC decrypt the sector
 		for (j = 0; j < 64; j++)
@@ -132,6 +126,133 @@ DecryptSector8 (unsigned long *data,
 	}
 }
 
+void _cdecl
+EncryptSector16 (unsigned long *data,
+		unsigned __int64 secNo,
+		unsigned long noSectors,
+		unsigned char *ks,
+		unsigned char *iv,
+		int cipher)
+{
+	unsigned __int64 *iv64 = (unsigned __int64 *) iv;
+	unsigned __int64 IV64[4];
+	unsigned long *IV = (unsigned long *) IV64;
+	unsigned long sectorIV[4];
+	unsigned long x1, x2;
+	unsigned long j;
+
+	while (noSectors--)
+	{
+		IV64[0] = iv64[0] ^ secNo;
+		IV64[1] = iv64[1] ^ secNo;
+		IV64[2] = iv64[2] ^ secNo;
+		IV64[3] = iv64[3] ^ secNo;
+
+		sectorIV[0] = IV[0];
+		sectorIV[1] = IV[1];
+		sectorIV[2] = IV[2];
+		sectorIV[3] = IV[3];
+
+		x1 = crc32long ( &IV[4] ) ^ crc32long ( &IV[7] );
+		x2 = crc32long ( &IV[5] ) ^ crc32long ( &IV[6] );
+
+		// CBC encrypt the entire sector
+		for (j = 0; j < 32; j++)
+		{
+			// CBC
+			data[0] ^= sectorIV[0];
+			data[1] ^= sectorIV[1];
+			data[2] ^= sectorIV[2];
+			data[3] ^= sectorIV[3];
+
+			encipher_block (cipher, data, ks);
+
+			sectorIV[0] = data[0];
+			sectorIV[1] = data[1];
+			sectorIV[2] = data[2];
+			sectorIV[3] = data[3];
+
+			// Cipher text XOR
+			data[0] ^= x1;
+			data[1] ^= x2;
+			data[2] ^= x1;
+			data[3] ^= x2;
+
+			data += 4;
+		}
+
+		secNo++;
+	}
+}
+
+
+void
+  _cdecl
+DecryptSector16 (unsigned long *data,
+		unsigned __int64 secNo,
+		unsigned long noSectors,
+		unsigned char *ks,
+		unsigned char *iv,
+		int cipher)
+{
+	unsigned __int64 *iv64 = (unsigned __int64 *) iv;
+	unsigned __int64 IV64[4];
+	unsigned long *IV = (unsigned long *) IV64;
+	unsigned long sectorIV[4];
+	unsigned long x1, x2;
+	int j;
+
+	while (noSectors--)
+	{
+		IV64[0] = iv64[0] ^ secNo;
+		IV64[1] = iv64[1] ^ secNo;
+		IV64[2] = iv64[2] ^ secNo;
+		IV64[3] = iv64[3] ^ secNo;
+
+		sectorIV[0] = IV[0];
+		sectorIV[1] = IV[1];
+		sectorIV[2] = IV[2];
+		sectorIV[3] = IV[3];
+
+		x1 = crc32long ( &IV[4] ) ^ crc32long ( &IV[7] );
+		x2 = crc32long ( &IV[5] ) ^ crc32long ( &IV[6] );
+
+		// CBC decrypt the sector
+		for (j = 0; j < 32; j++)
+		{
+			unsigned long a[4];
+
+			// Cipher text XOR
+			data[0] ^= x1;
+			data[1] ^= x2;
+			data[2] ^= x1;
+			data[3] ^= x2;
+
+			// CBC
+			a[0] = data[0];
+			a[1] = data[1];
+			a[2] = data[2];
+			a[3] = data[3];
+
+			decipher_block (cipher, data, ks);
+
+			data[0] ^= sectorIV[0];
+			data[1] ^= sectorIV[1];
+			data[2] ^= sectorIV[2];
+			data[3] ^= sectorIV[3];
+
+			sectorIV[0] = a[0];
+			sectorIV[1] = a[1];
+			sectorIV[2] = a[2];
+			sectorIV[3] = a[3];
+
+			data += 4;
+		}
+
+		secNo++;
+	}
+}
+
 // EncryptBuffer
 //
 // Encrypts data in buffer
@@ -147,13 +268,15 @@ EncryptBuffer (unsigned char *buf,
 {
 	unsigned long *data = (unsigned long *) buf;
 	unsigned long *IV = (unsigned long *) iv;
-	unsigned long bufIV[2];
+	unsigned long bufIV[4];
 	unsigned long j;
 
 	len /= get_block_size (cipher);
 
 	bufIV[0] = IV[0];
 	bufIV[1] = IV[1];
+	bufIV[2] = IV[2];
+	bufIV[3] = IV[3];
 
 	if (get_block_size (cipher) == 8)
 	{
@@ -174,6 +297,33 @@ EncryptBuffer (unsigned char *buf,
 			data[1] ^= IV[3];
 
 			data += 2;
+		}
+	}
+	else if (get_block_size (cipher) == 16)
+	{
+		/* CBC encrypt the buffer */
+		for (j = 0; j < len; j++)
+		{
+			// CBC
+			data[0] ^= bufIV[0];
+			data[1] ^= bufIV[1];
+			data[2] ^= bufIV[2];
+			data[3] ^= bufIV[3];
+
+			encipher_block (cipher, data, ks);
+
+			bufIV[0] = data[0];
+			bufIV[1] = data[1];
+			bufIV[2] = data[2];
+			bufIV[3] = data[3];
+
+			// Cipher text XOR
+			data[0] ^= IV[2];
+			data[1] ^= IV[3];
+			data[2] ^= IV[2];
+			data[3] ^= IV[3];
+
+			data += 4;
 		}
 	}
 	else
@@ -198,17 +348,19 @@ DecryptBuffer (unsigned char *buf,
 {
 	unsigned long *data = (unsigned long *)buf;
 	unsigned long *IV = (unsigned long *) iv;
-	unsigned long bufIV[2];
+	unsigned long bufIV[4];
 	unsigned long j;
 
 	len /= get_block_size (cipher);
 
 	bufIV[0] = IV[0];
 	bufIV[1] = IV[1];
+	bufIV[2] = IV[2];
+	bufIV[3] = IV[3];
 
 	if (get_block_size (cipher) == 8)
 	{
-		/* CBC encrypt the buffer */
+		/* CBC decrypt the buffer */
 		for (j = 0; j < len; j++)
 		{
 			unsigned long a, b;
@@ -230,6 +382,40 @@ DecryptBuffer (unsigned char *buf,
 			bufIV[1] = b;
 
 			data += 2;
+		}
+	}
+	else if (get_block_size (cipher) == 16)
+	{
+		/* CBC decrypt the buffer */
+		for (j = 0; j < len; j++)
+		{
+			unsigned long a[4];
+
+			// Cipher text XOR
+			data[0] ^= IV[2];
+			data[1] ^= IV[3];
+			data[2] ^= IV[2];
+			data[3] ^= IV[3];
+
+			// CBC
+			a[0] = data[0];
+			a[1] = data[1];
+			a[2] = data[2];
+			a[3] = data[3];
+
+			decipher_block (cipher, data, ks);
+
+			data[0] ^= bufIV[0];
+			data[1] ^= bufIV[1];
+			data[2] ^= bufIV[2];
+			data[3] ^= bufIV[3];
+
+			bufIV[0] = a[0];
+			bufIV[1] = a[1];
+			bufIV[2] = a[2];
+			bufIV[3] = a[3];
+
+			data += 4;
 		}
 	}
 	else
@@ -347,9 +533,18 @@ VolumeReadHeader (char *encryptedHeader, char *lpszPassword, PCRYPTO_INFO * retI
 		/* Clear out the temp. key buffer */
 		burn (dk, sizeof(dk));
 
-		cryptoInfo->encrypt_sector = &EncryptSector8;
-		cryptoInfo->decrypt_sector = &DecryptSector8;
-	
+		switch (get_block_size (cryptoInfo->cipher))
+		{
+		case 8:
+			cryptoInfo->encrypt_sector = &EncryptSector8;
+			cryptoInfo->decrypt_sector = &DecryptSector8;
+			break;
+		case 16:
+			cryptoInfo->encrypt_sector = &EncryptSector16;
+			cryptoInfo->decrypt_sector = &DecryptSector16;
+			break;
+		}
+		
 		return 0;
 	}
 
@@ -383,8 +578,15 @@ VolumeWriteHeader (char *header, int cipher, char *lpszPassword,
 		return ERR_OUTOFMEMORY;
 
 	memset (header, 0, SECTOR_SIZE);
+	VirtualLock (&keyInfo, sizeof (keyInfo));
 
 	//// Encryption setup
+
+	// Generate disk key and IV
+	if(masterKey == 0)
+		RandgetBytes (keyInfo.key, DISKKEY_SIZE, TRUE);
+	else
+		memcpy (keyInfo.key, masterKey, DISKKEY_SIZE);
 
 	// User key
 	memcpy (keyInfo.userKey, lpszPassword, nUserKeyLen);
@@ -395,7 +597,7 @@ VolumeWriteHeader (char *header, int cipher, char *lpszPassword,
 	cryptoInfo->cipher = cipher;
 
 	// Salt for header key derivation 
-	RandgetBytes (keyInfo.key_salt, USERKEY_SALT_SIZE);
+	RandgetBytes (keyInfo.key_salt, USERKEY_SALT_SIZE, TRUE);
 
 	// PKCS5 is used to derive header key and IV from user password
 	if (pkcs5 == SHA1)
@@ -403,12 +605,6 @@ VolumeWriteHeader (char *header, int cipher, char *lpszPassword,
 		derive_sha_key (keyInfo.userKey, keyInfo.keyLength, keyInfo.key_salt,
 				USERKEY_SALT_SIZE, keyInfo.noIterations, dk, DISK_IV_SIZE + MAX_CIPHER_KEY );
 	}
-
-	// Generate disk key and IV
-	if(masterKey == 0)
-		RandgetBytes (keyInfo.key, DISKKEY_SIZE);
-	else
-		memcpy(keyInfo.key, masterKey, DISKKEY_SIZE);
 
 
 	//// Header setup
@@ -479,11 +675,18 @@ VolumeWriteHeader (char *header, int cipher, char *lpszPassword,
 	// Clear out the temp. key buffer
 	burn (dk, sizeof(dk));
 
-	if (get_block_size(cipher) == 8)
+	switch (get_block_size (cryptoInfo->cipher))
 	{
+	case 8:
 		cryptoInfo->encrypt_sector = &EncryptSector8;
 		cryptoInfo->decrypt_sector = &DecryptSector8;
+		break;
+	case 16:
+		cryptoInfo->encrypt_sector = &EncryptSector16;
+		cryptoInfo->decrypt_sector = &DecryptSector16;
+		break;
 	}
+
 
 #ifdef VOLFORMAT
 	{
@@ -529,6 +732,7 @@ VolumeWriteHeader (char *header, int cipher, char *lpszPassword,
 #endif
 
 	burn (&keyInfo, sizeof (keyInfo));
+	VirtualUnlock (&keyInfo, sizeof (keyInfo));
 
 	*retInfo = cryptoInfo;
 	return 0;
