@@ -1,4 +1,4 @@
-This archive contains TrueCrypt 1.0 setup and documentation.
+This archive contains TrueCrypt 1.0a setup and documentation.
 
 
 INSTALLATION
@@ -19,7 +19,7 @@ REQUIREMENTS
 - Free disk space: approximately 1.5 MB
 
 - One of the following operating systems:
-  Windows XP, Windows 2000, Windows 2003, Windows 98, or Windows ME
+  Windows XP, Windows 2000, Windows 2003
 
 - Administrator privileges (Windows 2000/XP)
 

@@ -288,7 +288,6 @@ DoFilesInstall (HWND hwndDlg, char *szDestDir, BOOL bUninstallSupport)
 		"ATrueCrypt.exe", "ATrueCrypt Format.exe",
 		"Alicense.txt", "ATrueCrypt User Guide.pdf",
 		"WTrueCrypt Setup.exe", "STrueCryptService.exe", "Dtruecrypt.sys",
-		"Itruecrypt.vxd"
 	};
 
 	char szTmp[TC_MAX_PATH];
@@ -1521,6 +1520,12 @@ WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine,
 
 	/* Call InitApp to initialize the common code */
 	InitApp (hInstance);
+
+	if (CurrentOSMajor < 5)
+	{
+		MessageBox (NULL, "TrueCrypt requires at least Windows 2000 to run.", lpszTitle, MB_ICONSTOP);
+		return 0;
+	}
 
 	if (nCurrentOS == WIN_NT && IsAdmin ()!= TRUE)
 		if (MessageBox (NULL, "To successfully install/uninstall TrueCrypt under Windows NT you must be running as an Administrator, "

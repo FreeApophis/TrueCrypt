@@ -1,4 +1,11 @@
 
+-- Version 1.0a - Released 2004/02/03 --
+
+ Driver:
+
+ * Windows 98 support removed
+
+
 -- Version 1.0 - Released 2004/02/02 --
 
 Changes from E4M 2.02a:

@@ -2,10 +2,10 @@
    This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
 
 // Version displayed to user 
-#define VERSION_STRING                  "1.0"
+#define VERSION_STRING                  "1.0a"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x0100
+#define VERSION_NUM						0x010a
 
 // Version number written to volume header during format,
 // specifies the minimum program version required to mount the volume
