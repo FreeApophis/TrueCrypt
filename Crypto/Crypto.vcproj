@@ -140,12 +140,6 @@
 				RelativePath=".\Ecb3_enc.c">
 			</File>
 			<File
-				RelativePath=".\Idea.c">
-			</File>
-			<File
-				RelativePath=".\Idea_386.c">
-			</File>
-			<File
 				RelativePath=".\Rmd160.c">
 			</File>
 			<File
@@ -191,9 +185,6 @@
 			</File>
 			<File
 				RelativePath=".\Des_locl.h">
-			</File>
-			<File
-				RelativePath=".\Idea.h">
 			</File>
 			<File
 				RelativePath=".\Podd.h">

@@ -6,7 +6,7 @@
    release. Please see the file license.txt for full license details. */
 
 // Version displayed to user 
-#define VERSION_STRING                  "2.1"
+#define VERSION_STRING                  "2.1a"
 
 // Version number to compare against driver
 #define VERSION_NUM						0x0210

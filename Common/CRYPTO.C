@@ -57,8 +57,6 @@ get_key_size (int cipher)
 {
 	if (cipher == DES56)
 		return 7;
-	else if (cipher == IDEA)
-		return 16;
 	else if (cipher == BLOWFISH)
 		return 56;
 	else if (cipher == AES)
@@ -80,8 +78,6 @@ get_cipher_name (int cipher)
 		return "Blowfish";
 	if (cipher == AES)
 		return "AES";
-	else if (cipher == IDEA)
-		return "IDEA";
 	else if (cipher == DES56)
 		return "DES";
 	else if (cipher == TRIPLEDES)

@@ -269,7 +269,6 @@ AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			char szTmp[32];
 
 			SetDefaultUserFont (hwndDlg);
-			SendMessage (GetDlgItem (hwndDlg, ID_WEBSITE), WM_SETFONT, (WPARAM) hUserUnderlineFont, 0);
 			SendMessage (GetDlgItem (hwndDlg, IDT_ABOUT_VERSION), WM_SETFONT, (WPARAM) hUserBoldFont, 0);
 
 			sprintf (szTmp, "TrueCrypt %s", VERSION_STRING);
@@ -284,14 +283,6 @@ AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			return 1;
 		}
 
-		if (lw == ID_WEBSITE)
-		{
-			ArrowWaitCursor ();
-			ShellExecute (NULL, "open", "http://www.google.com/search?q=truecrypt", NULL, NULL, SW_SHOWNORMAL);
-			Sleep (200);
-			NormalCursor ();
-			return 1;
-		}
 		return 0;
 
 	case WM_CLOSE:

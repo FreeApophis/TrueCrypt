@@ -55,17 +55,13 @@ OF THE POSSIBILITY OF SUCH DAMAGES.
 8. Where applicable, the specific licenses attached to parts of the source
 code might take precedence over this general license.
 
-9. The IDEA cipher described in U.S. patent number 5,214,703 requires a
-separate license from Ascom Tech AG for commercial use. IDEA is a trademark
-of Ascom Tech AG. 
-
-10. If you use any part of the source code by Dr. Brian Gladman in your
+9. If you use any part of the source code by Dr. Brian Gladman in your
 project, you must follow his terms and conditions.
 
-11. If you use any part of the source code by Markus Friedl in your project,
+10. If you use any part of the source code by Markus Friedl in your project,
 you must follow his terms and conditions.
 
-12. This product contains no mechanism or facility that would allow partial
+11. This product contains no mechanism or facility that would allow partial
 or complete recovery of your data without knowing the correct password or
 the key used to encrypt the data.
 

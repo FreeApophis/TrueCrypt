@@ -1,88 +1,46 @@
-This archive contains TrueCrypt 2.1 setup and documentation.
+This archive contains TrueCrypt 2.1a setup and documentation.
 
 
-WHAT IS NEW IN TRUECRYPT 2.1
+WHAT IS NEW IN TRUECRYPT 2.1a
 
-New features:
+Removed Features:
 
-- RIPEMD-160 hash algorithm added.  The user can now select which hash
-  algorithm TrueCrypt will use (SHA-1 or RIPEMD-160). 
+- IDEA encryption algorithm removed. This allows non-profit and profit
+  organizations to use TrueCrypt without having to obtain a separate
+  license for IDEA (according to the IDEA license, any use of software
+  containing the IDEA algorithm by a non-profit or profit organization
+  is considered as use for commercial purposes, and is subject to a
+  license from MediaCrypt AG).
 
-  Note: RIPEMD-160, which was designed by an open academic community,
-  represents a valuable alternative to SHA-1 designed by the NSA and NIST.
-  In the previous versions there was a risk that the whole program would
-  be practically useless, should a major weakness be found in SHA-1. The 
-  user-selected hash algorithm is used by the random number generator when
-  creating new volumes, and by the header key derivation function (HMAC 
-  based on a hash function, as specified in PKCS #5 v2.0). The random 
-  number generator generates the master encryption key, salt, and the 
-  values used to create IV and 'whitening' values.
-
-- When changing a volume password, the user can now select the HMAC hash
-  algorithm that will be used in deriving the new volume header key. 
-
-- It is now possible to create NTFS TrueCrypt volumes and unformatted 
-  TrueCrypt volumes. This enhancement also removes the 2,048 GB volume
-  size limit. (Only FAT volumes can be created using the previous versions
-  of TrueCrypt. Any FAT volume, encrypted or not, cannot be over 2,048 GB.)
-
-- Header key content is now displayed in the Volume Creation Wizard window
-  (instead of salt).
-
-- Random pool, master key, and header key contents can be prevented from 
-  being displayed in the Volume Creation Wizard window.
-
-Bug fixes:
-
-- When there is a mounted TrueCrypt container that is stored in another 
-  TrueCrypt container, it will be possible to dismount both of them using 
-  the 'Dismount All' function, and 'blue screen' errors will not occur
-  upon system shutdown.
-
-- Minor bug fixes to command line handling.
-
-Improvements:
-
-- Several minor improvements to the driver.
-
-Miscellaneous:
-
-- Released under the original E4M license to avoid potential problems
-  relating to the GPL license (added the IDEA patent information and
-  specific legal notices).
-
-
-FUTURE
-
-- 'Hidden' container
-- Linux version
-- Anti-Key-Logger Facilities
-- Keyfiles
-
-and more.
+  Important: TrueCrypt volumes encrypted using the IDEA encryption
+  algorithm cannot be mounted using TrueCrypt 2.1a. If you have such
+  a volume, before upgrading to TrueCrypt 2.1a, please create a new
+  TrueCrypt volume using a cipher other than IDEA and move your files
+  to this new volume. We apologize for this inconvenience and any
+  problems this may cause you.
 
 
 INSTALLATION
 
 Before installing TrueCrypt, you may want to read the TrueCrypt 
-User's Guide. It is located in the folder called 'Setup Files'. To 
-view or print it, you will need Adobe Acrobat Reader (freely 
-available at www.adobe.com). Note that the program documentation 
-will also be automatically installed into the program folder, and 
-will later be accessible via the Start menu and the program user 
-interface.
+User's Guide. It is located in the 'Setup Files' folder. To view
+or print it, you will need Adobe Acrobat Reader (freely available
+at www.adobe.com). Note that the program documentation will also be
+automatically installed into the program folder, and will later be
+accessible via the Start menu and via the program user interface.
+
+On Windows 2000, Windows XP, or Windows 2003, you must be logged on
+as an administrator before installing TrueCrypt. 
 
 To install TrueCrypt, run the file 'TrueCrypt Setup.exe'.
 
 
 REQUIREMENTS
 
-- Free disk space: approximately 1.5 MB
+- Free disk space: approximately 1.4 MB
 
 - One of the following operating systems:
   Windows XP, Windows 2000, Windows 2003
-
-- Administrator privileges
 
 
 LICENSING INFORMATION

@@ -41,17 +41,15 @@
 #define BLOWFISH			1
 #define AES					2
 #define CAST				3
-#define IDEA				4
-#define TRIPLEDES			5
+#define TRIPLEDES			4
 #define DES56				100			// Used only for DES test vectors
 
-#define LAST_CIPHER_ID		5			// Last cipher used for volume encryption
+#define LAST_CIPHER_ID		4			// Last cipher used for volume encryption
 
 // Length in bytes of the longest key used by encryption algorithms
 #define	MAX_CIPHER_KEY		56			// Blowfish 448 bits
 
 /* Length of scheduled keys */
-#define IDEA_KS				104
 #define DES_KS				128
 #define TRIPLEDES_KS		(DES_KS*3)
 #define BLOWFISH_KS			4168
@@ -63,7 +61,6 @@
 #include "des.h"
 #include "blowfish.h"
 #include "aes.h"
-#include "idea.h"
 #include "cast.h"
 #include "sha1.h"
 #include "rmd160.h"
@@ -104,7 +101,6 @@ typedef struct CRYPTO_INFO_t
 {\
 	if (cipher == BLOWFISH) BF_decrypt ((void *) data, (void *) ks); \
 	else if (cipher == AES) aes_decrypt ((void *) data, (void *) data, (void *)((char *)(ks)+sizeof(aes_encrypt_ctx))); \
-	else if (cipher == IDEA) ideaCrypt ((void *) data,(void *)  data, (void *) ((char *) ks + IDEA_KS)); \
 	else if (cipher == DES56) des_encrypt ((void *) data, (void *) ks, 0); \
 	else if (cipher == CAST) CAST_ecb_encrypt((void *) data,(void *) data,(void*)ks,0);  \
 	else if (cipher == TRIPLEDES) des_ecb3_encrypt ((void *) data,(void *) data, (void *) ks, \
@@ -115,7 +111,6 @@ typedef struct CRYPTO_INFO_t
 {\
 	if (cipher == BLOWFISH) BF_encrypt ((void *) data, (void *) ks); \
 	else if (cipher == AES) aes_encrypt ((void *) data, (void *) data, (void *) ks); \
-	else if (cipher == IDEA) ideaCrypt ((void *) data, (void *) data, (void *) ks); \
 	else if (cipher == DES56) des_encrypt ((void *) data, (void *) ks, 1); \
 	else if (cipher == CAST) CAST_ecb_encrypt((void *) data,(void *) data,(void*)ks,1);  \
 	else if (cipher == TRIPLEDES) des_ecb3_encrypt ((void *) data,(void *) data, (void *) ks, \
@@ -126,7 +121,6 @@ typedef struct CRYPTO_INFO_t
 {\
 	if (cipher == BLOWFISH) BF_set_key ((void*)ks, 56, (void*) (key)); \
 	else if (cipher == AES) {aes_encrypt_key((void*)(key), 32, (void*)ks); aes_decrypt_key((void*)(key), 32, (void*)((char *)(ks)+sizeof(aes_encrypt_ctx)));} \
-	else if (cipher == IDEA) ideaExpandKey ((void*) (key), (void*)ks, (void *) ((char *) ks + IDEA_KS)); \
 	else if (cipher == DES56) des_key_sched ((void*) (key), (void*)ks); \
 	else if (cipher == CAST) CAST_set_key((void*)ks, 16, (void*)(key)); \
 	else if (cipher == TRIPLEDES) {  \

@@ -1,3 +1,19 @@
+
+-- Version 2.1a - Released 2004/10/01 --
+
+	* D:/Projects/Cvs/TrueCrypt/Common/CRYPTO.C [b2-1a] 1.5.2.1:
+	* D:/Projects/Cvs/TrueCrypt/Common/CRYPTO.H [b2-1a] 1.7.2.1:
+	* D:/Projects/Cvs/TrueCrypt/Crypto/Crypto.vcproj [b2-1a] 1.5.2.1:
+	* D:/Projects/Cvs/TrueCrypt/Crypto/IDEA.C [b2-1a] 1.1.1.1.2.1:
+	* D:/Projects/Cvs/TrueCrypt/Crypto/IDEA.H [b2-1a] 1.1.1.1.2.1:
+	* D:/Projects/Cvs/TrueCrypt/Crypto/IDEA_386.C [b2-1a] 1.1.1.1.2.1:
+	* D:/Projects/Cvs/TrueCrypt/Format/Format.rc [b2-1a] 1.11.2.1:
+	* D:/Projects/Cvs/TrueCrypt/Format/TCFORMAT.C [b2-1a] 1.11.2.1:
+	* D:/Projects/Cvs/TrueCrypt/Format/TESTCRYPT.C [b2-1a] 1.4.2.1:
+	* D:/Projects/Cvs/TrueCrypt/Format/resource.h [b2-1a] 1.5.2.1:
+		IDEA cipher removed
+
+
 -- Version 2.1 - Released 2004/06/21 --
 
 	* D:/Projects/Cvs/TrueCrypt/Setup/SETUP.C 1.8:

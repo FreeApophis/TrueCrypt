@@ -1,84 +1,101 @@
 TRUECRYPT LICENSE
 
-This product can be copied and distributed free of charge, including 
-source code.
+This software may be used free of charge by individuals, non-profit 
+organizations, commercial organizations, and government agencies, on single or
+multiple computers for non-commercial and/or commercial uses. 
 
-You may modify this product and source code, and distribute such modifications, 
-and you may derive new works based on this product, provided that:
+This software, including the source code and the documentation, may be copied
+and distributed free of charge. 
 
-1. Any product which is simply derived from this product cannot be
-called E4M, or Encryption for the Masses.
+AS THIS PRODUCT IS FREE, THERE IS NO WARRANTY FOR THE PRODUCT, TO THE EXTENT 
+PERMITTED BY APPLICABLE LAW. UNLESS OTHERWISE STATED THE PRODUCT IS PROVIDED 
+"AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, 
+BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE 
+PROGRAM IS WITH YOU. SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF
+ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
 
-2. If you use any of the source code in your product, and your product
-is distributed with source code, you must include this notice with
-those portions of this source code that you use. 
+IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING WILL ANY
+COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR REDISTRIBUTE THE
+PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY
+GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR
+INABILITY TO USE THE PROGRAM, INCLUDING BUT NOT LIMITED TO LOSS OF DATA OR DATA
+BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A
+FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS, EVEN IF SUCH HOLDER
+OR OTHER PARTY HAD PREVIOUSLY BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
 
-Or, 
+This product contains no mechanism or facility that would allow partial or
+complete recovery of your encrypted data without knowing the correct password
+or the key used to encrypt the data.
 
-If your product is distributed in binary form only, you must display
-on any packaging, and marketing materials which reference
-your product, a notice which states: 
+You may modify this product and its source code, and distribute such
+modifications, and you may derive new works based on this product, provided
+that the following conditions are met:
 
-"This product uses components written by Paul Le Roux <pleroux@swprofessionals.com>"
+  1. Any product which is simply derived from this product must not be called
+     E4M, or Encryption for the Masses.
 
-3. If you use any of the source code originally by Eric Young, you must
-in addition follow his terms and conditions.
+  2. If you use any of the source code in your product, and your product is
+     distributed with source code, you must include this notice with those
+     portions of this source code that you use. 
 
-4. Nothing requires that you accept this License, as you have not
-signed it. However, nothing else grants you permission to modify or
-distribute the product or its derivative works.
+     or
 
-These actions are prohibited by law if you do not accept this License.
+     If your product is distributed in binary form only and you use any part of
+     the source code by Paul Le Roux in your product, you must display on any
+     packaging, and marketing materials which reference your product, a notice
+     which states: "This product uses components written by Paul Le Roux
+     <pleroux@swprofessionals.com>"
 
-5. If any of these license terms is found to be to broad in scope, and  
-declared invalid by any court or legal process, you agree that all other
-terms shall not be so affected, and shall remain valid and enforceable.
+  3. If you use any part of the source code by the TrueCrypt Foundation and/or
+     the TrueCrypt Team (with or without modification) in your product, then
+     the following additional conditions must be met:
 
-6. THIS PROGRAM IS DISTRIBUTED FREE OF CHARGE, THEREFORE THERE IS NO WARRANTY 
-FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW. UNLESS OTHERWISE 
-STATED THE PROGRAM IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER 
-EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE 
-QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU. SHOULD THE PROGRAM PROVE 
-DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
+     a. Complete source code of the product must be freely and publicly
+        available.
+ 
+     b. TrueCrypt Foundation and TrueCrypt Team must be given attribution as
+        the authors of the parts used. This can be in the form of a textual
+        message at program startup or in product documentation. The legal
+        notices attached to parts of the source code must be retained in full. 
 
-7. IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
-WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR
-REDISTRIBUTE THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES,
-INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING
-OUT OF THE USE OR INABILITY TO USE THE PROGRAM, INCLUDING BUT NOT LIMITED
-TO LOSS OF DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY
-YOU OR THIRD PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER
-PROGRAMS, EVEN IF SUCH HOLDER OR OTHER PARTY HAD PREVIOUSLY BEEN ADVISED 
-OF THE POSSIBILITY OF SUCH DAMAGES.
+     c. The product must not be called TrueCrypt, and its name must not contain
+        the name TrueCrypt (nor any of its variations, e.g., Truecrypt).
 
-8. Where applicable, the specific licenses attached to parts of the source
-code might take precedence over this general license.
+  4. If you use any part of the source code originally by Eric Young, you must
+     in addition follow his terms and conditions.
 
-9. The IDEA cipher described in U.S. patent number 5,214,703 requires a
-separate license from Ascom Tech AG for commercial use. IDEA is a trademark
-of Ascom Tech AG. 
+  5. If you use any part of the source code by Dr. Brian Gladman in your
+     product, you must in addition follow his terms and conditions.
 
-10. If you use any part of the source code by Dr. Brian Gladman in your
-project, you must follow his terms and conditions.
+  6. If you use any part of the source code by Markus Friedl in your product,
+     you must in addition follow his terms and conditions.
 
-11. If you use any part of the source code by Markus Friedl in your project,
-you must follow his terms and conditions.
+Where applicable, the specific licenses attached to parts of the source code
+might take precedence over this general license. Each of the specific licenses
+applies only to the part of the source code it is attached to.
 
-12. This product contains no mechanism or facility that would allow partial
-or complete recovery of your data without knowing the correct password or
-the key used to encrypt the data.
+If any of these license terms is found to be to broad in scope, and/or declared
+invalid by any court or legal process, you agree that all other terms shall not
+be so affected, and shall remain valid and enforceable.
+
+Nothing requires that you accept this license, as you have not signed it. 
+However, nothing else grants you permission to use, modify, or distribute the
+product or its derivative works. These actions are prohibited by law if you do
+not accept this license.
 
 Portions of this software are:
+Copyright (c) 2004 TrueCrypt Foundation. All Rights Reserved.
 Copyright (c) 1998-2000 Paul Le Roux. All Rights Reserved.
 Copyright (c) 2004 TrueCrypt Team. All Rights Reserved.
-Copyright (c) 2004 TrueCrypt Foundation. All Rights Reserved.
 Copyright (c) 1995-1997 Eric Young. All Rights Reserved.
-Copyright (c) 1992-1999 Masayasu Kumagai, Paulo Barreto, Peter Gutmann.
-Copyright (c) 2003 Dr. Brian Gladman, Worcester, UK. All Rights Reserved.
+Copyright (c) 2003-2004 Dr. Brian Gladman, Worcester, UK. All Rights Reserved.
 Copyright (c) 2001 Markus Friedl. All Rights Reserved.
+
 For more information, see the legal notices attached to parts of the source code.
+
 This is a TrueCrypt Foundation release.
+
 
 END OF GENERAL LICENSE 
 

@@ -396,18 +396,16 @@ BEGIN
     IDS_DES_HELP1           "This algorithm has a 56 bit key, and 64-bit block size."
     IDS_BLOWFISH_HELP0      "Designed by Bruce Schneier in 1993. Unpatented, license-free, available free for all uses. "
     IDS_BLOWFISH_HELP1      "TrueCrypt uses Blowfish with 16 rounds and 448-bit key. Blowfish is the fastest of the implemented ciphers."
-    IDS_IDEA_HELP0          "Designed by Xuejia Lai and James Massey in 1990 (published in 1992). Uses a 128-bit key. Described in U.S. patent number "
-    IDS_IDEA_HELP1          "5,214,703. Requires license from Ascom Tech AG for commercial use."
     IDS_AES_HELP0           "FIPS-approved cryptographic algorithm (Rijndael, published in 1998) that may be used by US "
     IDS_AES_HELP1           "federal departments and agencies to cryptographically protect sensitive (unclassified) information. 256-bit key, 14 rounds (AES-256, published in 2001)."
 END
 
 STRINGTABLE 
 BEGIN
-    IDS_TRIPLEDES_HELP0     "Tripple-DES, published in 1978, is 3 iterations of the DES cipher designed by IBM and NSA (1976). Inner-CBC mode and 3 independent 56-bit keys are used (1 per "
+    IDS_TRIPLEDES_HELP0     "Tripple-DES, published in 1978, is 3 iterations of the DES cipher designed by IBM and NSA (1976). Outer-CBC mode and 3 independent 56-bit keys are used (1 per "
     IDS_TRIPLEDES_HELP1     "iteration). Note that this cipher is very slow."
     IDS_CAST_HELP0          "Designed by Carlisle Adams and Stafford Tavares, published in 1997. Uses a 128-bit key. "
-    IDS_CAST_HELP1          "CAST is royalty-free both for commercial and non-commercial uses."
+    IDS_CAST_HELP1          "CAST5 is royalty-free both for commercial and non-commercial uses."
     IDS_EXT_PARTITION       "Please create a logical drive for this extended partition, and then try again."
     IDS_CIPHER_TEST         "%s Cipher Test"
     IDS_TESTS_PASSED        "Self-tests of all algorithms passed"

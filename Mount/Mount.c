@@ -1688,7 +1688,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	
 		if (lw == ID_WEBSITE)
 		{
-			ShellExecute (NULL, "open", "http://www.google.com/search?q=truecrypt", NULL, NULL, SW_SHOWNORMAL);
+			ShellExecute (NULL, "open", "http://truecrypt.sourceforge.net/applink.php?version="VERSION_STRING, NULL, NULL, SW_SHOWNORMAL);
 			return 1;
 		}
 

@@ -40,12 +40,12 @@ BEGIN
     LTEXT           "Portions of this software are based in part on the works of the following people:",
                     IDC_STATIC,18,122,256,8
     LTEXT           "Contact: ",IDT_ABOUT_MAILTO,185,87,104,8,NOT WS_VISIBLE
-    LTEXT           "Bruce Schneier, Eric Young, Peter Gutmann, Xuejia Lai, James Massey,",
-                    IDC_STATIC,18,130,226,8
-    LTEXT           "Walt Tuchmann, Whitfield Diffie, Martin Hellman, Don Coppersmith,",
-                    IDC_STATIC,18,138,218,8
-    LTEXT           "Horst Feistel, Carlisle Adams, Stafford Tavares, and others.",
-                    IDC_STATIC,18,146,195,8
+    LTEXT           "Bruce Schneier, Horst Feistel, Don Coppersmith, Whitfield Diffie, Martin",
+                    IDC_STATIC,18,130,260,8
+    LTEXT           "Hellman, Walt Tuchmann, Carlisle Adams, Stafford Tavares, Eric Young,",
+                    IDC_STATIC,18,138,257,8
+    LTEXT           "Peter Gutmann, and many others.",IDC_STATIC,18,146,235,
+                    8
     CONTROL         1011,IDC_ABOUT_IMG,"Static",SS_BITMAP,0,0,293,49,
                     WS_EX_STATICEDGE
     LTEXT           "TrueCrypt x.x",IDT_ABOUT_VERSION,18,61,117,8
@@ -53,7 +53,8 @@ BEGIN
                     WS_EX_STATICEDGE
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,169,291,1,
                     WS_EX_STATICEDGE
-    LTEXT           "www.google.com",ID_WEBSITE,18,87,79,8,SS_NOTIFY
+    LTEXT           "Released October 1, 2004",ID_WEBSITE,18,87,96,8,
+                    SS_NOTIFY
 END
 
 IDD_COMMANDHELP_DLG DIALOGEX 0, 0, 272, 146

@@ -180,11 +180,6 @@ ComboSelChangeCipher (HWND hwndDlg)
 			nID[1] = IDS_AES_HELP1;
 			SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
 			break;
-		case IDEA:
-			nID[0] = IDS_IDEA_HELP0;
-			nID[1] = IDS_IDEA_HELP1;
-			SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
-			break;
 		case CAST:
 			nID[0] = IDS_CAST_HELP0;
 			nID[1] = IDS_CAST_HELP1;

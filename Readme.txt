@@ -1,6 +1,6 @@
 
-TrueCrypt 2.1 Source Code Distribution
-Released by TrueCrypt Foundation, 2004/06/21
+TrueCrypt 2.1a Source Code Distribution
+Released by TrueCrypt Foundation, 2004-10-01
 
 See 'Docs\License.txt' file for license covering this distribution.
 See 'Release\Setup files\TrueCrypt User Guide.pdf' file for more information.
