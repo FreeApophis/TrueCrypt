@@ -16,6 +16,7 @@
 #include "dlgcode.h"
 #include "resource.h"
 #include "common.h"
+#include "random.h"
 
 int
 FormatVolume (char *lpszFilename,
@@ -37,7 +38,6 @@ FormatVolume (char *lpszFilename,
 	int nStatus;
 	PCRYPTO_INFO cryptoInfo;
 	HANDLE dev = INVALID_HANDLE_VALUE;
-	OPEN_TEST_STRUCT driver;
 	DWORD dwError, dwThen, dwNow;
 	diskio_f write;
 	char header[SECTOR_SIZE];
@@ -103,6 +103,7 @@ FormatVolume (char *lpszFilename,
 
 	if (dev == INVALID_HANDLE_VALUE)
 	{
+		handleWin32Error (hwndDlg);
 		nStatus = ERR_OS_ERROR; goto error;
 	}
 
@@ -242,8 +243,6 @@ error:
 			{
 				// NTFS format is performed by system so we first need to mount the volume
 				int driveNo = GetLastAvailableDrive ();
-				DWORD os_error;
-				int err;
 				MountOptions mountOptions;
 				
 				if (driveNo == -1)

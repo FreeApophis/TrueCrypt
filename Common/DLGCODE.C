@@ -109,7 +109,11 @@ cleanup ()
 	/* Close the device driver handle */
 	if (hDriver != INVALID_HANDLE_VALUE)
 	{
-		CloseHandle (hDriver);
+		// Unload driver mode if possible (non-install mode) 
+		if (IsNonInstallMode ())
+			DriverUnload ();
+		else
+			CloseHandle (hDriver);
 	}
 
 	if (hMutex != NULL)
@@ -336,7 +340,7 @@ Lars Knudsen, Ross Anderson, Eli Biham, \
 David Wagner, John Kelsey, Niels Ferguson, Doug Whiting, Chris Hall, \
 Carlisle Adams, Stafford Tavares, \
 Hans Dobbertin, Antoon Bosselaers, Bart Preneel, \
-Peter Gutmann, and many others.\r\n\r\n\
+Steve Reid, Peter Gutmann, and many others.\r\n\r\n\
 Portions of this software:\r\n\
 Copyright \xA9 2004-2005 TrueCrypt Foundation. All Rights Reserved.\r\n\
 Copyright \xA9 1998-2000 Paul Le Roux. All Rights Reserved.\r\n\
@@ -735,7 +739,7 @@ InitApp (HINSTANCE hInstance)
 	// OS version check
 	if (CurrentOSMajor < 5)
 	{
-		MessageBox (NULL, "TrueCrypt requires at least Windows 2000 operating system to run.", lpszTitle, MB_ICONSTOP);
+		MessageBox (NULL, "TrueCrypt does not support this operating system.", lpszTitle, MB_ICONSTOP);
 		exit (1);
 	}
 
@@ -1240,21 +1244,23 @@ RawDevicesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			{
 				// Whole device selected
 				int driveNo;
-				char tmp[10];
 
 				sscanf (lpszFileName, "Harddisk %d", &driveNo);
 				sprintf (lpszFileName, "\\Device\\Harddisk%d\\Partition0", driveNo);
 
 #ifdef VOLFORMAT
 				// Warn if device contains partitions
-				LvItem.iSubItem = 3;
-				LvItem.pszText = tmp;
-				SendMessage (GetDlgItem (hwndDlg, IDC_DEVICELIST), LVM_GETITEMTEXT, LvItem.iItem, (LPARAM) &LvItem);
-				if (tmp[0] == ' ')
 				{
-					if (IDNO == MessageBox (hwndDlg, getstr (IDS_DEVICE_PARTITIONS_WARN),
-						lpszTitle, MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2))
-						break;
+					char tmp[10];
+					LvItem.iSubItem = 3;
+					LvItem.pszText = tmp;
+					SendMessage (GetDlgItem (hwndDlg, IDC_DEVICELIST), LVM_GETITEMTEXT, LvItem.iItem, (LPARAM) &LvItem);
+					if (tmp[0] == ' ')
+					{
+						if (IDNO == MessageBox (hwndDlg, getstr (IDS_DEVICE_PARTITIONS_WARN),
+							lpszTitle, MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2))
+							break;
+					}
 				}
 #endif
 			}
@@ -1287,12 +1293,6 @@ static int DriverLoad ()
 	char driverPath[TC_MAX_PATH*2];
 	BOOL res;
 	char *tmp;
-	
-	if (!IsAdmin ())
-	{
-		MessageBox (0, getstr (IDS_ADMIN_PRIVILEGES_DRIVER), lpszTitle, ICON_HAND);
-		return ERR_DONT_REPORT;
-	}
 
 	GetModuleFileName (NULL, driverPath, sizeof (driverPath));
 	tmp = strrchr (driverPath, '\\');
@@ -1316,7 +1316,15 @@ static int DriverLoad ()
 
 	hManager = OpenSCManager (NULL, NULL, SC_MANAGER_ALL_ACCESS);
 	if (hManager == NULL)
+	{
+		if (GetLastError () == ERROR_ACCESS_DENIED)
+		{
+			MessageBox (0, getstr (IDS_ADMIN_PRIVILEGES_DRIVER), lpszTitle, ICON_HAND);
+			return ERR_DONT_REPORT;
+		}
+
 		return ERR_OS_ERROR;
+	}
 
 	hService = CreateService (hManager, "truecrypt", "truecrypt",
 		SERVICE_ALL_ACCESS, SERVICE_KERNEL_DRIVER, SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL,
@@ -1335,6 +1343,95 @@ static int DriverLoad ()
 	CloseServiceHandle (hService);
 
 	return !res ? ERR_OS_ERROR : ERROR_SUCCESS;
+}
+
+
+BOOL DriverUnload ()
+{
+	MOUNT_LIST_STRUCT driver;
+	int refCount;
+	DWORD dwResult;
+	BOOL bResult;
+
+	SC_HANDLE hManager, hService = NULL;
+	BOOL bOK = FALSE, bRet;
+	SERVICE_STATUS status;
+	int x;
+
+	if (hDriver == INVALID_HANDLE_VALUE)
+		return TRUE;
+
+	// Test for mounted volumes
+	bResult = DeviceIoControl (hDriver, MOUNT_LIST, &driver, sizeof (driver), &driver,
+		sizeof (driver), &dwResult, NULL);
+
+	if (bResult == TRUE)
+	{
+		if (driver.ulMountedDrives != 0)
+			return FALSE;
+	}
+	else
+		return TRUE;
+
+	// Test for any applications attached to driver
+	bResult = DeviceIoControl (hDriver, DEVICE_REFCOUNT, &refCount, sizeof (refCount), &refCount,
+		sizeof (refCount), &dwResult, NULL);
+
+	if (bResult == TRUE)
+	{
+		if (refCount > 1)
+			return FALSE;
+	}
+	else
+		return TRUE;
+
+	CloseHandle (hDriver);
+
+	// Stop driver service
+
+	hManager = OpenSCManager (NULL, NULL, SC_MANAGER_ALL_ACCESS);
+	if (hManager == NULL)
+		goto error;
+
+	hService = OpenService (hManager, "truecrypt", SERVICE_ALL_ACCESS);
+	if (hService == NULL)
+		goto error;
+
+	bRet = QueryServiceStatus (hService, &status);
+	if (bRet != TRUE)
+		goto error;
+
+	if (status.dwCurrentState != SERVICE_STOPPED)
+	{
+		ControlService (hService, SERVICE_CONTROL_STOP, &status);
+
+		for (x = 0; x < 5; x++)
+		{
+			bRet = QueryServiceStatus (hService, &status);
+			if (bRet != TRUE)
+				goto error;
+
+			if (status.dwCurrentState == SERVICE_STOPPED)
+				break;
+
+			Sleep (200);
+		}
+	}
+
+error:
+	if (hService != NULL)
+		CloseServiceHandle (hService);
+
+	if (hManager != NULL)
+		CloseServiceHandle (hManager);
+
+	if (status.dwCurrentState == SERVICE_STOPPED)
+	{
+		hDriver = INVALID_HANDLE_VALUE;
+		return TRUE;
+	}
+
+	return FALSE;
 }
 
 
@@ -1359,8 +1456,9 @@ DriverAttach (void)
 		if (hDriver == INVALID_HANDLE_VALUE)
 			return ERR_OS_ERROR;
 	}
-#ifndef SETUP // Don't check version during setup to allow removal of older version
-	else
+#ifndef SETUP // Don't check version during setup to allow removal of another version
+
+	if (hDriver != INVALID_HANDLE_VALUE)
 	{
 		LONG driver = 0;
 		DWORD dwResult;
@@ -1439,27 +1537,71 @@ BrowseFiles (HWND hwndDlg, UINT nTitleID, char *lpszFileName, BOOL keepHistory)
 }
 
 
+static int CALLBACK
+BrowseCallbackProc(HWND hwnd,UINT uMsg,LPARAM lp, LPARAM pData) 
+{
+	switch(uMsg) {
+	case BFFM_INITIALIZED: 
+	{
+	  /* WParam is TRUE since we are passing a path.
+	   It would be FALSE if we were passing a pidl. */
+	   SendMessage(hwnd,BFFM_SETSELECTION,TRUE,(LPARAM)pData);
+	   break;
+	}
+
+	case BFFM_SELCHANGED: 
+	{
+		char szDir[TC_MAX_PATH];
+
+	   /* Set the status window to the currently selected path. */
+	   if (SHGetPathFromIDList((LPITEMIDLIST) lp ,szDir)) 
+	   {
+		  SendMessage(hwnd,BFFM_SETSTATUSTEXT,0,(LPARAM)szDir);
+	   }
+	   break;
+	}
+
+	default:
+	   break;
+	}
+
+	return 0;
+}
+
+
 BOOL
-BrowseDirectories (HWND hWnd, UINT nTitleID, char *dirName)
+BrowseDirectories (HWND hwndDlg, char *lpszTitle, char *dirName)
 {
 	BROWSEINFO bi;
 	LPITEMIDLIST pidl;
+	LPMALLOC pMalloc;
+	BOOL bOK  = FALSE;
 
-	ZeroMemory (&bi, sizeof (bi));
-	bi.hwndOwner = hWnd;
-	bi.lpszTitle = getstr (nTitleID);
-
-	pidl = SHBrowseForFolder (&bi);
-
-	if (pidl != 0)
+	if (SUCCEEDED(SHGetMalloc(&pMalloc))) 
 	{
-		SHGetPathFromIDList (pidl, dirName);
-		GlobalFree (pidl);
+		ZeroMemory(&bi,sizeof(bi));
+		bi.hwndOwner = hwndDlg;
+		bi.pszDisplayName = 0;
+		bi.lpszTitle = lpszTitle;
+		bi.pidlRoot = 0;
+		bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_STATUSTEXT /*| BIF_EDITBOX*/;
+		bi.lpfn = BrowseCallbackProc;
+		bi.lParam = (LPARAM)dirName;
 
-		return TRUE;
+		pidl = SHBrowseForFolder(&bi);
+		if (pidl!=NULL) 
+		{
+			if (SHGetPathFromIDList(pidl, dirName)==TRUE) 
+			{
+				bOK = TRUE;
+			}
+
+			pMalloc->lpVtbl->Free(pMalloc,pidl);
+			pMalloc->lpVtbl->Release(pMalloc);
+		}
 	}
 
-	return FALSE;
+	return bOK;
 }
 
 
@@ -1686,8 +1828,6 @@ static void DisplayBenchmarkResults (HWND hwndDlg)
 	HWND hList = GetDlgItem (hwndDlg, IDC_RESULTS);
 	int ea, i;
 	BOOL unsorted = TRUE;
-	unsigned __int64 encBytesPerSec;
-	unsigned __int64 decBytesPerSec;
 
 	/* Sort the list */
 
@@ -1770,8 +1910,7 @@ static BOOL PerformBenchmark(HWND hwndDlg)
     LARGE_INTEGER performanceCountStart, performanceCountEnd;
 	BYTE *lpTestBuffer;
 	HWND hList = GetDlgItem (hwndDlg, IDC_RESULTS);
-	LVITEM LvItem;
-	int ea, i;
+	int ea;
 	unsigned char iv[DISK_IV_SIZE];
 	unsigned char ks[MAX_EXPANDED_KEY];
 	unsigned char key[DISKKEY_SIZE];
@@ -1869,7 +2008,6 @@ BOOL WINAPI BenchmarkDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPar
 		{
 			LVCOLUMN LvCol;
 			HWND hList = GetDlgItem (hwndDlg, IDC_RESULTS);
-			char buf[100];
 
 			SetDefaultUserFont (hwndDlg);
 
@@ -2092,14 +2230,30 @@ int DriverUnmountVolume (HWND hwndDlg, int nDosDriveNo, BOOL forced)
 void BroadcastDeviceChange (WPARAM message, int nDosDriveNo, DWORD driveMap)
 {
 	DEV_BROADCAST_VOLUME dbv;
-	char root[] = {nDosDriveNo + 'A', ':', '\\', 0 };
+	char root[] = {0, ':', '\\', 0 };
 	DWORD dwResult;
+	LONG event = 0;
+	int i;
 
-	if (message == DBT_DEVICEARRIVAL)
-		SHChangeNotify(SHCNE_DRIVEADD, SHCNF_PATH, root, NULL);
+	if (message == DBT_DEVICEARRIVAL) event = SHCNE_DRIVEADD;
+	if (message == DBT_DEVICEREMOVECOMPLETE) event = SHCNE_DRIVEREMOVED;
 
-	if (message == DBT_DEVICEREMOVECOMPLETE)
-		SHChangeNotify(SHCNE_DRIVEREMOVED, SHCNF_PATH, root, NULL);
+	if (driveMap == 0)
+	{
+		root[0] = nDosDriveNo + 'A';
+		SHChangeNotify(event, SHCNF_PATH, root, NULL);
+	}
+	else
+	{
+		for (i = 0; i < 26; i++)
+		{
+			if (driveMap & (1 << i))
+			{
+				root[0] = i + 'A';
+				SHChangeNotify(event, SHCNF_PATH, root, NULL);
+			}
+		}
+	}
 
 	dbv.dbcv_size = sizeof(dbv); 
 	dbv.dbcv_devicetype = DBT_DEVTYP_VOLUME; 
@@ -2232,7 +2386,6 @@ retry:
 BOOL UnmountVolume (HWND hwndDlg , int nDosDriveNo, BOOL forceUnmount)
 {
 	int result;
-	BOOL bResult;
 	BOOL forced = forceUnmount;
 	int dismountMaxRetries = UNMOUNT_MAX_AUTO_RETRIES;
 
@@ -2393,7 +2546,6 @@ int GetDiskDeviceDriveLetter (PWSTR deviceName)
 	WCHAR link[MAX_PATH];
 	WCHAR target[MAX_PATH];
 	WCHAR device[MAX_PATH];
-	char msg[100];
 
 	if (!ResolveSymbolicLink (deviceName, device))
 		wcscpy (device, deviceName);

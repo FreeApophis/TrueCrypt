@@ -48,6 +48,9 @@
 #define IDC_COPY_WIZARD                 1041
 #define IDC_BUTTON3                     1046
 #define IDC_MOUNT_OPTIONS               1046
+#define IDC_STATIC2                     1047
+#define IDC_STATIC3                     1048
+#define IDC_STATIC4                     1049
 #define IDC_VOLUME                      2006
 #define IDC_PASSWORD                    2007
 #define IDC_NO_DRIVES_STATIC            2011
@@ -90,7 +93,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        131
 #define _APS_NEXT_COMMAND_VALUE         40055
-#define _APS_NEXT_CONTROL_VALUE         1047
+#define _APS_NEXT_CONTROL_VALUE         1050
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

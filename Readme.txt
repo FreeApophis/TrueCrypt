@@ -1,6 +1,6 @@
 
-TrueCrypt 3.1 Source Code Distribution
-Released by TrueCrypt Foundation, 2005-01-22
+TrueCrypt 3.1a Source Code Distribution
+Released by TrueCrypt Foundation, 2005-02-07
 
 For license covering this distribution, please see 'Release\Setup Files\License.txt'.
 For more information, please see 'Release\Setup Files\TrueCrypt User Guide.pdf' 

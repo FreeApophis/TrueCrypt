@@ -26,7 +26,7 @@
 				RuntimeLibrary="1"
 				BufferSecurityCheck="TRUE"
 				UsePrecompiledHeader="0"
-				WarningLevel="2"
+				WarningLevel="3"
 				Detect64BitPortabilityProblems="FALSE"
 				DebugInformationFormat="4"
 				DisableSpecificWarnings="4311"/>
@@ -78,7 +78,7 @@
 				UsePrecompiledHeader="0"
 				AssemblerOutput="2"
 				AssemblerListingLocation="$(IntDir)/"
-				WarningLevel="2"
+				WarningLevel="3"
 				Detect64BitPortabilityProblems="FALSE"
 				DebugInformationFormat="0"
 				DisableSpecificWarnings="4311"/>
@@ -238,10 +238,10 @@
 				RelativePath="..\Common\Registry.h">
 			</File>
 			<File
-				RelativePath="..\Common\resource.h">
+				RelativePath=".\resource.h">
 			</File>
 			<File
-				RelativePath=".\resource.h">
+				RelativePath="..\Common\resource.h">
 			</File>
 			<File
 				RelativePath="..\Common\Tcdefs.h">

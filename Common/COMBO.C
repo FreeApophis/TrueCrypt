@@ -7,6 +7,7 @@
 
 #include "TCdefs.h"
 #include "combo.h"
+#include "registry.h"
 
 #include <time.h>
 

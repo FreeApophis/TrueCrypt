@@ -12,7 +12,6 @@ void RemoveMessage ( HWND hwndDlg , char *txt );
 void ServiceMessage ( HWND hwndDlg , char *txt );
 void IconMessage ( HWND hwndDlg , char *txt );
 int CALLBACK BrowseCallbackProc ( HWND hwnd , UINT uMsg , LPARAM lp , LPARAM pData );
-BOOL BrowseFiles2 ( HWND hwndDlg , char *lpszTitle , char *lpszFileName );
 void LoadLicense ( HWND hwndDlg );
 BOOL DoFilesInstall ( HWND hwndDlg , char *szDestDir , BOOL bUninstallSupport );
 BOOL DoRegInstall ( HWND hwndDlg , char *szDestDir , BOOL bInstallType , BOOL bUninstallSupport );

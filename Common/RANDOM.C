@@ -100,7 +100,7 @@ Randinit ()
 	if (!CryptAcquireContext (&hCryptProv, NULL, NULL, PROV_RSA_FULL, 0)
 		&& !CryptAcquireContext (&hCryptProv, NULL, NULL, PROV_RSA_FULL, CRYPT_NEWKEYSET))
 	{
-		handleWin32Error (0);
+		hCryptProv = 0;
 	}
 
 	threadID = (HANDLE) _beginthread (ThreadSafeThreadFunction, 8192, NULL);
@@ -419,7 +419,6 @@ void
 SlowPollWinNT (void)
 {
 	static int isWorkstation = -1;
-	PPERF_DATA_BLOCK pPerfData;
 	static int cbPerfData = 0x10000;
 	HANDLE hDevice;
 	LPBYTE lpBuffer;
@@ -529,7 +528,7 @@ SlowPollWinNT (void)
 	// CryptoAPI
 	for (i = 0; i < 100; i++)
 	{
-		if (CryptGenRandom(hCryptProv, sizeof (buffer), buffer)) 
+		if (hCryptProv && CryptGenRandom(hCryptProv, sizeof (buffer), buffer)) 
 			RandaddBuf (buffer, sizeof (buffer));
 	}
 }
@@ -779,6 +778,6 @@ FastPoll (void)
 	}
 
 	// CryptoAPI
-	if (CryptGenRandom(hCryptProv, sizeof (buffer), buffer)) 
+	if (hCryptProv && CryptGenRandom(hCryptProv, sizeof (buffer), buffer)) 
 		RandaddBuf (buffer, sizeof (buffer));
 }

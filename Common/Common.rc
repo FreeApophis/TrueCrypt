@@ -212,7 +212,7 @@ BEGIN
     IDS_PASSWORD_HELP1      "It is very important that you choose a good password. You should avoid choosing one that only contains a single word that can be found in a dictionary (or a combination of 2, 3, or 4 such words). It should not contain any names or dates of birth. I"
     IDS_PASSWORD_HELP2      "t should not be easy to guess. A good password is a combination of upper and lower case letters, numbers, and special characters, such as @ ^ & $ * + etc. "
     IDS_PASSWORD_HELP3      "We recommend choosing a password consisting of more than 20 characters (the longer, the better). The maximum password length is 64 characters."
-    IDS_NODRIVER            "Unable to connect to the Device Driver.\n\nPlease make sure it is running, and that it is the correct version."
+    IDS_NODRIVER            "Unable to connect to TrueCrypt device driver.\nTrueCrypt cannot work if the device driver is not running."
     IDS_RAWDEVICES          "Unable to list raw devices installed on your system!"
     IDS_ALREADY_MOUNTED     "Volume is already mounted."
     IDS_DEVICE_IN_USE_FAILED 
@@ -271,7 +271,7 @@ END
 
 STRINGTABLE 
 BEGIN
-    IDS_DRIVER_VERSION      "This program requires version %s of the TrueCrypt driver. Please reinstall the software."
+    IDS_DRIVER_VERSION      "This computer is currently running an incompatible\nversion of TrueCrypt device driver.\n\nRequired version: TrueCrypt %s"
     IDS_NEW_VERSION_REQUIRED 
                             "This volume requires a new version of TrueCrypt."
     IDS_SETFILETIME_FAILED_GENERIC 
@@ -311,9 +311,9 @@ BEGIN
     IDS_ADMIN_PRIVILEGES_WARN_DEVICES 
                             "Please note that in order to encrypt/format a partition/device you\nneed to be logged into an account with administrator privileges.\n\nThis does not apply to file-hosted containers."
     IDS_ADMIN_PRIVILEGES_WARN_NTFS 
-                            "Please note that in order to format the volume as NTFS you need to\nbe logged into an account with administrator privileges.\n\nWithout administrator privileges, you can format the volume as FAT ."
+                            "Please note that in order to format the volume as NTFS you need to\nbe logged into an account with administrator privileges.\n\nWithout administrator privileges, you can format the volume as FAT."
     IDS_ADMIN_PRIVILEGES_WARN_HIDVOL 
-                            "In order to create a hidden volume you need to be\nlogged into an account with administrator privileges."
+                            "In order to create a hidden volume you need to be\nlogged into an account with administrator privileges.\n\nContinue?"
     IDS_DEVICE_PARTITIONS_WARN 
                             "WARNING: Selected device contains partitions!\n\nFormatting the device will destroy its partitions and\nmay lead to data loss and/or system instability.\nYou should either select a partition located on the\ndevice or remove all its partitions first.\n\nContinue?"
     IDS_DEVICE_IN_USE_FORMAT 
@@ -323,11 +323,11 @@ BEGIN
                             "In order to load TrueCrypt driver you need to be\nlogged into an account with administrator privileges."
     IDS_SELECT_DEST_DIR     "Select destination directory"
     IDS_TRAVELLER_DISK_CREATED 
-                            "TrueCrypt traveller disk has been successfully created.\n\nNote that you need administrator privileges in order to able to run TrueCrypt in traveller mode. "
+                            "TrueCrypt traveller disk has been successfully created.\n\nNote that you need administrator privileges to run TrueCrypt in traveller mode.\n"
     IDS_NO_PATH_SELECTED    "No path selected!"
     IDS_NO_FILE_SELECTED    "No file selected!"
     IDS_TRAVELLER_DISK_CREATED2 
-                            "Also note that, after examining the registry file, it may be possible to tell that TrueCrypt was run on a Windows system even if it is run in traveller mode."
+                            "Also note that, after examining the registry file, it may be possible to tell that\nTrueCrypt was run on a Windows system even if it is run in traveller mode."
 END
 
 #endif    // English (U.S.) resources

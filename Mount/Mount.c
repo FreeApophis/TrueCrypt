@@ -730,6 +730,15 @@ VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 				sprintf (szTmp, "Normal");
 			listItem.pszText = szTmp;
 			ListView_SetItem (list, &listItem);
+			
+			listItem.pszText = "Access Mode";
+			listItem.iItem++;  
+			listItem.iSubItem = 0;
+			ListView_InsertItem (list, &listItem);
+			listItem.iSubItem++;
+			strcpy (szTmp, prop.readOnly ? "Read-Only" : "Read-Write");
+			listItem.pszText = szTmp;
+			ListView_SetItem (list, &listItem);
 
 			listItem.pszText = "Encryption Algorithm";
 			listItem.iItem++; 
@@ -909,27 +918,45 @@ TravellerDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			return 1;
 		}
 
+
 	case WM_COMMAND:
+
+		if (HIWORD (wParam) == BN_CLICKED
+			&& (lw == IDC_AUTORUN_DISABLE || lw == IDC_AUTORUN_MOUNT || lw == IDC_AUTORUN_START ))
+		{
+			BOOL enabled = !IsButtonChecked (GetDlgItem (hwndDlg, IDC_AUTORUN_DISABLE));
+			
+			EnableWindow (GetDlgItem (hwndDlg, IDC_BROWSE_FILES), enabled);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_VOLUME_NAME), enabled);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_PREF_OPEN_EXPLORER), enabled);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_PREF_CACHE_PASSWORDS), enabled);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_MOUNT_READONLY), enabled);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_DRIVELIST), enabled);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_STATIC2), enabled);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_STATIC3), enabled);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_STATIC4), enabled);
+
+			return 1;
+		}
 
 		if (lw == IDC_BROWSE_FILES)
 		{
-			char volName[MAX_PATH];
+			char volName[MAX_PATH] = { 0 };
 
 			if (BrowseFiles (hwndDlg, IDS_OPEN_TITLE, volName, FALSE))
-			{
 				SetDlgItemText (hwndDlg, IDC_VOLUME_NAME, strchr (volName, '\\') + 1);
-			}	
+
 			return 1;
 		}
 
 		if (lw == IDC_BROWSE_DIRS)
 		{
 			char dstPath[MAX_PATH * 2];
+			GetDlgItemText (hwndDlg, IDC_DIRECTORY, dstPath, sizeof dstPath);
 
-			if (BrowseDirectories (hwndDlg, IDS_SELECT_DEST_DIR, dstPath))
-			{
+			if (BrowseDirectories (hwndDlg, getstr (IDS_SELECT_DEST_DIR), dstPath))
 				SetDlgItemText (hwndDlg, IDC_DIRECTORY, dstPath);
-			}	
+
 			return 1;
 		}
 
@@ -1244,7 +1271,7 @@ static void Mount (HWND hwndDlg)
 	if (mounted > 0)
 	{
 		if (bBeep == TRUE)
-			MessageBeep (MB_OK);
+			MessageBeep (-1);
 
 		RefreshMainDlg(hwndDlg);
 
@@ -1276,7 +1303,7 @@ static void Dismount (HWND hwndDlg, int nDosDriveNo)
 	if (UnmountVolume (hwndDlg, nDosDriveNo, bForceUnmount))
 	{
 		if (bBeep == TRUE)
-			MessageBeep (MB_OK);
+			MessageBeep (-1);
 		RefreshMainDlg (hwndDlg);
 	}
 
@@ -1298,6 +1325,13 @@ retry:
 	ArrowWaitCursor();
 
 	DeviceIoControl (hDriver, MOUNT_LIST, &mountList, sizeof (mountList), &mountList, sizeof (mountList), &dwResult, NULL);
+
+	if (mountList.ulMountedDrives == 0)
+	{
+		NormalCursor();
+		return;
+	}
+
 	prevMountedDrives = mountList.ulMountedDrives;
 
 	for (i = 0; i < 26; i++)
@@ -1356,7 +1390,7 @@ retry:
 	else
 	{
 		if (bBeep == TRUE)
-			MessageBeep (MB_OK);
+			MessageBeep (-1);
 	}
 }
 
@@ -1365,7 +1399,6 @@ static void MountAllDevices (HWND hwndDlg)
 	HWND driveList = GetDlgItem (hwndDlg, IDC_DRIVELIST);
 	int i, n, selDrive = ListView_GetSelectionMark (driveList);
 	char szPassword[MAX_PASSWORD + 1];
-	int mounted;
 	BOOL shared = FALSE;
 
 	if (selDrive == -1) selDrive = 0;
@@ -1611,11 +1644,11 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 					if (mounted > 0)
 					{
-						if (bBeep == TRUE) MessageBeep (MB_OK);
+						if (bBeep == TRUE) MessageBeep (-1);
 						if (bExplore == TRUE) OpenVolumeExplorerWindow (szDriveLetter[0] - 'A');
-						if (bQuiet) ExitProcess (0);
+						if (bQuiet) exit (0);
 					}
-					else if (bQuiet) ExitProcess (1);
+					else if (bQuiet) exit (1);
 					
 					RefreshMainDlg(hwndDlg);
 				}
@@ -1627,7 +1660,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			else if (cmdUnmountDrive == -1)
 				DismountAll (hwndDlg, bForceUnmount);
 
-			if (bQuiet) ExitProcess (0);
+			if (bQuiet) exit (0);
 
 			SetFocus (GetDlgItem (hwndDlg, IDC_DRIVELIST));
 		}
@@ -1796,7 +1829,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			tmp = strrchr (t, '\\');
 			if (tmp)
 			{
-				strcpy (++tmp, "license.txt");
+				strcpy (++tmp, "License.txt");
 				ShellExecute (NULL, "open", t, NULL, NULL, SW_SHOWNORMAL);
 			}
 			return 1;
@@ -1856,10 +1889,19 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			DWORD driveMap = GetLogicalDrives ();
 			
 			ArrowWaitCursor ();
+
 			BroadcastDeviceChange (DBT_DEVICEREMOVECOMPLETE, 0, ~driveMap);
 			Sleep (100);
 			BroadcastDeviceChange (DBT_DEVICEARRIVAL, 0, driveMap);
+
 			LoadDriveLetters (GetDlgItem (hwndDlg, IDC_DRIVELIST), 0);
+
+			if (nSelectedDriveIndex >= 0)
+			{
+				SelectItem (GetDlgItem (hwndDlg, IDC_DRIVELIST),
+					(char) HIWORD (GetItemLong (GetDlgItem (hwndDlg, IDC_DRIVELIST), nSelectedDriveIndex)));
+			}
+
 			NormalCursor ();
 		}
 
@@ -1980,6 +2022,10 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 					{
 						char path[MAX_PATH*2];
 						GetCurrentDirectory (MAX_PATH, path);
+
+						if (path[strlen (path) - 1] != '\\')
+							strcat (path, "\\");
+						
 						strcat (path, szFileName);
 						strncpy (szFileName, path, MAX_PATH-1);
 					}

@@ -10,10 +10,8 @@
 #define IDC_LICENSE                     1003
 #define IDC_FILES                       1006
 #define IDC_FILE_TYPE                   1007
-#define IDC_UNINSTALL                   1008
 #define IDC_INSTRUCTION                 1009
 #define IDC_PROG_GROUP                  1010
-#define IDC_UNINSTALL2                  1011
 #define IDC_SYSTEM_RESTORE              1011
 #define IDC_PROG_GROUP2                 1012
 #define IDC_DESKTOP_ICON                1012

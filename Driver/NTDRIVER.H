@@ -115,6 +115,8 @@ NTSTATUS TCDeviceIoControl (PWSTR deviceName, ULONG IoControlCode, void *InputBu
 NTSTATUS TCOpenFsVolume (PEXTENSION Extension, PHANDLE volumeHandle, PFILE_OBJECT * fileObject);
 void TCCloseFsVolume (HANDLE volumeHandle, PFILE_OBJECT fileObject);
 NTSTATUS TCFsctlCall (PFILE_OBJECT fileObject, LONG IoControlCode, void *InputBuffer, int InputBufferSize, void *OutputBuffer, int OutputBufferSize);
+NTSTATUS CreateDriveLink (int nDosDriveNo);
+NTSTATUS RemoveDriveLink (int nDosDriveNo);
 NTSTATUS MountManagerMount (MOUNT_STRUCT *mount);
 NTSTATUS MountManagerUnmount (int nDosDriveNo);
 NTSTATUS MountDevice (PDEVICE_OBJECT deviceObject, MOUNT_STRUCT *mount);

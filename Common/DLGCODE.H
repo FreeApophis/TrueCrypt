@@ -81,6 +81,7 @@ BOOL WINAPI MountOptionsDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM l
 int DriverAttach ( void );
 BOOL SeekHiddenVolHeader (HFILE dev, unsigned __int64 volSize, BOOL deviceFlag);
 BOOL BrowseFiles ( HWND hwndDlg , UINT nTitleID , char *lpszFileName, BOOL keepHistory );
+BOOL BrowseDirectories (HWND hWnd, char *lpszTitle, char *dirName);
 void handleError ( HWND hwndDlg , int code );
 void SetDefaultUserFont (HWND hwnd);
 void OpenVolumeExplorerWindow (int driveNo);
@@ -103,3 +104,4 @@ int GetDiskDeviceDriveLetter (PWSTR deviceName);
 HANDLE DismountDrive (int driveNo);
 BOOL TCCopyFile (char *sourceFileName, char *destinationFile);
 BOOL IsNonInstallMode ();
+BOOL DriverUnload ();

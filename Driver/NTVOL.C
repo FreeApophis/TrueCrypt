@@ -389,8 +389,6 @@ error:
 void
 TCCloseVolume (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension)
 {
-	NTSTATUS ntStatus;
-
 	if (DeviceObject);	/* Remove compiler warning */
 
 	if (Extension->hDeviceFile != NULL)
@@ -401,9 +399,7 @@ TCCloseVolume (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension)
 			RestoreTimeStamp (Extension);
 		}
 
-		ntStatus = ZwClose (Extension->hDeviceFile);
-		if (!NT_SUCCESS (ntStatus))
-			Dump ("ZwClose failed in TCCloseVolume: NTSTATUS 0x%08x\n", ntStatus);
+		ZwClose (Extension->hDeviceFile);
 	}
 	ObDereferenceObject (Extension->pfoDeviceFile);
 	crypto_close (Extension->cryptoInfo);
@@ -527,11 +523,6 @@ TCCompletion (PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID pUserBuffer)
 			CurrentAddress = Irp->UserBuffer;
 			OriginalAddress = MmGetSystemAddressForMdlSafe (OldIrp->MdlAddress, HighPagePriority);
 		}
-
-		//if (NT_SUCCESS (Irp->IoStatus.Status))
-		//{
-		//	__int64 tmpOffset = irpSp->Parameters.Read.ByteOffset.QuadPart;
-		//}
 	}
 
 	if (Extension->bRawDevice == TRUE && irpSp->MajorFunction == IRP_MJ_WRITE)

@@ -1,3 +1,65 @@
+
+-- Version 3.1a - Released 2005/02/07 --
+
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.58:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.77:
+		Drive A: will not be removed from shell by DismountAll()
+
+	* D:/Projects/Cvs/TrueCrypt/Format/TCFORMAT.C 1.46:
+		Wizard mounts volumes as removable if enabled in default mount options,
+		read-only if possible
+
+	* D:/Projects/Cvs/TrueCrypt/Common/APIDRVR.H 1.17:
+	* D:/Projects/Cvs/TrueCrypt/Driver/NTDRIVER.C 1.25:
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.57:
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.H 1.31:
+	* D:/Projects/Cvs/TrueCrypt/Setup/SETUP.C 1.26:
+		DEVICE_REFCOUNT ioctl added to support driver unload in non-install mode
+
+	* D:/Projects/Cvs/TrueCrypt/Driver/NTDRIVER.C 1.24:
+	* D:/Projects/Cvs/TrueCrypt/Driver/NTVOL.C 1.21:
+		Zombie device objects of dismounted volumes will not be treated 
+		as mounted
+
+	* D:/Projects/Cvs/TrueCrypt/Driver/NTDRIVER.C 1.23:
+	* D:/Projects/Cvs/TrueCrypt/Driver/NTDRIVER.H 1.14:
+		Symbolic link is always created/deleted as mount manager may 
+		fail to do so
+
+	* D:/Projects/Cvs/TrueCrypt/Driver/NTDRIVER.C 1.22:
+		Volumes mounted as removable can be formatted and verified
+
+	* D:/Projects/Cvs/TrueCrypt/Common/Common.rc 1.35:
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.51:
+	* D:/Projects/Cvs/TrueCrypt/Format/TCFORMAT.C 1.41:
+	* D:/Projects/Cvs/TrueCrypt/Setup/SETUP.C 1.21:
+		Privileges handling improved
+
+	* D:/Projects/Cvs/TrueCrypt/Common/FORMAT.C 1.25:
+		CreateFile() error description reported to user
+
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.C 1.53:
+	* D:/Projects/Cvs/TrueCrypt/Common/DLGCODE.H 1.28:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.71:
+	* D:/Projects/Cvs/TrueCrypt/Release/Readme.txt 1.10:
+	* D:/Projects/Cvs/TrueCrypt/Setup/SETUP.C 1.22:
+		Driver will be unloaded if unused in non-install mode
+		Setup will not run if driver is in use
+
+	* D:/Projects/Cvs/TrueCrypt/Common/APIDRVR.H 1.16:
+	* D:/Projects/Cvs/TrueCrypt/Driver/NTDRIVER.C 1.21:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.69:
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.rc 1.29:
+		Access mode added to volume properties dialog
+
+	* D:/Projects/Cvs/TrueCrypt/Setup/SETUP.C 1.20:
+	* D:/Projects/Cvs/TrueCrypt/Setup/resource.h 1.2:
+		Uninstaller always installed
+
+	* D:/Projects/Cvs/TrueCrypt/Mount/Mount.c 1.68:
+		Relative paths can be used with /volume option
+
+
 -- Version 3.1 - Released 2005/01/22 --
 
 	* D:/Projects/Cvs/TrueCrypt/Common/FAT.C 1.13:

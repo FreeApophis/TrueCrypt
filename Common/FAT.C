@@ -22,19 +22,19 @@ GetFatParams (fatparams * ft)
 	int fatsecs;
 	if(ft->cluster_size == 0)	// 'Default' cluster size
 	{
-		if (ft->num_sectors * 512I64 >= 512*BYTES_PER_GB)
+		if (ft->num_sectors * 512I64 >= 256*BYTES_PER_GB)
 			ft->cluster_size = 128;
-		else if (ft->num_sectors * 512I64 >= 256*BYTES_PER_GB)
-			ft->cluster_size = 64;
-		else if (ft->num_sectors * 512I64 >= 128*BYTES_PER_GB)
-			ft->cluster_size = 32;
 		else if (ft->num_sectors * 512I64 >= 64*BYTES_PER_GB)
-			ft->cluster_size = 16;
-		else if (ft->num_sectors * 512I64 >= 32*BYTES_PER_GB)
-			ft->cluster_size = 8;
+			ft->cluster_size = 64;
 		else if (ft->num_sectors * 512I64 >= 16*BYTES_PER_GB)
-			ft->cluster_size = 4;
+			ft->cluster_size = 32;
 		else if (ft->num_sectors * 512I64 >= 8*BYTES_PER_GB)
+			ft->cluster_size = 16;
+		else if (ft->num_sectors * 512I64 >= 128*BYTES_PER_MB)
+			ft->cluster_size = 8;
+		else if (ft->num_sectors * 512I64 >= 64*BYTES_PER_MB)
+			ft->cluster_size = 4;
+		else if (ft->num_sectors * 512I64 >= 32*BYTES_PER_MB)
 			ft->cluster_size = 2;
 		else
 			ft->cluster_size = 1;

@@ -63,6 +63,7 @@ etc... */
 #define CACHE_STATUS		466988	/* Get password cache status */
 #define VOLUME_PROPERTIES	466992	/* Get mounted volume properties */
 #define RESOLVE_SYMLINK		466996	/* Resolve symbolic link to target */
+#define DEVICE_REFCOUNT		467000	/* Return reference count of root device object */
 #define UNMOUNT_ALL			475112	/* Unmount all volumes */
 
 #define TC_FIRST_PRIVATE	MOUNT	/* First private control code */
@@ -115,6 +116,7 @@ typedef struct
 	int pkcs5;
 	int pkcs5Iterations;
 	BOOL hiddenVolume;
+	BOOL readOnly;
 	unsigned __int64 volumeCreationTime;
 	unsigned __int64 headerCreationTime;
 	//int readOnly;

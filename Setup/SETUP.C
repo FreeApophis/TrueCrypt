@@ -155,79 +155,13 @@ IconMessage (HWND hwndDlg, char *txt)
 	StatusMessage (hwndDlg, "Adding icon %s", txt);
 }
 
-int CALLBACK
-BrowseCallbackProc(HWND hwnd,UINT uMsg,LPARAM lp, LPARAM pData) 
-{
-	switch(uMsg) {
-	case BFFM_INITIALIZED: 
-	{
-	  /* WParam is TRUE since we are passing a path.
-	   It would be FALSE if we were passing a pidl. */
-	   SendMessage(hwnd,BFFM_SETSELECTION,TRUE,(LPARAM)pData);
-	   break;
-	}
-
-	case BFFM_SELCHANGED: 
-	{
-		char szDir[TC_MAX_PATH];
-
-	   /* Set the status window to the currently selected path. */
-	   if (SHGetPathFromIDList((LPITEMIDLIST) lp ,szDir)) 
-	   {
-		  SendMessage(hwnd,BFFM_SETSTATUSTEXT,0,(LPARAM)szDir);
-	   }
-	   break;
-	}
-
-	default:
-	   break;
-	}
-
-	return 0;
-}
-
-BOOL
-BrowseFiles2 (HWND hwndDlg, char* lpszTitle, char* lpszFileName)
-{
-	BROWSEINFO bi;
-	LPITEMIDLIST pidl;
-	LPMALLOC pMalloc;
-	BOOL bOK  = FALSE;
-
-	if (SUCCEEDED(SHGetMalloc(&pMalloc))) 
-	{
-		ZeroMemory(&bi,sizeof(bi));
-		bi.hwndOwner = hwndDlg;
-		bi.pszDisplayName = 0;
-		bi.lpszTitle = lpszTitle;
-		bi.pidlRoot = 0;
-		bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_STATUSTEXT /*| BIF_EDITBOX*/;
-		bi.lpfn = BrowseCallbackProc;
-		bi.lParam = (LPARAM)lpszFileName;
-
-		pidl = SHBrowseForFolder(&bi);
-		if (pidl!=NULL) 
-		{
-			if (SHGetPathFromIDList(pidl,lpszFileName)==TRUE) 
-			{
-				bOK = TRUE;
-			}
-
-			pMalloc->lpVtbl->Free(pMalloc,pidl);
-			pMalloc->lpVtbl->Release(pMalloc);
-		}
-	}
-
-	return bOK;
-}
-
 
 void
 LoadLicense (HWND hwndDlg)
 {
 	FILE *fp;
 
-	fp = fopen ("Setup Files\\license.txt", "rb");
+	fp = fopen ("Setup Files\\License.txt", "rb");
 
 	if (fp == NULL)
 		return;
@@ -254,7 +188,7 @@ LoadLicense (HWND hwndDlg)
 			}
 			else
 			{
-				int i;
+//				int i;
 				tmp[x] = 0;
 
 				//// Remove single CRLFs
@@ -284,12 +218,10 @@ LoadLicense (HWND hwndDlg)
 BOOL
 DoFilesInstall (HWND hwndDlg, char *szDestDir, BOOL bUninstallSupport)
 {
-
-
 	char *szFiles[]=
 	{
 		"ATrueCrypt.exe", "ATrueCrypt Format.exe",
-		"Alicense.txt", "ATrueCrypt User Guide.pdf",
+		"ALicense.txt", "ATrueCrypt User Guide.pdf",
 		"WTrueCrypt Setup.exe", "Dtruecrypt.sys"
 	};
 
@@ -756,6 +688,7 @@ DoDriverUnload (HWND hwndDlg)
 	if (hDriver != INVALID_HANDLE_VALUE)
 	{
 		MOUNT_LIST_STRUCT driver;
+		int refCount;
 		DWORD dwResult;
 		BOOL bResult;
 
@@ -767,7 +700,7 @@ DoDriverUnload (HWND hwndDlg)
 			if (driver.ulMountedDrives != 0)
 			{
 				bOK = FALSE;
-				MessageBox (hwndDlg, "Volumes are still mounted! All volumes must be dismounted before installation can continue.", lpszTitle, MB_ICONHAND);
+				MessageBox (hwndDlg, "Volumes are still mounted. All volumes must be dismounted before installation can continue.", lpszTitle, MB_ICONHAND);
 			}
 		}
 		else
@@ -775,10 +708,19 @@ DoDriverUnload (HWND hwndDlg)
 			bOK = FALSE;
 			handleWin32Error (hwndDlg);
 		}
+		
+		// Test for any applications attached to driver
+		bResult = DeviceIoControl (hDriver, DEVICE_REFCOUNT, &refCount, sizeof (refCount), &refCount,
+			sizeof (refCount), &dwResult, NULL);
+
+		if (bOK && bResult == TRUE && refCount > 1)
+		{
+			MessageBox (hwndDlg, "Please close all open TrueCrypt windows first.", lpszTitle, MB_ICONSTOP);
+			bOK = FALSE;
+		}
 
 		CloseHandle (hDriver);
 		hDriver = INVALID_HANDLE_VALUE;
-
 	}
 
 	return bOK;
@@ -858,7 +800,7 @@ BOOL
 DoShortcutsUninstall (HWND hwndDlg, char *szDestDir)
 {
 	char szLinkDir[TC_MAX_PATH], szDir[TC_MAX_PATH];
-	char szTmp[TC_MAX_PATH], szTmp2[TC_MAX_PATH];
+	char szTmp2[TC_MAX_PATH];
 	BOOL bSlash, bOK = FALSE;
 	HRESULT hOle;
 	int x;
@@ -983,7 +925,7 @@ DoShortcutsInstall (HWND hwndDlg, char *szDestDir, BOOL bProgGroup, BOOL bDeskto
 		if (mkfulldir (szLinkDir, TRUE) != 0)
 		{
 			char szTmp[TC_MAX_PATH];
-			int x;
+//			int x;
 
 			//sprintf (szTmp, "The program folder '%s' does not exist. Do you want to create this folder?", szLinkDir);
 			//x = MessageBox (hwndDlg, szTmp, lpszTitle, MB_ICONQUESTION | MB_YESNO);
@@ -1261,13 +1203,13 @@ DoInstall (void *hwndDlg)
 	{
 		bOK = FALSE;
 	}
-	else if (DoFilesInstall ((HWND) hwndDlg, dlg_file_name, IsButtonChecked (GetDlgItem ((HWND) hwndDlg, IDC_UNINSTALL))) == FALSE)
+	else if (DoFilesInstall ((HWND) hwndDlg, dlg_file_name, TRUE) == FALSE)
 	{
 		bOK = FALSE;
 	}
 	else if (DoRegInstall ((HWND) hwndDlg, dlg_file_name,
 		IsButtonChecked (GetDlgItem ((HWND) hwndDlg, IDC_FILE_TYPE)),
-			       IsButtonChecked (GetDlgItem ((HWND) hwndDlg, IDC_UNINSTALL))) == FALSE)
+			       TRUE) == FALSE)
 	{
 		bOK = FALSE;
 	}
@@ -1319,8 +1261,6 @@ InstallDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 
 		if (bUninstall == FALSE)
 		{
-			SendMessage (GetDlgItem (hwndDlg, IDC_FILES), LB_ADDSTRING, 0, (LPARAM) "By clicking 'Install', you accept the license agreement.");
-
 			LoadLicense (hwndDlg);
 		}
 
@@ -1329,7 +1269,6 @@ InstallDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			EnableWindow (GetDlgItem ((HWND) hwndDlg, IDC_ALL_USERS), FALSE);
 
 		SendMessage (GetDlgItem (hwndDlg, IDC_FILE_TYPE), BM_SETCHECK, BST_CHECKED, 0);
-		SendMessage (GetDlgItem (hwndDlg, IDC_UNINSTALL), BM_SETCHECK, BST_CHECKED, 0);
 		SendMessage (GetDlgItem (hwndDlg, IDC_PROG_GROUP), BM_SETCHECK, BST_CHECKED, 0);
 		SendMessage (GetDlgItem (hwndDlg, IDC_DESKTOP_ICON), BM_SETCHECK, BST_CHECKED, 0);
 
@@ -1370,7 +1309,7 @@ InstallDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 				if (mkfulldir (szDirname, TRUE) != 0)
 				{
 					char szTmp[TC_MAX_PATH];
-					int x;
+					//int x;
 
 					//sprintf (szTmp, "The directory '%s' does not exist. Do you want to create this directory?", szDirname);
 					//x = MessageBox (hwndDlg, szTmp, lpszTitle, MB_ICONQUESTION | MB_YESNO);
@@ -1413,7 +1352,7 @@ InstallDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 
 			GetWindowText (GetDlgItem (hwndDlg, IDC_DESTINATION), szDirname, sizeof (szDirname));
 
-			if (BrowseFiles2 (hwndDlg, "Please select a folder", szDirname) == TRUE)
+			if (BrowseDirectories (hwndDlg, "Please select installation directory", szDirname) == TRUE)
 				SetWindowText (GetDlgItem (hwndDlg, IDC_DESTINATION), szDirname);
 			
 			return 1;
@@ -1452,7 +1391,7 @@ WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine,
 
 	if (nCurrentOS == WIN_NT && IsAdmin ()!= TRUE)
 		if (MessageBox (NULL, "To successfully install/uninstall TrueCrypt you must have Administrator rights, "
-				"do you still want to continue?", lpszTitle, MB_YESNO | MB_ICONQUESTION) != IDYES)
+				"do you want to continue?", lpszTitle, MB_YESNO | MB_ICONQUESTION) != IDYES)
 			return 0;
 
 	if (lpszCommandLine[0] == '/' && (lpszCommandLine[1] == 'u' || lpszCommandLine[1] == 'U'))
@@ -1462,9 +1401,6 @@ WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine,
 
 	if (bUninstall == FALSE)
 	{
-		if (CurrentOSMajor == 5 && CurrentOSMinor == 0)
-			MessageBox (NULL, "If you are upgrading from a previous version of TrueCrypt\nyou should first uninstall TrueCrypt and reboot system.", lpszTitle, MB_ICONINFORMATION);
-
 		/* Create the main dialog box */
 		DialogBox (hInstance, MAKEINTRESOURCE (IDD_INSTALL), NULL, (DLGPROC) InstallDlgProc);
 	}

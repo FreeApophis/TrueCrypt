@@ -17,6 +17,7 @@
 #include "pkcs5.h"
 #include "endian.h"
 #include "resource.h"
+#include "random.h"
 
 #include <io.h>
 
@@ -66,7 +67,6 @@ ChangePwd (char *lpszVolume, char *lpszOldPassword, char *lpszPassword, int pkcs
 	char buffer[HEADER_SIZE], bufferHiddenVolume[HEADER_SIZE];
 	PCRYPTO_INFO cryptoInfo = NULL, ci = NULL;
 	void *dev = INVALID_HANDLE_VALUE;
-	OPEN_TEST_STRUCT driver;
 	diskio_f write, read;
 	DWORD dwError;
 	BOOL bDevice;
@@ -110,7 +110,6 @@ ChangePwd (char *lpszVolume, char *lpszOldPassword, char *lpszPassword, int pkcs
 		{
 			DISK_GEOMETRY driveInfo;
 			DWORD dwResult;
-			int nStatus;
 			BOOL bResult;
 
 			bResult = DeviceIoControl (dev, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0,
