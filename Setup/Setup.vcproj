@@ -71,7 +71,6 @@
 			CharacterSet="2">
 			<Tool
 				Name="VCCLCompilerTool"
-				OmitFramePointers="FALSE"
 				AdditionalIncludeDirectories="..\Common;..\Crypto"
 				PreprocessorDefinitions="SETUP;WIN32;NDEBUG;_WINDOWS"
 				RuntimeLibrary="0"

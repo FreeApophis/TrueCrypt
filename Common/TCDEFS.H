@@ -1,11 +1,15 @@
-/* Copyright (C) 2004 TrueCrypt Foundation
-   This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
+/* The source code contained in this file has been derived from the source code
+   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
+   additions to that source code contained in this file are Copyright (c) 2004
+   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
+   release. Please see the file license.txt for full license details. */
 
 // Version displayed to user 
-#define VERSION_STRING                  "2.0"
+#define VERSION_STRING                  "2.1"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x0200
+#define VERSION_NUM						0x0210
 
 // Version number written to volume header during format,
 // specifies the minimum program version required to mount the volume

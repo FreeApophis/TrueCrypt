@@ -24,11 +24,6 @@
 #define IDS_SIZE_HELP1                  44
 #define IDS_FORMAT_HELP0                46
 #define IDS_TITLE                       50
-#define IDS_VOL_STATUS0                 51
-#define IDS_VOL_STATUS1                 52
-#define IDS_VOL_STATUS2                 53
-#define IDS_VOL_NO_LABEL                54
-#define IDS_VOL_LABEL                   55
 #define IDS_FORMAT_HELP1                56
 #define IDS_FORMAT_HELP2                57
 #define IDS_READONLYPROMPT              58
@@ -52,7 +47,6 @@
 #define IDS_TRIPLEDES_HELP1             83
 #define IDS_CAST_HELP0                  84
 #define IDS_CAST_HELP1                  85
-#define IDS_DRIVE_TOO_BIG               86
 #define IDS_EXT_PARTITION               87
 #define IDS_CIPHER_TEST                 88
 #define IDS_TESTS_PASSED                89
@@ -86,10 +80,8 @@
 #define IDC_STATS_BOX                   1021
 #define IDC_CANCEL_BAR                  1022
 #define IDC_SHA1                        1024
-#define IDC_MD5                         1025
 #define IDC_RIPEMD160                   1025
-#define IDC_KEY_SALT                    1026
-#define IDC_MD6                         1026
+#define IDC_HEADER_KEY                  1026
 #define IDC_DISK_KEY                    1027
 #define IDC_RANDOM_BYTES                1028
 #define IDC_CIPHER_TEST                 1029
@@ -99,13 +91,12 @@
 #define IDC_TESTS_MESSAGE               1036
 #define IDC_QUICKFORMAT                 1037
 #define IDC_BYTESWRITTEN                1038
-#define IDC_STATIC9                     1039
 #define IDC_WRITESPEED                  1039
-#define IDC_BYTESWRITTEN3               1041
 #define IDC_TIMEREMAIN                  1041
-#define IDC_COMBO1                      1042
 #define IDC_CLUSTERSIZE                 1042
 #define IDC_SPIN1                       1043
+#define IDC_FILESYS                     1043
+#define IDC_SHOW_KEYS                   1049
 #define IDC_RESET                       1104
 #define IDC_AUTO                        1105
 #define IDC_DECRYPT                     1112
@@ -122,7 +113,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        123
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1045
+#define _APS_NEXT_CONTROL_VALUE         1050
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

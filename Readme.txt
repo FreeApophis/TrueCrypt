@@ -1,6 +1,6 @@
 
-TrueCrypt 2.0 Source Code Distribution
-Copyright (C) 2004 TrueCrypt Foundation
+TrueCrypt 2.1 Source Code Distribution
+Released by TrueCrypt Foundation, 2004/06/21
 
 See 'Docs\License.txt' file for license covering this distribution.
 See 'Release\Setup files\TrueCrypt User Guide.pdf' file for more information.
@@ -9,7 +9,7 @@ See 'Release\Setup files\TrueCrypt User Guide.pdf' file for more information.
 Requirements for building TrueCrypt:
 
 - Microsoft Visual Studio .NET 2003
-- Windows XP (build 2600 or higher) Driver Development Kit
+- Windows XP Driver Development Kit (build 2600 or higher)
 
 
 Before building TrueCrypt:

@@ -1,17 +1,20 @@
-/* Copyright (C) 2004 TrueCrypt Foundation
-   This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
+/* The source code contained in this file has been derived from the source code
+   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
+   additions to that source code contained in this file are Copyright (c) 2004
+   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
+   release. Please see the file license.txt for full license details. */
 
 #include "TCdefs.h"
 
 #include "crypto.h"
 #include "random.h"
+#include "format.h"
 #include "fat.h"
 #include "progress.h"
 
-
 #include <time.h>
 
-#define WRITE_BUF_SIZE 65536
 
 void
 GetFatParams (fatparams * ft)
@@ -236,39 +239,9 @@ PutFSInfo (unsigned char *sector)
 		sector[508+0]=0x00;
 }
 
-BOOL
-WriteSector (HFILE dev, char *sector,
-	     char *write_buf, int *write_buf_cnt,
-	     __int64 *nSecNo, int *progress, PCRYPTO_INFO cryptoInfo,
-	     int nFrequency, diskio_f write)
-{
-	(*cryptoInfo->encrypt_sector) ((unsigned long *) sector,
-	(*nSecNo)++, 1, cryptoInfo->ks, cryptoInfo->iv, cryptoInfo->cipher);
-	memcpy (write_buf + *write_buf_cnt, sector, SECTOR_SIZE);
-	(*write_buf_cnt) += SECTOR_SIZE;
-
-
-	if (*write_buf_cnt == WRITE_BUF_SIZE)
-	{
-		if ((*write) (dev, write_buf, WRITE_BUF_SIZE) == HFILE_ERROR)
-			return FALSE;
-		else
-			*write_buf_cnt = 0;
-	}
-
-	if (++(*progress) == nFrequency)
-	{
-		if (UpdateProgressBar (*nSecNo) == TRUE)
-			return FALSE;
-		*progress = 0;
-	}
-
-	return TRUE;
-
-}
 
 int
-Format (fatparams * ft, HFILE dev, PCRYPTO_INFO cryptoInfo, int nFrequency, diskio_f write, BOOL quickFormat)
+FormatFat (fatparams * ft, char *header, HFILE dev, PCRYPTO_INFO cryptoInfo, int nFrequency, diskio_f write, BOOL quickFormat)
 {
 	int write_buf_cnt = 0;
 	char sector[SECTOR_SIZE], *write_buf;
@@ -276,7 +249,7 @@ Format (fatparams * ft, HFILE dev, PCRYPTO_INFO cryptoInfo, int nFrequency, disk
 	unsigned __int64 nSecNo = 1;
 	int x, n;
 
-	if ((*write) (dev, (char *) &ft->header, SECTOR_SIZE) == HFILE_ERROR)
+	if ((*write) (dev, header, SECTOR_SIZE) == HFILE_ERROR)
 		return ERR_OS_ERROR;
 
 	write_buf = TCalloc (WRITE_BUF_SIZE);
@@ -406,12 +379,13 @@ Format (fatparams * ft, HFILE dev, PCRYPTO_INFO cryptoInfo, int nFrequency, disk
 				cryptoInfo, nFrequency, write) == FALSE)
 				goto fail;
 		}
+		UpdateProgressBar (nSecNo);
 	}
-
+	else
+		UpdateProgressBar (ft->num_sectors);
+		
 	if (write_buf_cnt != 0 && (*write) (dev, write_buf, write_buf_cnt) == HFILE_ERROR)
 		goto fail;
-
-	UpdateProgressBar (nSecNo);
 
 	TCfree (write_buf);
 	return 0;

@@ -1,5 +1,9 @@
-/* Copyright (C) 2004 TrueCrypt Foundation
-   This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
+/* The source code contained in this file has been derived from the source code
+   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
+   additions to that source code contained in this file are Copyright (c) 2004
+   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
+   release. Please see the file license.txt for full license details. */
 
 
 // User text input limits
@@ -30,6 +34,7 @@
 // PKCS5 PRF hash algorithm ID
 #define	SHA1				1
 #define	RIPEMD160			2
+#define LAST_PRF_ID			2			// Last PRF used for volume encryption
 
 /* The encryption algorithm ID  */
 #define NONE				0
@@ -59,9 +64,9 @@
 #include "blowfish.h"
 #include "aes.h"
 #include "idea.h"
-#include "sha.h"
-#include "sha1.h"
 #include "cast.h"
+#include "sha1.h"
+#include "rmd160.h"
 
 /* _cdecl is needed here because the device driver defaults to stdcall */
 typedef void (_cdecl * sector_func) (unsigned long *, unsigned __int64, unsigned long,

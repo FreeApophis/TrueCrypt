@@ -1,5 +1,9 @@
-/* Copyright (C) 2004 TrueCrypt Foundation
-   This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
+/* The source code contained in this file has been derived from the source code
+   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
+   additions to that source code contained in this file are Copyright (c) 2004
+   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
+   release. Please see the file license.txt for full license details. */
 
 #include "TCdefs.h"
 
@@ -53,7 +57,7 @@ VerifyPasswordAndUpdate (HWND hwndDlg, HWND hButton, HWND hPassword,
 }
 
 int
-ChangePwd (char *lpszVolume, char *lpszOldPassword, char *lpszPassword)
+ChangePwd (char *lpszVolume, char *lpszOldPassword, char *lpszPassword, int pkcs5)
 {
 	int nDosLinkCreated = 0, nStatus;
 	char szDiskFile[TC_MAX_PATH], szCFDevice[TC_MAX_PATH];
@@ -154,6 +158,9 @@ ChangePwd (char *lpszVolume, char *lpszOldPassword, char *lpszPassword)
 
 	win9x_r0.mode = 1;
 	win9x_r0.sectorstart -= 1;
+
+	if (pkcs5 != 0)
+		cryptoInfo->pkcs5 = pkcs5;
 
 	VolumeWriteHeader (boot,
 		cryptoInfo->cipher,

@@ -1,5 +1,9 @@
-/* Copyright (C) 2004 TrueCrypt Foundation
-   This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
+/* The source code contained in this file has been derived from the source code
+   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
+   additions to that source code contained in this file are Copyright (c) 2004
+   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
+   release. Please see the file license.txt for full license details. */
 
 #include "TCdefs.h"
 
@@ -462,90 +466,98 @@ VolumeReadHeader (char *encryptedHeader, char *lpszPassword, PCRYPTO_INFO * retI
 	// PKCS5 is used to derive header key and IV from user password
 	memcpy (keyInfo.key_salt, encryptedHeader + HEADER_USERKEY_SALT, USERKEY_SALT_SIZE);
 	keyInfo.noIterations = USERKEY_ITERATIONS;		
-	pkcs5 = SHA1;
 
-	if (pkcs5 == SHA1)
+	// Test all available PKCS5 PRFs
+	for (pkcs5 = 1; pkcs5 <= LAST_PRF_ID; pkcs5++)
 	{
-		derive_sha_key (keyInfo.userKey, keyInfo.keyLength, keyInfo.key_salt,
-		USERKEY_SALT_SIZE, keyInfo.noIterations, dk, DISK_IV_SIZE + MAX_CIPHER_KEY);
-	}
-	// IV for header decryption
-	memcpy (cryptoInfo->iv, dk, DISK_IV_SIZE);
-
-	// Test all available ciphers
-	for (cryptoInfo->cipher = 1; cryptoInfo->cipher <= LAST_CIPHER_ID; cryptoInfo->cipher++)
-	{
-		// Copy header for decryption
-		memcpy (header, encryptedHeader, SECTOR_SIZE);  
-		input = header;
-
-		// Try to decrypt header 
-		init_cipher (cryptoInfo->cipher, dk + DISK_IV_SIZE, cryptoInfo->ks);
-
-		DecryptBuffer (header + HEADER_ENCRYPTEDDATA, HEADER_ENCRYPTEDDATASIZE,
-							cryptoInfo->ks, cryptoInfo->iv, cryptoInfo->cipher);
-
-		input += HEADER_ENCRYPTEDDATA;
-
-		// Magic
-		if (mgetLong (input) != 'TRUE')
-			continue;
-
-		// Header version
-		headerVersion = mgetWord (input);
-
-		// Required program version
-		requiredVersion = mgetWord (input);
-
-		// Check CRC of disk IV and key
-		if (mgetLong (input) != crc32 (header + HEADER_DISKKEY, DISKKEY_SIZE))
-			continue;
-
-		// Volume creation time
-		((unsigned long *)(&cryptoInfo->volume_creation_time))[1] = mgetLong (input);
-		((unsigned long *)(&cryptoInfo->volume_creation_time))[0] = mgetLong (input);
-
-		// Header creation time
-		((unsigned long *)(&cryptoInfo->header_creation_time))[1] = mgetLong (input);
-		((unsigned long *)(&cryptoInfo->header_creation_time))[0] = mgetLong (input);
-
-		// Password and cipher OK
-
-		// Check the version required to handle this volume
-		if (requiredVersion > VERSION_NUM)
-			return ERR_NEW_VERSION_REQUIRED;
-
-		// Disk key
-		nKeyLen = DISKKEY_SIZE;
-		memcpy (keyInfo.key, header + HEADER_DISKKEY, nKeyLen);
-
-		memcpy (cryptoInfo->master_decrypted_key, keyInfo.key, nKeyLen);
-		memcpy (cryptoInfo->key_salt, keyInfo.key_salt, USERKEY_SALT_SIZE);
-		cryptoInfo->pkcs5 = pkcs5;
-		cryptoInfo->noIterations = keyInfo.noIterations;
-
-		// Init with decrypted master disk key for sector decryption
-		init_cipher (cryptoInfo->cipher, keyInfo.key + DISK_IV_SIZE, cryptoInfo->ks);
-
-		// Disk IV
-		memcpy (cryptoInfo->iv, keyInfo.key, DISK_IV_SIZE);
-
-		/* Clear out the temp. key buffer */
-		burn (dk, sizeof(dk));
-
-		switch (get_block_size (cryptoInfo->cipher))
+		if (pkcs5 == SHA1)
 		{
-		case 8:
-			cryptoInfo->encrypt_sector = &EncryptSector8;
-			cryptoInfo->decrypt_sector = &DecryptSector8;
-			break;
-		case 16:
-			cryptoInfo->encrypt_sector = &EncryptSector16;
-			cryptoInfo->decrypt_sector = &DecryptSector16;
-			break;
+			derive_sha_key (keyInfo.userKey, keyInfo.keyLength, keyInfo.key_salt,
+				USERKEY_SALT_SIZE, keyInfo.noIterations, dk, DISK_IV_SIZE + MAX_CIPHER_KEY);
+		} else if (pkcs5 == RIPEMD160)
+		{
+			derive_rmd160_key (keyInfo.userKey, keyInfo.keyLength, keyInfo.key_salt,
+				USERKEY_SALT_SIZE, keyInfo.noIterations, dk, DISK_IV_SIZE + MAX_CIPHER_KEY);
 		}
-		
-		return 0;
+
+		// IV for header decryption
+		memcpy (cryptoInfo->iv, dk, DISK_IV_SIZE);
+
+		// Test all available ciphers
+		for (cryptoInfo->cipher = 1; cryptoInfo->cipher <= LAST_CIPHER_ID; cryptoInfo->cipher++)
+		{
+			// Copy header for decryption
+			memcpy (header, encryptedHeader, SECTOR_SIZE);  
+			input = header;
+
+			// Try to decrypt header 
+			init_cipher (cryptoInfo->cipher, dk + DISK_IV_SIZE, cryptoInfo->ks);
+
+			DecryptBuffer (header + HEADER_ENCRYPTEDDATA, HEADER_ENCRYPTEDDATASIZE,
+				cryptoInfo->ks, cryptoInfo->iv, cryptoInfo->cipher);
+
+			input += HEADER_ENCRYPTEDDATA;
+
+			// Magic
+			if (mgetLong (input) != 'TRUE')
+				continue;
+
+			// Header version
+			headerVersion = mgetWord (input);
+
+			// Required program version
+			requiredVersion = mgetWord (input);
+
+			// Check CRC of disk IV and key
+			if (mgetLong (input) != crc32 (header + HEADER_DISKKEY, DISKKEY_SIZE))
+				continue;
+
+			// Volume creation time
+			((unsigned long *)(&cryptoInfo->volume_creation_time))[1] = mgetLong (input);
+			((unsigned long *)(&cryptoInfo->volume_creation_time))[0] = mgetLong (input);
+
+			// Header creation time
+			((unsigned long *)(&cryptoInfo->header_creation_time))[1] = mgetLong (input);
+			((unsigned long *)(&cryptoInfo->header_creation_time))[0] = mgetLong (input);
+
+			// Password and cipher OK
+
+			// Check the version required to handle this volume
+			if (requiredVersion > VERSION_NUM)
+				return ERR_NEW_VERSION_REQUIRED;
+
+			// Disk key
+			nKeyLen = DISKKEY_SIZE;
+			memcpy (keyInfo.key, header + HEADER_DISKKEY, nKeyLen);
+
+			memcpy (cryptoInfo->master_decrypted_key, keyInfo.key, nKeyLen);
+			memcpy (cryptoInfo->key_salt, keyInfo.key_salt, USERKEY_SALT_SIZE);
+			cryptoInfo->pkcs5 = pkcs5;
+			cryptoInfo->noIterations = keyInfo.noIterations;
+
+			// Init with decrypted master disk key for sector decryption
+			init_cipher (cryptoInfo->cipher, keyInfo.key + DISK_IV_SIZE, cryptoInfo->ks);
+
+			// Disk IV
+			memcpy (cryptoInfo->iv, keyInfo.key, DISK_IV_SIZE);
+
+			/* Clear out the temp. key buffer */
+			burn (dk, sizeof(dk));
+
+			switch (get_block_size (cryptoInfo->cipher))
+			{
+			case 8:
+				cryptoInfo->encrypt_sector = &EncryptSector8;
+				cryptoInfo->decrypt_sector = &DecryptSector8;
+				break;
+			case 16:
+				cryptoInfo->encrypt_sector = &EncryptSector16;
+				cryptoInfo->decrypt_sector = &DecryptSector16;
+				break;
+			}
+
+			return 0;
+		}
 	}
 
 	crypto_close(cryptoInfo);
@@ -556,8 +568,9 @@ VolumeReadHeader (char *encryptedHeader, char *lpszPassword, PCRYPTO_INFO * retI
 #ifndef DEVICE_DRIVER
 
 #ifdef VOLFORMAT
+extern BOOL showKeys;
 extern HWND hDiskKey;
-extern HWND hKeySalt;
+extern HWND hHeaderKey;
 #endif
 
 // VolumeWriteHeader:
@@ -603,6 +616,11 @@ VolumeWriteHeader (char *header, int cipher, char *lpszPassword,
 	if (pkcs5 == SHA1)
 	{
 		derive_sha_key (keyInfo.userKey, keyInfo.keyLength, keyInfo.key_salt,
+				USERKEY_SALT_SIZE, keyInfo.noIterations, dk, DISK_IV_SIZE + MAX_CIPHER_KEY );
+	}
+	else if (pkcs5 == RIPEMD160)
+	{
+		derive_rmd160_key (keyInfo.userKey, keyInfo.keyLength, keyInfo.key_salt,
 				USERKEY_SALT_SIZE, keyInfo.noIterations, dk, DISK_IV_SIZE + MAX_CIPHER_KEY );
 	}
 
@@ -672,9 +690,6 @@ VolumeWriteHeader (char *header, int cipher, char *lpszPassword,
 	// Disk IV
 	memcpy (cryptoInfo->iv, keyInfo.key, DISK_IV_SIZE);
 
-	// Clear out the temp. key buffer
-	burn (dk, sizeof(dk));
-
 	switch (get_block_size (cryptoInfo->cipher))
 	{
 	case 8:
@@ -689,6 +704,7 @@ VolumeWriteHeader (char *header, int cipher, char *lpszPassword,
 
 
 #ifdef VOLFORMAT
+	if (showKeys)
 	{
 		char tmp[64];
 		BOOL dots3 = FALSE;
@@ -696,10 +712,10 @@ VolumeWriteHeader (char *header, int cipher, char *lpszPassword,
 
 		j = get_key_size (cipher);
 
-		if (j > 21)
+		if (j > 14)
 		{
 			dots3 = TRUE;
-			j = 21;
+			j = 14;
 		}
 
 		tmp[0] = 0;
@@ -720,17 +736,23 @@ VolumeWriteHeader (char *header, int cipher, char *lpszPassword,
 		SetWindowText (hDiskKey, tmp);
 
 		tmp[0] = 0;
-		for (i = 0; i < 20; i++)
+		for (i = 0; i < 14; i++)
 		{
 			char tmp2[8];
-			sprintf (tmp2, "%02X", (int) (unsigned char) keyInfo.key_salt[i]);
+			sprintf (tmp2, "%02X", (int) (unsigned char) dk[DISK_IV_SIZE + i]);
 			strcat (tmp, tmp2);
 		}
 
-		SetWindowText (hKeySalt, tmp);
+		if (dots3 == TRUE)
+		{
+			strcat (tmp, "...");
+		}
+
+		SetWindowText (hHeaderKey, tmp);
 	}
 #endif
 
+	burn (dk, sizeof(dk));
 	burn (&keyInfo, sizeof (keyInfo));
 	VirtualUnlock (&keyInfo, sizeof (keyInfo));
 

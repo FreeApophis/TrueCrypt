@@ -21,7 +21,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="c:/sdk/winddk/3790/inc/ddk/wxp;../Common;../Crypto"
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
+				PreprocessorDefinitions="NTSERVICE;WIN32;_DEBUG;_CONSOLE"
 				MinimalRebuild="TRUE"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="5"
@@ -70,9 +70,8 @@
 			CharacterSet="2">
 			<Tool
 				Name="VCCLCompilerTool"
-				OmitFramePointers="FALSE"
 				AdditionalIncludeDirectories="c:/sdk/winddk/3790/inc/ddk/wxp;../Common;../Crypto"
-				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
+				PreprocessorDefinitions="NTSERVICE;WIN32;NDEBUG;_CONSOLE"
 				RuntimeLibrary="4"
 				BufferSecurityCheck="FALSE"
 				UsePrecompiledHeader="0"

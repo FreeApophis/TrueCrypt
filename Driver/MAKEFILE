@@ -69,7 +69,7 @@ LINK_D = link $(LFLAGS_D) -nologo -out:$(BASENAME).sys -machine:IX86 \
 	$(DDK)\lib\$(OS)\i386\ntoskrnl.lib \
 	$(DDK)\lib\$(OS)\i386\hal.lib 
 
-CFLAGS = $(CFLAGS_D) -nologo -DNT4_DRIVER -I"C:\Program Files\Microsoft Visual Studio .NET 2003\Vc7\include" -I$(DDK)\inc\$(OS) -I$(DDK)\inc\ddk\$(OS) -I$(DDK)\inc\ddk\wdm\$(OS) -YXTCdefs.h
+CFLAGS = $(CFLAGS_D) -nologo -DNT4_DRIVER -I$(DDK)\inc\$(OS) -I$(DDK)\inc\ddk\$(OS) -I$(DDK)\inc\ddk\wdm\$(OS) -YXTCdefs.h
 
 
 {..}.c{}.obj :

@@ -1,5 +1,9 @@
-/* Copyright (C) 2004 TrueCrypt Foundation
-   This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
+/* The source code contained in this file has been derived from the source code
+   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
+   additions to that source code contained in this file are Copyright (c) 2004
+   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
+   release. Please see the file license.txt for full license details. */
 
 #include "TCdefs.h"
 
@@ -33,6 +37,7 @@ BOOL bWipe = FALSE;					/* Wipe driver passwords */
 BOOL bAuto = FALSE;					/* Do everything without user input */
 
 BOOL bQuiet = FALSE;				/* No dialogs/messages */
+
 char commandLinePassword[MAX_PASSWORD + 1] = {0};	/* Password passed from command line */
 
 #define VMOUNTED 1
@@ -387,6 +392,9 @@ PasswordChangeDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 	case WM_INITDIALOG:
 		{
 			UINT nID[4];
+			LPARAM nIndex;
+			HWND hComboBox = GetDlgItem (hwndDlg, IDC_HASH_CHANGE);
+			int i;
 
 			nID[0] = IDS_PASSWORD_HELP0;
 			nID[1] = IDS_PASSWORD_HELP1;
@@ -400,6 +408,19 @@ PasswordChangeDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			SendMessage (GetDlgItem (hwndDlg, IDC_VERIFY), EM_LIMITTEXT, MAX_PASSWORD, 0);
 			SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
 			EnableWindow (GetDlgItem (hwndDlg, IDOK), FALSE);
+
+			SendMessage (hComboBox, CB_RESETCONTENT, 0, 0);
+
+			nIndex = SendMessage (hComboBox, CB_ADDSTRING, 0, (LPARAM) "Unchanged");
+			SendMessage (hComboBox, CB_SETITEMDATA, nIndex, (LPARAM) 0);
+
+			for (i = 1; i <= LAST_PRF_ID; i++)
+			{
+				nIndex = SendMessage (hComboBox, CB_ADDSTRING, 0, (LPARAM) get_hash_name(i));
+				SendMessage (hComboBox, CB_SETITEMDATA, nIndex, (LPARAM) i);
+			}
+
+			SendMessage (hComboBox, CB_SETCURSEL, 0, 0);
 
 			return 1;
 		}
@@ -431,6 +452,8 @@ PasswordChangeDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			char szOldPassword[MAX_PASSWORD + 1];
 			char szPassword[MAX_PASSWORD + 1];
 			int nStatus;
+			int pkcs5 = SendMessage (GetDlgItem (hwndDlg, IDC_HASH_CHANGE), CB_GETITEMDATA, 
+					SendMessage (GetDlgItem (hwndDlg, IDC_HASH_CHANGE), CB_GETCURSEL, 0, 0), 0);
 
 			GetWindowText (GetDlgItem (hParent, IDC_VOLUME), szFileName, sizeof (szFileName));
 
@@ -438,7 +461,7 @@ PasswordChangeDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 
 			GetWindowText (GetDlgItem (hwndDlg, IDC_PASSWORD), szPassword, sizeof (szPassword));
 
-			nStatus = ChangePwd (szFileName, szOldPassword, szPassword);
+			nStatus = ChangePwd (szFileName, szOldPassword, szPassword, pkcs5);
 
 			burn (szOldPassword, sizeof (szOldPassword));
 			burn (szPassword, sizeof (szPassword));
@@ -1452,7 +1475,6 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			if (bWipe == TRUE)
 			{
 				WipeCache (hwndDlg);
-				if (bQuiet) ExitProcess (0);
 			}
 
 			// Automount
@@ -1496,8 +1518,9 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					
 					RefreshMainDlg(hwndDlg);
 				}
-				else if (bQuiet) ExitProcess (0);
 			}
+
+			if (bQuiet) ExitProcess (0);
 
 			SetFocus (GetDlgItem (hwndDlg, IDC_DRIVELIST));
 		}
@@ -1648,12 +1671,27 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			return 1;
 		}
 
+		if (lw == ID_LICENSE)
+		{
+			char t[TC_MAX_PATH];
+			char *tmp;
+
+			GetModuleFileName (NULL, t, sizeof (t));
+			tmp = strrchr (t, '\\');
+			if (tmp)
+			{
+				strcpy (++tmp, "license.txt");
+				ShellExecute (NULL, "open", t, NULL, NULL, SW_SHOWNORMAL);
+			}
+			return 1;
+		}
+	
 		if (lw == ID_WEBSITE)
 		{
 			ShellExecute (NULL, "open", "http://www.google.com/search?q=truecrypt", NULL, NULL, SW_SHOWNORMAL);
 			return 1;
 		}
-		
+
 		if (lw == ID_PREFERENCES)
 		{
 			DialogBoxParam (hInst, 
@@ -1748,7 +1786,6 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 				else 
 					DismountAll (hwndDlg);
 
-				ExitProcess (0);
 				break;
 
 			case 'v':

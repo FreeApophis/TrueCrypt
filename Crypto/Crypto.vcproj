@@ -61,13 +61,6 @@
 			CharacterSet="2">
 			<Tool
 				Name="VCCLCompilerTool"
-				Optimization="2"
-				GlobalOptimizations="FALSE"
-				InlineFunctionExpansion="0"
-				EnableIntrinsicFunctions="FALSE"
-				ImproveFloatingPointConsistency="FALSE"
-				FavorSizeOrSpeed="0"
-				OmitFramePointers="FALSE"
 				AdditionalIncludeDirectories="..\Common"
 				PreprocessorDefinitions="WIN32;NDEBUG;_LIB"
 				RuntimeLibrary="4"
@@ -153,13 +146,10 @@
 				RelativePath=".\Idea_386.c">
 			</File>
 			<File
-				RelativePath=".\Md5.c">
+				RelativePath=".\Rmd160.c">
 			</File>
 			<File
 				RelativePath=".\Set_key.c">
-			</File>
-			<File
-				RelativePath=".\Sha.c">
 			</File>
 			<File
 				RelativePath=".\Sha1.c">
@@ -206,19 +196,16 @@
 				RelativePath=".\Idea.h">
 			</File>
 			<File
-				RelativePath=".\Md5.h">
-			</File>
-			<File
 				RelativePath=".\Podd.h">
 			</File>
 			<File
 				RelativePath=".\resource.h">
 			</File>
 			<File
-				RelativePath=".\Set_key.h">
+				RelativePath=".\Rmd160.h">
 			</File>
 			<File
-				RelativePath=".\Sha.h">
+				RelativePath=".\Set_key.h">
 			</File>
 			<File
 				RelativePath=".\Sha1.h">

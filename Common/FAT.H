@@ -1,10 +1,14 @@
-/* Copyright (C) 2004 TrueCrypt Foundation
-   This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
+/* The source code contained in this file has been derived from the source code
+   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
+   additions to that source code contained in this file are Copyright (c) 2004
+   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
+   release. Please see the file license.txt for full license details. */
 
 typedef struct fatparams_t
 {
 	char volume_name[11];
-	int num_sectors;	/* total number of sectors */
+	unsigned int num_sectors;	/* total number of sectors */
 	int cluster_count;	/* number of clusters */
 	int size_root_dir;	/* size of the root directory in bytes */
 	int size_fat;		/* size of FAT */
@@ -22,7 +26,6 @@ typedef struct fatparams_t
 	int heads;
 	int secs_track;
 
-	char header[SECTOR_SIZE];
 } fatparams;
 
 
@@ -60,5 +63,4 @@ struct msdos_boot_sector
 
 void GetFatParams ( fatparams *ft );
 void PutBoot ( fatparams *ft , unsigned char *boot );
-BOOL WriteSector ( HFILE dev , char *sector , char *write_buf , int *write_buf_cnt , __int64 *nSecNo , int *progress , PCRYPTO_INFO cryptoInfo , int nFrequency , diskio_f write );
-int Format (fatparams * ft, HFILE dev, PCRYPTO_INFO cryptoInfo, int nFrequency, diskio_f write, BOOL quickFormat);
+int FormatFat (fatparams * ft, char * header, HFILE dev, PCRYPTO_INFO cryptoInfo, int nFrequency, diskio_f write, BOOL quickFormat);

@@ -1,5 +1,9 @@
-/* Copyright (C) 2004 TrueCrypt Foundation
-   This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
+/* The source code contained in this file has been derived from the source code
+   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
+   additions to that source code contained in this file are Copyright (c) 2004
+   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
+   release. Please see the file license.txt for full license details. */
 
 #include "TCdefs.h"
 
@@ -19,6 +23,8 @@
 
 unsigned char *pRandPool = NULL;
 int nRandIndex = 0, randPoolReadIndex = 0;
+
+int hashFunction = SHA1;
 
 /* Macro to add a single byte to the pool */
 #define RandaddByte(x) {\
@@ -145,6 +151,11 @@ Randfree ()
 	bRandDidInit = FALSE;
 }
 
+void RandSetHashFunction (int hash)
+{
+	hashFunction = hash;
+}
+
 /* Mix random pool with the hash function */
 void
 Randmix ()
@@ -161,7 +172,12 @@ Randmix ()
 		   into the random pool */
 		for (j = 0; j < SHA_BLOCKSIZE; j++)
 			inputBuffer[j] = pRandPool[(i + j) % POOLSIZE];
-		SHA1TRANSFORM ((unsigned long *) (pRandPool + i), inputBuffer);
+
+		if (hashFunction == SHA1)
+			SHA1TRANSFORM ((unsigned long *) (pRandPool + i), inputBuffer);
+		else
+			RMD160Transform ((unsigned long *) (pRandPool + i), inputBuffer);
+
 		memset (inputBuffer, 0, SHA_BLOCKSIZE);
 	}
 }

@@ -20,6 +20,7 @@
 #define IDR_MENU                        127
 #define IDD_PREFERENCES_DLG             128
 #define IDD_VOLUME_PROPERTIES           129
+#define IDC_CIPHERTEXT                  1003
 #define IDC_VERIFY                      1008
 #define IDC_OLD_PASSWORD                1009
 #define IDC_BOX_HELP                    1011
@@ -33,9 +34,8 @@
 #define IDC_PREF_OPEN_EXPLORER          1029
 #define IDC_VOLUME_PROPERTIES_LIST      1030
 #define IDC_PREF_CLOSE_DISMOUNTED_WINDOWS 1030
-#define IDC_PREF_CLOSE_DISMOUNTED_WINDOWS2 1031
 #define IDC_PREF_WIPE_CACHE_ON_EXIT     1031
-#define IDC_PREF_WIPE_CACHE_ON_EXIT3    1033
+#define IDC_HASH_CHANGE                 1032
 #define IDC_PREF_CACHE_PASSWORDS        1033
 #define IDC_VOLUME                      2006
 #define IDC_PASSWORD                    2007
@@ -62,6 +62,7 @@
 #define ID_UNMOUNT_VOLUME               40034
 #define IDC_VOLUME_PROPERTIES           40036
 #define IDC_CLEAR_HISTORY               40038
+#define ID_LICENSE                      40040
 
 // Next default values for new objects
 // 
@@ -69,8 +70,8 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        130
-#define _APS_NEXT_COMMAND_VALUE         40039
-#define _APS_NEXT_CONTROL_VALUE         1031
+#define _APS_NEXT_COMMAND_VALUE         40042
+#define _APS_NEXT_CONTROL_VALUE         1034
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -1,62 +1,55 @@
-This archive contains TrueCrypt 2.0 setup and documentation.
-
-Copyright (c) 2004 TrueCrypt Foundation
-(not associated with TrueCrypt Team, the authors of TrueCrypt 1.0)
+This archive contains TrueCrypt 2.1 setup and documentation.
 
 
-
-WHAT IS NEW IN TRUECRYPT 2.0
-
-Bug fixes:
-
-- Data corruption will no longer occur when a TrueCrypt partition is
-  subjected to heavy parallel usage (usually when copying files to or
-  from a TrueCrypt partition). This also fixes the problem with 
-  temporarily inaccessible files stored in TrueCrypt partitions.
-
-  Note: File-hosted volumes were not affected by this bug.
-
-- After dismounting and remounting a volume, its file system will be
-  correctly recognized by the operating system and it will be 
-  possible to reuse the same drive letter (Windows 2000 issue).
-
-- The main program window will not be displayed when run in quiet 
-  mode (command line usage). 
-
-- Two password entry attempts are no longer necessary to be able to 
-  mount a volume (command line usage).	
-
-- All partitions will be visible to TrueCrypt even if one of them is 
-  inaccessible to the operating system (an inaccessible partition 
-  made all successive partitions on the hard disk unavailable to 
-  TrueCrypt). 
-
-- Relative path can be specified when mounting a file-hosted volume 
-  (command line usage).
-
-- Incorrect passwords are reported when auto-mounting (command line
-  usage).
+WHAT IS NEW IN TRUECRYPT 2.1
 
 New features:
 
-- AES-256 (Rijndael) encryption algorithm.
+- RIPEMD-160 hash algorithm added.  The user can now select which hash
+  algorithm TrueCrypt will use (SHA-1 or RIPEMD-160). 
 
-- The command line option /dismountall was renamed to /dismount which
-  can now be also used to dismount a single volume by specifying its
-  drive letter.
+  Note: RIPEMD-160, which was designed by an open academic community,
+  represents a valuable alternative to SHA-1 designed by the NSA and NIST.
+  In the previous versions there was a risk that the whole program would
+  be practically useless, should a major weakness be found in SHA-1. The 
+  user-selected hash algorithm is used by the random number generator when
+  creating new volumes, and by the header key derivation function (HMAC 
+  based on a hash function, as specified in PKCS #5 v2.0). The random 
+  number generator generates the master encryption key, salt, and the 
+  values used to create IV and 'whitening' values.
+
+- When changing a volume password, the user can now select the HMAC hash
+  algorithm that will be used in deriving the new volume header key. 
+
+- It is now possible to create NTFS TrueCrypt volumes and unformatted 
+  TrueCrypt volumes. This enhancement also removes the 2,048 GB volume
+  size limit. (Only FAT volumes can be created using the previous versions
+  of TrueCrypt. Any FAT volume, encrypted or not, cannot be over 2,048 GB.)
+
+- Header key content is now displayed in the Volume Creation Wizard window
+  (instead of salt).
+
+- Random pool, master key, and header key contents can be prevented from 
+  being displayed in the Volume Creation Wizard window.
+
+Bug fixes:
+
+- When there is a mounted TrueCrypt container that is stored in another 
+  TrueCrypt container, it will be possible to dismount both of them using 
+  the 'Dismount All' function, and 'blue screen' errors will not occur
+  upon system shutdown.
+
+- Minor bug fixes to command line handling.
 
 Improvements:
 
-- Memory pages containing sensitive data are now locked to prevent 
-  them from being swapped to the Windows page file.
-
-- The state of the random pool will never be exported directly so the
-  pool contents will not be leaked.
+- Several minor improvements to the driver.
 
 Miscellaneous:
 
-- Released under GNU General Public License (GPL)
-
+- Released under the original E4M license to avoid potential problems
+  relating to the GPL license (added the IDEA patent information and
+  specific legal notices).
 
 
 FUTURE
@@ -64,24 +57,22 @@ FUTURE
 - 'Hidden' container
 - Linux version
 - Anti-Key-Logger Facilities
-- HMAC-RIPEMD-160
 - Keyfiles
 
 and more.
 
 
-
 INSTALLATION
 
 Before installing TrueCrypt, you may want to read the TrueCrypt 
-User's Guide. It is located in the folder called "Setup Files". To 
+User's Guide. It is located in the folder called 'Setup Files'. To 
 view or print it, you will need Adobe Acrobat Reader (freely 
 available at www.adobe.com). Note that the program documentation 
 will also be automatically installed into the program folder, and 
 will later be accessible via the Start menu and the program user 
 interface.
 
-To install TrueCrypt, run "TrueCrypt Setup.exe".
+To install TrueCrypt, run the file 'TrueCrypt Setup.exe'.
 
 
 REQUIREMENTS
@@ -94,25 +85,8 @@ REQUIREMENTS
 - Administrator privileges
 
 
-DISCLAIMER
+LICENSING INFORMATION
 
-Before installing this product (TrueCrypt), you must agree to the 
-following terms and conditions: 
-
-- YOU UNDERSTAND THAT THIS PRODUCT UTILIZES STRONG CRYPTOGRAPHY, AND
-  THAT SHOULD THIS TECHNOLOGY BE REGULATED OR ILLEGAL IN YOUR
-  COUNTRY, THE AUTHORS OF THE PRODUCT WILL NOT BE RESPONSIBLE FOR
-  ANY CONSEQUENCES THAT YOUR IMPORTING AND/OR USING IT IN SUCH A
-  COUNTRY MIGHT HAVE. 
-- YOU UNDERSTAND THAT THE AUTHORS OF THE PRODUCT CANNOT BE HELD
-  RESPONSIBLE FOR LOSS OF YOUR DATA OR ANY OTHER DAMAGE, DIRECT OR
-  INDIRECT, CAUSED BY USING OR INSTALLING THE PRODUCT. 
-- YOU UNDERSTAND THAT THIS PRODUCT CONTAINS NO "BACKDOOR", THAT
-  WOULD ALLOW PARTIAL OR COMPLETE RECOVERY OF YOUR DATA WITHOUT
-  KNOWING THE CORRECT PASSWORD. 
-- YOU UNDERSTAND THAT THE AUTHORS OF THE PROGRAM CANNOT HELP YOU TO
-  RECOVER YOUR DATA SHOULD YOU FORGET YOUR PASSWORD.
-
-  You must also agree to the license displayed in the TrueCrypt
-  Setup window.
- 
+Before installing this product (TrueCrypt), you must agree to the
+license displayed in the TrueCrypt Setup window (the text of the
+license is also contained in the file 'License.txt').

@@ -1,5 +1,9 @@
-/* Copyright (C) 2004 TrueCrypt Foundation
-   This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
+/* The source code contained in this file has been derived from the source code
+   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
+   additions to that source code contained in this file are Copyright (c) 2004
+   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
+   release. Please see the file license.txt for full license details. */
 
 #include "TCdefs.h"
 #include <SrRestorePtApi.h>
@@ -1246,14 +1250,19 @@ DoInstall (void *hwndDlg)
 
 	SendMessage (GetDlgItem ((HWND) hwndDlg, IDC_FILES), LB_RESETCONTENT, 0, 0);
 
-	if (IsButtonChecked (GetDlgItem ((HWND) hwndDlg, IDC_SYSTEM_RESTORE)))
-		SetSystemRestorePoint (hwndDlg, FALSE);
-
 	if (DoDriverUnload (hwndDlg) == FALSE)
 	{
-		bOK = FALSE;
+		NormalCursor ();
+		EnableWindow (GetDlgItem ((HWND) hwndDlg, IDOK), TRUE);
+		return;
 	}
-	else if (DoServiceUninstall (hwndDlg, "TrueCryptService") == FALSE)
+	
+	if (IsButtonChecked (GetDlgItem ((HWND) hwndDlg, IDC_SYSTEM_RESTORE)))
+	{
+		SetSystemRestorePoint (hwndDlg, FALSE);
+	}
+
+	if (DoServiceUninstall (hwndDlg, "TrueCryptService") == FALSE)
 	{
 		bOK = FALSE;
 	}
@@ -1515,9 +1524,6 @@ WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine,
 		return 0;
 	}
 
-	if (CurrentOSMajor == 5 && CurrentOSMinor == 0)
-		MessageBox (NULL, "If you are upgrading from a previous version of TrueCrypt\nyou should first uninstall TrueCrypt and reboot OS.", lpszTitle, MB_ICONINFORMATION);
-
 	if (nCurrentOS == WIN_NT && IsAdmin ()!= TRUE)
 		if (MessageBox (NULL, "To successfully install/uninstall TrueCrypt under Windows NT you must be running as an Administrator, "
 				"do you still want to continue?", lpszTitle, MB_YESNO | MB_ICONQUESTION) != IDYES)
@@ -1530,6 +1536,9 @@ WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine,
 
 	if (bUninstall == FALSE)
 	{
+		if (CurrentOSMajor == 5 && CurrentOSMinor == 0)
+			MessageBox (NULL, "If you are upgrading from a previous version of TrueCrypt\nyou should first uninstall TrueCrypt and reboot system.", lpszTitle, MB_ICONINFORMATION);
+
 		/* Create the main dialog box */
 		DialogBox (hInstance, MAKEINTRESOURCE (IDD_INSTALL), NULL, (DLGPROC) InstallDlgProc);
 	}

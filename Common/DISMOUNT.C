@@ -1,5 +1,9 @@
-/* Copyright (C) 2004 TrueCrypt Foundation
-   This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
+/* The source code contained in this file has been derived from the source code
+   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
+   additions to that source code contained in this file are Copyright (c) 2004
+   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
+   release. Please see the file license.txt for full license details. */
 
 /* WARNING: The code for unmounting volumes is ugly for all Windows versions;
    becarefull what you change here as there might be unintended side effects
@@ -31,8 +35,8 @@ UnmountAllVolumes (HWND hwndDlg, DWORD * os_error, int *err)
 {
 	MOUNT_LIST_STRUCT driver;
 	DWORD dwResult;
-	BOOL bResult, bOK = TRUE;
-	int i;
+	BOOL bResult;
+	int i, nMounted = 0;
 
 	*os_error = 0;
 	*err = 0;
@@ -48,20 +52,27 @@ UnmountAllVolumes (HWND hwndDlg, DWORD * os_error, int *err)
 	}
 
 	for (i = 0; i < 26; i++)
+		if (driver.ulMountedDrives & 1 << i) nMounted++;
+
+	// Dismount is tried in multiple rounds to ensure dismount of nested containers
+	while (driver.ulMountedDrives != 0 && nMounted--)
 	{
-		if ((driver.ulMountedDrives & 1 << i))
+		for (i = 0; i < 26; i++)
 		{
-			UnmountVolume (i, os_error, err);
+			if (driver.ulMountedDrives & 1 << i)
+			{
+				UnmountVolume (i, os_error, err);
 
-			if (*err != 0)
-				bOK = FALSE;
+				if (*err == 0)
+					driver.ulMountedDrives &= ~(1 << i);
 
-			if (*err != 0 && *err == ERR_OS_ERROR)
-				handleWin32Error (hwndDlg);
+				if (*err != 0 && *err == ERR_OS_ERROR)
+					handleWin32Error (hwndDlg);
+			}
 		}
 	}
 
-	return bOK;
+	return driver.ulMountedDrives == 0;
 }
 
 BOOL

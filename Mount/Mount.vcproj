@@ -76,7 +76,6 @@
 			CharacterSet="2">
 			<Tool
 				Name="VCCLCompilerTool"
-				OmitFramePointers="FALSE"
 				AdditionalIncludeDirectories="..\Common;..\Crypto"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS"
 				RuntimeLibrary="0"
@@ -204,10 +203,10 @@
 				RelativePath="..\Common\Registry.h">
 			</File>
 			<File
-				RelativePath="..\Common\resource.h">
+				RelativePath=".\resource.h">
 			</File>
 			<File
-				RelativePath=".\resource.h">
+				RelativePath="..\Common\resource.h">
 			</File>
 			<File
 				RelativePath="..\Common\Tcdefs.h">

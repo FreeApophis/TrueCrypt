@@ -1,9 +1,12 @@
-/* Copyright (C) 2004 TrueCrypt Foundation
-   This product uses components written by Paul Le Roux <pleroux@swprofessionals.com> */
+/* The source code contained in this file has been derived from the source code
+   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
+   additions to that source code contained in this file are Copyright (c) 2004
+   TrueCrypt Team and Copyright (c) 2004 TrueCrypt Foundation. Unmodified
+   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
+   release. Please see the file license.txt for full license details. */
 
 #include "TCdefs.h"
 #include "crypto.h"
-#include "fat.h"
 #include "volumes.h"
 
 #include "apidrvr.h"
@@ -279,34 +282,14 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 
 	if (mount->nReturnCode == 0)
 	{
-		/* Handle the volume setup for TC */
-
-		boot_sector = (struct msdos_boot_sector *) (readBuffer + SECTOR_SIZE);
-
-		/* It's in the volume file so we must decrypt it */
-		Extension->cryptoInfo->decrypt_sector ((ULONG *) boot_sector, 1, 1,
-			&Extension->cryptoInfo->ks[0],
-			Extension->cryptoInfo->iv,
-			Extension->cryptoInfo->cipher);
-
 		/* There's one extra sector than there should be */
 		Extension->DiskLength -= SECTOR_SIZE;
 
-		/* Volume setup end */
-
-		//Extension->TracksPerCylinder = boot_sector->heads;
-		//Extension->SectorsPerTrack = boot_sector->secs_track;
-		//Extension->NumberOfCylinders = (ULONG) (Extension->DiskLength / Extension->BytesPerSector /
-		//	Extension->SectorsPerTrack / Extension->TracksPerCylinder);
 		Extension->TracksPerCylinder = 1;
 		Extension->SectorsPerTrack = 1;
-		Extension->BytesPerSector = *((unsigned short *) boot_sector->sector_size);
-		Extension->NumberOfCylinders = Extension->DiskLength / Extension->BytesPerSector;
-
-		Extension->PartitionType = (UCHAR) ((boot_sector->fs_type[4] == '6') ?
-				       PARTITION_FAT_16 : PARTITION_FAT_12);
-		if(boot_sector->fs_type[3] == '3') Extension->PartitionType = (UCHAR) PARTITION_FAT32;
-
+		Extension->BytesPerSector = 512;
+		Extension->NumberOfCylinders = Extension->DiskLength / 512;
+		Extension->PartitionType = 0;
 		Extension->bRawDevice = bRawDevice;
 
 		if (wcslen (pwszMountVolume) < 64)
