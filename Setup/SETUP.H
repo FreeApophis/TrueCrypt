@@ -1,21 +1,19 @@
-/* Everything below this line is automatically updated by the -mkproto-tool- */
-
 BOOL StatDeleteFile ( char *lpszFile );
 BOOL StatRemoveDirectory ( char *lpszDir );
 HRESULT CreateLink ( char *lpszPathObj , char *lpszArguments , char *lpszPathLink );
 void GetProgramPath ( HWND hwndDlg , char *path );
-void StatusMessage ( HWND hwndDlg , char *head , char *txt );
+void StatusMessage ( HWND hwndDlg , char *stringId );
+void StatusMessageParam ( HWND hwndDlg , char *stringId , char *param );
 void RegMessage ( HWND hwndDlg , char *txt );
 void RegRemoveMessage (HWND hwndDlg, char *txt);
 void CopyMessage ( HWND hwndDlg , char *txt );
 void RemoveMessage ( HWND hwndDlg , char *txt );
-void ServiceMessage ( HWND hwndDlg , char *txt );
 void IconMessage ( HWND hwndDlg , char *txt );
 int CALLBACK BrowseCallbackProc ( HWND hwnd , UINT uMsg , LPARAM lp , LPARAM pData );
 void LoadLicense ( HWND hwndDlg );
 BOOL DoFilesInstall ( HWND hwndDlg , char *szDestDir , BOOL bUninstallSupport );
 BOOL DoRegInstall ( HWND hwndDlg , char *szDestDir , BOOL bInstallType , BOOL bUninstallSupport );
-BOOL DoRegUninstall ( HWND hwndDlg );
+BOOL DoRegUninstall (HWND hwndDlg, BOOL bRemoveDeprecated);
 BOOL DoServiceUninstall ( HWND hwndDlg , char *lpszService );
 BOOL DoDriverUnload ( HWND hwndDlg );
 BOOL DoDriverInstall ( HWND hwndDlg );

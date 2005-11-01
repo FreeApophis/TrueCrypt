@@ -36,18 +36,17 @@ BEGIN
     EDITTEXT        IDC_ABOUT_CREDITS,7,111,277,45,ES_MULTILINE | WS_VSCROLL | 
                     NOT WS_TABSTOP
     DEFPUSHBUTTON   "OK",IDOK,121,178,50,14
-    LTEXT           "Copyright © 2004-2005 TrueCrypt Foundation",
-                    IDT_ABOUT_COPYRIGHT,18,71,207,8
-    LTEXT           "TrueCrypt Forums",IDC_FORUMS,192,87,82,8,SS_NOTIFY
-    CONTROL         1011,IDC_ABOUT_IMG,"Static",SS_BITMAP,0,0,293,49,
+    LTEXT           "www.truecrypt.org",IDC_HOMEPAGE,18,87,147,12,SS_NOTIFY
+    LTEXT           "Copyright © 2004-2005 TrueCrypt Foundation",IDC_STATIC,
+                    18,71,207,8
+    LTEXT           "",IDC_FORUMS,192,87,62,8,SS_NOTIFY | NOT WS_VISIBLE
+    CONTROL         50,IDC_ABOUT_IMG,"Static",SS_BITMAP,0,0,293,49,
                     WS_EX_STATICEDGE
-    LTEXT           "TrueCrypt x.x",IDT_ABOUT_VERSION,18,61,117,8
+    LTEXT           "TrueCrypt x.x",IDT_ABOUT_VERSION,18,61,262,8
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,167,291,1,
                     WS_EX_STATICEDGE
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,169,291,1,
                     WS_EX_STATICEDGE
-    LTEXT           "truecrypt.sourceforge.net",IDC_HOMEPAGE,18,87,113,8,
-                    SS_NOTIFY
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,107,291,1,
                     WS_EX_STATICEDGE
 END
@@ -59,11 +58,11 @@ CAPTION "Command Line Help"
 CLASS "CustomDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    DEFPUSHBUTTON   "&OK",IDOK,93,144,59,14
-    LTEXT           "Static",IDC_COMMANDHELP_TEXT,20,11,208,129
+    DEFPUSHBUTTON   "OK",IDOK,93,144,59,14
+    LTEXT           "",IDC_COMMANDHELP_TEXT,20,11,208,129
 END
 
-IDD_RAWDEVICES_DLG DIALOGEX 0, 0, 272, 156
+IDD_RAWDEVICES_DLG DIALOGEX 0, 0, 272, 178
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | 
     WS_SYSMENU
 CAPTION "Select a Partition or Device"
@@ -71,46 +70,283 @@ FONT 8, "MS Shell Dlg", 400, 0, 0x0
 BEGIN
     CONTROL         "",IDC_DEVICELIST,"SysListView32",LVS_REPORT | 
                     LVS_SINGLESEL | LVS_EDITLABELS | LVS_ALIGNLEFT | 
-                    LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,7,258,126
-    DEFPUSHBUTTON   "OK",IDOK,159,138,50,14
-    PUSHBUTTON      "Cancel",IDCANCEL,215,138,50,14
+                    LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,7,258,145
+    DEFPUSHBUTTON   "OK",IDOK,159,159,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,215,159,50,14
 END
 
-IDD_WARNING_DLG DIALOGEX 0, 0, 272, 103
-STYLE DS_SETFONT | DS_MODALFRAME | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | 
-    WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "Warning"
-CLASS "CustomDlg"
-FONT 8, "MS Shell Dlg", 0, 0, 0x0
-BEGIN
-    DEFPUSHBUTTON   "&OK",IDOK,96,81,59,14
-    CONTROL         "&Never show this warning again",IDC_NEVER_SHOW,"Button",
-                    BS_AUTOCHECKBOX | BS_LEFT | WS_TABSTOP,48,63,176,10
-    LTEXT           "Static",IDC_WARNING_TEXT,20,16,191,32
-    ICON            101,IDC_STATIC,222,21,20,20
-END
-
-IDD_DIALOGBAR DIALOGEX 0, 0, 330, 16
-STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD
-FONT 8, "MS Shell Dlg", 0, 0, 0x0
-BEGIN
-    LTEXT           "TODO: layout dialog bar",IDC_STATIC,126,4,77,8
-END
-
-IDD_MOUNT_OPTIONS DIALOGEX 0, 0, 220, 45
+IDD_MOUNT_OPTIONS DIALOGEX 0, 0, 278, 132
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | 
     WS_CAPTION | WS_SYSMENU
-CAPTION "Mount Options"
+CAPTION "TrueCrypt - Mount Options"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    DEFPUSHBUTTON   "OK",IDOK,153,7,60,14
-    PUSHBUTTON      "Cancel",IDCANCEL,153,24,60,14
-    CONTROL         "Mount volume as read-only",IDC_MOUNT_READONLY,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,12,11,103,10
-    CONTROL         "Mount volume as removable medium",IDC_MOUNT_REMOVABLE,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,25,131,10
+    CONTROL         "Mount volume as read-&only",IDC_MOUNT_READONLY,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,12,11,194,10
+    CONTROL         "Mount volume as removable &medium",IDC_MOUNT_REMOVABLE,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,25,195,10
+    CONTROL         "&Protect hidden volume against damage caused by writing to outer volume",
+                    IDC_PROTECT_HIDDEN_VOL,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,16,59,252,10
+    RTEXT           "P&assword to hidden volume:\n(if empty, cache is used)",
+                    IDT_HIDDEN_PROT_PASSWD,15,76,91,17
+    EDITTEXT        IDC_PASSWORD_PROT_HIDVOL,112,77,151,14,ES_PASSWORD | 
+                    ES_AUTOHSCROLL
+    CONTROL         "Display Password",IDC_SHOW_PASSWORD_MO,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,112,96,83,10
+    CONTROL         "Use keyfiles",IDC_KEYFILES_ENABLE_HIDVOL_PROT,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,112,109,85,10
+    PUSHBUTTON      "&Keyfiles...",IDC_KEYFILES_HIDVOL_PROT,203,98,60,14
+    DEFPUSHBUTTON   "OK",IDOK,211,7,60,14
+    PUSHBUTTON      "Cancel",IDCANCEL,211,24,60,14
+    GROUPBOX        "Hidden Volume Protection",IDT_HIDDEN_VOL_PROTECTION,6,
+                    45,265,81
 END
 
+IDD_KEYFILES DIALOGEX 0, 0, 334, 218
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | 
+    WS_CAPTION | WS_SYSMENU
+CAPTION "TrueCrypt - Keyfiles"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    CONTROL         "",IDC_KEYLIST,"SysListView32",LVS_REPORT | 
+                    LVS_SHOWSELALWAYS | LVS_ALIGNLEFT | LVS_NOSORTHEADER | 
+                    WS_BORDER | WS_TABSTOP,7,8,251,118
+    DEFPUSHBUTTON   "OK",IDOK,267,8,59,14
+    PUSHBUTTON      "Cancel",IDCANCEL,267,25,59,14
+    PUSHBUTTON      "Add File...",IDC_KEYADD,7,132,59,14
+    PUSHBUTTON      "Add Path...",IDC_ADD_KEYFILE_PATH,71,132,59,14
+    PUSHBUTTON      "Remove",IDC_KEYREMOVE,135,132,59,14
+    PUSHBUTTON      "Remove All",IDC_KEYREMOVEALL,199,132,59,14
+    CONTROL         "Use keyfiles",IDC_KEYFILES_ENABLE,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,7,201,63,10
+    PUSHBUTTON      "Generate Random Keyfile...",IDC_GENERATE_KEYFILE,202,
+                    198,123,14
+    LTEXT           "",IDT_KEYFILES_NOTE,10,160,310,29,0,WS_EX_TRANSPARENT
+    LTEXT           "WARNING: If you lose a keyfile or if its first 1024 kilobytes are corrupted, it will be impossible to mount volumes that use the keyfile!",
+                    IDT_KEYFILE_WARNING,267,44,58,85,0,WS_EX_TRANSPARENT
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,152,331,1,
+                    WS_EX_STATICEDGE
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,190,332,1,
+                    WS_EX_STATICEDGE
+END
+
+IDD_LANGUAGE DIALOGEX 0, 0, 209, 183
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | 
+    WS_CAPTION | WS_SYSMENU
+CAPTION "TrueCrypt - Language"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LISTBOX         IDC_LANGLIST,6,7,197,64,LBS_SORT | LBS_NOINTEGRALHEIGHT | 
+                    WS_VSCROLL | WS_TABSTOP
+    EDITTEXT        IDC_LANGPACK_CREDITS,6,108,197,28,ES_MULTILINE | 
+                    ES_READONLY | WS_VSCROLL | NOT WS_TABSTOP
+    CTEXT           "Download language pack",IDC_GET_LANG_PACKS,13,146,183,
+                    12,SS_NOTIFY
+    DEFPUSHBUTTON   "OK",IDOK,97,165,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,153,165,50,14
+    LTEXT           "Translated by:",IDT_LANGPACK_AUTHORS,6,99,101,9,
+                    SS_NOTIFY,WS_EX_TRANSPARENT
+    RTEXT           "",IDC_LANGPACK_VERSION,79,86,118,11
+    GROUPBOX        "Active language pack",IDT_ACTIVE_LANG_PACK,0,76,209,66
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,158,208,1,
+                    WS_EX_STATICEDGE
+END
+
+IDD_BENCHMARK_DLG DIALOGEX 0, 0, 330, 204
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | 
+    WS_CAPTION | WS_SYSMENU
+CAPTION "TrueCrypt - Encryption Algorithm Benchmark"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    COMBOBOX        IDC_BENCHMARK_BUFFER_SIZE,55,7,77,129,CBS_DROPDOWNLIST | 
+                    CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    COMBOBOX        IDC_BENCHMARK_SORT_METHOD,207,7,116,74,CBS_DROPDOWNLIST | 
+                    CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "",IDC_RESULTS,"SysListView32",LVS_REPORT | 
+                    LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_ALIGNLEFT | 
+                    LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,37,249,160
+    DEFPUSHBUTTON   "Benchmark",IDC_PERFORM_BENCHMARK,265,37,58,14
+    PUSHBUTTON      "Close",IDCLOSE,265,55,58,14
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,2,29,328,1,
+                    WS_EX_STATICEDGE
+    LTEXT           "Buffer Size:",IDT_BUFFER_SIZE,0,9,53,8,0,WS_EX_RIGHT
+    LTEXT           "Sort Method:",IDT_SORT_METHOD,135,9,70,8,0,WS_EX_RIGHT
+    LTEXT           "Speed is affected by CPU load and storage device characteristics.\n\nThese tests take place in RAM.",
+                    IDT_BOX_BENCHMARK_INFO,266,81,57,116
+END
+
+IDD_CIPHER_TEST_DLG DIALOGEX 0, 0, 320, 220
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | 
+    WS_CAPTION | WS_SYSMENU
+CAPTION "TrueCrypt - Test Vectors"
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    COMBOBOX        IDC_CIPHER,109,11,104,126,CBS_DROPDOWNLIST | WS_VSCROLL | 
+                    WS_TABSTOP
+    EDITTEXT        IDC_KEY,8,36,304,14,ES_AUTOHSCROLL
+    COMBOBOX        IDC_KEY_SIZE,67,55,42,68,CBS_DROPDOWNLIST | WS_VSCROLL | 
+                    WS_TABSTOP
+    EDITTEXT        IDC_PLAINTEXT,8,85,154,14,ES_AUTOHSCROLL
+    COMBOBOX        IDC_PLAINTEXT_SIZE,245,86,36,30,CBS_DROPDOWNLIST | 
+                    WS_DISABLED | WS_VSCROLL | WS_TABSTOP
+    EDITTEXT        IDC_CIPHERTEXT,8,119,154,14,ES_AUTOHSCROLL
+    DEFPUSHBUTTON   "&Encrypt",IDC_ENCRYPT,8,199,52,14
+    PUSHBUTTON      "&Decrypt",IDC_DECRYPT,64,199,52,14
+    PUSHBUTTON      "&Auto-Test All",IDC_AUTO,126,199,67,14,BS_MULTILINE
+    PUSHBUTTON      "&Reset",IDC_RESET,204,199,52,14
+    PUSHBUTTON      "Close",IDCLOSE,260,199,52,14
+    GROUPBOX        "Key (hexadecimal)",IDT_TEST_KEY,1,26,318,49
+    GROUPBOX        "Plaintext (hexadecimal)",IDT_TEST_PLAINTEXT,1,75,318,33
+    GROUPBOX        "Ciphertext (hexadecimal)",IDT_TEST_CIPHERTEXT,1,108,318,
+                    33
+    RTEXT           "",IDC_TESTS_MESSAGE,50,178,178,10
+    CONTROL         "",IDC_REDTICK,"REDTICK",0x0,234,178,10,8
+    RTEXT           "Key size:",IDT_KEY,15,57,49,8
+    RTEXT           "Plaintext size:",IDT_PLAINTEXT,179,88,61,8
+    LTEXT           "bits",IDT_KEY_UNIT,114,57,45,8
+    RTEXT           "Cipher:",IDT_CIPHER,57,14,49,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,3,191,316,1,
+                    WS_EX_STATICEDGE
+    LTEXT           "bits",IDT_PLAINTEXT_SIZE_UNIT,285,88,22,8
+    LTEXT           "Note: When testing Triple DES, the key must be a 192-bit value consisting of three concatenated 64-bit DES keys, where the last 8 bits of each of these keys are parity bits. For more information, see FIPS PUB 46-3.",
+                    IDT_TEST_VECTORS_NOTE,15,148,293,25,0,WS_EX_TRANSPARENT
+END
+
+IDD_LEGAL_NOTICES_DLG DIALOGEX 0, 0, 372, 221
+STYLE DS_SETFONT | DS_MODALFRAME | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | 
+    WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "TrueCrypt - Legal Notices"
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    EDITTEXT        IDC_LEGAL_NOTICES,5,6,361,188,ES_MULTILINE | ES_READONLY | 
+                    WS_VSCROLL | NOT WS_TABSTOP
+    DEFPUSHBUTTON   "OK",IDOK,160,200,50,14
+    LTEXT           "",IDC_STATIC,60,73,90,8
+END
+
+IDD_KEYFILE_GENERATOR DIALOGEX 0, 0, 299, 258
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | 
+    WS_CAPTION | WS_SYSMENU
+CAPTION "TrueCrypt - Keyfile Generator"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "Close",IDCLOSE,232,10,59,14
+    COMBOBOX        IDC_PRF_ID,74,36,91,90,CBS_DROPDOWNLIST | WS_TABSTOP
+    PUSHBUTTON      "Generate and Save Keyfile...",
+                    IDC_GENERATE_AND_SAVE_KEYFILE,87,236,131,14
+    LTEXT           "Move the mouse randomly within this window. The longer you move the mouse, the better.",
+                    IDT_KEYFILE_GENERATOR_NOTE,6,5,213,20
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,2,28,297,1,
+                    WS_EX_STATICEDGE
+    RTEXT           "Mixing PRF:",IDT_PRF,7,38,61,10,SS_CENTERIMAGE
+    GROUPBOX        "Current Pool Content",IDT_POOL_CONTENTS,2,58,296,170
+    LTEXT           "",IDC_POOL_CONTENTS,11,71,282,148,0,WS_EX_TRANSPARENT
+    CONTROL         "Display pool content",IDC_DISPLAY_POOL_CONTENTS,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,189,38,103,10
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO 
+BEGIN
+    IDD_COMMANDHELP_DLG, DIALOG
+    BEGIN
+        BOTTOMMARGIN, 158
+    END
+
+    IDD_RAWDEVICES_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 265
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 174
+    END
+
+    IDD_MOUNT_OPTIONS, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 271
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 125
+    END
+
+    IDD_KEYFILES, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 327
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 211
+    END
+
+    IDD_LANGUAGE, DIALOG
+    BEGIN
+        LEFTMARGIN, 6
+        RIGHTMARGIN, 202
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 176
+    END
+
+    IDD_BENCHMARK_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 323
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 197
+    END
+
+    IDD_CIPHER_TEST_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 313
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 213
+    END
+
+    IDD_LEGAL_NOTICES_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 365
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 214
+    END
+
+    IDD_KEYFILE_GENERATOR, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 292
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 251
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// XML
+//
+
+IDR_LANGUAGE            XML                     "..\\Common\\Language.xml"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// HEADER
+//
+
+IDR_COMMON_RSRC_HEADER  HEADER                  "..\\Common\\Resource.h"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXT
+//
+
+IDR_LICENSE             TEXT                    "..\\Release\\Setup Files\\License.txt"
 
 #ifdef APSTUDIO_INVOKED
 /////////////////////////////////////////////////////////////////////////////
@@ -140,51 +376,6 @@ END
 
 /////////////////////////////////////////////////////////////////////////////
 //
-// DESIGNINFO
-//
-
-#ifdef APSTUDIO_INVOKED
-GUIDELINES DESIGNINFO 
-BEGIN
-    IDD_COMMANDHELP_DLG, DIALOG
-    BEGIN
-        BOTTOMMARGIN, 158
-    END
-
-    IDD_RAWDEVICES_DLG, DIALOG
-    BEGIN
-        LEFTMARGIN, 7
-        RIGHTMARGIN, 265
-        TOPMARGIN, 7
-        BOTTOMMARGIN, 152
-    END
-
-    IDD_WARNING_DLG, DIALOG
-    BEGIN
-        BOTTOMMARGIN, 95
-    END
-
-    IDD_DIALOGBAR, DIALOG
-    BEGIN
-        LEFTMARGIN, 7
-        RIGHTMARGIN, 323
-        TOPMARGIN, 7
-        BOTTOMMARGIN, 9
-    END
-
-    IDD_MOUNT_OPTIONS, DIALOG
-    BEGIN
-        LEFTMARGIN, 7
-        RIGHTMARGIN, 213
-        TOPMARGIN, 7
-        BOTTOMMARGIN, 38
-    END
-END
-#endif    // APSTUDIO_INVOKED
-
-
-/////////////////////////////////////////////////////////////////////////////
-//
 // Icon
 //
 
@@ -192,144 +383,6 @@ END
 // remains consistent on all systems.
 IDI_TRUECRYPT_ICON      ICON                    "..\\common\\TrueCrypt.ico"
 IDI_TRUECRYPT_ICON_B    ICON                    "..\\common\\TrueCrypt_Volume.ico"
-
-/////////////////////////////////////////////////////////////////////////////
-//
-// String Table
-//
-
-STRINGTABLE 
-BEGIN
-    IDS_ABOUTBOX            "&About..."
-    IDS_NOFONT              "Could not create fonts."
-    IDS_OUTOFMEMORY         "Out of Memory"
-END
-
-STRINGTABLE 
-BEGIN
-    IDS_INIT_REGISTER       "Unable to initialize the application. Failed to register the Dialog class."
-    IDS_PASSWORD_HELP0      " "
-    IDS_PASSWORD_HELP1      "It is very important that you choose a good password. You should avoid choosing one that only contains a single word that can be found in a dictionary (or a combination of 2, 3, or 4 such words). It should not contain any names or dates of birth. I"
-    IDS_PASSWORD_HELP2      "t should not be easy to guess. A good password is a combination of upper and lower case letters, numbers, and special characters, such as @ ^ & $ * + etc. "
-    IDS_PASSWORD_HELP3      "We recommend choosing a password consisting of more than 20 characters (the longer, the better). The maximum password length is 64 characters."
-    IDS_NODRIVER            "Unable to connect to TrueCrypt device driver.\nTrueCrypt cannot work if the device driver is not running."
-    IDS_RAWDEVICES          "Unable to list raw devices installed on your system!"
-    IDS_ALREADY_MOUNTED     "Volume is already mounted."
-    IDS_DEVICE_IN_USE_FAILED 
-                            "Error: Cannot mount volume. Device/partition is already in use.\nAttempt to mount without exclusive access failed as well."
-    IDS_INIT_MUTEX          "Unable to initialize the application. Failed to create a required mutex object."
-    IDS_TWO_INSTANCES       "Multiple instances of TrueCrypt are not allowed."
-    IDS_HELP_ERROR          "Document not found!"
-    IDS_HELP_READER_ERROR   "Adobe Acrobat Reader (or a compatible tool) is necessary\nto view or print the TrueCrypt User's Guide.\n\nAdobe Acrobat Reader (freeware) can be downloaded at:\nwww.adobe.com"
-    IDS_DEVICE_IN_USE       "WARNING: Device/partition is already in use!\n\nIgnoring this can cause undesired results including system instability.\nAll applications that might be using the device/partition should be closed\nbefore mounting the volume.\n\nContinue with mounting?"
-    IDS_SETFILETIME_FAILED_PW 
-                            "WARNING: Failed to reset container timestamp (file modification/access date/time)!\n\nIf there is a hidden volume within this container, the plausible deniability of the\nhidden volume might be affected."
-    IDS_VOL_FORMAT_BAD      "The format of this volume not recognized. The volume might be corrupted."
-END
-
-STRINGTABLE 
-BEGIN
-    IDS_PASSWORD_WRONG      "Incorrect password or not a TrueCrypt volume."
-    IDS_OPENFILES_DRIVER    "The driver is unable to dismount the volume. Some files located on the volume are probably still open."
-    IDS_BAD_DRIVE_LETTER    "Invalid drive letter."
-    IDS_UNKNOWN             "The device driver returned an unrecognized error, code = %d"
-    IDS_NOT_FOUND           "The DOS drive letter you specified has not been found."
-    IDS_VOL_SIZE_WRONG      "Error: Incorrect volume size."
-    IDS_COMPRESSION_NOT_SUPPORTED 
-                            "The volume has been compressed on an NTFS partition. This is not supported. Please remove the compression attribute."
-    IDS_DRIVELETTERS        "Could not get available drive letters."
-    IDS_OPENFILES_LOCK      "Unable to lock the volume. There are still open files on the volume. Therefore, it cannot be dismounted."
-    IDS_SYMLINK             "Could not assign a DOS drive letter to the device."
-    IDS_SYMLINK_REMOVE      "Could not remove the DOS drive letter assigned to the device."
-    IDS_INIT_RAND           "Failed to initialize the random number generator!"
-    IDS_CREATE_FAILED       "Failed to create volume %s"
-    IDS_ACCESSMODEFAIL      "The read-only attribute on your old volume could not be changed. Please check the file access permissions."
-    IDS_OVERWRITEPROMPT     "Warning: The volume '%s' already exists!\nAre you sure you want to replace it and lose all data it contains?"
-    IDS_OVERWRITEPROMPT_DEVICE 
-                            "WARNING: All data currently stored on the\n%s '%s' %s will be lost!\n\nAre you sure you want to proceed with format?"
-END
-
-STRINGTABLE 
-BEGIN
-    IDS_WIPE_CACHE          "Passwords stored in the device driver cache have been wiped."
-    IDS_VOL_TOO_SMALL       "The volume is too small - it is an invalid volume."
-    IDS_WRONG_VOL_VERSION   "Cannot change passwords for old-format volumes."
-    IDS_WRONG_VOL_TYPE      "TrueCrypt cannot change the password for a foreign volume."
-    IDS_VOL_SEEKING         "Error seeking location within volume."
-    IDS_VOL_WRITING         "Error writing data to volume."
-    IDS_PASSWORD_CHANGED    "Password successfully changed."
-    IDS_NO_OS_VER           "Could not determine your operating system version or you are using an unsupported operating system."
-    IDS_VOL_ALREADY_MOUNTED "The volume you are trying to mount is already mounted. "
-    IDS_NO_FREE_DRIVES      "No drive letters available."
-    IDS_NO_FREE_SLOTS       "On this operating system, the device driver only supports 8 mounted volumes."
-    IDS_VOL_MOUNT_FAILED    "Incorrect password or not a TrueCrypt volume."
-    IDS_FILE_OPEN_FAILED    "The file could not be opened."
-    IDS_INVALID_DEVICE      "Invalid drive or partition specified. Use the following syntax to mount partitions: \\Device\\Harddisk0\\Partition4"
-    IDS_VOL_READING         "Error reading data from volume."
-    IDS_ACCESS_DENIED       "The partition you are trying to access is either 0 sectors long, or it is the boot device and access has been denied."
-END
-
-STRINGTABLE 
-BEGIN
-    IDS_DRIVER_VERSION      "This computer is currently running an incompatible\nversion of TrueCrypt device driver.\n\nRequired version: TrueCrypt %s"
-    IDS_NEW_VERSION_REQUIRED 
-                            "This volume requires a new version of TrueCrypt."
-    IDS_SETFILETIME_FAILED_GENERIC 
-                            "WARNING: Failed to reset container timestamp (file modification/access date/time)!\n\nIf there is a hidden volume within this container, the plausible deniability of the\nhidden volume might be affected."
-    IDS_PASSWORD_HIDDENVOL_HOST_HELP0 
-                            "Please choose a password for the outer volume. The password must be different from the one you will choose for the hidden volume.\n\nWe recommend choosing a password consisting of more than 20 characters. The maximum password length is 64 characters."
-    IDS_AUTOTEST_FAILED_WIZARD 
-                            "CAUTION: At least one encryption or hash algorithm failed the built-in automatic self-tests!\nThe file 'TrueCrypt Format.exe' may be corrupted."
-    IDS_PASSWORD_HIDDENVOL_HELP0 
-                            "Please choose a password for the hidden volume. The password must be different from the one you chose for the outer volume. "
-    IDS_CAPSLOCK_ON         "Warning: Caps Lock is on.\nThis may cause you to enter your password incorrectly."
-    IDS_VOL_MOUNT_FAILED_CAPSLOCK_ON 
-                            "Incorrect password or not a TrueCrypt volume.\n\nWarning: Caps Lock is on.\nThis may cause you to enter your password incorrectly."
-    IDS_GETFILETIME_FAILED_GENERIC 
-                            "Warning: Could not get container timestamp!\n\nIf there is a hidden volume within this container, the plausible deniability of the hidden volume\nmight be affected."
-    IDS_GETFILETIME_FAILED  "Warning: Could not get container timestamp!"
-    IDS_GETFILETIME_FAILED_PW 
-                            "Warning: Could not get container timestamp!\n\nIf there is a hidden volume within this container, the plausible deniability of the hidden volume\nmight be affected after changing or attempting to change the password."
-    IDS_GETFILETIME_FAILED_IMPLANT 
-                            "Warning: Could not get container timestamp!\n\nIf you do not reset the timestamp using an external tool, we recommend that\nyou do not create a hidden volume within this container."
-    IDS_SETFILETIME_FAILED_IMPLANT 
-                            "WARNING: Failed to reset container timestamp (file modification/access date/time)!\n\nThe plausible deniability of the hidden volume might be affected."
-    IDS_SETFILETIME_FAILED_PREP_IMPLANT 
-                            "WARNING: Failed to reset container timestamp!\n\nIf you do not reset the timestamp using an external tool, we recommend that\nyou do not create a hidden volume within this container."
-    IDS_PASSWORD_WRONG_CAPSLOCK_ON 
-                            "Incorrect password or not a TrueCrypt volume.\n\nWarning: Caps Lock is on.\nThis may cause you to enter your password incorrectly."
-    IDS_FILE_IN_USE_FAILED  "Error: Cannot mount volume. The host file is already in use.\nAttempt to mount without exclusive access failed as well."
-END
-
-STRINGTABLE 
-BEGIN
-    IDS_UNMOUNT_LOCK_FAILED "Volume contains files or folders being\nused by applications or system.\n\nForce dismount?"
-    IDS_FILE_IN_USE         "WARNING: The host file is already in use!\n\nIgnoring this can cause undesired results including system instability.\nAll applications that might be using the host file should be closed\nbefore mounting the volume.\n\nContinue with mounting?"
-    IDS_UNMOUNT_FAILED      "Dismount failed!"
-    IDS_PASSWORD_LENGTH_WARNING 
-                            "WARNING: Short passwords are easy to crack\nusing brute force techniques!\n\nWe recommend choosing a password consisting\nof more than 20 characters.\n\nAre you sure you want to use a short password?"
-    IDS_ADMIN_PRIVILEGES_WARN_DEVICES 
-                            "Please note that in order to encrypt/format a partition/device you\nneed to be logged into an account with administrator privileges.\n\nThis does not apply to file-hosted containers."
-    IDS_ADMIN_PRIVILEGES_WARN_NTFS 
-                            "Please note that in order to format the volume as NTFS you need to\nbe logged into an account with administrator privileges.\n\nWithout administrator privileges, you can format the volume as FAT."
-    IDS_ADMIN_PRIVILEGES_WARN_HIDVOL 
-                            "In order to create a hidden volume you need to be\nlogged into an account with administrator privileges.\n\nContinue?"
-    IDS_DEVICE_PARTITIONS_WARN 
-                            "WARNING: Selected device contains partitions!\n\nFormatting the device will destroy its partitions and\nmay lead to data loss and/or system instability.\nYou should either select a partition located on the\ndevice or remove all its partitions first.\n\nContinue?"
-    IDS_DEVICE_IN_USE_FORMAT 
-                            "WARNING: Device is in use!\n\nThe device to be formatted is used by system or applications.\nFormatting it may lead to data loss or system instability.\n\nProceed with format?"
-    IDS_DRIVER_NOT_FOUND    "TrueCrypt driver not found!\n\nPlease copy file 'truecrypt.sys' to the same\ndirectory where the application is located."
-    IDS_ADMIN_PRIVILEGES_DRIVER 
-                            "In order to load TrueCrypt driver you need to be\nlogged into an account with administrator privileges."
-    IDS_SELECT_DEST_DIR     "Select destination directory"
-    IDS_TRAVELLER_DISK_CREATED 
-                            "TrueCrypt traveller disk has been successfully created.\n\nNote that you need administrator privileges to run TrueCrypt in traveller mode.\n"
-    IDS_NO_PATH_SELECTED    "No path selected!"
-    IDS_NO_FILE_SELECTED    "No file selected!"
-    IDS_TRAVELLER_DISK_CREATED2 
-                            "Also note that, after examining the registry file, it may be possible to tell that\nTrueCrypt was run on a Windows system even if it is run in traveller mode."
-END
-
 #endif    // English (U.S.) resources
 /////////////////////////////////////////////////////////////////////////////
 
@@ -342,55 +395,6 @@ END
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_UK
 #pragma code_page(1252)
 #endif //_WIN32
-
-/////////////////////////////////////////////////////////////////////////////
-//
-// Dialog
-//
-
-IDD_BENCHMARK_DLG DIALOGEX 0, 0, 330, 204
-STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | 
-    WS_CAPTION | WS_SYSMENU
-CAPTION "TrueCrypt - Encryption Algorithm Benchmark"
-FONT 8, "MS Shell Dlg", 400, 0, 0x1
-BEGIN
-    COMBOBOX        IDC_BENCHMARK_BUFFER_SIZE,52,7,77,129,CBS_DROPDOWNLIST | 
-                    CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
-    COMBOBOX        IDC_BENCHMARK_SORT_METHOD,207,7,116,74,CBS_DROPDOWNLIST | 
-                    CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
-    DEFPUSHBUTTON   "Benchmark",ID_PERFORM_BENCHMARK,265,37,58,14
-    PUSHBUTTON      "Close",IDCLOSE,265,55,58,14
-    CONTROL         "",IDC_RESULTS,"SysListView32",LVS_REPORT | 
-                    LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_ALIGNLEFT | 
-                    LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,37,249,160
-    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,2,29,328,1,
-                    WS_EX_STATICEDGE
-    LTEXT           "Buffer Size:",IDC_STATIC,8,9,38,8,0,WS_EX_RIGHT
-    LTEXT           "Sort Method:",IDC_BENCMARK_SORT_METHOD,156,9,45,8,0,
-                    WS_EX_RIGHT
-    LTEXT           "Speed is affected by CPU load and storage device characteristics.\n\nThese tests take place in RAM.",
-                    IDC_BOX_BENCHMARK_INFO,266,81,57,116
-END
-
-
-/////////////////////////////////////////////////////////////////////////////
-//
-// DESIGNINFO
-//
-
-#ifdef APSTUDIO_INVOKED
-GUIDELINES DESIGNINFO 
-BEGIN
-    IDD_BENCHMARK_DLG, DIALOG
-    BEGIN
-        LEFTMARGIN, 7
-        RIGHTMARGIN, 323
-        TOPMARGIN, 7
-        BOTTOMMARGIN, 197
-    END
-END
-#endif    // APSTUDIO_INVOKED
-
 
 /////////////////////////////////////////////////////////////////////////////
 //

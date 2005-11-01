@@ -1,13 +1,23 @@
-/* The source code contained in this file has been derived from the source code
-   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004-2005
-   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
-   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
-   release. Please see the file license.txt for full license details. */
+/* Legal Notice: The source code contained in this file has been derived from
+   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
+   Encryption for the Masses'. Modifications and additions to that source code
+   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   the full text of which is contained in the file License.txt included in
+   TrueCrypt binary and source code distribution archives.  */
 
 /* DeviceIoControl values.
 
 */
+
+#pragma once
+
+#include "Tcdefs.h"
+#include "Common.h"
+#include "Crypto.h"
+
+#ifdef _WIN32
 
 #ifndef CTL_CODE
 
@@ -56,10 +66,6 @@ etc... */
 #define WIPE_CACHE		466960	/* Wipe the driver password cache */
 #define HALT_SYSTEM		466964	/* Halt system; (only NT when compiled with debug) */
 #define DRIVER_VERSION		466968	/* Current driver version */
-#define RELEASE_TIME_SLICE	466972	/* Release time slice on apps behalf (only Win9x) */
-#define MOUNT_LIST_N		466976	/* Get volume info from the device (only Win9x) */
-#define DISKIO				466980	/* Read/Write at ring0 for win32 gui (only Win9x) */
-#define ALLOW_FAST_SHUTDOWN 466984	/* Fast shutdown under win98 (only Win9x) */
 #define CACHE_STATUS		466988	/* Get password cache status */
 #define VOLUME_PROPERTIES	466992	/* Get mounted volume properties */
 #define RESOLVE_SYMLINK		466996	/* Resolve symbolic link to target */
@@ -78,17 +84,20 @@ etc... */
 
 typedef struct
 {
-	int nReturnCode;	/* Return code back from driver */
-	short wszVolume[TC_MAX_PATH];	/* Volume to be mounted */
-	char szPassword[MAX_PASSWORD + 1];	/* User password */
-	int nPasswordLen;	/* User password length */
-	BOOL bCache;		/* Cache passwords in driver */
-	int nDosDriveNo;	/* Drive number to mount */
-	BOOL bMountReadOnly;	/* Mount volume in read-only mode */
-	BOOL bMountRemovable;	/* Mount volume as removable media */
-	BOOL bExclusiveAccess;	/* Open host file/device in exclusive access mode */
-	BOOL bMountManager;		/* Announce volume to mount manager */
-	long time;		/* Time when this volume was mounted */
+	int nReturnCode;					/* Return code back from driver */
+	short wszVolume[TC_MAX_PATH];		/* Volume to be mounted */
+	Password VolumePassword;			/* User password */
+	BOOL bCache;						/* Cache passwords in driver */
+	int nDosDriveNo;					/* Drive number to mount */
+	BOOL bMountReadOnly;				/* Mount volume in read-only mode */
+	BOOL bMountRemovable;				/* Mount volume as removable media */
+	BOOL bExclusiveAccess;				/* Open host file/device in exclusive access mode */
+	BOOL bMountManager;					/* Announce volume to mount manager */
+	BOOL bUserContext;					/* Mount volume in user process context */
+	BOOL bPreserveTimestamp;			/* Preserve file container timestamp */
+	// Hidden volume protection
+	BOOL bProtectHiddenVolume;			/* TRUE if the user wants the hidden volume within this volume to be protected against being overwritten (damaged) */
+	Password ProtectedHidVolPassword;	/* Password to the hidden volume to be protected against overwriting */
 } MOUNT_STRUCT;
 
 typedef struct
@@ -100,16 +109,17 @@ typedef struct
 
 typedef struct
 {
-	unsigned long ulMountedDrives;	/* Bitfield of all mounted drive letters */
+	unsigned __int32 ulMountedDrives;	/* Bitfield of all mounted drive letters */
 	short wszVolume[26][64];	/* Volume names of mounted volumes */
 	unsigned __int64 diskLength[26];
 	int ea[26];
-	BOOL hiddenVol[26];
+	int volumeType[26];	/* Volume type (e.g. PROP_VOL_TYPE_OUTER, PROP_VOL_TYPE_OUTER_VOL_WRITE_PREVENTED, etc.) */
 } MOUNT_LIST_STRUCT;
 
 typedef struct
 {
 	int driveNo;
+	int uniqueId;
 	short wszVolume[64];
 	unsigned __int64 diskLength;
 	int ea;
@@ -119,7 +129,9 @@ typedef struct
 	BOOL readOnly;
 	unsigned __int64 volumeCreationTime;
 	unsigned __int64 headerCreationTime;
-	//int readOnly;
+	unsigned __int64 totalBytesRead;
+	unsigned __int64 totalBytesWritten;
+	int hiddenVolProtection;	/* Hidden volume protection status (e.g. HIDVOL_PROT_STATUS_NONE, HIDVOL_PROT_STATUS_ACTIVE, etc.) */
 } VOLUME_PROPERTIES_STRUCT;
 
 typedef struct
@@ -131,31 +143,7 @@ typedef struct
 typedef struct
 {
 	short wszFileName[TC_MAX_PATH];	/* Volume to be "open tested" */
-	int nReturnCode;	/* Win9x only */
-	unsigned long secstart;	/* Win9x only */
-	unsigned long seclast;	/* Win9x only */
-	unsigned long device;	/* Win9x only */
 } OPEN_TEST_STRUCT;
-
-/* Win9x only */
-typedef struct
-{
-	int nReturnCode;	/* Return code back from driver */
-	int nDosDriveNo;	/* Drive letter to get info on */
-	short wszVolume[TC_MAX_PATH];	/* Volume names of mounted volumes */
-	unsigned long mountfilehandle;	/* Device file handle or 0 */
-} MOUNT_LIST_N_STRUCT;
-
-/* Win9x only */
-typedef struct
-{
-	unsigned int devicenum;	/* Ptr to dcb for device */
-	unsigned int sectorstart;	/* Start sector */
-	unsigned int sectorlen;	/* Number of sectors */
-	char *bufferad;		/* Address of buffer */
-	int mode;		/* Read=0 or Write=1 */
-	int nReturnCode;	/* Return code back from driver */
-} DISKIO_STRUCT;
 
 
 #pragma pack (pop)
@@ -176,3 +164,5 @@ typedef struct
 #define DOS_MOUNT_PREFIX DRIVER_STR("\\DosDevices\\")
 #define DOS_ROOT_PREFIX DRIVER_STR("\\DosDevices\\TrueCrypt")
 #define WIN32_ROOT_PREFIX DRIVER_STR("\\\\.\\TrueCrypt")
+
+#endif		/* _WIN32 */

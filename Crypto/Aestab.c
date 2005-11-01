@@ -38,7 +38,7 @@ extern "C"
 
 #define DO_TABLES
 
-#include "aesopt.h"
+#include "Aesopt.h"
 
 #if defined(FIXED_TABLES)
 
@@ -191,7 +191,7 @@ extern "C"
 
 #endif
 
-#include "aestab.h"
+#include "Aestab.h"
 
 #if defined(FIXED_TABLES)
 

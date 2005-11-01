@@ -5,8 +5,6 @@
    parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
    release. Please see the file license.txt for full license details. */
 
-/* Everything below this line is automatically updated by the -mkproto-tool- */
-
 void CipherInit2 ( int cipher , void *key , void *ks , int key_len );
 void ResetCipherTest ( HWND hwndDlg , int nCipherChoice );
 BOOL Des56TestLoop ( void *test_vectors , int nVectorCount , int enc );

@@ -1,15 +1,18 @@
-/* The source code contained in this file has been derived from the source code
-   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004-2005
-   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
-   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
-   release. Please see the file license.txt for full license details. */
+/* Legal Notice: The source code contained in this file has been derived from
+   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
+   Encryption for the Masses'. Modifications and additions to that source code
+   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   the full text of which is contained in the file License.txt included in
+   TrueCrypt binary and source code distribution archives.  */
 
-#include "TCdefs.h"
-#include "crc.h"
+#include "Tcdefs.h"
+#include "Crc.h"
+#include "Endian.h"
 
 /* CRC polynomial 0x04c11db7 */
-unsigned long crc_32_tab[]=
+unsigned __int32 crc_32_tab[]=
 {				
 	0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
 	0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988, 0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91,
@@ -45,9 +48,9 @@ unsigned long crc_32_tab[]=
 	0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94, 0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
-unsigned long crc32 (unsigned char *data, int length)
+unsigned __int32 crc32 (unsigned char *data, int length)
 {
-	unsigned long CRC = 0xffffffff;
+	unsigned __int32 CRC = 0xffffffff;
 
 	while (length--)
 	{
@@ -57,10 +60,10 @@ unsigned long crc32 (unsigned char *data, int length)
 	return CRC ^ 0xffffffff;
 }
 
-unsigned long crc32long (unsigned long *data)
+unsigned __int32 crc32int (unsigned __int32 *data)
 {
 	unsigned char *d = (unsigned char *) data;
-	unsigned long CRC = 0xffffffff;
+	unsigned __int32 CRC = 0xffffffff;
 
 	CRC = (CRC >> 8) ^ crc_32_tab[ (CRC ^ *d++) & 0xFF ];
 	CRC = (CRC >> 8) ^ crc_32_tab[ (CRC ^ *d++) & 0xFF ];
@@ -68,7 +71,24 @@ unsigned long crc32long (unsigned long *data)
 	return (CRC >> 8) ^ crc_32_tab[ (CRC ^ *d) & 0xFF ] ^ 0xffffffff;
 }
 
-int crc32_selftest (void)
+#if BYTE_ORDER == LITTLE_ENDIAN
+#	define CRC_SELFTEST 0x6fcf9e13
+#else
+#	define CRC_SELFTEST 0xca87914d
+#endif
+
+BOOL crc32_selftests (void)
 {
-	return crc32 ((unsigned char *)crc_32_tab, sizeof crc_32_tab) == 0x6fcf9e13;
+	int i;
+	unsigned __int32 crc  = 0xffffffff;
+	BOOL bSuccess = FALSE;
+
+	for (i = 0; i < (int)sizeof(crc_32_tab); i++)
+		crc = UPDC32 (((unsigned char *) crc_32_tab)[i], crc);
+
+	bSuccess = CRC_SELFTEST == (crc ^ 0xffffffff);
+
+	bSuccess &= crc32 ((unsigned char *)crc_32_tab, sizeof crc_32_tab) == CRC_SELFTEST;
+
+	return bSuccess;
 }

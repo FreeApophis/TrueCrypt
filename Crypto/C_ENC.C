@@ -56,8 +56,8 @@
  * [including the GNU Public Licence.]
  */
 
-#include "cast.h"
-#include "cast_lcl.h"
+#include "Cast.h"
+#include "Cast_lcl.h"
 
 #pragma warning( disable : 4131 )
 

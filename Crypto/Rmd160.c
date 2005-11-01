@@ -27,7 +27,8 @@
  * ftp://ftp.rsasecurity.com/pub/cryptobytes/crypto3n2.pdf
  */
 
-#include "rmd160.h"
+#include "Rmd160.h"
+#include "../Common/Endian.h"
 #include <memory.h>
 
 #define PUT_64BIT_LE(cp, value) do { \
@@ -103,7 +104,7 @@ RMD160Update(RMD160_CTX *ctx, const u_char *input, u_int32_t len)
 {
 	u_int32_t have, off, need;
 
-	have = (unsigned long)((ctx->count/8) % 64);
+	have = (unsigned __int32)((ctx->count/8) % 64);
 	need = 64 - have;
 	ctx->count += 8 * len;
 	off = 0;
@@ -138,7 +139,7 @@ RMD160Final(u_char digest[20], RMD160_CTX *ctx)
 	 * pad to 64 byte blocks, at least one byte from PADDING plus 8 bytes
 	 * for the size
 	 */
-	padlen = (unsigned long)(64 - ((ctx->count/8) % 64));
+	padlen = (unsigned __int32)(64 - ((ctx->count/8) % 64));
 	if (padlen < 1 + 8)
 		padlen += 64;
 	RMD160Update(ctx, PADDING, padlen - 8);		/* padlen - 8 <= 64 */

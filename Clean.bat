@@ -8,11 +8,7 @@ rd /s /q release debug
 
 cd ..\driver
 del *.aps *.tmp
-rd /s /q release debug
-
-cd "..\driver vxd"
-del *.aps *.tmp
-rd /s /q release debug
+rd /s /q release release64 debug debug64
 
 cd ..\format
 del *.aps *.tmp
@@ -27,9 +23,9 @@ del *.aps *.tmp
 rd /s /q release debug
 
 cd ..\release
-del *.exe *.sys *.vxd
+del *.exe *.sys
 cd ..\release\setup files
-del *.exe *.sys *.vxd
+del *.exe *.sys
 
 cd ..\..
 del *.ncb *.suo

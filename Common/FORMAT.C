@@ -1,22 +1,25 @@
-/* The source code contained in this file has been derived from the source code
-   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004-2005
-   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
-   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
-   release. Please see the file license.txt for full license details. */
+/* Legal Notice: The source code contained in this file has been derived from
+   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
+   Encryption for the Masses'. Modifications and additions to that source code
+   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   the full text of which is contained in the file License.txt included in
+   TrueCrypt binary and source code distribution archives.  */
 
-#include "TCdefs.h"
+#include "Tcdefs.h"
 
-#include "crypto.h"
-#include "fat.h"
-#include "format.h"
-#include "volumes.h"
-#include "progress.h"
-#include "apidrvr.h"
-#include "dlgcode.h"
-#include "resource.h"
-#include "common.h"
-#include "random.h"
+#include "Crypto.h"
+#include "Fat.h"
+#include "Format.h"
+#include "Volumes.h"
+#include "Progress.h"
+#include "Apidrvr.h"
+#include "Dlgcode.h"
+#include "Language.h"
+#include "Resource.h"
+#include "Common.h"
+#include "Random.h"
 
 int
 FormatVolume (char *lpszFilename,
@@ -24,13 +27,13 @@ FormatVolume (char *lpszFilename,
 		  char *volumePath,
 	      unsigned __int64 size,
 		  unsigned __int64 hiddenVolHostSize,
-	      char *lpszPassword,
+	      Password *password,
 	      int cipher,
 	      int pkcs5,
 		  BOOL quickFormat,
 		  int fileSystem,
 		  int clusterSize,
-		  char * summaryMsg,
+		  wchar_t *summaryMsg,
 	      HWND hwndDlg,
 		  BOOL hiddenVol,
 		  int *realClusterSize)
@@ -58,12 +61,13 @@ FormatVolume (char *lpszFilename,
 	   disk io */
 	nStatus = VolumeWriteHeader (header,
 				     cipher,
-				     lpszPassword,
+				     password,
 				     pkcs5,
 					 0,
 					 0,
 				     &cryptoInfo,
-					 hiddenVol ? size : 0);
+					 hiddenVol ? size : 0,
+					 FALSE);
 
 	if (nStatus != 0)
 	{
@@ -74,7 +78,7 @@ FormatVolume (char *lpszFilename,
 
 	write = (diskio_f) _lwrite;
 
-	if (bDevice == TRUE)
+	if (bDevice)
 	{
 		dev = CreateFile (lpszFilename, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
 		if (dev == INVALID_HANDLE_VALUE)
@@ -83,7 +87,7 @@ FormatVolume (char *lpszFilename,
 			dev = CreateFile (lpszFilename, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 			if (dev != INVALID_HANDLE_VALUE)
 			{
-				if (IDNO == MessageBox (hwndDlg, getstr (IDS_DEVICE_IN_USE_FORMAT), lpszTitle, MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2))
+				if (IDNO == MessageBoxW (hwndDlg, GetString ("DEVICE_IN_USE_FORMAT"), lpszTitle, MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2))
 				{
 					CloseHandle (dev);
 					dev = INVALID_HANDLE_VALUE;
@@ -99,22 +103,38 @@ FormatVolume (char *lpszFilename,
 		dev = CreateFile (lpszFilename, GENERIC_WRITE,
 			hiddenVol ? (FILE_SHARE_READ | FILE_SHARE_WRITE) : 0,
 			NULL, hiddenVol ? OPEN_EXISTING : CREATE_ALWAYS, 0, NULL);
+
+		if (!hiddenVol)
+		{
+			// Preallocate file
+			LARGE_INTEGER volumeSize;
+			volumeSize.QuadPart = size;
+
+			if (!SetFilePointerEx (dev, volumeSize, NULL, FILE_BEGIN)
+				|| !SetEndOfFile (dev)
+				|| SetFilePointer (dev, 0, NULL, FILE_BEGIN) != 0)
+			{
+				handleWin32Error (hwndDlg);
+				nStatus = ERR_OS_ERROR; goto error;
+			}
+		}
 	}
 
 	if (dev == INVALID_HANDLE_VALUE)
 	{
 		handleWin32Error (hwndDlg);
-		nStatus = ERR_OS_ERROR; goto error;
+		nStatus = ERR_OS_ERROR; 
+		goto error;
 	}
 
-	if (hiddenVol && !bDevice)
+	if (hiddenVol && !bDevice && bPreserveTimestamp)
 	{
 		/* Remember the container timestamp (used to reset file date and time of file-hosted
 		containers to preserve plausible deniability of hidden volume)  */
 		if (GetFileTime ((HANDLE) dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
 		{
 			bTimeStampValid = FALSE;
-			MessageBox (hwndDlg, getstr (IDS_GETFILETIME_FAILED_IMPLANT), "TrueCrypt", MB_OK | MB_ICONEXCLAMATION);
+			MessageBoxW (hwndDlg, GetString ("GETFILETIME_FAILED_IMPLANT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
 		}
 		else
 			bTimeStampValid = TRUE;
@@ -126,7 +146,7 @@ FormatVolume (char *lpszFilename,
 	dwThen = GetTickCount ();
 
 
-	//// Volume header
+	/* Volume header */
 
 	// Hidden volume setup
 	if (hiddenVol)
@@ -150,7 +170,7 @@ FormatVolume (char *lpszFilename,
 		return ERR_OS_ERROR;
 
 
-	//// Data area
+	/* Data area */
 
 	startSector = 1;	// Data area of normal volume starts right after volume header
 
@@ -162,7 +182,8 @@ FormatVolume (char *lpszFilename,
 		// Validate the offset
 		if (startOffset % SECTOR_SIZE != 0)
 		{
-			nStatus = ERR_VOL_SIZE_WRONG; goto error;
+			nStatus = ERR_VOL_SIZE_WRONG; 
+			goto error;
 		}
 
 		startSector = startOffset / SECTOR_SIZE;	
@@ -175,23 +196,24 @@ FormatVolume (char *lpszFilename,
 	{
 	case FILESYS_NONE:
 	case FILESYS_NTFS: // NTFS volume is just prepared for quick format performed by system
-		nStatus = FormatNoFs (startSector, num_sectors, (HFILE) dev, cryptoInfo, 1000, write, quickFormat);
+		nStatus = FormatNoFs (startSector, num_sectors, (HFILE) dev, cryptoInfo, write, quickFormat);
 		break;
 
 	case FILESYS_FAT:
 		if (num_sectors > 0xFFFFffff)
 		{
-			nStatus = ERR_VOL_SIZE_WRONG; goto error;
+			nStatus = ERR_VOL_SIZE_WRONG; 
+			goto error;
 		}
 
 		// Calculate the fats, root dir etc
 		ft.num_sectors = (unsigned int) (num_sectors);
 		ft.cluster_size = clusterSize;
-		memcpy (ft.volume_name, "           ", 11);
+		memcpy (ft.volume_name, "NO NAME    ", 11);
 		GetFatParams (&ft); 
 		*realClusterSize = ft.cluster_size * SECTOR_SIZE;
 
-		nStatus = FormatFat (startSector, &ft, (HFILE) dev, cryptoInfo, 1000, write, quickFormat);
+		nStatus = FormatFat (startSector, &ft, (HFILE) dev, cryptoInfo, write, quickFormat);
 		break;
 	}
 
@@ -208,31 +230,37 @@ error:
 	{
 		// Restore the container timestamp (to preserve plausible deniability of the hidden volume) 
 		if (SetFileTime (dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
-			MessageBox (hwndDlg, getstr (IDS_SETFILETIME_FAILED_IMPLANT), "TrueCrypt", MB_OK | MB_ICONEXCLAMATION);
+			MessageBoxW (hwndDlg, GetString ("SETFILETIME_FAILED_IMPLANT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
+	}
+
+	if (!bDevice && !hiddenVol && nStatus != 0)
+	{
+		// Remove preallocated part before closing file handle if format failed
+		if (SetFilePointer (dev, 0, NULL, FILE_BEGIN) == 0)
+			SetEndOfFile (dev);
 	}
 
 	CloseHandle (dev);
 
 	dwError = GetLastError();
 
-	if (nStatus!=0)
+	if (nStatus != 0)
 		SetLastError(dwError);
 	else
 	{
 		switch (fileSystem)
 		{
 		case FILESYS_NONE:
-			sprintf (summaryMsg, "Volume size:\t\t%I64d sectors (%I64d MB)\nFile system:\t\tNone"
-				"\n\nFormatting took %lu seconds."
+			swprintf (summaryMsg
+				, GetString ("FORMAT_STAT")
 				, num_sectors, num_sectors*512/1024/1024
+				, GetString ("NONE")
 				, (dwNow - dwThen)/1000);
 			break;
 
 		case FILESYS_FAT:
-			sprintf (summaryMsg, 
-				"Volume size:\t\t%d sectors (%I64d MB)\nFile system:\t\tFAT%d\n"
-				"FAT size:\t\t%d bytes\nCluster size:\t\t%d bytes\nClusters available:\t%d"
-				"\n\nFormatting took %lu seconds."
+			swprintf (summaryMsg 
+				, GetString ("FORMAT_STAT_FAT")
 				, ft.num_sectors, ((__int64) ft.num_sectors*512)/1024/1024, ft.size_fat
 				, (int) (512*ft.fats*ft.fat_length),
 				(int) (512*ft.cluster_size), ft.cluster_count,
@@ -247,38 +275,45 @@ error:
 				
 				if (driveNo == -1)
 				{
-					MessageBox (hwndDlg, "No free drive letter available. NTFS formatting cannot continue.", lpszTitle, ICON_HAND);
+					MessageBoxW (hwndDlg, GetString ("NO_FREE_DRIVES"), lpszTitle, ICON_HAND);
+					MessageBoxW (hwndDlg, GetString ("FORMAT_NTFS_STOP"), lpszTitle, ICON_HAND);
+
 					return ERR_NO_FREE_DRIVES;
 				}
 
 				mountOptions.ReadOnly = FALSE;
 				mountOptions.Removable = FALSE;
+				mountOptions.ProtectHiddenVolume = FALSE;
+				mountOptions.PreserveTimestamp = bPreserveTimestamp;
 
-				if (MountVolume (hwndDlg, driveNo, volumePath, lpszPassword, FALSE, TRUE, &mountOptions, FALSE) < 1)
+				if (MountVolume (hwndDlg, driveNo, volumePath, password, FALSE, TRUE, &mountOptions, FALSE, TRUE) < 1)
 				{
-					MessageBox (hwndDlg, "Cannot mount volume. NTFS formatting cannot continue.", lpszTitle, ICON_HAND);
+					MessageBoxW (hwndDlg, GetString ("CANT_MOUNT_VOLUME"), lpszTitle, ICON_HAND);
+					MessageBoxW (hwndDlg, GetString ("FORMAT_NTFS_STOP"), lpszTitle, ICON_HAND);
 					return ERR_VOL_MOUNT_FAILED;
 				}
 
 				// Quickformat volume as NTFS
 				if (!FormatNtfs (driveNo, clusterSize))
 				{
-					MessageBox (hwndDlg, "NTFS formatting failed.\nTry using FAT file system instead.", lpszTitle, MB_ICONERROR);
+					MessageBoxW (hwndDlg, GetString ("FORMAT_NTFS_FAILED"), lpszTitle, MB_ICONERROR);
 				
 					if (!UnmountVolume (hwndDlg, driveNo, FALSE))
-						MessageBox (hwndDlg, "Volume dismount failed.", lpszTitle, MB_ICONERROR);
+						MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_VOLUME"), lpszTitle, ICON_HAND);
 
 					return ERR_VOL_FORMAT_BAD;
 				}
 
 				if (!UnmountVolume (hwndDlg, driveNo, FALSE))
-					MessageBox (hwndDlg, "Formatting succeeded but volume cannot be dismounted.", lpszTitle, MB_ICONEXCLAMATION);
+					MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_VOLUME"), lpszTitle, ICON_HAND);
 
 				dwNow = GetTickCount ();
 
-				sprintf (summaryMsg, "Volume size:\t\t%I64d sectors (%I64d MB)\nFile system:\t\tNTFS"
-					"\n\nFormatting took %lu seconds."
-					, num_sectors, num_sectors*512/1024/1024
+				swprintf (summaryMsg,
+					GetString ("FORMAT_STAT")
+					, num_sectors
+					, num_sectors*512/1024/1024
+					, L"NTFS"
 					, (dwNow - dwThen)/1000);
 
 				break;
@@ -290,19 +325,19 @@ error:
 }
 
 
-int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, HFILE dev, PCRYPTO_INFO cryptoInfo, int nFrequency, diskio_f write, BOOL quickFormat)
+int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, HFILE dev, PCRYPTO_INFO cryptoInfo, diskio_f write, BOOL quickFormat)
 {
 	int write_buf_cnt = 0;
 	char sector[SECTOR_SIZE], *write_buf;
-	int progress = 0;
 	unsigned __int64 nSecNo = startSector;
 	LARGE_INTEGER startOffset;
 	LARGE_INTEGER newOffset;
+	int retVal;
 
 	// Seek to start sector
 	startOffset.QuadPart = startSector * SECTOR_SIZE;
-	if (SetFilePointerEx ((HANDLE) dev, startOffset, &newOffset, FILE_BEGIN) == 0
-		|| newOffset.QuadPart != newOffset.QuadPart)
+	if (!SetFilePointerEx ((HANDLE) dev, startOffset, &newOffset, FILE_BEGIN)
+		|| newOffset.QuadPart != startOffset.QuadPart)
 	{
 		return ERR_VOL_SEEKING;
 	}
@@ -320,14 +355,18 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, HFILE dev, PC
 		char key[DISKKEY_SIZE];
 		RandgetBytes (key, DISKKEY_SIZE, FALSE); 
 		RandgetBytes (cryptoInfo->iv, sizeof cryptoInfo->iv, FALSE); 
-		EAInit (cryptoInfo->ea, key, cryptoInfo->ks);
+
+		retVal = EAInit (cryptoInfo->ea, key, cryptoInfo->ks);
+		if (retVal != 0)
+			return retVal;
+
 		RandgetBytes (sector, 256, FALSE); 
 		RandgetBytes (sector + 256, 256, FALSE); 
 
 		while (num_sectors--)
 		{
-			if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo, &progress,
-				cryptoInfo, nFrequency, write) == FALSE)
+			if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo,
+				cryptoInfo, write) == FALSE)
 				goto fail;
 		}
 		if (write_buf_cnt != 0 && (*write) (dev, write_buf, write_buf_cnt) == HFILE_ERROR)
@@ -386,16 +425,16 @@ BOOL FormatNtfs (int driveNo, int clusterSize)
 BOOL
 WriteSector (HFILE dev, char *sector,
 	     char *write_buf, int *write_buf_cnt,
-	     __int64 *nSecNo, int *progress, PCRYPTO_INFO cryptoInfo,
-	     int nFrequency, diskio_f write)
+	     __int64 *nSecNo, PCRYPTO_INFO cryptoInfo,
+	     diskio_f write)
 {
+	static DWORD updateTime = 0;
 
-	EncryptSectors ((unsigned long *) sector,
+	EncryptSectors ((unsigned __int32 *) sector,
 		(*nSecNo)++, 1, cryptoInfo->ks, cryptoInfo->iv, cryptoInfo->ea);
 
 	memcpy (write_buf + *write_buf_cnt, sector, SECTOR_SIZE);
 	(*write_buf_cnt) += SECTOR_SIZE;
-
 
 	if (*write_buf_cnt == WRITE_BUF_SIZE)
 	{
@@ -404,12 +443,13 @@ WriteSector (HFILE dev, char *sector,
 		else
 			*write_buf_cnt = 0;
 	}
-
-	if (++(*progress) == nFrequency)
+	
+	if (GetTickCount () - updateTime > 25)
 	{
-		if (UpdateProgressBar (*nSecNo) == TRUE)
+		if (UpdateProgressBar (*nSecNo))
 			return FALSE;
-		*progress = 0;
+
+		updateTime = GetTickCount ();
 	}
 
 	return TRUE;

@@ -1,8 +1,8 @@
 #ifndef u4byte
-typedef unsigned long	u4byte;
+#define u4byte	unsigned __int32
 #endif
 #ifndef u1byte
-typedef unsigned char	u1byte;
+#define u1byte	unsigned char
 #endif
 
 #ifndef extract_byte
@@ -10,10 +10,17 @@ typedef unsigned char	u1byte;
 #endif
 
 #ifndef rotl
+
+#ifdef _WIN32
 #include <stdlib.h>
 #pragma intrinsic(_lrotr,_lrotl)
 #define rotr(x,n) _lrotr(x,n)
 #define rotl(x,n) _lrotl(x,n)
+#else
+#define rotr(x,n) (((x)>>(n))|((x)<<(32-(n))))
+#define rotl(x,n) (((x)<<(n))|((x)>>(32-(n))))
+#endif
+
 #endif
 
 typedef struct

@@ -21,7 +21,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="..\Common;..\Crypto"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS"
+				PreprocessorDefinitions="TCMOUNT;WIN32;_DEBUG;_WINDOWS"
 				MinimalRebuild="TRUE"
 				ExceptionHandling="TRUE"
 				BasicRuntimeChecks="3"
@@ -46,6 +46,7 @@
 				GenerateDebugInformation="TRUE"
 				ProgramDatabaseFile="$(OutDir)/Mount.pdb"
 				SubSystem="2"
+				OptimizeForWindows98="1"
 				TargetMachine="1"/>
 			<Tool
 				Name="VCMIDLTool"/>
@@ -76,10 +77,11 @@
 			CharacterSet="2">
 			<Tool
 				Name="VCCLCompilerTool"
+				AdditionalOptions="/w34189"
 				AdditionalIncludeDirectories="..\Common;..\Crypto"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS"
+				PreprocessorDefinitions="TCMOUNT;WIN32;NDEBUG;_WINDOWS"
 				RuntimeLibrary="0"
-				BufferSecurityCheck="FALSE"
+				BufferSecurityCheck="TRUE"
 				UsePrecompiledHeader="0"
 				AssemblerOutput="2"
 				AssemblerListingLocation="$(IntDir)/"
@@ -100,6 +102,7 @@
 				SubSystem="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
+				OptimizeForWindows98="1"
 				TargetMachine="1"/>
 			<Tool
 				Name="VCMIDLTool"/>
@@ -132,6 +135,9 @@
 			Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx"
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}">
 			<File
+				RelativePath=".\Hotkeys.c">
+			</File>
+			<File
 				RelativePath=".\Mount.c">
 			</File>
 			<Filter
@@ -150,10 +156,19 @@
 					RelativePath="..\Common\Crypto.c">
 				</File>
 				<File
+					RelativePath="..\Common\Dictionary.c">
+				</File>
+				<File
 					RelativePath="..\Common\Dlgcode.c">
 				</File>
 				<File
 					RelativePath="..\Common\Endian.c">
+				</File>
+				<File
+					RelativePath="..\Common\Keyfiles.c">
+				</File>
+				<File
+					RelativePath="..\Common\Language.c">
 				</File>
 				<File
 					RelativePath="..\Common\Password.c">
@@ -168,7 +183,13 @@
 					RelativePath="..\Common\Registry.c">
 				</File>
 				<File
+					RelativePath="..\Common\Tests.c">
+				</File>
+				<File
 					RelativePath="..\Common\Volumes.c">
+				</File>
+				<File
+					RelativePath="..\Common\Xml.c">
 				</File>
 			</Filter>
 		</Filter>
@@ -189,10 +210,25 @@
 				RelativePath="..\Common\Common.h">
 			</File>
 			<File
+				RelativePath="..\Common\Crc.h">
+			</File>
+			<File
 				RelativePath="..\Common\Crypto.h">
 			</File>
 			<File
+				RelativePath="..\Common\Dictionary.h">
+			</File>
+			<File
 				RelativePath="..\Common\Dlgcode.h">
+			</File>
+			<File
+				RelativePath=".\Hotkeys.h">
+			</File>
+			<File
+				RelativePath="..\Common\Keyfiles.h">
+			</File>
+			<File
+				RelativePath="..\Common\Language.h">
 			</File>
 			<File
 				RelativePath=".\Mount.h">
@@ -201,28 +237,37 @@
 				RelativePath="..\Common\Password.h">
 			</File>
 			<File
-				RelativePath="..\Common\Registry.h">
+				RelativePath="..\Common\Pkcs5.h">
 			</File>
 			<File
-				RelativePath="..\Common\resource.h">
+				RelativePath="..\Common\Random.h">
+			</File>
+			<File
+				RelativePath="..\Common\Registry.h">
 			</File>
 			<File
 				RelativePath=".\resource.h">
 			</File>
 			<File
+				RelativePath="..\Common\resource.h">
+			</File>
+			<File
 				RelativePath="..\Common\Tcdefs.h">
 			</File>
 			<File
+				RelativePath="..\Common\Tests.h">
+			</File>
+			<File
 				RelativePath="..\Common\Volumes.h">
+			</File>
+			<File
+				RelativePath="..\Common\Xml.h">
 			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx"
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}">
-			<File
-				RelativePath="..\Common\about.bmp">
-			</File>
 			<File
 				RelativePath=".\driveicon.bmp">
 			</File>
@@ -235,15 +280,12 @@
 			<File
 				RelativePath=".\Mount.rc">
 			</File>
-			<File
-				RelativePath="..\Common\TrueCrypt.ico">
-			</File>
-			<File
-				RelativePath="..\Common\TrueCrypt_Volume.ico">
-			</File>
 			<Filter
 				Name="Common"
 				Filter="">
+				<File
+					RelativePath="..\Common\about.bmp">
+				</File>
 				<File
 					RelativePath="..\Common\Common.rc">
 					<FileConfiguration
@@ -258,6 +300,18 @@
 						<Tool
 							Name="VCResourceCompilerTool"/>
 					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\Common\Language.xml">
+				</File>
+				<File
+					RelativePath="..\Release\Setup Files\License.txt">
+				</File>
+				<File
+					RelativePath="..\Common\TrueCrypt.ico">
+				</File>
+				<File
+					RelativePath="..\Common\TrueCrypt_Volume.ico">
 				</File>
 			</Filter>
 		</Filter>

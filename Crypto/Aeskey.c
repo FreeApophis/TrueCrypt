@@ -34,8 +34,8 @@
  for further details including optimisation.
 */
 
-#include "aesopt.h"
-#include "aestab.h"
+#include "Aesopt.h"
+#include "Aestab.h"
 
 #if defined(__cplusplus)
 extern "C"

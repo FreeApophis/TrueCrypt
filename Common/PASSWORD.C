@@ -1,30 +1,34 @@
-/* The source code contained in this file has been derived from the source code
-   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004-2005
-   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
-   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
-   release. Please see the file license.txt for full license details. */
+/* Legal Notice: The source code contained in this file has been derived from
+   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
+   Encryption for the Masses'. Modifications and additions to that source code
+   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   the full text of which is contained in the file License.txt included in
+   TrueCrypt binary and source code distribution archives.  */
 
-#include "TCdefs.h"
+#include "Tcdefs.h"
 
-#include "crypto.h"
-#include "fat.h"
-#include "format.h"
-#include "volumes.h"
-#include "password.h"
-#include "apidrvr.h"
-#include "dlgcode.h"
-#include "pkcs5.h"
-#include "endian.h"
-#include "resource.h"
-#include "random.h"
+#include "Crypto.h"
+#include "Fat.h"
+#include "Format.h"
+#include "Volumes.h"
+#include "Password.h"
+#include "Apidrvr.h"
+#include "Dlgcode.h"
+#include "Language.h"
+#include "Pkcs5.h"
+#include "Endian.h"
+#include "Resource.h"
+#include "Random.h"
 
 #include <io.h>
 
 void
 VerifyPasswordAndUpdate (HWND hwndDlg, HWND hButton, HWND hPassword,
 			 HWND hVerify, char *szPassword,
-			 char *szVerify)
+			 char *szVerify,
+			 BOOL keyFilesEnabled)
 {
 	char szTmp1[MAX_PASSWORD + 1];
 	char szTmp2[MAX_PASSWORD + 1];
@@ -40,7 +44,7 @@ VerifyPasswordAndUpdate (HWND hwndDlg, HWND hButton, HWND hPassword,
 		bEnable = FALSE;
 	else
 	{
-		if (k >= MIN_PASSWORD)
+		if (k >= MIN_PASSWORD || keyFilesEnabled)
 			bEnable = TRUE;
 		else
 			bEnable = FALSE;
@@ -58,25 +62,66 @@ VerifyPasswordAndUpdate (HWND hwndDlg, HWND hButton, HWND hPassword,
 	EnableWindow (hButton, bEnable);
 }
 
+
+BOOL CheckPasswordCharEncoding (HWND hPassword, Password *ptrPw)
+{
+	char szTmp[MAX_PASSWORD + 1];
+	unsigned char *pw;
+	int i;
+	int len;
+	
+	if (hPassword == NULL)
+	{
+		len = ptrPw->Length;
+		pw = (unsigned char *) ptrPw->Text;
+	}
+	else
+	{
+		len = GetWindowTextLength (hPassword);
+		GetWindowText (hPassword, szTmp, sizeof (szTmp));
+		pw = (unsigned char *) szTmp;
+	}
+
+	for (i = 0; i < len; i++)
+	{
+		if (pw[i] >= 0x7f || pw[i] < 0x20)	// A non-ASCII or non-printable character?
+			return FALSE;
+	}
+	return TRUE;
+}
+
+
+BOOL CheckPasswordLength (HWND hwndDlg, HWND hwndItem)
+{
+	if (GetWindowTextLength (hwndItem) < PASSWORD_LEN_WARNING)
+	{
+		if (MessageBoxW (hwndDlg, GetString ("PASSWORD_LENGTH_WARNING"), lpszTitle, MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2) != IDYES)
+			return FALSE;
+	}
+	return TRUE;
+}
+
 int
-ChangePwd (char *lpszVolume, char *lpszOldPassword, char *lpszPassword, int pkcs5, HWND hwndDlg)
+ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int pkcs5, HWND hwndDlg)
 {
 	int nDosLinkCreated = 0, nStatus;
 	char szDiskFile[TC_MAX_PATH], szCFDevice[TC_MAX_PATH];
 	char szDosDevice[TC_MAX_PATH];
-	char buffer[HEADER_SIZE], bufferHiddenVolume[HEADER_SIZE];
+	char buffer[HEADER_SIZE];
 	PCRYPTO_INFO cryptoInfo = NULL, ci = NULL;
 	void *dev = INVALID_HANDLE_VALUE;
 	diskio_f write, read;
 	DWORD dwError;
 	BOOL bDevice;
 	unsigned __int64 volSize = 0;
+	int volumeType;
+	int wipePass;
 	FILETIME ftCreationTime;
 	FILETIME ftLastWriteTime;
 	FILETIME ftLastAccessTime;
 	BOOL bTimeStampValid = FALSE;
 	
-	if (Randinit ()) return 1;
+	if (oldPassword->Length == 0 || newPassword->Length == 0) return -1;
 
 	CreateFullVolumePath (szDiskFile, lpszVolume, &bDevice);
 
@@ -98,9 +143,9 @@ ChangePwd (char *lpszVolume, char *lpszOldPassword, char *lpszPassword, int pkcs
 
 	dev = CreateFile (szCFDevice, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 
-	if (bDevice == TRUE)
+	if (bDevice)
 	{
-		/* necessary to determine the hidden volume header offset */
+		/* This is necessary to determine the hidden volume header offset */
 
 		if (dev == INVALID_HANDLE_VALUE)
 		{
@@ -108,146 +153,181 @@ ChangePwd (char *lpszVolume, char *lpszOldPassword, char *lpszPassword, int pkcs
 		}
 		else
 		{
-			DISK_GEOMETRY driveInfo;
+			PARTITION_INFORMATION diskInfo;
 			DWORD dwResult;
 			BOOL bResult;
 
-			bResult = DeviceIoControl (dev, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0,
-				&driveInfo, sizeof (driveInfo), &dwResult, NULL);
+			bResult = DeviceIoControl (dev, IOCTL_DISK_GET_PARTITION_INFO, NULL, 0,
+				&diskInfo, sizeof (diskInfo), &dwResult, NULL);
 
-			if (driveInfo.MediaType == FixedMedia)
+			if (bResult)
 			{
-				PARTITION_INFORMATION diskInfo;
+				volSize = diskInfo.PartitionLength.QuadPart;
+			}
+			else
+			{
+				DISK_GEOMETRY driveInfo;
 
-				bResult = DeviceIoControl (dev, IOCTL_DISK_GET_PARTITION_INFO, NULL, 0,
-					&diskInfo, sizeof (diskInfo), &dwResult, NULL);
+				bResult = DeviceIoControl (dev, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0,
+					&driveInfo, sizeof (driveInfo), &dwResult, NULL);
 
-				if (bResult == TRUE)
-				{
-					volSize = diskInfo.PartitionLength.QuadPart;
-
-					if (volSize == 0)
-					{
-						CloseHandle (dev);
-						return ERR_VOL_SIZE_WRONG;
-					}
-				}
-				else
+				if (!bResult)
 				{
 					CloseHandle (dev);
 					return ERR_OS_ERROR;
 				}
-			}
-			else
-			{
+
 				volSize = driveInfo.Cylinders.QuadPart * driveInfo.BytesPerSector *
 					driveInfo.SectorsPerTrack * driveInfo.TracksPerCylinder;
+			}
+
+			if (volSize == 0)
+			{
+				CloseHandle (dev);
+				return ERR_VOL_SIZE_WRONG;
 			}
 		}
 	}
 
-	if (dev == INVALID_HANDLE_VALUE) return ERR_OS_ERROR;
+	if (dev == INVALID_HANDLE_VALUE) 
+		return ERR_OS_ERROR;
 
 	WaitCursor ();
 
-	if (!bDevice)
+	if (Randinit ())
+		return -1;
+
+	if (!bDevice && bPreserveTimestamp)
 	{
 		/* Remember the container modification/creation date and time, (used to reset file date and time of
-		file-hosted containers after password change (or attempt to), in order preserve plausible deniability
+		file-hosted volumes after password change (or attempt to), in order to preserve plausible deniability
 		of hidden volumes (last password change time is stored in the volume header). */
 
 		if (GetFileTime ((HANDLE) dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
 		{
 			bTimeStampValid = FALSE;
-			MessageBox (hwndDlg, getstr (IDS_GETFILETIME_FAILED_PW), "TrueCrypt", MB_OK | MB_ICONEXCLAMATION);
+			MessageBoxW (hwndDlg, GetString ("GETFILETIME_FAILED_PW"), L"TrueCrypt", MB_OK | MB_ICONEXCLAMATION);
 		}
 		else
 			bTimeStampValid = TRUE;
 	}
 
-	/* Read in volume header */
-
-	nStatus = (*read) ((HFILE) dev, buffer, sizeof (buffer));
-	if (nStatus != sizeof (buffer))
+	for (volumeType = VOLUME_TYPE_NORMAL; volumeType < NBR_VOLUME_TYPES; volumeType++)
 	{
-		nStatus = ERR_VOL_SIZE_WRONG;
-		goto error;
+
+		/* Read in volume header */
+
+		if (volumeType == VOLUME_TYPE_HIDDEN)
+		{
+			if (!SeekHiddenVolHeader ((HFILE) dev, volSize, bDevice))
+			{
+				nStatus = ERR_VOL_SEEKING;
+				goto error;
+			}
+		}
+
+		nStatus = (*read) ((HFILE) dev, buffer, sizeof (buffer));
+		if (nStatus != sizeof (buffer))
+		{
+			nStatus = ERR_VOL_SIZE_WRONG;
+			goto error;
+		}
+
+		/* Try to decrypt the header */
+
+		nStatus = VolumeReadHeader (buffer, oldPassword, &cryptoInfo);
+		if (nStatus == ERR_CIPHER_INIT_WEAK_KEY)
+			nStatus = 0;	// We can ignore this error here
+
+		if (nStatus == ERR_PASSWORD_WRONG)
+		{
+			continue;		// Try next volume type
+		}
+		else if (nStatus != 0)
+		{
+			cryptoInfo = NULL;
+			goto error;
+		}
+		else 
+			break;
 	}
 
-
-	/* Read in possible hidden volume header */
-
-	if (!SeekHiddenVolHeader ((HFILE) dev, volSize, bDevice))
-		return ERR_VOL_SEEKING;
-
-	nStatus = (*read) ((HFILE) dev, bufferHiddenVolume, sizeof (bufferHiddenVolume));
-	if (nStatus != sizeof (bufferHiddenVolume))
-	{
-		nStatus = ERR_VOL_SIZE_WRONG;
-		goto error;
-	}
-
-
-	/* Try to decrypt either of the headers */
-
-	nStatus = VolumeReadHeader (buffer, bufferHiddenVolume, lpszOldPassword, &cryptoInfo);
 	if (nStatus != 0)
 	{
 		cryptoInfo = NULL;
 		goto error;
 	}
 
-	/* Change password now */ 
-
-	if (cryptoInfo->hiddenVolume)
-	{
-		if (!SeekHiddenVolHeader ((HFILE) dev, volSize, bDevice))
-			return ERR_VOL_SEEKING;
-	}
-	else
-	{
-		nStatus = _llseek ((HFILE) dev, 0, FILE_BEGIN);
-
-		if (nStatus != 0)
-		{
-			nStatus = ERR_VOL_SEEKING;
-			goto error;
-		}
-	}
-
-	// Change PRF if requested by user
+	// Change the PKCS-5 PRF if requested by user
 	if (pkcs5 != 0)
 		cryptoInfo->pkcs5 = pkcs5;
 
-	VolumeWriteHeader (cryptoInfo->hiddenVolume ? buffer : bufferHiddenVolume,
-		cryptoInfo->ea,
-		lpszPassword,
-		cryptoInfo->pkcs5,
-		cryptoInfo->master_decrypted_key,
-		cryptoInfo->volume_creation_time,
-		&ci,
-		cryptoInfo->hiddenVolume ? cryptoInfo->hiddenVolumeSize : 0);
 
-	crypto_close (ci);
+	/* Re-encrypt the volume header */ 
 
-	/* Write out new encrypted key + key check */
-
-	nStatus = (*write) ((HFILE) dev, cryptoInfo->hiddenVolume ? buffer : bufferHiddenVolume, HEADER_SIZE);
-
-	if (nStatus != HEADER_SIZE)
+	/* The header will be re-encrypted DISK_WIPE_PASSES times to prevent adversaries from using 
+	   techniques such as magnetic force microscopy or magnetic force scanning tunnelling microscopy
+	   to recover the overwritten header. According to Peter Gutmann, data should be overwritten 22
+	   times (ideally, 35 times). As users might impatiently interupt the process (e.g. on slow media)
+	   we will not wipe with just random data. Instead, during each pass we will write a valid working
+	   header. Each pass will use the same master key, and also the same header key, IV, etc. derived
+	   from the new password. The only item that will be different for each pass will be the salt.
+	   This is sufficient to cause each "version" of the header to differ substantially and in a
+	   random manner from the versions written during the other passes. */
+	for (wipePass = 0; wipePass < DISK_WIPE_PASSES; wipePass++)
 	{
-		nStatus = ERR_VOL_WRITING;
-		goto error;
+		// Seek the volume header
+		if (volumeType == VOLUME_TYPE_HIDDEN)
+		{
+			if (!SeekHiddenVolHeader ((HFILE) dev, volSize, bDevice))
+			{
+				nStatus = ERR_VOL_SEEKING;
+				goto error;
+			}
+		}
+		else
+		{
+			nStatus = _llseek ((HFILE) dev, 0, FILE_BEGIN);
+
+			if (nStatus != 0)
+			{
+				nStatus = ERR_VOL_SEEKING;
+				goto error;
+			}
+		}
+
+		// Prepare new volume header
+		nStatus = VolumeWriteHeader (buffer,
+			cryptoInfo->ea,
+			newPassword,
+			cryptoInfo->pkcs5,
+			cryptoInfo->master_key,
+			cryptoInfo->volume_creation_time,
+			&ci,
+			volumeType == VOLUME_TYPE_HIDDEN ? cryptoInfo->hiddenVolumeSize : 0,
+			wipePass < DISK_WIPE_PASSES - 1);
+
+		if (ci != NULL)
+			crypto_close (ci);
+
+		if (nStatus != 0)
+			goto error;
+
+		// Write the new header 
+		nStatus = (*write) ((HFILE) dev, buffer, HEADER_SIZE);
+		if (nStatus != HEADER_SIZE)
+		{
+			nStatus = ERR_VOL_WRITING;
+			goto error;
+		}
+		FlushFileBuffers (dev);
 	}
 
-	/* That's it done... */
-
+	/* Password successfully changed */
 	nStatus = 0;
 
-      error:
-
+error:
 	burn (buffer, sizeof (buffer));
-	burn (bufferHiddenVolume, sizeof (bufferHiddenVolume));
 
 	if (cryptoInfo != NULL)
 		crypto_close (cryptoInfo);
@@ -258,12 +338,12 @@ ChangePwd (char *lpszVolume, char *lpszOldPassword, char *lpszPassword, int pkcs
 	{
 		// Restore the container timestamp (to preserve plausible deniability of possible hidden volume). 
 		if (SetFileTime (dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
-			MessageBox (hwndDlg, getstr (IDS_SETFILETIME_FAILED_PW), "TrueCrypt", MB_OK | MB_ICONEXCLAMATION);
+			MessageBoxW (hwndDlg, GetString ("SETFILETIME_FAILED_PW"), L"TrueCrypt", MB_OK | MB_ICONEXCLAMATION);
 	}
 
 	CloseHandle ((HANDLE) dev);
 
-	if (bDevice == TRUE && nDosLinkCreated != 0)
+	if (bDevice && nDosLinkCreated != 0)
 	{
 		int x = RemoveFakeDosName (szDiskFile, szDosDevice);
 		if (x != 0)
@@ -276,6 +356,8 @@ ChangePwd (char *lpszVolume, char *lpszOldPassword, char *lpszPassword, int pkcs
 	SetLastError (dwError);
 
 	NormalCursor ();
+
+	Randfree ();
 
 	return nStatus;
 }

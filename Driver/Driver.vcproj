@@ -18,15 +18,21 @@
 			ConfigurationType="0">
 			<Tool
 				Name="VCNMakeTool"
-				BuildCommandLine="md Debug 2&gt;NUL:
+				BuildCommandLine="md Debug Debug64 2&gt;NUL:
 cd Debug
-nmake -nologo ../Makefile DEBUG=1"
-				ReBuildCommandLine="rd /s /q Debug 2&gt;NUL:
-md Debug 2&gt;NUL:
+nmake -nologo ..\Makefile DEBUG=1
+if errorlevel 1 exit 1
+cd ..\Debug64
+nmake -nologo ..\Makefile DEBUG=1 AMD64=1"
+				ReBuildCommandLine="rd /s /q Debug Debug64 2&gt;NUL:
+md Debug Debug64 2&gt;NUL:
 cd Debug
-nmake -nologo ../Makefile DEBUG=1"
-				CleanCommandLine="rd /s /q Debug 2&gt;NUL:"
-				Output="Debug/truecrypt.sys"/>
+nmake -nologo ..\Makefile DEBUG=1
+if errorlevel 1 exit 1
+cd ..\Debug64
+nmake -nologo ..\Makefile DEBUG=1 AMD64=1"
+				CleanCommandLine="rd /s /q Debug Debug64 2&gt;NUL:"
+				Output="Debug64/truecrypt-x64.sys"/>
 		</Configuration>
 		<Configuration
 			Name="Release|Win32"
@@ -35,15 +41,21 @@ nmake -nologo ../Makefile DEBUG=1"
 			ConfigurationType="0">
 			<Tool
 				Name="VCNMakeTool"
-				BuildCommandLine="md Release 2&gt;NUL:
+				BuildCommandLine="md Release Release64 2&gt;NUL:
 cd Release
-nmake -nologo ../Makefile RELEASE=1"
-				ReBuildCommandLine="rd /s /q Release 2&gt;NUL:
-md Release 2&gt;NUL:
+nmake -nologo ..\Makefile RELEASE=1
+if errorlevel 1 exit 1
+cd ..\Release64
+nmake -nologo ..\Makefile RELEASE=1 AMD64=1"
+				ReBuildCommandLine="rd /s /q Release Release64 2&gt;NUL:
+md Release Release64 2&gt;NUL:
 cd Release
-nmake -nologo ../Makefile RELEASE=1"
-				CleanCommandLine="rd /s /q Release 2&gt;NUL:"
-				Output="Release/truecrypt.sys"/>
+nmake -nologo ..\Makefile RELEASE=1
+if errorlevel 1 exit 1
+cd ..\Release64
+nmake -nologo ..\Makefile RELEASE=1 AMD64=1"
+				CleanCommandLine="rd /s /q Release Release64 2&gt;NUL:"
+				Output="Release64/truecrypt-x64.sys"/>
 		</Configuration>
 	</Configurations>
 	<References>
@@ -84,6 +96,9 @@ nmake -nologo ../Makefile RELEASE=1"
 					RelativePath="..\Common\Pkcs5.c">
 				</File>
 				<File
+					RelativePath="..\Common\Tests.c">
+				</File>
+				<File
 					RelativePath="..\Common\Volumes.c">
 				</File>
 			</Filter>
@@ -99,6 +114,9 @@ nmake -nologo ../Makefile RELEASE=1"
 				RelativePath="..\Common\Cache.h">
 			</File>
 			<File
+				RelativePath="..\Common\Common.h">
+			</File>
+			<File
 				RelativePath=".\Ntdriver.h">
 			</File>
 			<File
@@ -112,6 +130,9 @@ nmake -nologo ../Makefile RELEASE=1"
 			</File>
 			<File
 				RelativePath=".\resource.h">
+			</File>
+			<File
+				RelativePath="..\Common\Tcdefs.h">
 			</File>
 			<File
 				RelativePath="..\Common\Volumes.h">

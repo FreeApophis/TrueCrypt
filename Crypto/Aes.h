@@ -37,7 +37,14 @@
 #define _AES_H
 
 /*  This include is used to find 8 & 32 bit unsigned integer types  */
-#include "limits.h"
+#ifndef LINUX_DRIVER
+#include <limits.h>
+#else
+#undef UCHAR_MAX
+#define UCHAR_MAX 0xff 
+#undef UINT_MAX
+#define UINT_MAX 4294967295
+#endif
 
 #if defined(__cplusplus)
 extern "C"
@@ -64,7 +71,7 @@ extern "C"
 #if UINT_MAX == 4294967295              /* an unsigned 32 bit type  */
   typedef   unsigned int     aes_32t;
 #elif ULONG_MAX == 4294967295ul
-  typedef   unsigned long    aes_32t;
+  typedef   unsigned __int32    aes_32t;
 #else
 #  error Please define aes_32t as a 32-bit unsigned integer type in aes.h
 #endif

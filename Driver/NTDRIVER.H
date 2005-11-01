@@ -1,9 +1,11 @@
-/* The source code contained in this file has been derived from the source code
-   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004-2005
-   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
-   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
-   release. Please see the file license.txt for full license details. */
+/* Legal Notice: The source code contained in this file has been derived from
+   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
+   Encryption for the Masses'. Modifications and additions to that source code
+   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   the full text of which is contained in the file License.txt included in
+   TrueCrypt binary and source code distribution archives.  */
 
 /* This structure is used to start new threads */
 typedef struct _THREAD_BLOCK_
@@ -24,6 +26,7 @@ typedef struct EXTENSION
 	ULONG lMagicNumber;	/* To ensure the completion routine is not
 				   sending us bad IRP's */
 
+	int UniqueVolumeId;
 	int nDosDriveNo;	/* Drive number this extension is mounted
 				   against */
 	BOOL bShuttingDown;			/* Is the driver shutting down ? */
@@ -42,7 +45,7 @@ typedef struct EXTENSION
 	PFILE_OBJECT pfoDeviceFile;	/* Device fileobject for this device */
 	PDEVICE_OBJECT pFsdDevice;	/* lower level device handle */
 
-	CRYPTO_INFO *cryptoInfo;	/* Cryptographic information for this device */
+	CRYPTO_INFO *cryptoInfo;	/* Cryptographic and other information for this device */
 
 	__int64 DiskLength;			/* The length of the disk referred to by this device */  
 	__int64 NumberOfCylinders;		/* Partition info */
@@ -65,14 +68,15 @@ typedef struct EXTENSION
 				   change this size without also changing
 				   MOUNT_LIST_STRUCT! */
 
-	long mountTime;		/* The time this volume was last mounted, for
-				   the user-mode application */
-
-	// Container file date/time (used to reset date and time of file-hosted containers after dismount or unsuccessful mount attempt, to preserve plausible deniability of hidden volumes).
+	// Container file date/time (used to reset date and time of file-hosted volumes after dismount or unsuccessful mount attempt, to preserve plausible deniability of hidden volumes).
 	LARGE_INTEGER fileCreationTime;
 	LARGE_INTEGER fileLastAccessTime;
 	LARGE_INTEGER fileLastWriteTime;
 	LARGE_INTEGER fileLastChangeTime;
+	BOOL bTimeStampValid;
+
+	unsigned __int64 TotalBytesRead;	// Bytes read from volume
+	unsigned __int64 TotalBytesWritten;	// Bytes written to volume
 
 } EXTENSION, *PEXTENSION;
 
@@ -94,8 +98,7 @@ typedef struct EXTENSION
 #define FSCTL_LOCK_VOLUME               CTL_CODE(FILE_DEVICE_FILE_SYSTEM,  6, METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define FSCTL_UNLOCK_VOLUME             CTL_CODE(FILE_DEVICE_FILE_SYSTEM,  7, METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define FSCTL_DISMOUNT_VOLUME           CTL_CODE(FILE_DEVICE_FILE_SYSTEM,  8, METHOD_BUFFERED, FILE_ANY_ACCESS)
-
-/* Everything below this line is automatically updated by the -mkproto-tool- */
+NTKERNELAPI NTSTATUS ObOpenObjectByPointer (IN PVOID Object, IN ULONG HandleAttributes, IN PACCESS_STATE PassedAccessState OPTIONAL, IN ACCESS_MASK DesiredAccess OPTIONAL, IN POBJECT_TYPE ObjectType OPTIONAL, IN KPROCESSOR_MODE AccessMode, OUT PHANDLE Handle);
 
 NTSTATUS DriverEntry (PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath);
 NTSTATUS TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp);
@@ -125,4 +128,4 @@ NTSTATUS UnmountAllDevices (PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles);
 NTSTATUS SymbolicLinkToTarget (PWSTR symlinkName, PWSTR targetName, USHORT maxTargetNameLength);
 void DriverMutexWait ();
 void DriverMutexRelease ();
-
+BOOL RegionsOverlap (unsigned __int64 start1, unsigned __int64 end1, unsigned __int64 start2, unsigned __int64 end2);

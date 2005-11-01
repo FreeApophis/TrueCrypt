@@ -16,25 +16,26 @@
 #include <io.h>
 #include <sys/stat.h>
 
-#include "crypto.h"
-#include "apidrvr.h"
-#include "dlgcode.h"
-#include "combo.h"
+#include "Crypto.h"
+#include "Apidrvr.h"
+#include "Dlgcode.h"
+#include "Language.h"
+#include "Combo.h"
 #include "../common/resource.h"
-#include "random.h"
-#include "fat.h"
+#include "Random.h"
+#include "Fat.h"
 
-#include "resource.h"
-#include "testcrypt.h"
-#include "uncroot.h"
+#include "Resource.h"
+#include "Testcrypt.h"
+#include "Uncroot.h"
 
-#include "format.h"
+#include "Format.h"
 
-#include "password.h"
+#include "Password.h"
 
-#include "endian.h"
-#include "pkcs5.h"
-#include "crc.h"
+#include "Endian.h"
+#include "Pkcs5.h"
+#include "Crc.h"
 
 /* Blowfish Test Vectors */
 
@@ -1242,24 +1243,24 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_INITDIALOG:
 		{
-			char szTmp[256];
+			wchar_t szTmp[1024];
 
-			SetDefaultUserFont (hwndDlg);
+			LocalizeDialog (hwndDlg, NULL);
 
-			SendMessage(GetDlgItem(hwndDlg, IDC_TESTS_MESSAGE), WM_SETFONT, (WPARAM)hSmallBoldFont, MAKELPARAM(TRUE,0));
+			SendMessage(GetDlgItem(hwndDlg, IDC_TESTS_MESSAGE), WM_SETFONT, (WPARAM)hBoldFont, MAKELPARAM(TRUE,0));
 			SendMessage(GetDlgItem(hwndDlg, IDC_KEY), EM_LIMITTEXT, 80,0);
-			SendMessage(GetDlgItem(hwndDlg, IDC_KEY), WM_SETFONT, (WPARAM)hSmallFont, MAKELPARAM(1,0));
+			SendMessage(GetDlgItem(hwndDlg, IDC_KEY), WM_SETFONT, (WPARAM)hFixedDigitFont, MAKELPARAM(1,0));
 			SendMessage(GetDlgItem(hwndDlg, IDC_PLAINTEXT), EM_LIMITTEXT,80,0);
-			SendMessage(GetDlgItem(hwndDlg, IDC_PLAINTEXT), WM_SETFONT, (WPARAM)hSmallFont, MAKELPARAM(1,0));
+			SendMessage(GetDlgItem(hwndDlg, IDC_PLAINTEXT), WM_SETFONT, (WPARAM)hFixedDigitFont, MAKELPARAM(1,0));
 			SendMessage(GetDlgItem(hwndDlg, IDC_CIPHERTEXT), EM_LIMITTEXT,80,0);
-			SendMessage(GetDlgItem(hwndDlg, IDC_CIPHERTEXT), WM_SETFONT, (WPARAM)hSmallFont, MAKELPARAM(1,0));
+			SendMessage(GetDlgItem(hwndDlg, IDC_CIPHERTEXT), WM_SETFONT, (WPARAM)hFixedDigitFont, MAKELPARAM(1,0));
 
 			nCipherChoice = (int) lParam;
 
 			ResetCipherTest(hwndDlg, nCipherChoice);
 
-			sprintf(szTmp, getstr(IDS_CIPHER_TEST), CipherGetName(nCipherChoice));
-			SetWindowText(hwndDlg, szTmp);
+			wsprintfW (szTmp, GetString ("CIPHER_TEST"), CipherGetName(nCipherChoice));
+			SetWindowTextW(hwndDlg, szTmp);
 
 			return 1;
 		}
@@ -1277,12 +1278,12 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			if (!AutoTestAlgorithms())
 			{
 				ShowWindow(GetDlgItem(hwndDlg, IDC_TESTS_MESSAGE), SW_SHOWNORMAL);
-				SetWindowText(GetDlgItem(hwndDlg, IDC_TESTS_MESSAGE), getstr(IDS_TESTS_FAILED));
+				SetWindowTextW(GetDlgItem(hwndDlg, IDC_TESTS_MESSAGE), GetString ("TESTS_FAILED"));
 			} 
 			else
 			{
 				ShowWindow(GetDlgItem(hwndDlg, IDC_TESTS_MESSAGE), SW_SHOWNORMAL);
-				SetWindowText(GetDlgItem(hwndDlg, IDC_TESTS_MESSAGE), getstr(IDS_TESTS_PASSED));
+				SetWindowTextW(GetDlgItem(hwndDlg, IDC_TESTS_MESSAGE), GetString ("TESTS_PASSED"));
 				ShowWindow(GetDlgItem(hwndDlg, IDC_REDTICK), SW_SHOWNORMAL);
 			}
 
@@ -1290,7 +1291,7 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		}
 
-		if (lw == IDOK || lw == IDC_DECRYPT)
+		if (lw == IDOK || lw == IDC_ENCRYPT || lw == IDC_DECRYPT)
 		{
 			char key[80], inputtext[80], szTmp[128];
 			int ks, pt, n;
@@ -1303,14 +1304,14 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			ks = (int) SendMessage(GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_GETITEMDATA, ks,0);
 			pt = (int) SendMessage(GetDlgItem(hwndDlg, IDC_PLAINTEXT_SIZE), CB_GETITEMDATA, 0,0);
 
-			bEncrypt = lw == IDOK;
+			bEncrypt = lw == IDC_ENCRYPT;
 
 			memset(key,0,sizeof(key));
 			memset(szTmp,0,sizeof(szTmp));
 			n = GetWindowText(GetDlgItem(hwndDlg, IDC_KEY), szTmp, sizeof(szTmp));
 			if (n != ks * 2)
 			{
-				MessageBox (hwndDlg, getstr (IDS_TEST_KEY_SIZE), lpszTitle, ICON_HAND);
+				MessageBoxW (hwndDlg, GetString ("TEST_KEY_SIZE"), lpszTitle, ICON_HAND);
 				return 1;
 			}
 
@@ -1344,12 +1345,12 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			{
 				if (bEncrypt==TRUE)
 				{
-					MessageBox (hwndDlg, getstr (IDS_TEST_PLAINTEXT_SIZE), lpszTitle, ICON_HAND);
+					MessageBoxW (hwndDlg, GetString ("TEST_PLAINTEXT_SIZE"), lpszTitle, ICON_HAND);
 					return 1;
 				}
 				else
 				{
-					MessageBox (hwndDlg, getstr (IDS_TEST_CIPHERTEXT_SIZE), lpszTitle, ICON_HAND);
+					MessageBoxW (hwndDlg, GetString ("TEST_CIPHERTEXT_SIZE"), lpszTitle, ICON_HAND);
 					return 1;
 				}
 			}
@@ -1419,7 +1420,7 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			return 1;
 		}
 
-		if (lw == IDCANCEL)
+		if (lw == IDC_CLOSE)
 		{
 			EndDialog (hwndDlg, 0);
 			return 1;

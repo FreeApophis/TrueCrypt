@@ -57,9 +57,9 @@
  */
 
 
-#include "cast.h"
-#include "cast_lcl.h"
-#include "cast_s.h"
+#include "Cast.h"
+#include "Cast_lcl.h"
+#include "Cast_s.h"
 
 #pragma warning( disable : 4131 )
 

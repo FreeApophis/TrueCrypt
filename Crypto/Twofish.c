@@ -15,9 +15,10 @@
 /*                                                                      */
 /* Dr Brian Gladman (gladman@seven77.demon.co.uk) 14th January 1999     */
 
-/* Support for multithreaded operation added by TrueCrypt Foundation */
+/* Adapted for TrueCrypt by the TrueCrypt Foundation */
 
-#include "twofish.h"
+#include "Twofish.h"
+#include "Endian.h"
 
 #define Q_TABLES
 #define M_TABLE
@@ -230,8 +231,8 @@ static gen_mk_tab(TwofishInstance *instance, u4byte key[])
 {   u4byte  i;
     u1byte  by;
 
-	u4byte *l_key = instance->l_key;
-	u4byte *s_key = instance->s_key;
+//	u4byte *l_key = instance->l_key;
+//	u4byte *s_key = instance->s_key;
 	u4byte *mk_tab = instance->mk_tab;
 
     switch(instance->k_len)
@@ -388,8 +389,8 @@ u4byte *twofish_set_key(TwofishInstance *instance, const u4byte in_key[], const 
 
     for(i = 0; i < instance->k_len; ++i)
     {
-        a = in_key[i + i];     me_key[i] = a;
-        b = in_key[i + i + 1]; mo_key[i] = b;
+        a = LE32(in_key[i + i]);     me_key[i] = a;
+        b = LE32(in_key[i + i + 1]); mo_key[i] = b;
         s_key[instance->k_len - i - 1] = mds_rem(a, b);
     }
 
@@ -423,21 +424,21 @@ void twofish_encrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte o
 {   u4byte  t0, t1, blk[4];
 
 	u4byte *l_key = instance->l_key;
-	u4byte *s_key = instance->s_key;
+//	u4byte *s_key = instance->s_key;
 	u4byte *mk_tab = instance->mk_tab;
 
-    blk[0] = in_blk[0] ^ l_key[0];
-    blk[1] = in_blk[1] ^ l_key[1];
-    blk[2] = in_blk[2] ^ l_key[2];
-    blk[3] = in_blk[3] ^ l_key[3];
+	blk[0] = LE32(in_blk[0]) ^ l_key[0];
+    blk[1] = LE32(in_blk[1]) ^ l_key[1];
+    blk[2] = LE32(in_blk[2]) ^ l_key[2];
+    blk[3] = LE32(in_blk[3]) ^ l_key[3];
 
     f_rnd(0); f_rnd(1); f_rnd(2); f_rnd(3);
     f_rnd(4); f_rnd(5); f_rnd(6); f_rnd(7);
 
-    out_blk[0] = blk[2] ^ l_key[4];
-    out_blk[1] = blk[3] ^ l_key[5];
-    out_blk[2] = blk[0] ^ l_key[6];
-    out_blk[3] = blk[1] ^ l_key[7]; 
+    out_blk[0] = LE32(blk[2] ^ l_key[4]);
+    out_blk[1] = LE32(blk[3] ^ l_key[5]);
+    out_blk[2] = LE32(blk[0] ^ l_key[6]);
+    out_blk[3] = LE32(blk[1] ^ l_key[7]); 
 };
 
 /* decrypt a block of text  */
@@ -454,19 +455,19 @@ void twofish_decrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte o
 {   u4byte  t0, t1, blk[4];
 
 	u4byte *l_key = instance->l_key;
-	u4byte *s_key = instance->s_key;
+//	u4byte *s_key = instance->s_key;
 	u4byte *mk_tab = instance->mk_tab;
 
-    blk[0] = in_blk[0] ^ l_key[4];
-    blk[1] = in_blk[1] ^ l_key[5];
-    blk[2] = in_blk[2] ^ l_key[6];
-    blk[3] = in_blk[3] ^ l_key[7];
+    blk[0] = LE32(in_blk[0]) ^ l_key[4];
+    blk[1] = LE32(in_blk[1]) ^ l_key[5];
+    blk[2] = LE32(in_blk[2]) ^ l_key[6];
+    blk[3] = LE32(in_blk[3]) ^ l_key[7];
 
     i_rnd(7); i_rnd(6); i_rnd(5); i_rnd(4);
     i_rnd(3); i_rnd(2); i_rnd(1); i_rnd(0);
 
-    out_blk[0] = blk[2] ^ l_key[0];
-    out_blk[1] = blk[3] ^ l_key[1];
-    out_blk[2] = blk[0] ^ l_key[2];
-    out_blk[3] = blk[1] ^ l_key[3]; 
+    out_blk[0] = LE32(blk[2] ^ l_key[0]);
+    out_blk[1] = LE32(blk[3] ^ l_key[1]);
+    out_blk[2] = LE32(blk[0] ^ l_key[2]);
+    out_blk[3] = LE32(blk[1] ^ l_key[3]); 
 };

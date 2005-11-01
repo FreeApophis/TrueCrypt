@@ -1,14 +1,20 @@
-/* The source code contained in this file has been derived from the source code
-   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004-2005
-   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
-   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
-   release. Please see the file license.txt for full license details. */
+/* Legal Notice: The source code contained in this file has been derived from
+   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
+   Encryption for the Masses'. Modifications and additions to that source code
+   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   the full text of which is contained in the file License.txt included in
+   TrueCrypt binary and source code distribution archives.  */
 
-#include "TCdefs.h"
-#include "crypto.h"
-#include "random.h"
-#include "crc.h"
+#include "Tcdefs.h"
+#include "Crypto.h"
+#include "Crc.h"
+#include "Endian.h"
+
+#ifdef LINUX_DRIVER
+#include <linux/string.h>
+#endif
 
 /* Update the following when adding a new cipher or EA:
 
@@ -22,18 +28,20 @@
      CipherInit()
      EncipherBlock()
      DecipherBlock()
+
 */
 
 // Cipher configuration
 static Cipher Ciphers[] =
 {
-//	  ID		Name			Block size	Key size	Key schedule size
+//								Block Size	Key Size	Key Schedule Size
+//	  ID		Name			(Bytes)		(Bytes)		(Bytes)
 	{ AES,		"AES",			16,			32,			sizeof(aes_encrypt_ctx)+sizeof(aes_decrypt_ctx)	},
 	{ BLOWFISH,	"Blowfish",		8,			56,			4168											},
 	{ CAST,		"CAST5",		8,			16,			128												},
 	{ DES56,	"DES",			8,			7,			128												},
 	{ SERPENT,	"Serpent",		16,			32,			140*4											},
-	{ TRIPLEDES,"Triple DES",	8,			7*3,		128*3											},
+	{ TRIPLEDES,"Triple DES",	8,			8*3,		128*3											},
 	{ TWOFISH,	"Twofish",		16,			32,			TWOFISH_KS										},
 	{ 0,		0,				0,			0,			0												}
 };
@@ -59,9 +67,11 @@ static EncryptionAlgorithm EncryptionAlgorithms[] =
 	{ { 0,						0 } , 0			}	// (must be null)
 };
 
-
-void CipherInit (int cipher, unsigned char *key, unsigned char *ks)
+/* Return values: 0 = success, ERR_CIPHER_INIT_FAILURE (fatal), ERR_CIPHER_INIT_WEAK_KEY (non-fatal) */
+int CipherInit (int cipher, unsigned char *key, unsigned char *ks)
 {
+	int retVal = 0;
+
 	switch (cipher)
 	{
 	case BLOWFISH:
@@ -69,12 +79,24 @@ void CipherInit (int cipher, unsigned char *key, unsigned char *ks)
 		break;
 
 	case AES:
-		aes_encrypt_key(key, CipherGetKeySize(AES), (aes_encrypt_ctx *) ks);
-		aes_decrypt_key(key, CipherGetKeySize(AES), (aes_decrypt_ctx *) (ks + sizeof(aes_encrypt_ctx)));
+		if (aes_encrypt_key(key, CipherGetKeySize(AES), (aes_encrypt_ctx *) ks) != aes_good)
+			return ERR_CIPHER_INIT_FAILURE;
+
+		if (aes_decrypt_key(key, CipherGetKeySize(AES), (aes_decrypt_ctx *) (ks + sizeof(aes_encrypt_ctx))) != aes_good)
+			return ERR_CIPHER_INIT_FAILURE;
+
 		break;
 
-	case DES56:
-		des_key_sched ((des_cblock *) key, (struct des_ks_struct *) ks);
+	case DES56:		
+		/* Included for testing purposes only */
+		switch (des_key_sched ((des_cblock *) key, (struct des_ks_struct *) ks))
+		{
+		case -1:
+			return ERR_CIPHER_INIT_FAILURE;
+		case -2:
+			retVal = ERR_CIPHER_INIT_WEAK_KEY;		// Non-fatal error
+			break;
+		}
 		break;
 
 	case CAST:
@@ -86,9 +108,30 @@ void CipherInit (int cipher, unsigned char *key, unsigned char *ks)
 		break;
 
 	case TRIPLEDES:
-		des_key_sched ((des_cblock *) key, (struct des_ks_struct *) ks);
-		des_key_sched ((des_cblock *) ((char*)(key)+8), (struct des_ks_struct *) (ks + CipherGetKeyScheduleSize (DES56)));
-		des_key_sched ((des_cblock *) ((char*)(key)+16), (struct des_ks_struct *) (ks + CipherGetKeyScheduleSize (DES56) * 2));
+		switch (des_key_sched ((des_cblock *) key, (struct des_ks_struct *) ks))
+		{
+		case -1:
+			return ERR_CIPHER_INIT_FAILURE;
+		case -2:
+			retVal = ERR_CIPHER_INIT_WEAK_KEY;		// Non-fatal error
+			break;
+		}
+		switch (des_key_sched ((des_cblock *) ((char*)(key)+8), (struct des_ks_struct *) (ks + CipherGetKeyScheduleSize (DES56))))
+		{
+		case -1:
+			return ERR_CIPHER_INIT_FAILURE;
+		case -2:
+			retVal = ERR_CIPHER_INIT_WEAK_KEY;		// Non-fatal error
+			break;
+		}
+		switch (des_key_sched ((des_cblock *) ((char*)(key)+16), (struct des_ks_struct *) (ks + CipherGetKeyScheduleSize (DES56) * 2)))
+		{
+		case -1:
+			return ERR_CIPHER_INIT_FAILURE;
+		case -2:
+			retVal = ERR_CIPHER_INIT_WEAK_KEY;		// Non-fatal error
+			break;
+		}
 		break;
 
 	case TWOFISH:
@@ -96,13 +139,14 @@ void CipherInit (int cipher, unsigned char *key, unsigned char *ks)
 		break;
 
 	}
+	return retVal;
 }
 
 void EncipherBlock(int cipher, void *data, void *ks)
 {
 	switch (cipher)
 	{
-	case BLOWFISH:		BF_encrypt (data, ks); break;
+	case BLOWFISH:		BF_ecb_le_encrypt (data, data, ks, 1); break;
 	case AES:			aes_encrypt (data, data, ks); break;
 	case DES56:			des_encrypt (data, ks, 1); break;
 	case CAST:			CAST_ecb_encrypt (data, data, ks, 1); break;
@@ -117,7 +161,7 @@ void DecipherBlock(int cipher, void *data, void *ks)
 {
 	switch (cipher)
 	{
-	case BLOWFISH:	BF_decrypt (data, ks); break;
+	case BLOWFISH:	BF_ecb_le_encrypt (data, data, ks, 0); break;
 	case AES:		aes_decrypt (data, data, (void *) ((char *) ks + sizeof(aes_encrypt_ctx))); break;
 	case DES56:		des_encrypt (data, ks, 0); break;
 	case CAST:		CAST_ecb_encrypt (data, data, ks,0); break;
@@ -188,17 +232,27 @@ int EAGetNext (int previousEA)
 	return 0;
 }
 
-void EAInit (int ea, unsigned char *key, unsigned char *ks)
+/* Return values: 0 = success, ERR_CIPHER_INIT_FAILURE (fatal), ERR_CIPHER_INIT_WEAK_KEY (non-fatal) */
+int EAInit (int ea, unsigned char *key, unsigned char *ks)
 {
-	int i = 0, c;
+	int c, retVal = 0;
 
 	for (c = EAGetFirstCipher (ea); c != 0; c = EAGetNextCipher (ea, c))
 	{
-		CipherInit (c, key, ks);
+		switch (CipherInit (c, key, ks))
+		{
+		case ERR_CIPHER_INIT_FAILURE:
+			return ERR_CIPHER_INIT_FAILURE;
+
+		case ERR_CIPHER_INIT_WEAK_KEY:
+			retVal = ERR_CIPHER_INIT_WEAK_KEY;		// Non-fatal error
+			break;
+		}
 
 		key += CipherGetKeySize (c);
 		ks += CipherGetKeyScheduleSize (c);
 	}
+	return retVal;
 }
 
 // Returns name of EA, cascaded cipher names are separated by hyphens
@@ -237,35 +291,29 @@ int EAGetMode (int ea)
 }
 
 // Returns the name of the mode of operation of the whole EA
-char *EAGetModeName (char *name, int ea, BOOL capitalLetters)
+char *EAGetModeName (int ea, BOOL capitalLetters)
 {
-	char eaName[100];
-
 	switch (EncryptionAlgorithms[ea].Mode)
 	{
 	case CBC:
-		EAGetName (eaName, ea);
+		{
+			char eaName[100];
+			EAGetName (eaName, ea);
 
-		if (strcmp (eaName, "Triple DES") == 0)
-			sprintf (name, "%s", capitalLetters ? "Outer-CBC" : "outer-CBC");
-		else
-			sprintf (name, "%s", "CBC");
+			if (strcmp (eaName, "Triple DES") == 0)
+				return capitalLetters ? "Outer-CBC" : "outer-CBC";
 
-		break;
+			return "CBC";
+		}
 
 	case OUTER_CBC:
-		strcpy (name, capitalLetters ? "Outer-CBC" : "outer-CBC");
-		break;
+		return  capitalLetters ? "Outer-CBC" : "outer-CBC";
 
 	case INNER_CBC:
-		strcpy (name, capitalLetters ? "Inner-CBC" : "inner-CBC");
-		break;
+		return capitalLetters ? "Inner-CBC" : "inner-CBC";
 
-	default:
-		strcpy (name, "[unknown]");
-		break;
 	}
-	return name;
+	return "[unknown]";
 }
 
 // Returns sum of key schedule sizes of all EA ciphers
@@ -347,20 +395,18 @@ int EAGetPreviousCipher (int ea, int previousCipherId)
 	return 0;
 }
 
-
-// Hash support functions
-
-char * get_hash_name (int pkcs5)
+char *get_hash_algo_name (int hash_algo_id)
 {
-	switch (pkcs5)
+	switch (hash_algo_id)
 	{
-	case SHA1:		return "HMAC-SHA-1";
-	case RIPEMD160:	return "HMAC-RIPEMD-160";
+	case SHA1:		return "SHA-1";
+	case RIPEMD160:	return "RIPEMD-160";
+	case WHIRLPOOL:	return "Whirlpool";
 	default:		return "Unknown";
 	}
 }
 
-
+#ifndef LINUX_DRIVER
 
 PCRYPTO_INFO
 crypto_open ()
@@ -368,7 +414,9 @@ crypto_open ()
 	/* Do the crt allocation */
 	PCRYPTO_INFO cryptoInfo = TCalloc (sizeof (CRYPTO_INFO));
 #ifndef DEVICE_DRIVER
+#ifdef _WIN32
 	VirtualLock (cryptoInfo, sizeof (CRYPTO_INFO));
+#endif
 #endif
 
 	if (cryptoInfo == NULL)
@@ -389,31 +437,38 @@ crypto_loadkey (PKEY_INFO keyInfo, char *lpszUserKey, int nUserKeyLen)
 void
 crypto_close (PCRYPTO_INFO cryptoInfo)
 {
-	burn (cryptoInfo, sizeof (CRYPTO_INFO));
+	if (cryptoInfo != NULL)
+	{
+		burn (cryptoInfo, sizeof (CRYPTO_INFO));
 #ifndef DEVICE_DRIVER
-	VirtualUnlock (cryptoInfo, sizeof (CRYPTO_INFO));
+#ifdef _WIN32
+		VirtualUnlock (cryptoInfo, sizeof (CRYPTO_INFO));
 #endif
-	TCfree (cryptoInfo);
+#endif
+		TCfree (cryptoInfo);
+	}
 }
+ 
+#endif	// LINUX_DRIVER
 
 
 // Initializes IV and whitening values for sector encryption/decryption
 static void 
 InitSectorIVAndWhitening (unsigned __int64 secNo,
 	int blockSize,
-	unsigned long *iv,
+	unsigned __int32 *iv,
 	unsigned __int64 *ivSeed,
-	unsigned long *whitening)
+	unsigned __int32 *whitening)
 {
 	unsigned __int64 iv64[4];
-	unsigned long *iv32 = (unsigned long *) iv64;
+	unsigned __int32 *iv32 = (unsigned __int32 *) iv64;
 
-	iv64[0] = ivSeed[0] ^ secNo;
-	iv64[1] = ivSeed[1] ^ secNo;
-	iv64[2] = ivSeed[2] ^ secNo;
+	iv64[0] = ivSeed[0] ^ LE64(secNo);
+	iv64[1] = ivSeed[1] ^ LE64(secNo);
+	iv64[2] = ivSeed[2] ^ LE64(secNo);
 	if (blockSize == 16)
 	{
-		iv64[3] = ivSeed[3] ^ secNo;
+		iv64[3] = ivSeed[3] ^ LE64(secNo);
 	}
 
 	iv[0] = iv32[0];
@@ -428,16 +483,16 @@ InitSectorIVAndWhitening (unsigned __int64 secNo,
 		iv[2] = iv32[2];
 		iv[3] = iv32[3];
 
-		whitening[0] = crc32long ( &iv32[4] ) ^ crc32long ( &iv32[7] );
-		whitening[1] = crc32long ( &iv32[5] ) ^ crc32long ( &iv32[6] );
+		whitening[0] = LE32( crc32int ( &iv32[4] ) ^ crc32int ( &iv32[7] ) );
+		whitening[1] = LE32( crc32int ( &iv32[5] ) ^ crc32int ( &iv32[6] ) );
 		break;
 
 	case 8:
 
 		// 64-bit block
 
-		whitening[0] = crc32long ( &iv32[2] ) ^ crc32long ( &iv32[5] );
-		whitening[1] = crc32long ( &iv32[3] ) ^ crc32long ( &iv32[4] );
+		whitening[0] = LE32( crc32int ( &iv32[2] ) ^ crc32int ( &iv32[5] ) );
+		whitening[1] = LE32( crc32int ( &iv32[3] ) ^ crc32int ( &iv32[4] ) );
 		break;
 	}
 }
@@ -454,15 +509,15 @@ InitSectorIVAndWhitening (unsigned __int64 secNo,
 // cipher:		CBC/inner-CBC cipher ID (0 = outer-CBC)
 
 static void
-EncryptBufferCBC (unsigned long *data, 
-		 unsigned __int64 len,
+EncryptBufferCBC (unsigned __int32 *data, 
+		 unsigned int len,
 		 unsigned char *ks,
-		 unsigned long *iv,
-		 unsigned long *whitening,
+		 unsigned __int32 *iv,
+		 unsigned __int32 *whitening,
 		 int ea,
 		 int cipher)
 {
-	unsigned long bufIV[4];
+	unsigned __int32 bufIV[4];
 	unsigned __int64 i;
 	int blockSize = CipherGetBlockSize (ea != 0 ? EAGetFirstCipher (ea) : cipher);
 
@@ -521,7 +576,7 @@ EncryptBufferCBC (unsigned long *data,
 			data[3] ^= whitening[1];
 		}
 
-		data += blockSize / sizeof(data);
+		data += blockSize / sizeof(*data);
 	}
 }
 
@@ -537,17 +592,17 @@ EncryptBufferCBC (unsigned long *data,
 // cipher:		CBC/inner-CBC cipher ID (0 = outer-CBC)
 
 static void
-DecryptBufferCBC (unsigned long *data,
-		 unsigned __int64 len,
+DecryptBufferCBC (unsigned __int32 *data,
+		 unsigned int len,
 		 unsigned char *ks,
-		 unsigned long *iv,
- 		 unsigned long *whitening,
+		 unsigned __int32 *iv,
+ 		 unsigned __int32 *whitening,
 		 int ea,
 		 int cipher)
 {
-	unsigned long bufIV[4];
+	unsigned __int32 bufIV[4];
 	unsigned __int64 i;
-	unsigned long ct[4];
+	unsigned __int32 ct[4];
 	int blockSize = CipherGetBlockSize (ea != 0 ? EAGetFirstCipher (ea) : cipher);
 
 	//  IV
@@ -609,7 +664,7 @@ DecryptBufferCBC (unsigned long *data,
 			bufIV[3] = ct[3];
 		}
 
-		data += blockSize / sizeof(data);
+		data += blockSize / sizeof(*data);
 	}
 }
 
@@ -625,14 +680,13 @@ DecryptBufferCBC (unsigned long *data,
 // ea:			encryption algorithm
 
 void 
-EncryptBuffer (unsigned long *buf,
+EncryptBuffer (unsigned __int32 *buf,
 			   unsigned __int64 len,
 			   unsigned char *ks,
 			   void *iv,
 			   void *whitening,
 			   int ea)
 {
-	unsigned __int64 *iv64 = (unsigned __int64 *) iv;
 	int cipher;
 
 	switch (EAGetMode(ea))
@@ -643,10 +697,10 @@ EncryptBuffer (unsigned long *buf,
 		for (cipher = EAGetFirstCipher (ea); cipher != 0; cipher = EAGetNextCipher (ea, cipher))
 		{
 			EncryptBufferCBC (buf,
-				len,
+				(unsigned int) len,
 				ks,
-				(unsigned long *) iv,
-				(unsigned long *) whitening,
+				(unsigned __int32 *) iv,
+				(unsigned __int32 *) whitening,
 				0,
 				cipher);
 
@@ -658,10 +712,10 @@ EncryptBuffer (unsigned long *buf,
 	case OUTER_CBC:
 
 		EncryptBufferCBC (buf,
-			len,
+			(unsigned int) len,
 			ks,
-			(unsigned long *) iv,
-			(unsigned long *) whitening,
+			(unsigned __int32 *) iv,
+			(unsigned __int32 *) whitening,
 			ea,
 			0);
 
@@ -679,7 +733,7 @@ EncryptBuffer (unsigned long *buf,
 // ea:			encryption algorithm
 
 void _cdecl 
-EncryptSectors (unsigned long *buf,
+EncryptSectors (unsigned __int32 *buf,
 		unsigned __int64 secNo,
 		unsigned __int64 noSectors,
 		unsigned char *ks,
@@ -687,8 +741,8 @@ EncryptSectors (unsigned long *buf,
 		int ea)
 {
 	unsigned __int64 *iv64 = (unsigned __int64 *) iv;
-	unsigned long sectorIV[4];
-	unsigned long secWhitening[2];
+	unsigned __int32 sectorIV[4];
+	unsigned __int32 secWhitening[2];
 	int cipher;
 
 	switch (EAGetMode(ea))
@@ -713,7 +767,7 @@ EncryptSectors (unsigned long *buf,
 				ks += CipherGetKeyScheduleSize (cipher);
 			}
 			ks -= EAGetKeyScheduleSize (ea);
-			buf += SECTOR_SIZE / sizeof(buf);
+			buf += SECTOR_SIZE / sizeof(*buf);
 			secNo++;
 		}
 		break;
@@ -732,7 +786,7 @@ EncryptSectors (unsigned long *buf,
 				ea,
 				0);
 
-			buf += SECTOR_SIZE / sizeof(buf);
+			buf += SECTOR_SIZE / sizeof(*buf);
 			secNo++;
 		}
 		break;
@@ -749,14 +803,13 @@ EncryptSectors (unsigned long *buf,
 // whitening:	whitening constants
 // ea:			encryption algorithm
 void 
-DecryptBuffer (unsigned long *buf,
+DecryptBuffer (unsigned __int32 *buf,
 		unsigned __int64 len,
 		unsigned char *ks,
 		void *iv,
 		void *whitening,
 		int ea)
 {
-	unsigned __int64 *iv64 = (unsigned __int64 *) iv;
 	int cipher;
 
 	switch (EAGetMode(ea))
@@ -770,10 +823,10 @@ DecryptBuffer (unsigned long *buf,
 			ks -= CipherGetKeyScheduleSize (cipher);
 
 			DecryptBufferCBC (buf,
-				len,
+				(unsigned int) len,
 				ks,
-				(unsigned long *) iv,
-				(unsigned long *) whitening,
+				(unsigned __int32 *) iv,
+				(unsigned __int32 *) whitening,
 				0,
 				cipher);
 		}
@@ -782,10 +835,10 @@ DecryptBuffer (unsigned long *buf,
 	case OUTER_CBC:
 
 		DecryptBufferCBC (buf,
-			len,
+			(unsigned int) len,
 			ks,
-			(unsigned long *) iv,
-			(unsigned long *) whitening,
+			(unsigned __int32 *) iv,
+			(unsigned __int32 *) whitening,
 			ea,
 			0);
 
@@ -803,7 +856,7 @@ DecryptBuffer (unsigned long *buf,
 // ea:			encryption algorithm
 
 void _cdecl 
-DecryptSectors (unsigned long *buf,
+DecryptSectors (unsigned __int32 *buf,
 		unsigned __int64 secNo,
 		unsigned __int64 noSectors,
 		unsigned char *ks,
@@ -811,8 +864,8 @@ DecryptSectors (unsigned long *buf,
 		int ea)
 {
 	unsigned __int64 *iv64 = (unsigned __int64 *) iv;
-	unsigned long sectorIV[4];
-	unsigned long secWhitening[2];
+	unsigned __int32 sectorIV[4];
+	unsigned __int32 secWhitening[2];
 	int cipher;
 
 	switch (EAGetMode(ea))
@@ -837,7 +890,7 @@ DecryptSectors (unsigned long *buf,
 					0,
 					cipher);
 			}
-			buf += SECTOR_SIZE / sizeof(buf);
+			buf += SECTOR_SIZE / sizeof(*buf);
 			secNo++;
 		}
 		break;
@@ -856,7 +909,7 @@ DecryptSectors (unsigned long *buf,
 				ea,
 				0);
 
-			buf += SECTOR_SIZE / sizeof(buf);
+			buf += SECTOR_SIZE / sizeof(*buf);
 			secNo++;
 		}
 		break;

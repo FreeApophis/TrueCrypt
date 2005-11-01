@@ -8,6 +8,7 @@
 // Generated from the TEXTINCLUDE 2 resource.
 //
 #include "afxres.h"
+#include "..\\common\\resource.h"
 
 /////////////////////////////////////////////////////////////////////////////
 #undef APSTUDIO_READONLY_SYMBOLS
@@ -27,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 3,1,1,0
- PRODUCTVERSION 3,1,1,0
+ FILEVERSION 4,0,0,0
+ PRODUCTVERSION 4,0,0,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -45,12 +46,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Setup"
-            VALUE "FileVersion", "3.1a"
+            VALUE "FileVersion", "4.0"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "OriginalFilename", "TrueCrypt Setup.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "3.1a"
-            VALUE "SpecialBuild", "February 2005"
+            VALUE "ProductVersion", "4.0"
+            VALUE "SpecialBuild", "November 2005"
         END
     END
     BLOCK "VarFileInfo"
@@ -62,56 +63,64 @@ END
 
 /////////////////////////////////////////////////////////////////////////////
 //
+// HEADER
+//
+
+IDR_SETUP_RSRC_HEADER   HEADER                  "resource.h"
+
+/////////////////////////////////////////////////////////////////////////////
+//
 // Dialog
 //
 
 IDD_UNINSTALL DIALOGEX 0, 0, 349, 234
 STYLE DS_SETFONT | DS_SETFOREGROUND | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | 
     WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "TITLE"
+CAPTION "Uninstall TrueCrypt"
 CLASS "CustomDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    LTEXT           "Uninstall TrueCrypt fr&om:",IDC_INSTRUCTION,8,10,87,8
+    LTEXT           "Uninstall TrueCrypt fr&om:",IDT_UNINSTALL_DIR,8,10,166,
+                    8
     EDITTEXT        IDC_DESTINATION,7,21,277,14,ES_AUTOHSCROLL
-    PUSHBUTTON      "&Browse",IDC_BROWSE,292,21,50,14
+    PUSHBUTTON      "&Browse...",IDC_BROWSE,292,21,50,14
     LISTBOX         IDC_FILES,7,44,335,128,LBS_NOINTEGRALHEIGHT | LBS_NOSEL | 
                     WS_VSCROLL
-    DEFPUSHBUTTON   "&Uninstall",IDOK,236,213,50,14
+    DEFPUSHBUTTON   "&Uninstall",IDC_UNINSTALL,236,213,50,14
     PUSHBUTTON      "Cancel",IDCANCEL,292,213,50,14
-    LTEXT           "All TrueCrypt files except '\\WINDOWS\\TrueCrypt Setup.exe' will be removed. No TrueCrypt volume will be deleted. The registry entries at HKLM\\SYSTEM\\ControlSet001\\Enum\\Root\\LEGACY_TRUECRYPT cannot be removed as Windows does not allow their deletion.",
-                    IDC_STATIC,9,179,333,29
+    LTEXT           "All TrueCrypt files except '%WINDIR%\\TrueCrypt Setup.exe' will be removed. No TrueCrypt volume will be deleted. The registry entries at HKLM\\SYSTEM\\ControlSet001\\Enum\\Root\\LEGACY_TRUECRYPT cannot be removed as Windows does not allow their deletion.",
+                    IDT_UNINSTALL_INFO,9,179,333,29
 END
 
 IDD_INSTALL DIALOGEX 0, 0, 405, 265
 STYLE DS_SETFONT | DS_SETFOREGROUND | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | 
     WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "TITLE"
+CAPTION "TrueCrypt Setup"
 CLASS "CustomDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    LTEXT           "Install &to:",IDC_INSTRUCTION,15,182,32,8
-    EDITTEXT        IDC_DESTINATION,49,179,284,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_DESTINATION,73,179,260,14,ES_AUTOHSCROLL
     PUSHBUTTON      "&Browse...",IDC_BROWSE,337,179,50,14
-    LTEXT           "License Agreement:",IDC_STATIC,9,7,64,8
-    EDITTEXT        IDC_LICENSE,7,18,392,88,ES_MULTILINE | ES_READONLY | 
-                    WS_VSCROLL | NOT WS_TABSTOP
-    CONTROL         "Associate '.tc' file &extension with TrueCrypt",
-                    IDC_FILE_TYPE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,192,
-                    198,159,10
-    DEFPUSHBUTTON   "&Install",IDOK,291,246,50,14
-    PUSHBUTTON      "Cancel",IDCANCEL,348,246,50,14
-    CONTROL         "Add TrueCrypt to &Start menu",IDC_PROG_GROUP,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,211,174,10
-    GROUPBOX        "Installation Options",IDC_STATIC,7,167,392,73
-    CONTROL         "Add TrueCrypt icon to &desktop",IDC_DESKTOP_ICON,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,224,174,10
-    CONTROL         "Create System &Restore point",IDC_SYSTEM_RESTORE,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,192,211,172,10
-    LISTBOX         IDC_FILES,7,109,392,56,LBS_NOINTEGRALHEIGHT | 
-                    LBS_DISABLENOSCROLL | LBS_NOSEL | WS_VSCROLL
     CONTROL         "Install for all users",IDC_ALL_USERS,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,15,198,174,10
+    CONTROL         "Associate '.tc' file &extension with TrueCrypt",
+                    IDC_FILE_TYPE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,192,
+                    198,204,10
+    CONTROL         "Add TrueCrypt to &Start menu",IDC_PROG_GROUP,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,15,211,174,10
+    CONTROL         "Create System &Restore point",IDC_SYSTEM_RESTORE,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,192,211,204,10
+    CONTROL         "Add TrueCrypt icon to &desktop",IDC_DESKTOP_ICON,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,15,224,174,10
+    DEFPUSHBUTTON   "&Install",IDC_INSTALL,291,246,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,348,246,50,14
+    RTEXT           "Install &to:",IDT_INSTALL_DIR,10,182,62,8
+    LTEXT           "License Agreement:",IDT_LICENSE,9,7,179,8
+    EDITTEXT        IDC_LICENSE,7,18,392,88,ES_MULTILINE | ES_READONLY | 
+                    WS_VSCROLL | NOT WS_TABSTOP
+    GROUPBOX        "Installation Options",IDT_INSTALL_OPTIONS,7,167,392,73
+    LISTBOX         IDC_FILES,7,109,392,56,LBS_NOINTEGRALHEIGHT | 
+                    LBS_DISABLENOSCROLL | LBS_NOSEL | WS_VSCROLL
 END
 
 
@@ -138,11 +147,13 @@ END
 2 TEXTINCLUDE 
 BEGIN
     "#include ""afxres.h""\r\n"
+    "#include ""..\\\\common\\\\resource.h""\r\n"
     "\0"
 END
 
 3 TEXTINCLUDE 
 BEGIN
+    "#include ""..\\\\common\\\\common.rc""\r\n"
     "\0"
 END
 
@@ -178,4 +189,15 @@ END
 #endif    // English (U.S.) resources
 /////////////////////////////////////////////////////////////////////////////
 
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+#include "..\\common\\common.rc"
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
 

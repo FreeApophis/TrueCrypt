@@ -64,7 +64,7 @@
 				AdditionalIncludeDirectories="..\Common"
 				PreprocessorDefinitions="WIN32;NDEBUG;_LIB"
 				RuntimeLibrary="4"
-				BufferSecurityCheck="FALSE"
+				BufferSecurityCheck="TRUE"
 				UsePrecompiledHeader="0"
 				AssemblerOutput="2"
 				AssemblerListingLocation="$(IntDir)/"
@@ -154,6 +154,9 @@
 			<File
 				RelativePath=".\Twofish.c">
 			</File>
+			<File
+				RelativePath=".\Whirlpool.c">
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -196,9 +199,6 @@
 				RelativePath=".\Podd.h">
 			</File>
 			<File
-				RelativePath=".\resource.h">
-			</File>
-			<File
 				RelativePath=".\Rmd160.h">
 			</File>
 			<File
@@ -218,6 +218,9 @@
 			</File>
 			<File
 				RelativePath=".\Twofish.h">
+			</File>
+			<File
+				RelativePath=".\Whirlpool.h">
 			</File>
 		</Filter>
 		<Filter

@@ -56,7 +56,7 @@
  * [including the GNU Public Licence.]
  */
 
-#include "des_locl.h"
+#include "Des_locl.h"
 
 
 #pragma warning( disable : 4131 )

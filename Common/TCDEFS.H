@@ -1,25 +1,27 @@
-/* The source code contained in this file has been derived from the source code
-   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004-2005
-   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
-   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
-   release. Please see the file license.txt for full license details. */
+/* Legal Notice: The source code contained in this file has been derived from
+   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
+   Encryption for the Masses'. Modifications and additions to that source code
+   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   the full text of which is contained in the file License.txt included in
+   TrueCrypt binary and source code distribution archives.  */
 
 // Version displayed to user 
-#define VERSION_STRING                  "3.1a"
+#define VERSION_STRING                  "4.0"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x031a
+#define VERSION_NUM						0x0400
 
 // Version number written to volume header during format,
 // specifies the minimum program version required to mount the volume
-#define VOL_REQ_PROG_VERSION			0x0100 
+#define VOL_REQ_PROG_VERSION			0x0100
 
 // Volume header version
 #define VOLUME_HEADER_VERSION			0x0002 
 
 #define TC_MAX_PATH						260	/* Includes the null terminator */
-#define SECTOR_SIZE                     512	/* sector size */
+#define SECTOR_SIZE                     512	/* Filesystem sector size */
 
 #define BYTES_PER_KB                    1024I64
 #define BYTES_PER_MB                    1048576I64
@@ -46,6 +48,9 @@
 #define ERR_VOL_READING                 15
 #define ERR_DRIVER_VERSION				16
 #define ERR_NEW_VERSION_REQUIRED		17
+#define ERR_CIPHER_INIT_FAILURE			18
+#define ERR_CIPHER_INIT_WEAK_KEY		19
+#define ERR_SELF_TESTS_FAILED			20
 
 #define ERR_VOL_ALREADY_MOUNTED         32
 #define ERR_NO_FREE_SLOTS               33
@@ -70,7 +75,9 @@
 
 #define WIDE(x) (LPWSTR)L##x
 
+#ifndef LINUX_DRIVER
 #include <string.h>
+#endif
 
 #pragma intrinsic(memcmp, memcpy, memset, strcat, strcmp, strcpy, strlen)
 
@@ -109,45 +116,6 @@
 
 #define DEVICE_DRIVER
 
-#endif				/* NT4_DRIVER */
-
-
-#ifdef WIN9X_DRIVER
-
-#pragma warning( disable : 4047 )
-
-#include "iosdcls.inc"		/* VMM and IOS headers */
-
-#pragma warning( default : 4047 )
-
-#include <vwin32.h>
-#include <winerror.h>
-#undef WANTVDXWRAPS
-#pragma warning( disable : 4229 )
-#include <shell.h>
-#pragma warning( default : 4229 )
-#pragma hdrstop
-#include <malloc.h>
-#include <vmm.h>
-#include "ifs.h"
-#include <dbt.h>
-#define MBYTE16 3967
-#define UWORD unsigned short
-#define UBYTE unsigned char
-
-#define MBYTE16 3967
-
-#define TCalloc(size) _PageAllocate(size % 4096 ? (size/4096)+1 : size/4096,\
-	PG_SYS,0,0,0,MBYTE16,NULL,PAGEZEROINIT|PAGEFIXED|PAGECONTIG|PAGEUSEALIGN);
-
-#define TCfree(memblock) _PageFree(memblock,0)
-
-#define DEVICE_DRIVER
-
-#endif				/* WIN9X_DRIVER */
-
-#ifdef DEVICE_DRIVER
-
 #ifndef BOOL
 typedef int BOOL;
 #endif
@@ -163,7 +131,7 @@ typedef int BOOL;
 /* Define dummies for the drivers */
 typedef int HFILE;
 typedef unsigned int WPARAM;
-typedef unsigned long LPARAM;
+typedef unsigned __int32 LPARAM;
 #define CALLBACK
 
 #ifndef UINT
@@ -171,13 +139,15 @@ typedef unsigned int UINT;
 #endif
 
 #ifndef LRESULT
-typedef unsigned long LRESULT;
+typedef unsigned __int32 LRESULT;
 #endif
 
-#else	// #ifdef DEVICE_DRIVER
+#else	/* NT4_DRIVER */
 
 #define TCalloc malloc
 #define TCfree free
+
+#ifdef _WIN32
 
 #pragma warning( disable : 4201 )
 #pragma warning( disable : 4214 )
@@ -202,8 +172,13 @@ typedef unsigned long LRESULT;
    incorrectly to atoi64 when it should be _atoi64 */
 #define atoi64 _atoi64
 
-#endif				/* DEVICE_DRIVER */
+#endif				/* _WIN32 */
+
+#endif				/* NT4_DRIVER */
+
+#ifdef _WIN32
 
 typedef UINT (_stdcall * diskio_f) (int, void *, UINT);
-
 #pragma hdrstop
+
+#endif

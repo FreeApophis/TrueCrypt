@@ -1,19 +1,44 @@
-/* The source code contained in this file has been derived from the source code
-   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004-2005
-   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
-   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
-   release. Please see the file license.txt for full license details. */
+/* Legal Notice: The source code contained in this file has been derived from
+   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
+   Encryption for the Masses'. Modifications and additions to that source code
+   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   the full text of which is contained in the file License.txt included in
+   TrueCrypt binary and source code distribution archives.  */
 
-#include "TCdefs.h"
-#include "endian.h"
+#include "Tcdefs.h"
+#include "Endian.h"
+
+
+unsigned __int32 MirrorBytes32 (unsigned __int32 x)
+{
+	unsigned __int32 n = (unsigned __int8) x;
+	n <<= 8; n |= (unsigned __int8) (x >> 8);
+	n <<= 8; n |= (unsigned __int8) (x >> 16);
+	return (n << 8) | (unsigned __int8) (x >> 24);
+}
+
+
+unsigned __int64 MirrorBytes64 (unsigned __int64 x)
+{
+	unsigned __int64 n = (unsigned __int8) x;
+	n <<= 8; n |= (unsigned __int8) (x >> 8);
+	n <<= 8; n |= (unsigned __int8) (x >> 16);
+	n <<= 8; n |= (unsigned __int8) (x >> 24);
+	n <<= 8; n |= (unsigned __int8) (x >> 32);
+	n <<= 8; n |= (unsigned __int8) (x >> 40);
+	n <<= 8; n |= (unsigned __int8) (x >> 48);
+	return (n << 8) | (unsigned __int8) (x >> 56);
+}
+
 
 void
-LongReverse (unsigned long *buffer, unsigned byteCount)
+LongReverse (unsigned __int32 *buffer, unsigned byteCount)
 {
-	unsigned long value;
+	unsigned __int32 value;
 
-	byteCount /= sizeof (unsigned long);
+	byteCount /= sizeof (unsigned __int32);
 	while (byteCount--)
 	{
 		value = *buffer;

@@ -25,7 +25,7 @@
 #define  _RMD160_H
 
 #ifndef	u_int32_t
-#define	u_int32_t	unsigned long
+#define	u_int32_t	unsigned __int32
 #define	u_int64_t	unsigned __int64
 #define	u_char		unsigned char
 #endif

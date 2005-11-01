@@ -73,12 +73,14 @@
 #endif
 #endif
 
+#ifndef LINUX_DRIVER
 #include <stdio.h>
 #include <stdlib.h>
 #ifndef MSDOS
 #include <unistd.h>
 #endif
-#include "des.h"
+#endif
+#include "Des.h"
 
 #ifndef DES_DEFAULT_OPTIONS
 /* the following is tweaked from a config script, that is why it is a
@@ -162,7 +164,9 @@ YOU SHOULD NOT HAVE BOTH DES_RISC1 AND DES_RISC2 DEFINED!!!!!
 #endif
 
 #if defined(__STDC__) || defined(VMS) || defined(M_XENIX) || defined(MSDOS)
+#ifndef LINUX_DRIVER
 #include <string.h>
+#endif
 #endif
 
 #ifndef RAND

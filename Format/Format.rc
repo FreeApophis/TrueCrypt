@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 3,1,1,0
- PRODUCTVERSION 3,1,1,0
+ FILEVERSION 4,0,0,0
+ PRODUCTVERSION 4,0,0,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -46,12 +46,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Format"
-            VALUE "FileVersion", "3.1a"
+            VALUE "FileVersion", "4.0"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "OriginalFilename", "TrueCrypt Format.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "3.1a"
-            VALUE "SpecialBuild", "February 2005"
+            VALUE "ProductVersion", "4.0"
+            VALUE "SpecialBuild", "November 2005"
         END
     END
     BLOCK "VarFileInfo"
@@ -63,24 +63,31 @@ END
 
 /////////////////////////////////////////////////////////////////////////////
 //
+// HEADER
+//
+
+IDR_FORMAT_RSRC_HEADER  HEADER                  "resource.h"
+
+/////////////////////////////////////////////////////////////////////////////
+//
 // Dialog
 //
 
 IDD_MKFS_DLG DIALOGEX 0, 0, 400, 209
 STYLE DS_SETFONT | DS_SETFOREGROUND | DS_FIXEDSYS | DS_CENTER | 
     WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "TITLE"
+CAPTION "TrueCrypt Volume Creation Wizard"
 CLASS "CustomDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    LTEXT           "",IDC_POS_BOX,160,24,226,152
-    PUSHBUTTON      "&Help",9,176,189,50,14
-    PUSHBUTTON      "PREV",IDC_PREV,235,189,50,14
-    DEFPUSHBUTTON   "NEXT/FINISH",IDC_NEXT,285,189,50,14
-    PUSHBUTTON      "&Cancel",IDCANCEL,343,189,50,14
-    LTEXT           "BOX TITLE",IDC_BOX_TITLE,160,8,220,17
+    LTEXT           "",IDC_POS_BOX,160,24,231,152
+    PUSHBUTTON      "&Help",IDHELP,176,189,50,14
+    PUSHBUTTON      "",IDC_PREV,235,189,50,14
+    DEFPUSHBUTTON   "",IDC_NEXT,285,189,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,343,189,50,14
+    LTEXT           "",IDC_BOX_TITLE,160,8,220,17
     GROUPBOX        "",IDC_STATIC,4,0,392,183
-    CONTROL         122,IDC_STATIC,"Static",SS_BITMAP | SS_SUNKEN,10,9,137,
+    CONTROL         20,IDC_STATIC,"Static",SS_BITMAP | SS_SUNKEN,10,9,137,
                     169
 END
 
@@ -92,37 +99,40 @@ BEGIN
                     WS_TABSTOP
     PUSHBUTTON      "&Test",IDC_CIPHER_TEST,149,22,59,14
     PUSHBUTTON      "&Benchmark",IDC_WIZ_BENCHMARK,149,80,59,14
-    CONTROL         "SHA-1",IDC_SHA1,"Button",BS_AUTORADIOBUTTON | WS_GROUP,
-                    6,118,68,10
-    CONTROL         "RIPEMD-160",IDC_RIPEMD160,"Button",BS_AUTORADIOBUTTON,6,
-                    130,66,10
-    LTEXT           "BOX HELP",IDC_BOX_HELP,7,40,205,40
-    GROUPBOX        "Encryption Algorithm",IDC_STATIC,0,10,217,92
-    GROUPBOX        "Hash Algorithm",IDC_STATIC,0,106,217,40
+    COMBOBOX        IDC_COMBO_BOX_HASH_ALGO,7,122,137,126,CBS_DROPDOWNLIST | 
+                    WS_VSCROLL | WS_TABSTOP
+    LTEXT           "",IDC_BOX_HELP,7,40,205,40
+    GROUPBOX        "Encryption Algorithm",IDT_ENCRYPTION_ALGO,0,10,217,92
+    GROUPBOX        "Hash Algorithm",IDT_HASH_ALGO,0,106,217,40
 END
 
-IDD_PASSWORD_PAGE_DLG DIALOGEX 0, 0, 217, 154
+IDD_PASSWORD_PAGE_DLG DIALOGEX 0, 0, 226, 154
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    RTEXT           "P&assword:",IDC_STATIC,0,15,34,8
-    EDITTEXT        IDC_PASSWORD,40,11,124,14,ES_PASSWORD | ES_AUTOHSCROLL
-    RTEXT           "&Confirm:",IDC_STATIC,0,32,34,8
-    EDITTEXT        IDC_VERIFY,40,28,124,14,ES_PASSWORD | ES_AUTOHSCROLL
-    LTEXT           "BOX HELP",IDC_BOX_HELP,0,51,214,102
+    EDITTEXT        IDC_PASSWORD,53,2,163,14,ES_PASSWORD | ES_AUTOHSCROLL
+    EDITTEXT        IDC_VERIFY,53,18,163,14,ES_PASSWORD | ES_AUTOHSCROLL
+    CONTROL         "Display Password",IDC_SHOW_PASSWORD,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,53,33,79,11,
+                    WS_EX_TRANSPARENT
+    CONTROL         "Use keyfiles",IDC_KEYFILES_ENABLE,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,53,43,82,11
+    PUSHBUTTON      "Keyfiles..",IDC_KEY_FILES,152,35,64,14,WS_DISABLED
+    RTEXT           "Password:",IDT_PASSWORD,1,5,50,8
+    RTEXT           "&Confirm:",IDT_CONFIRM,1,22,50,8
+    LTEXT           "",IDC_BOX_HELP,0,58,223,95
 END
 
-IDD_SIZE_PAGE_DLG DIALOGEX 0, 0, 218, 142
+IDD_SIZE_PAGE_DLG DIALOGEX 0, 0, 225, 142
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     EDITTEXT        IDC_SIZEBOX,0,22,71,14,ES_AUTOHSCROLL | ES_NUMBER
     CONTROL         "&KB",IDC_KB,"Button",BS_AUTORADIOBUTTON | WS_GROUP | 
-                    WS_TABSTOP,80,25,25,10
-    CONTROL         "&MB",IDC_MB,"Button",BS_AUTORADIOBUTTON,119,25,27,10
-    LTEXT           "BOX HELP",IDC_BOX_HELP,0,75,214,64
-    LTEXT           "SPACE LEFT ON DEVICE = nnnnn",IDC_SPACE_LEFT,0,44,214,
-                    21
+                    WS_TABSTOP,80,25,38,10
+    CONTROL         "&MB",IDC_MB,"Button",BS_AUTORADIOBUTTON,119,25,51,10
+    LTEXT           "",IDC_BOX_HELP,0,75,214,64
+    LTEXT           "",IDC_SPACE_LEFT,0,44,214,21
 END
 
 IDD_FILE_PAGE_DLG DIALOGEX 0, 0, 217, 156
@@ -131,48 +141,50 @@ FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     COMBOBOX        IDC_COMBO_BOX,0,14,148,80,CBS_DROPDOWN | CBS_AUTOHSCROLL | 
                     WS_VSCROLL | WS_TABSTOP
-    PUSHBUTTON      "Select &File...",IDC_BROWSE_FILES,155,14,62,14
-    PUSHBUTTON      "Select &Device...",IDC_BROWSE_DEVICES,155,30,62,14
     CONTROL         "&Never save history",IDC_NO_HISTORY,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,3,33,137,10
-    LTEXT           "BOX HELP",IDC_BOX_HELP,0,56,214,94
+    PUSHBUTTON      "Select &File...",IDC_SELECT_FILE,155,14,62,14
+    PUSHBUTTON      "Select D&evice...",IDC_SELECT_DEVICE,155,30,62,14
+    LTEXT           "",IDC_BOX_HELP,0,56,214,94
 END
 
-IDD_FORMAT_PAGE_DLG DIALOGEX 0, 0, 217, 156
+IDD_FORMAT_PAGE_DLG DIALOGEX 0, 0, 226, 156
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    COMBOBOX        IDC_FILESYS,41,12,36,90,CBS_DROPDOWNLIST | WS_TABSTOP
-    COMBOBOX        IDC_CLUSTERSIZE,106,12,42,90,CBS_DROPDOWNLIST | 
+    COMBOBOX        IDC_FILESYS,43,11,36,90,CBS_DROPDOWNLIST | WS_TABSTOP
+    COMBOBOX        IDC_CLUSTERSIZE,112,11,42,90,CBS_DROPDOWNLIST | 
                     WS_TABSTOP
     CONTROL         "Quick Format",IDC_QUICKFORMAT,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,155,14,56,10
-    PUSHBUTTON      "Abort",IDC_CANCEL_BAR,162,73,50,14
-    RTEXT           "Header Key:",IDC_STATIC,5,45,43,8
-    LTEXT           "",IDC_HEADER_KEY,52,45,160,8
-    RTEXT           "Master Key:",IDC_STATIC,7,53,41,8
-    LTEXT           "",IDC_DISK_KEY,52,53,160,8
-    LTEXT           "",IDC_RANDOM_BYTES,52,37,150,8
-    RTEXT           "Cluster",IDC_STATIC,81,15,23,8
-    LTEXT           "",IDC_BOX_HELP,1,110,212,42
-    GROUPBOX        "Options",IDC_STATIC,0,3,217,27
+                    BS_MULTILINE | WS_TABSTOP,163,9,60,18
+    CONTROL         "",IDC_SHOW_KEYS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,
+                    214,36,9,8
+    PUSHBUTTON      "Abort",IDC_ABORT_BUTTON,171,73,50,14
+    RTEXT           "Header Key: ",IDT_HEADER_KEY,2,45,54,8
+    CONTROL         "",IDC_HEADER_KEY,"Static",SS_LEFTNOWORDWRAP | WS_GROUP,
+                    57,44,163,8,WS_EX_TRANSPARENT
+    RTEXT           "Master Key: ",IDT_MASTER_KEY,2,53,54,8
+    LTEXT           "",IDC_DISK_KEY,57,52,163,8,0,WS_EX_TRANSPARENT
+    RTEXT           "Cluster ",IDT_CLUSTER,80,13,32,8
+    LTEXT           "",IDC_BOX_HELP,1,110,222,42
+    GROUPBOX        "Options",IDT_FORMAT_OPTIONS,0,1,225,29
     CONTROL         "",IDC_PROGRESS_BAR,"msctls_progress32",WS_BORDER | 0x1,
-                    6,74,151,12
-    RTEXT           "",IDC_TIMEREMAIN,166,91,45,11,SS_CENTERIMAGE,
-                    WS_EX_STATICEDGE
-    RTEXT           "",IDC_WRITESPEED,98,91,45,11,SS_CENTERIMAGE,
-                    WS_EX_STATICEDGE
-    RTEXT           "",IDC_BYTESWRITTEN,25,91,45,11,SS_CENTERIMAGE,
-                    WS_EX_STATICEDGE
-    RTEXT           "Done",IDC_STATIC,6,92,18,8
-    RTEXT           "Speed",IDC_STATIC,73,92,23,8
-    RTEXT           "Left",IDC_STATIC,151,92,13,8
-    GROUPBOX        "",IDC_STATIC,0,65,217,41
-    RTEXT           "Filesystem",IDC_STATIC,3,15,36,8,0,WS_EX_RIGHT
-    RTEXT           "Random Pool:",IDC_STATIC,3,37,45,8
-    GROUPBOX        "",IDC_STATIC,0,30,217,35
-    CONTROL         "Check2",IDC_SHOW_KEYS,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,205,37,9,8
+                    6,74,160,12
+    RTEXT           "",IDC_TIMEREMAIN,179,91,42,11,SS_CENTERIMAGE,
+                    WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
+    RTEXT           "",IDC_WRITESPEED,109,91,42,11,SS_CENTERIMAGE,
+                    WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
+    LTEXT           "",IDC_BYTESWRITTEN,32,91,42,11,SS_CENTERIMAGE,
+                    WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
+    RTEXT           "Done ",IDT_DONE,1,92,30,8
+    RTEXT           "Speed ",IDT_SPEED,74,92,35,8
+    RTEXT           "Left ",IDT_LEFT,151,92,28,8
+    GROUPBOX        "",IDC_STATIC,0,65,225,41
+    RTEXT           "Filesystem ",IDT_FILESYSTEM,2,13,41,8,0,WS_EX_RIGHT
+    RTEXT           "Random Pool: ",IDT_RANDOM_POOL,2,37,54,8
+    GROUPBOX        "",IDC_STATIC,0,30,225,35
+    CONTROL         "",IDC_RANDOM_BYTES,"Static",SS_SIMPLE | WS_GROUP,57,36,
+                    149,8,WS_EX_TRANSPARENT
 END
 
 IDD_VOLSTATS_DLG DIALOGEX 0, 0, 229, 146
@@ -182,46 +194,11 @@ CAPTION "Volume Creation Completed"
 CLASS "CustomDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    GROUPBOX        "",-1,2,0,225,144
+    GROUPBOX        "",IDC_STATIC,2,0,225,144
     LTEXT           "The volume has been successfully created and is ready for use.\n\nFormat details:",
-                    -1,14,15,208,35
-    LTEXT           "STATS BOX",IDC_STATS_BOX,14,50,201,61
+                    IDT_FORMAT_RESULTS,14,15,208,35
+    LTEXT           "",IDC_STATS_BOX,14,50,201,61
     DEFPUSHBUTTON   "OK",IDOK,89,120,50,14
-END
-
-IDD_CIPHER_TEST_DLG DIALOGEX 0, 0, 268, 191
-STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | 
-    WS_SYSMENU
-CAPTION "TEST DIALOG TITLE"
-FONT 8, "MS Shell Dlg", 0, 0, 0x0
-BEGIN
-    EDITTEXT        IDC_KEY,41,14,213,14,ES_AUTOHSCROLL
-    EDITTEXT        IDC_PLAINTEXT,41,47,213,14,ES_AUTOHSCROLL
-    COMBOBOX        IDC_KEY_SIZE,41,82,36,40,CBS_DROPDOWNLIST | WS_VSCROLL | 
-                    WS_TABSTOP
-    COMBOBOX        IDC_PLAINTEXT_SIZE,149,82,36,30,CBS_DROPDOWNLIST | 
-                    WS_DISABLED | WS_VSCROLL | WS_TABSTOP
-    EDITTEXT        IDC_CIPHERTEXT,41,116,213,14,ES_AUTOHSCROLL
-    PUSHBUTTON      "&Auto-Test All Algorithms",IDC_AUTO,208,142,52,23,
-                    BS_MULTILINE
-    DEFPUSHBUTTON   "&Encrypt",IDOK,8,170,52,14
-    PUSHBUTTON      "&Decrypt",IDC_DECRYPT,68,170,52,14
-    PUSHBUTTON      "&Reset",IDC_RESET,148,170,52,14
-    PUSHBUTTON      "Close",IDCANCEL,208,170,52,14
-    GROUPBOX        "[ Hexadecimal Key ] Big Endian",IDC_STATIC,8,3,252,31
-    RTEXT           "0x",IDC_STATIC,21,16,15,8
-    GROUPBOX        "[ Hexadecimal &Plaintext ] Big Endian",IDC_STATIC,8,36,
-                    252,31
-    RTEXT           "0x",IDC_STATIC,21,49,15,8
-    GROUPBOX        "Cip&her Configuration (all sizes in bytes)",IDC_STATIC,
-                    8,69,252,34
-    RTEXT           "Key",IDC_STATIC,21,84,15,8
-    RTEXT           "Plaintext",IDC_STATIC,89,84,51,8
-    GROUPBOX        "[ Hexadecimal &Ciphertext ] Big Endian",IDC_STATIC,8,
-                    106,252,31
-    RTEXT           "0x",IDC_STATIC,21,118,15,8
-    RTEXT           "TESTS MESSAGE",IDC_TESTS_MESSAGE,29,148,153,10
-    CONTROL         "",IDC_REDTICK,"REDTICK",0x0,187,149,10,8
 END
 
 IDD_INTRO_PAGE_DLG DIALOGEX 0, 0, 217, 156
@@ -229,10 +206,10 @@ STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     CONTROL         "Create a standard TrueCrypt volume",IDC_STD_VOL,"Button",
-                    BS_AUTORADIOBUTTON,0,6,134,10
+                    BS_AUTORADIOBUTTON,0,6,212,10
     CONTROL         "Create a hi&dden TrueCrypt volume ",IDC_HIDDEN_VOL,
-                    "Button",BS_AUTORADIOBUTTON,0,17,129,10
-    LTEXT           "Static",IDC_BOX_HELP,0,36,217,96
+                    "Button",BS_AUTORADIOBUTTON,0,17,212,10
+    LTEXT           "",IDC_BOX_HELP,0,36,217,96
     PUSHBUTTON      "What is a hidden volume?",IDC_HIDDEN_VOL_HELP,0,135,96,
                     14,0,WS_EX_STATICEDGE
 END
@@ -241,14 +218,14 @@ IDD_INFO_PAGE_DLG DIALOGEX 0, 0, 217, 156
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    LTEXT           "Static",IDC_BOX_HELP,0,10,217,146
+    LTEXT           "",IDC_BOX_HELP,0,10,217,146
 END
 
 IDD_HIDVOL_HOST_FILL_PAGE_DLG DIALOGEX 0, 0, 217, 156
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    LTEXT           "Static",IDC_BOX_HELP,0,3,217,134
+    LTEXT           "",IDC_BOX_HELP,0,3,217,134
     PUSHBUTTON      "Open Outer Volume",IDC_OPEN_OUTER_VOLUME,0,138,85,14
 END
 
@@ -261,18 +238,24 @@ BEGIN
                     215,10
     CONTROL         "Create a hi&dden volume within an existing TrueCrypt volume",
                     IDC_HIDVOL_WIZ_MODE_DIRECT,"Button",BS_AUTORADIOBUTTON,0,
-                    17,209,10
-    LTEXT           "Static",IDC_BOX_HELP,0,39,217,96
+                    17,215,10
+    LTEXT           "",IDC_BOX_HELP,0,39,217,96
 END
 
 IDD_HIDVOL_HOST_PASSWORD_PAGE_DLG DIALOGEX 0, 0, 217, 154
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    RTEXT           "P&assword:",-1,0,15,34,8
-    EDITTEXT        IDC_PASSWORD_DIRECT,40,11,124,14,ES_PASSWORD | 
+    EDITTEXT        IDC_PASSWORD_DIRECT,50,11,149,14,ES_PASSWORD | 
                     ES_AUTOHSCROLL
-    LTEXT           "BOX HELP",IDC_BOX_HELP,0,40,214,113
+    CONTROL         "Display Password",IDC_SHOW_PASSWORD_HIDVOL_HOST,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,50,27,79,11,
+                    WS_EX_TRANSPARENT
+    CONTROL         "Use keyfiles",IDC_KEYFILES_ENABLE,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,50,38,82,11
+    PUSHBUTTON      "Keyfiles..",IDC_KEY_FILES,135,29,64,14,WS_DISABLED
+    LTEXT           "",IDC_BOX_HELP,0,57,214,96
+    RTEXT           "Password:",IDT_PASSWORD,0,15,48,8
 END
 
 
@@ -327,13 +310,13 @@ BEGIN
 
     IDD_PASSWORD_PAGE_DLG, DIALOG
     BEGIN
-        RIGHTMARGIN, 214
+        RIGHTMARGIN, 223
         BOTTOMMARGIN, 125
     END
 
     IDD_SIZE_PAGE_DLG, DIALOG
     BEGIN
-        RIGHTMARGIN, 215
+        RIGHTMARGIN, 222
         BOTTOMMARGIN, 135
     END
 
@@ -345,6 +328,7 @@ BEGIN
 
     IDD_FORMAT_PAGE_DLG, DIALOG
     BEGIN
+        RIGHTMARGIN, 217
         BOTTOMMARGIN, 137
         HORZGUIDE, 80
         HORZGUIDE, 96
@@ -355,14 +339,6 @@ BEGIN
         RIGHTMARGIN, 222
         TOPMARGIN, 1
         BOTTOMMARGIN, 122
-    END
-
-    IDD_CIPHER_TEST_DLG, DIALOG
-    BEGIN
-        LEFTMARGIN, 7
-        RIGHTMARGIN, 261
-        TOPMARGIN, 7
-        BOTTOMMARGIN, 184
     END
 
     IDD_INTRO_PAGE_DLG, DIALOG
@@ -412,189 +388,6 @@ END
 //
 
 IDB_TRUECRYPT           BITMAP                  "TrueCrypt_Wizard.bmp"
-
-/////////////////////////////////////////////////////////////////////////////
-//
-// String Table
-//
-
-STRINGTABLE 
-BEGIN
-    IDS_SIZE_TITLE          "Volume Size"
-    IDS_NO_SPACE_FOR_HIDDEN_VOL 
-                            "Not enough free space for the hidden volume!\nVolume creation cannot continue."
-    IDS_HIDDEN_VOL_WIZARD_MODE_TITLE "Wizard Mode"
-    IDS_HIDDEN_VOL_WIZARD_MODE_HELP0 
-                            "Inexperienced users should select the first option. If you select the second option, it will be assumed that you have already created a TrueCrypt volume that is suitable to host the hidden volume."
-    IDS_HIDDEN_VOL_WIZARD_MODE_HELP1 " "
-    IDS_NEXT                "&Next >"
-    IDS_FINISH              "&Format"
-    IDS_OPEN_TITLE          "Specify Path and File Name"
-    IDS_FILE_TITLE          "Volume Location"
-    IDS_FILE_HELP0          "You can create file-hosted containers or encrypt entire hard disk partitions, floppy disks, USB memory sticks, and other storage devices. Click 'Select File...' to specify the name and path of the file to be created to host the new volume, or click "
-    IDS_SIZE_PARTITION_HELP "Size of a device cannot be modified. Make sure the size of the selected device is correct and click Next."
-    IDS_FILE_HELP1          "'Select Device...' to choose a partition or device to encrypt.\n\nWarning: If you encrypt a partition or a device, all data currently stored on the partition or the device will be erased."
-    IDS_FORMAT_ABORT        "Abort format?"
-    IDS_WARN_QUICK_FORMAT   "WARNING: You should use Quick Format only in the following cases:\n\n1) The partition contains random data (e.g. has already been fully encrypted)\n2) You are going to use all available space immediately\n3) You are not concerned with security (testing)"
-    IDS_INTRO_TITLE         "TrueCrypt Volume Creation Wizard"
-    IDS_FILE_HELP0_HIDDEN_HOST_VOL 
-                            "Select the location of the outer volume to be created (within this volume the hidden volume will be created later on).\n\nYou can create file-hosted containers or encrypt entire hard disk partitions, floppy disks, and other media. Click Select File to spe"
-END
-
-STRINGTABLE 
-BEGIN
-    IDS_FILE_HELP1_HIDDEN_HOST_VOL 
-                            "cify name and path of the file to be created to host the new volume, or click Select Device to choose a partition or device to encrypt.\n\nIf you encrypt a partition or device, all data currently stored on the partition or the device will be erased."
-    IDS_FORMAT_TITLE        "Volume Format"
-    IDS_PASSWORD_TITLE      "Volume Password"
-    IDS_INTRO_HELP3         "and other values obtained from the system. The data should be as random as possible, so the more randomly you move the mouse, the better."
-    IDS_INTRO_HELP0         "This wizard will help you to create a new TrueCrypt volume.\n"
-    IDS_INTRO_HELP1         "To create a hidden volume within another volume, select the corresponding wizard mode above.\n\nCollection of random data has begun. The data will be used in generating the master key,"
-    IDS_INTRO_HELP2         " salt, and values used to create the IV and 'whitening' values for the new volume. The collected data include your mouse movements within this window, mouse clicks, key presses, "
-    IDS_HIDVOL_HOST_PRE_CIPHER_TITLE "Outer Volume"
-    IDS_HIDVOL_HOST_PRE_CIPHER_HELP0 
-                            "\n\nIn the next steps you will set the options for the outer volume (within which the hidden volume will be created later on). "
-    IDS_HIDVOL_HOST_PRE_CIPHER_HELP1 " "
-    IDS_PREV                "< &Prev"
-    IDS_SIZE_HELP0          "Please specify the size of the volume to create. The minimum possible size of a FAT volume is 19 KB. The minimum possible size of an NTFS volume is 2526 KB."
-    IDS_SIZE_HELP1          " The maximum possible size of a file-hosted volume is limited by the hosting file system. Any file-hosted container to be stored on FAT32 file system cannot be larger than 4 GB."
-    IDS_SIZE_HELP1_HIDDEN_HOST_VOL 
-                            "Also note that the maximum possible size of a file-hosted container is limited by the hosting file system. Any file-hosted container to be stored on FAT32 file system cannot be larger than 4 GB."
-    IDS_FORMAT_HELP0        "Here you can set additional options that will affect the format of the new volume. Please refer to the documentation for more information. "
-    IDS_SIZE_HELP0_HIDDEN_HOST_VOL 
-                            "Please specify the size of the new outer volume (within which the hidden volume will be created later on). The minimum possible size of a volume within which a hidden volume is intended to be created is 40 KB, the maximum is 1024 GB. "
-END
-
-STRINGTABLE 
-BEGIN
-    IDS_HIDVOL_HOST_PRE_CIPHER_HELP2 " "
-    IDS_HIDVOL_HOST_PRE_CIPHER_HELP3 " "
-    IDS_TITLE               "TrueCrypt Volume Creation Wizard"
-    IDS_CIPHER_HIDVOL_HOST_TITLE "Outer Volume Encryption Options"
-    IDS_CIPHER_HIDVOL_TITLE "Hidden Volume Encryption Options"
-    IDS_SIZE_HIDVOL_HOST_TITLE "Outer Volume Size"
-    IDS_SIZE_HIDVOL_TITLE   "Hidden Volume Size"
-    IDS_PASSWORD_HIDVOL_HOST_TITLE "Outer Volume Password"
-    IDS_FORMAT_HELP1        "When done, click 'Format' to create your new volume. "
-    IDS_FORMAT_HELP2        "There will be a short pause while your system is being polled for extra random data."
-    IDS_READONLYPROMPT      "The volume '%s' exists, and is read-only. Are you sure you want to replace it?"
-    IDS_PASSWORD_HIDVOL_TITLE "Hidden Volume Password"
-    IDS_FORMAT_HIDVOL_HOST_TITLE "Outer Volume Format"
-    IDS_CIPHER_NONE_HELP0   " "
-    IDS_FORMAT_HIDVOL_TITLE "Hidden Volume Format"
-    IDS_DISK_FREE_BYTES     "Free space on drive %s is %.2f bytes."
-END
-
-STRINGTABLE 
-BEGIN
-    IDS_CIPHER_TITLE        "Encryption Options"
-END
-
-STRINGTABLE 
-BEGIN
-    IDS_DISK_FREE_KB        "Free space on drive %s is %.2f KB."
-    IDS_DISK_FREE_MB        "Free space on drive %s is %.2f MB."
-    IDS_CANNOT_CALC_SPACE   "Cannot access device. Make sure the selected device exists and is not used by system."
-    IDS_DEVICE_FREE_BYTES   "The size of the device %s is %.2f bytes."
-    IDS_DEVICE_FREE_KB      "The size of the device %s is %.2f KB."
-    IDS_DEVICE_FREE_MB      "The size of the device %s is %.2f MB."
-    IDS_DES_HELP0           "This is the US government's Data Encryption Standard, by IBM and the NSA. The standard was published as FIPS PUB 46."
-    IDS_DES_HELP1           "This algorithm has a 56-bit key, and 64-bit block."
-    IDS_BLOWFISH_HELP0      "Designed by Bruce Schneier in 1993. "
-    IDS_BLOWFISH_HELP1      "TrueCrypt uses Blowfish with 16 rounds and a 448-bit key. Blowfish is the fastest of the implemented ciphers."
-    IDS_THREE_LAYER_CASCADE_HELP0 
-                            "Three ciphers in a cascade operating in %s mode. Each %s is first encrypted with %s (%d-bit key), then with %s (%d-bit key), and finally with %s (%d-bit key). "
-    IDS_THREE_LAYER_CASCADE_HELP1 
-                            "Each cipher uses its own key. All keys are mutually independent."
-    IDS_AES_HELP0           "FIPS-approved cryptographic algorithm (Rijndael, published in 1998) that may be used by US "
-    IDS_AES_HELP1           "federal departments and agencies to cryptographically protect sensitive information. 256-bit key, 14 rounds (AES-256, published in 2001)."
-    IDS_TWO_LAYER_CASCADE_HELP0 
-                            "Two ciphers in a cascade operating in %s mode. Each %s is first encrypted with %s (%d-bit key) and then with %s (%d-bit key). "
-    IDS_TWO_LAYER_CASCADE_HELP1 
-                            "Each cipher uses its own key. All keys are mutually independent."
-END
-
-STRINGTABLE 
-BEGIN
-    IDS_SIZE_PARTITION_HIDDEN_VOL_HELP 
-                            "\n\nNote that the minimum possible size of a volume within which a hidden volume is intended to be created is 40 KB. The maximum possible size of such volume is 1024 GB."
-    IDS_FORMAT_HIDVOL_HOST_HELP0 
-                            "Note that a hidden volume can only be created within a FAT volume. For more information, please refer to the documentation. "
-    IDS_TRIPLEDES_HELP0     "Triple DES, published in 1978, is 3 iterations of the DES cipher designed by IBM and NSA (1976) . It operates in outer-CBC mode and uses "
-    IDS_TRIPLEDES_HELP1     "3 independent 56-bit keys (1 per iteration). Note that this cipher is very slow."
-    IDS_CAST_HELP0          "CAST5 (alias CAST-128) was designed by Carlisle Adams and Stafford Tavares, and published in 1997. It uses a 128-bit key "
-    IDS_CAST_HELP1          "and a 64-bit block. Although patented, CAST5 is royalty-free both for commercial and non-commercial uses."
-    IDS_FORMAT_HIDVOL_HOST_HELP1 
-                            "When ready, click 'Format' to create the outer volume. "
-    IDS_EXT_PARTITION       "Please create a logical drive for this extended partition, and then try again."
-    IDS_CIPHER_TEST         "%s Cipher Test"
-    IDS_TESTS_PASSED        "Self-tests of all algorithms passed"
-    IDS_TESTS_FAILED        "CAUTION: SELF-TEST FAILED!"
-    IDS_TEST_KEY_SIZE       "The test key you have supplied is too long or short."
-    IDS_TEST_PLAINTEXT_SIZE "The test plaintext you have supplied is too long or short."
-    IDS_TEST_CIPHERTEXT_SIZE 
-                            "The test ciphertext you have supplied is too long or short."
-    IDS_FORMAT_HIDVOL_HOST_HELP2 
-                            "There will be a short pause while your system is being polled for extra random data."
-    IDS_HIDVOL_HOST_FILLING_HELP0 
-                            "The outer volume has been successfully created and mounted as drive %s:. To this volume you should now copy some sensitive-looking files that you do NOT really want to hide. These files will be there for anyone who would force you to hand over the passwor"
-END
-
-STRINGTABLE 
-BEGIN
-    IDS_HIDVOL_HOST_FILLING_HELP1 
-                            "d. You will reveal only the password for this outer volume, not for the hidden one. The files that you really care about will be stored in the hidden volume, which will be created later on.\n\nWhen you have finished copying, click Next. Do"
-    IDS_HIDVOL_HOST_FILLING_HELP2 
-                            " not dismount the volume. After you click Next, the cluster bitmap of the outer volume will be scanned to determine the size of the uninterrupted block of free space (if there is any) whose end is aligned with the end of the volume. This blo"
-    IDS_HIDVOL_HOST_FILLING_HELP3 
-                            "ck will accommodate the hidden volume and therefore will limit its maximum possible size. Cluster map scanning is necessary to ensure that no data on the outer volume will be overwritten by the hidden volume."
-    IDS_HIDVOL_HOST_FILLING_TITLE "Outer Volume Contents"
-    IDS_HIDVOL_PRE_CIPHER_TITLE "Hidden Volume"
-    IDS_HIDVOL_PRE_CIPHER_HELP0 
-                            "\n\nThe volume cluster bitmap has been scanned and the maximum possible size of the hidden volume has been determined. In the next steps you will set the options, the size, and the password for the hidden volume."
-    IDS_FORMAT_FINISHED_TITLE "Volume Created"
-    IDS_FORMAT_FINISHED_HELP 
-                            "\n\nThe TrueCrypt volume has been created and is ready for use. To create another TrueCrypt volume, click Next."
-    IDS_EXIT                "Exit"
-    IDS_CANCEL              "Cancel"
-    IDS_SIZE_HELP0_HIDDEN_VOL 
-                            "Please specify the size of the hidden volume to create. The minimum possible size of a FAT volume is 19 KB. The minimum possible size of an NTFS volume is 2526 KB. "
-    IDS_SIZE_HELP1_HIDDEN_VOL 
-                            "The maximum possible size you can specify for the hidden volume is displayed above."
-    IDS_MAX_HIDVOL_SIZE_MB  "Maximum hidden volume size is %.2f MB."
-    IDS_MAX_HIDVOL_SIZE_KB  "Maximum hidden volume size is %.2f KB."
-    IDS_MAX_HIDVOL_SIZE_BYTES "Maximum hidden volume size is %.2f bytes."
-    IDS_HIDVOL_FORMAT_FINISHED_HELP0 
-                            "The hidden TrueCrypt volume has been successfully created and is ready for use. If all the instructions have been followed, the hidden volume will be undetectable even when the outer volume is mounted.\n\n"
-END
-
-STRINGTABLE 
-BEGIN
-    IDS_HIDVOL_FORMAT_FINISHED_HELP1 
-                            "WARNING: YOU SHOULD NOT CREATE OR COPY ANY MORE FILES TO THE OUTER VOLUME. IF YOU DO, YOU MAY OVERWRITE AND DAMAGE THE HIDDEN VOLUME! "
-    IDS_HIDVOL_FORMAT_FINISHED_HELP2 
-                            "It is, however, possible to open, delete, and rename files stored on the outer volume and to move files from one folder on the outer volume to another folder on the outer volume.\n\n"
-    IDS_HIDVOL_FORMAT_FINISHED_HELP3 
-                            "For more information, please refer to the User's Guide. To create another TrueCrypt volume, click Next."
-    IDS_HIDVOL_FORMAT_FINISHED_TITLE "Hidden Volume Created"
-    IDS_HIDDEN_VOL_WIZARD_MODE_HELP2 " "
-    IDS_HIDDEN_VOL_WIZARD_MODE_HELP3 " "
-    IDS_FILE_HELP0_HIDDEN_HOST_VOL_DIRECT 
-                            "Select the location of the TrueCrypt volume within which you wish to create a hidden volume."
-    IDS_TWOFISH_HELP0       "Designed by Bruce Schneier, David Wagner, John Kelsey, Niels Ferguson, Doug Whiting, and Chris Hall. Published in 1998. 256-bit key, 128-bit block. "
-    IDS_PASSWORD_HIDDENVOL_HOST_DIRECT_HELP0 
-                            "Please enter the password for the volume within which you wish to create a hidden volume."
-    IDS_PASSWORD_HIDDENVOL_HOST_DIRECT_HELP1 
-                            " \n\nAfter you click Next, TrueCrypt will attempt to mount the volume. As soon as the volume is mounted, its cluster bitmap will be scanned to determine the size of the uninterrupted block of free space (if there is any) whose end is aligned with the en"
-    IDS_PASSWORD_HIDDENVOL_HOST_DIRECT_HELP2 
-                            "d of the volume. This block will accommodate the hidden volume and therefore will limit its maximum possible size. Cluster map scanning is necessary to ensure that no data on the outer volume will be overwritten by the hidden volume."
-    IDS_TWOFISH_HELP1       "Twofish was one of the AES finalists."
-    IDS_SERPENT_HELP1       "Serpent was one of the AES finalists."
-    IDS_SERPENT_HELP0       "Designed by Ross Anderson, Eli Biham, and Lars Knudsen. Published in 1998. 256-bit key, 128-bit block. "
-    IDS_ERR_MOUNTED_FILESYSTEMS 
-                            "There may be mounted filesystems located on the device to be formatted.\nPlease either disable quick format or remove all partitions on the device\nto enable safe formatting of the device."
-END
-
 #endif    // English (U.S.) resources
 /////////////////////////////////////////////////////////////////////////////
 

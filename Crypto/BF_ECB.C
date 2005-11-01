@@ -56,8 +56,11 @@
  * [including the GNU Public Licence.]
  */
 
-#include "blowfish.h"
-#include "bf_locl.h"
+/* Adapted for TrueCrypt by the TrueCrypt Foundation */
+
+#include "Blowfish.h"
+#include "Bf_locl.h"
+#include "Endian.h"
 
 #pragma warning( disable : 4131 )
 
@@ -98,3 +101,21 @@ int encrypt;
 	l=d[0]=d[1]=0;
 	}
 
+void BF_ecb_le_encrypt(in, out, ks, encrypt)
+unsigned char *in;
+unsigned char *out;
+BF_KEY *ks;
+int encrypt;
+{
+	BF_LONG d[2];
+
+	d[0] = LE32(((BF_LONG *)in)[0]);
+	d[1] = LE32(((BF_LONG *)in)[1]);
+	if (encrypt)
+		BF_encrypt(d,ks);
+	else
+		BF_decrypt(d,ks);
+	((BF_LONG *)out)[0] = LE32(d[0]);
+	((BF_LONG *)out)[1] = LE32(d[1]);
+	d[0]=d[1]=0;
+}

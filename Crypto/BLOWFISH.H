@@ -70,7 +70,7 @@ extern "C" {
  * the Alpha, otherwise they will not.  Strangly using the '8 byte'
  * BF_LONG and the default 'non-pointer' inner loop is the best configuration
  * for the Alpha */
-#define BF_LONG unsigned long
+#define BF_LONG unsigned __int32
 
 #define BF_ROUNDS	16
 #define BF_BLOCK	8
@@ -84,8 +84,8 @@ typedef struct bf_key_st
 #ifndef NOPROTO
  
 void _cdecl BF_set_key(BF_KEY *key, int len, unsigned char *data);
-void BF_ecb_encrypt(unsigned char *in,unsigned char *out,BF_KEY *key,
-	int enc);
+void _cdecl BF_ecb_encrypt(unsigned char *in,unsigned char *out,BF_KEY *key, int enc);
+void _cdecl BF_ecb_le_encrypt(unsigned char *in, unsigned char *out, BF_KEY *ks, int encrypt);
 void _cdecl BF_encrypt(BF_LONG *data,BF_KEY *key);
 void _cdecl BF_decrypt(BF_LONG *data,BF_KEY *key);
 void BF_cbc_encrypt(unsigned char *in, unsigned char *out, long length,

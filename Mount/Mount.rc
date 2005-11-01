@@ -24,79 +24,143 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 
 /////////////////////////////////////////////////////////////////////////////
 //
+// HEADER
+//
+
+IDR_MOUNT_RSRC_HEADER   HEADER                  "resource.h"
+
+/////////////////////////////////////////////////////////////////////////////
+//
 // Dialog
 //
 
-IDD_PREFERENCES_DLG DIALOGEX 0, 0, 271, 212
-STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | 
-    WS_SYSMENU
-CAPTION "Preferences"
+IDD_PREFERENCES_DLG DIALOGEX 0, 0, 313, 278
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | 
+    WS_CAPTION | WS_SYSMENU
+CAPTION "TrueCrypt - Preferences"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    DEFPUSHBUTTON   "OK",IDOK,153,190,50,14
-    PUSHBUTTON      "Cancel",IDCANCEL,209,190,50,14
-    CONTROL         "Open Explorer window for successfully mounted volume",
-                    IDC_PREF_OPEN_EXPLORER,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,22,145,203,11
-    CONTROL         "Close all Explorer windows of volume being dismounted",
-                    IDC_PREF_CLOSE_DISMOUNTED_WINDOWS,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,22,161,228,11
-    CONTROL         "Wipe cached passwords on exit",
-                    IDC_PREF_WIPE_CACHE_ON_EXIT,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,22,24,127,11
-    GROUPBOX        "Windows Explorer",IDC_STATIC,11,129,248,55
-    GROUPBOX        "Security",IDC_STATIC,11,8,248,55
-    CONTROL         "Cache passwords in driver memory",
-                    IDC_PREF_CACHE_PASSWORDS,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,22,40,127,11
-    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDFRAME,2,2,268,209
-    GROUPBOX        "Default Mount Options",IDC_STATIC,11,69,248,55
     CONTROL         "Mount volumes as read-only",IDC_PREF_MOUNT_READONLY,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,22,86,106,10
+                    "Button",BS_AUTOCHECKBOX | BS_MULTILINE | WS_TABSTOP,9,
+                    10,138,16
     CONTROL         "Mount volumes as removable media",
                     IDC_PREF_MOUNT_REMOVABLE,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,22,102,129,10
+                    BS_MULTILINE | WS_TABSTOP,149,10,158,16
+    CONTROL         "Enabled",IDC_PREF_BKG_TASK_ENABLE,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,9,42,52,10
+    CONTROL         "Exit when there are no mounted volumes",
+                    IDC_CLOSE_BKG_TASK_WHEN_NOVOL,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,149,42,153,10
+    CONTROL         "Start TrueCrypt",IDC_PREF_LOGON_START,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,10,76,122,10
+    CONTROL         "Mount all device-hosted TrueCrypt volumes",
+                    IDC_PREF_LOGON_MOUNT_DEVICES,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,149,71,154,10
+    CONTROL         "Mount favorite volumes",IDC_PREF_LOGON_MOUNT_FAVORITES,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,149,82,114,10
+    CONTROL         "User logs off",IDC_PREF_DISMOUNT_LOGOFF,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,76,105,101,11
+    CONTROL         "Screen saver is launched",IDC_PREF_DISMOUNT_SCREENSAVER,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,76,116,102,10
+    CONTROL         "Entering power saving mode",
+                    IDC_PREF_DISMOUNT_POWERSAVING,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,182,110,122,10
+    CONTROL         "Auto-dismount volume after no data has been read/written to it for",
+                    IDC_PREF_DISMOUNT_INACTIVE,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,10,129,229,11
+    EDITTEXT        IDC_PREF_DISMOUNT_INACTIVE_TIME,241,128,32,12,
+                    ES_AUTOHSCROLL | ES_NUMBER,WS_EX_RIGHT
+    CONTROL         "Force auto-dismount even if volume contains open files or directories",
+                    IDC_PREF_FORCE_AUTO_DISMOUNT,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,10,141,236,10
+    CONTROL         "Open Explorer window for successfully mounted volume",
+                    IDC_PREF_OPEN_EXPLORER,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,10,171,251,11
+    CONTROL         "Close all Explorer windows of volume being dismounted",
+                    IDC_PREF_CLOSE_DISMOUNTED_WINDOWS,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,10,183,251,11
+    CONTROL         "Preserve timestamps of file containers and keyfiles",
+                    IDC_PRESERVE_TIMESTAMPS,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,10,195,251,10
+    CONTROL         "Cache passwords in driver memory",
+                    IDC_PREF_CACHE_PASSWORDS,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,10,224,146,11
+    CONTROL         "Wipe cached passwords on exit",
+                    IDC_PREF_WIPE_CACHE_ON_EXIT,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,156,224,150,11
+    CONTROL         "Wipe cached passwords on auto-dismount",
+                    IDC_PREF_WIPE_CACHE_ON_AUTODISMOUNT,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,10,236,296,10
+    PUSHBUTTON      "Hot Key Settings...",IDC_PREFS_HOTKEY_SETTINGS,4,259,76,
+                    14
+    PUSHBUTTON      "Default Keyfiles...",IDC_PREFS_KEYFILE_SETTINGS,86,259,
+                    76,14
+    DEFPUSHBUTTON   "OK",IDOK,203,259,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,259,259,50,14
+    GROUPBOX        "Windows",IDT_WINDOWS_RELATED_SETTING,3,160,306,51
+    GROUPBOX        "Default Mount Options",IDT_DEFAULT_MOUNT_OPTIONS,3,2,
+                    306,26
+    GROUPBOX        "TrueCrypt Background Task",IDT_TASKBAR_ICON,3,31,306,28
+    GROUPBOX        "Auto-Dismount",IDT_AUTO_DISMOUNT,3,96,306,60
+    LTEXT           "minutes",IDT_MINUTES,277,130,28,10
+    RTEXT           "Dismount all when:",IDT_AUTO_DISMOUNT_ON,8,111,62,17
+    GROUPBOX        "Password Cache",IDT_PW_CACHE_OPTIONS,3,214,306,38
+    GROUPBOX        "Actions to perform upon log on to Windows",IDT_LOGON,3,
+                    63,306,32
 END
 
-IDD_VOLUME_PROPERTIES DIALOGEX 60, 30, 235, 156
+IDD_VOLUME_PROPERTIES DIALOGEX 60, 30, 248, 185
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | 
     WS_SYSMENU
-CAPTION "Volume Properties"
+CAPTION "TrueCrypt Volume Properties"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    DEFPUSHBUTTON   "OK",IDOK,92,136,50,14
+    DEFPUSHBUTTON   "OK",IDOK,99,164,50,14
     CONTROL         "",IDC_VOLUME_PROPERTIES_LIST,"SysListView32",LVS_REPORT | 
                     LVS_ALIGNLEFT | LVS_NOSORTHEADER | WS_BORDER | 
-                    WS_TABSTOP,9,6,216,123
+                    WS_TABSTOP,8,6,232,152
 END
 
-IDD_PASSWORDCHANGE_DLG DIALOGEX 0, 0, 304, 157
+IDD_PASSWORDCHANGE_DLG DIALOGEX 0, 0, 307, 162
 STYLE DS_SETFONT | DS_MODALFRAME | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | 
     WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "Volume Password Change"
+CAPTION "Change Volume Password and Keyfiles"
 CLASS "CustomDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    RTEXT           "Current Password:",IDC_STATIC,12,10,84,8
-    EDITTEXT        IDC_OLD_PASSWORD,101,8,124,12,ES_PASSWORD | 
+    EDITTEXT        IDC_OLD_PASSWORD,89,14,139,13,ES_PASSWORD | 
                     ES_AUTOHSCROLL
-    RTEXT           "New Password:",IDC_STATIC,12,30,84,8
-    EDITTEXT        IDC_PASSWORD,101,28,124,12,ES_PASSWORD | ES_AUTOHSCROLL
-    RTEXT           "Confirm New Password:",IDC_STATIC,12,46,84,8
-    EDITTEXT        IDC_VERIFY,101,44,124,12,ES_PASSWORD | ES_AUTOHSCROLL
-    DEFPUSHBUTTON   "&Change",IDOK,236,8,59,14
-    PUSHBUTTON      "Cancel",IDCANCEL,236,28,59,14
-    LTEXT           "BOX HELP",IDC_BOX_HELP,18,86,270,64
-    RTEXT           "PKCS-5 PRF Algorithm",IDC_STATIC,7,67,88,10,
-                    SS_CENTERIMAGE
-    COMBOBOX        IDC_HASH_CHANGE,101,65,91,90,CBS_DROPDOWNLIST | 
+    CONTROL         "Use keyfiles",IDC_ENABLE_KEYFILES,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,89,34,63,10
+    PUSHBUTTON      "Keyfiles...",IDC_KEYFILES,169,32,59,14
+    CONTROL         "Display Password",IDC_SHOW_PASSWORD_CHPWD_ORI,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,89,45,79,10,
+                    WS_EX_TRANSPARENT
+    EDITTEXT        IDC_PASSWORD,89,74,139,13,ES_PASSWORD | ES_AUTOHSCROLL
+    EDITTEXT        IDC_VERIFY,89,90,139,12,ES_PASSWORD | ES_AUTOHSCROLL
+    CONTROL         "Use keyfiles",IDC_ENABLE_NEW_KEYFILES,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,89,109,64,11
+    PUSHBUTTON      "Keyfiles...",IDC_NEW_KEYFILES,169,107,59,14
+    CONTROL         "Display Password",IDC_SHOW_PASSWORD_CHPWD_NEW,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,89,120,79,11,
+                    WS_EX_TRANSPARENT
+    COMBOBOX        IDC_PKCS5_PRF_ID,89,136,91,90,CBS_DROPDOWNLIST | 
                     WS_TABSTOP
+    DEFPUSHBUTTON   "OK",IDOK,243,7,59,14
+    PUSHBUTTON      "Cancel",IDCANCEL,243,24,59,14
+    RTEXT           "Password:",IDT_PASSWORD,12,16,72,8
+    RTEXT           "Password:",IDT_NEW_PASSWORD,8,77,76,8
+    RTEXT           "Confirm Password:",IDT_CONFIRM_PASSWORD,9,93,75,8
+    RTEXT           "PKCS-5 PRF Algorithm",IDT_PKCS5_PRF,9,137,74,10,
+                    SS_CENTERIMAGE
+    GROUPBOX        "Current",IDT_CURRENT,6,3,230,58
+    GROUPBOX        "New",IDT_NEW,6,63,230,93
 END
 
 IDD_MOUNT_DLG DIALOGEX 0, 0, 376, 271
 STYLE DS_SETFONT | DS_SETFOREGROUND | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | 
     WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "TITLE"
+CAPTION "TrueCrypt"
 MENU IDR_MENU
 CLASS "CustomDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
@@ -104,24 +168,24 @@ BEGIN
     CONTROL         "",IDC_DRIVELIST,"SysListView32",LVS_REPORT | 
                     LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_ALIGNLEFT | 
                     LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,5,360,135
-    PUSHBUTTON      "Select &File...",IDC_BROWSE_FILES,276,192,84,14
-    PUSHBUTTON      "Select D&evice...",IDC_BROWSE_DEVICES,276,211,84,14
-    COMBOBOX        IDC_VOLUME,56,192,212,74,CBS_DROPDOWN | CBS_AUTOHSCROLL | 
-                    WS_VSCROLL | WS_TABSTOP
-    CONTROL         "&Never save history",IDC_NO_HISTORY,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,56,207,112,10
-    DEFPUSHBUTTON   "&Mount",IDOK,8,243,84,18,WS_GROUP
-    PUSHBUTTON      "&Auto-Mount Devices",IDC_MOUNTALL,100,243,84,18
-    PUSHBUTTON      "Di&smount All",IDUNMOUNTALL,192,243,84,18,WS_GROUP
-    PUSHBUTTON      "E&xit",IDCANCEL,284,243,84,18,WS_GROUP
     PUSHBUTTON      "&Create Volume",IDC_CREATE_VOLUME,16,159,84,14
     PUSHBUTTON      "&Volume Properties...",IDC_VOLUME_PROPERTIES,146,159,84,
                     14
     PUSHBUTTON      "&Wipe Cache",IDC_WIPE_CACHE,276,159,84,14
-    PUSHBUTTON      "Change &Password...",IDC_CHANGE_PASSWORD,184,211,84,14
-    CONTROL         1027,IDB_LOGO,"Static",SS_BITMAP | SS_NOTIFY | WS_BORDER,
+    COMBOBOX        IDC_VOLUME,56,192,212,74,CBS_DROPDOWN | CBS_AUTOHSCROLL | 
+                    WS_VSCROLL | WS_TABSTOP
+    CONTROL         "&Never save history",IDC_NO_HISTORY,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,56,207,122,10
+    PUSHBUTTON      "Volume &Tools...",IDC_VOLUME_TOOLS,184,211,84,14
+    PUSHBUTTON      "Select &File...",IDC_SELECT_FILE,276,192,84,14
+    PUSHBUTTON      "Select D&evice...",IDC_SELECT_DEVICE,276,211,84,14
+    DEFPUSHBUTTON   "OK",IDOK,8,243,84,18,WS_GROUP
+    PUSHBUTTON      "&Auto-Mount Devices",IDC_MOUNTALL,100,243,84,18
+    PUSHBUTTON      "Di&smount All",IDC_UNMOUNTALL,192,243,84,18,WS_GROUP
+    PUSHBUTTON      "E&xit",IDC_EXIT,284,243,84,18,WS_GROUP
+    CONTROL         20,IDB_LOGO,"Static",SS_BITMAP | SS_NOTIFY | WS_BORDER,
                     16,192,27,31
-    GROUPBOX        "Volume",IDC_STATIC,8,179,360,53
+    GROUPBOX        "Volume",IDT_VOLUME,8,179,360,53
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDFRAME,1,0,373,147
     GROUPBOX        "",IDC_STATIC,282,238,88,24
     GROUPBOX        "",IDC_STATIC,190,238,88,24
@@ -130,19 +194,24 @@ BEGIN
     GROUPBOX        "",IDC_STATIC,1,147,373,123,BS_CENTER
 END
 
-IDD_PASSWORD_DLG DIALOGEX 0, 0, 281, 54
+IDD_PASSWORD_DLG DIALOGEX 0, 0, 280, 68
 STYLE DS_SETFONT | DS_MODALFRAME | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | 
     WS_POPUP | WS_VISIBLE | WS_CAPTION
-CAPTION "Enter Volume Password"
+CAPTION "Enter TrueCrypt Volume Password"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    RTEXT           "P&assword:",IDC_STATIC,8,11,34,8
-    EDITTEXT        IDC_PASSWORD,48,9,153,14,ES_PASSWORD | ES_AUTOHSCROLL
-    DEFPUSHBUTTON   "OK",IDOK,211,3,64,14
-    PUSHBUTTON      "Cancel",IDCANCEL,211,19,64,14
-    PUSHBUTTON      "Mount Options...",IDC_MOUNT_OPTIONS,211,36,64,14
-    CONTROL         "Cache password in driver memory",IDC_CACHE,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,52,28,132,10
+    EDITTEXT        IDC_PASSWORD,48,8,153,14,ES_PASSWORD | ES_AUTOHSCROLL
+    CONTROL         "Cache passwords and keyfiles in memory",IDC_CACHE,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,52,27,153,10
+    CONTROL         "Display Password",IDC_SHOW_PASSWORD,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,52,40,83,10
+    CONTROL         "Use keyfiles",IDC_KEYFILES_ENABLE,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,52,52,82,11
+    PUSHBUTTON      "Keyfiles..",IDC_KEY_FILES,137,49,64,14
+    PUSHBUTTON      "Mount Options...",IDC_MOUNT_OPTIONS,208,49,64,14
+    DEFPUSHBUTTON   "OK",IDOK,208,8,64,14
+    PUSHBUTTON      "Cancel",IDCANCEL,208,25,64,14
+    RTEXT           "Password:",IDT_PASSWORD,0,10,46,8
 END
 
 IDD_TRAVELLER_DLG DIALOGEX 0, 0, 285, 271
@@ -155,40 +224,76 @@ BEGIN
     PUSHBUTTON      "Browse...",IDC_BROWSE_DIRS,221,28,50,14
     CONTROL         "Include TrueCrypt Volume Creation Wizard",
                     IDC_COPY_WIZARD,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,19,
-                    48,152,10
+                    48,258,10
     CONTROL         "Do nothing",IDC_AUTORUN_DISABLE,"Button",
-                    BS_AUTORADIOBUTTON,15,97,51,10
-    CONTROL         "Start TrueCrypt",IDC_AUTORUN_START,"Button",
-                    BS_AUTORADIOBUTTON,15,108,112,11
-    CONTROL         "Auto-mount TrueCrypt volume",IDC_AUTORUN_MOUNT,"Button",
-                    BS_AUTORADIOBUTTON,15,120,174,11
+                    BS_AUTORADIOBUTTON,15,97,262,10
+    CONTROL         "&Start TrueCrypt",IDC_AUTORUN_START,"Button",
+                    BS_AUTORADIOBUTTON,15,108,262,11
+    CONTROL         "&Auto-mount TrueCrypt volume",IDC_AUTORUN_MOUNT,"Button",
+                    BS_AUTORADIOBUTTON,15,120,262,11
     EDITTEXT        IDC_VOLUME_NAME,21,157,188,13,ES_AUTOHSCROLL | 
                     WS_DISABLED
     PUSHBUTTON      "Browse...",IDC_BROWSE_FILES,215,156,50,14,WS_DISABLED
-    COMBOBOX        IDC_DRIVELIST,95,175,61,69,CBS_DROPDOWNLIST | 
+    COMBOBOX        IDC_DRIVELIST,120,175,61,69,CBS_DROPDOWNLIST | 
                     WS_DISABLED | WS_VSCROLL | WS_TABSTOP
-    CONTROL         "Open Explorer window for mounted volume",
-                    IDC_PREF_OPEN_EXPLORER,"Button",BS_AUTOCHECKBOX | 
-                    WS_DISABLED | WS_TABSTOP,22,193,153,10
-    CONTROL         "Mount volume as read-only",IDC_MOUNT_READONLY,"Button",
-                    BS_AUTOCHECKBOX | WS_DISABLED | WS_TABSTOP,22,206,103,10
-    CONTROL         "Cache password in driver memory",
-                    IDC_PREF_CACHE_PASSWORDS,"Button",BS_AUTOCHECKBOX | 
-                    WS_DISABLED | WS_TABSTOP,22,219,124,10
-    DEFPUSHBUTTON   "Create",IDOK,167,248,53,16
+    CONTROL         "Open &Explorer window for mounted volume",
+                    IDC_TRAVEL_OPEN_EXPLORER,"Button",BS_AUTOCHECKBOX | 
+                    WS_DISABLED | WS_TABSTOP,22,193,247,10
+    CONTROL         "Mount volume as read-&only",IDC_MOUNT_READONLY,"Button",
+                    BS_AUTOCHECKBOX | WS_DISABLED | WS_TABSTOP,22,206,247,10
+    CONTROL         "&Cache password in driver memory",
+                    IDC_TRAV_CACHE_PASSWORDS,"Button",BS_AUTOCHECKBOX | 
+                    WS_DISABLED | WS_TABSTOP,22,219,247,10
+    DEFPUSHBUTTON   "Create",IDC_CREATE,167,248,53,16
     PUSHBUTTON      "Cancel",IDCANCEL,225,248,53,16
-    GROUPBOX        "File Settings",IDC_STATIC,6,7,274,59
-    GROUPBOX        "AutoRun Configuration (autorun.inf)",IDC_STATIC,5,70,
+    GROUPBOX        "File Settings",IDT_FILE_SETTINGS,6,7,274,59
+    GROUPBOX        "AutoRun Configuration (autorun.inf)",IDT_AUTORUN,5,70,
                     275,172
     LTEXT           "TrueCrypt volume to mount (relative to traveller disk root):",
-                    IDC_STATIC2,21,147,190,8,WS_DISABLED
-    LTEXT           "Mount as drive letter:",IDC_STATIC3,23,177,70,8,
-                    WS_DISABLED
+                    IDT_TRAVELLER_MOUNT,21,147,248,8,WS_DISABLED
+    RTEXT           "Mount volume as drive letter:",IDT_MOUNT_LETTER,18,177,
+                    99,8,WS_DISABLED
     LTEXT           "Create traveller disk files at (traveller disk root directory):",
-                    IDC_STATIC,18,19,186,8
-    GROUPBOX        "Mount Settings",IDC_STATIC4,13,134,259,100,WS_DISABLED
-    LTEXT           "Upon insertion of traveller disk: ",IDC_STATIC,13,84,
-                    103,8
+                    IDT_TRAVEL_ROOT,18,19,259,8
+    GROUPBOX        "Mount Settings",IDT_MOUNT_SETTINGS,13,134,259,100,
+                    WS_DISABLED
+    LTEXT           "Upon insertion of traveller disk: ",
+                    IDT_TRAVEL_INSERTION,13,84,263,8
+END
+
+IDD_HOTKEYS_DLG DIALOGEX 0, 0, 381, 218
+STYLE DS_SETFONT | DS_MODALFRAME | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | 
+    WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "TrueCrypt - System-Wide Hot Keys"
+CLASS "CustomDlg"
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    CONTROL         "",IDC_HOTKEY_LIST,"SysListView32",LVS_REPORT | 
+                    LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_ALIGNLEFT | 
+                    LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,7,300,93
+    EDITTEXT        IDC_HOTKEY_KEY,87,121,143,13,ES_AUTOHSCROLL
+    PUSHBUTTON      "Assign",IDC_HOTKEY_ASSIGN,236,121,59,14
+    CONTROL         "Control",IDC_HK_MOD_CTRL,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,88,139,39,10,WS_EX_TRANSPARENT
+    CONTROL         "Shift",IDC_HK_MOD_SHIFT,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,133,139,30,10,WS_EX_TRANSPARENT
+    CONTROL         "Alt",IDC_HK_MOD_ALT,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,171,139,30,10,WS_EX_TRANSPARENT
+    CONTROL         "Win",IDC_HK_MOD_WIN,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,204,139,28,10,WS_EX_TRANSPARENT
+    PUSHBUTTON      "Remove",IDC_HOTKEY_REMOVE,236,139,59,14
+    CONTROL         "Play system notification sound after mount/dismount",
+                    IDC_DISMOUNT_CONFIRM_PLAY_SOUND,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,15,182,284,10
+    CONTROL         "Display confirmation message box after dismount",
+                    IDC_DISMOUNT_CONFIRM_MSG_BOX,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,15,194,285,10,WS_EX_TRANSPARENT
+    DEFPUSHBUTTON   "OK",IDOK,315,7,59,14
+    PUSHBUTTON      "Cancel",IDCANCEL,315,24,59,14
+    PUSHBUTTON      "Reset",IDC_RESET_HOTKEYS,315,197,59,14
+    RTEXT           "Key to assign:",IDT_HOTKEY_KEY,24,123,58,8
+    GROUPBOX        "Hot Key Options",IDT_DISMOUNT_ACTION,7,169,300,42
+    GROUPBOX        "Shortcut",IDT_ASSIGN_HOTKEY,7,108,300,53
 END
 
 
@@ -203,38 +308,37 @@ BEGIN
     IDD_PREFERENCES_DLG, DIALOG
     BEGIN
         LEFTMARGIN, 7
-        RIGHTMARGIN, 264
+        RIGHTMARGIN, 306
         TOPMARGIN, 7
-        BOTTOMMARGIN, 205
+        BOTTOMMARGIN, 276
     END
 
     IDD_VOLUME_PROPERTIES, DIALOG
     BEGIN
         LEFTMARGIN, 7
-        RIGHTMARGIN, 228
+        RIGHTMARGIN, 241
         TOPMARGIN, 7
-        BOTTOMMARGIN, 149
+        BOTTOMMARGIN, 178
     END
 
     IDD_PASSWORDCHANGE_DLG, DIALOG
     BEGIN
         LEFTMARGIN, 7
-        RIGHTMARGIN, 297
+        RIGHTMARGIN, 300
         TOPMARGIN, 7
-        BOTTOMMARGIN, 150
+        BOTTOMMARGIN, 155
     END
 
     IDD_MOUNT_DLG, DIALOG
     BEGIN
         RIGHTMARGIN, 369
         BOTTOMMARGIN, 269
-        HORZGUIDE, 168
     END
 
     IDD_PASSWORD_DLG, DIALOG
     BEGIN
-        RIGHTMARGIN, 278
-        BOTTOMMARGIN, 48
+        RIGHTMARGIN, 277
+        BOTTOMMARGIN, 62
     END
 
     IDD_TRAVELLER_DLG, DIALOG
@@ -243,6 +347,14 @@ BEGIN
         RIGHTMARGIN, 278
         TOPMARGIN, 7
         BOTTOMMARGIN, 264
+    END
+
+    IDD_HOTKEYS_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 374
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 211
     END
 END
 #endif    // APSTUDIO_INVOKED
@@ -254,8 +366,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 3,1,1,0
- PRODUCTVERSION 3,1,1,0
+ FILEVERSION 4,0,0,0
+ PRODUCTVERSION 4,0,0,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -272,12 +384,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt"
-            VALUE "FileVersion", "3.1a"
+            VALUE "FileVersion", "4.0"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "OriginalFilename", "TrueCrypt.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "3.1a"
-            VALUE "SpecialBuild", "February 2005"
+            VALUE "ProductVersion", "4.0"
+            VALUE "SpecialBuild", "November 2005"
         END
     END
     BLOCK "VarFileInfo"
@@ -321,6 +433,7 @@ END
 
 IDB_DRIVEICON           BITMAP                  "driveicon.bmp"
 IDB_DRIVEICON_MASK      BITMAP                  "driveicon_mask.bmp"
+IDB_LOGO                BITMAP                  "../common/logo.bmp"
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -331,97 +444,90 @@ IDR_MENU MENU
 BEGIN
     POPUP "File"
     BEGIN
-        MENUITEM "Exit",                        IDCANCEL
+        MENUITEM "Exit",                        IDM_EXIT
     END
     POPUP "Volumes"
     BEGIN
-        MENUITEM "Select File...",              IDC_BROWSE_FILES
-        MENUITEM "Select Device...",            IDC_BROWSE_DEVICES
+        MENUITEM "Select File...",              IDM_SELECT_FILE
+        MENUITEM "Select Device...",            IDM_SELECT_DEVICE
         MENUITEM SEPARATOR
-        MENUITEM "Mount Volume",                ID_MOUNT_VOLUME
+        MENUITEM "Mount Favorite Volumes",      IDM_MOUNT_FAVORITE_VOLUMES
+        MENUITEM "Save Currently Mounted Volumes as Favorite", 
+                                                IDM_SAVE_FAVORITE_VOLUMES
+        MENUITEM SEPARATOR
+        MENUITEM "Mount Volume",                IDM_MOUNT_VOLUME
         MENUITEM "Mount Volume with Options",   IDM_MOUNT_VOLUME_OPTIONS
-        MENUITEM "Auto-Mount All Device-Hosted Volumes", IDC_MOUNTALL
+        MENUITEM "Auto-Mount All Device-Hosted Volumes", IDM_MOUNTALL
         MENUITEM SEPARATOR
-        MENUITEM "Dismount Volume",             ID_UNMOUNT_VOLUME
-        MENUITEM "Dismount All Mounted Volumes", IDUNMOUNTALL
+        MENUITEM "Dismount Volume",             IDM_UNMOUNT_VOLUME
+        MENUITEM "Dismount All Mounted Volumes", IDM_UNMOUNTALL
         MENUITEM SEPARATOR
-        MENUITEM "Create New Volume",           IDC_CREATE_VOLUME
-        MENUITEM "Change Volume Password...",   IDC_CHANGE_PASSWORD
-        MENUITEM "Volume Properties...",        IDC_VOLUME_PROPERTIES
+        MENUITEM "Create New Volume...",        IDM_CREATE_VOLUME
+        MENUITEM "Change Volume Password...",   IDM_CHANGE_PASSWORD
+        MENUITEM "Set Header Key Derivation Algorithm...", 
+                                                IDM_CHANGE_HEADER_KEY_DERIV_ALGO
+
+        MENUITEM SEPARATOR
+        MENUITEM "Volume Properties",           IDM_VOLUME_PROPERTIES
+    END
+    POPUP "Keyfiles"
+    BEGIN
+        MENUITEM "Add/Remove Keyfiles to/from Volume...", 
+                                                IDM_ADD_REMOVE_VOL_KEYFILES
+        MENUITEM "Remove All Keyfiles from Volume...", 
+                                                IDM_REMOVE_ALL_KEYFILES_FROM_VOL
+
+        MENUITEM SEPARATOR
+        MENUITEM "Generate Random Keyfile...",  IDM_GENERATE_KEYFILE
+        MENUITEM SEPARATOR
+        MENUITEM "Set Default Keyfiles/Paths...", IDM_SET_DEFAULT_KEYFILES
     END
     POPUP "Tools"
     BEGIN
-        MENUITEM "Benchmark",                   ID_BENCHMARK
-        MENUITEM "Traveller Disk Setup",        IDM_TRAVELLER
-        MENUITEM "Volume Creation Wizard",      IDC_CREATE_VOLUME
+        MENUITEM "Benchmark...",                IDM_BENCHMARK
+        MENUITEM "Test Vectors...",             IDM_TEST_VECTORS
+        MENUITEM SEPARATOR
+        MENUITEM "Traveller Disk Setup...",     IDM_TRAVELLER
+        MENUITEM "Keyfile Generator",           IDM_KEYFILE_GENERATOR
+        MENUITEM "Volume Creation Wizard",      IDM_VOLUME_WIZARD
         MENUITEM SEPARATOR
         MENUITEM "Refresh Drive Letters",       IDM_REFRESH_DRIVE_LETTERS
         MENUITEM SEPARATOR
-        MENUITEM "Clear Volume History",        IDC_CLEAR_HISTORY
-        MENUITEM "Wipe Cached Passwords",       IDC_WIPE_CACHE
+        MENUITEM "Backup Volume Header...",     IDM_BACKUP_VOL_HEADER
+        MENUITEM "Restore Volume Header...",    IDM_RESTORE_VOL_HEADER
         MENUITEM SEPARATOR
-        MENUITEM "Preferences...",              ID_PREFERENCES
+        MENUITEM "Clear Volume History",        IDM_CLEAR_HISTORY
+        MENUITEM "Wipe Cached Passwords",       IDM_WIPE_CACHE
+    END
+    POPUP "Settings"
+    BEGIN
+        MENUITEM "Language...",                 IDM_LANGUAGE
+        MENUITEM "Hot Keys...",                 IDM_HOTKEY_SETTINGS
+        MENUITEM "Default Keyfiles...",         IDM_DEFAULT_KEYFILES
+        MENUITEM SEPARATOR
+        MENUITEM "Preferences...",              IDM_PREFERENCES
     END
     POPUP "Help"
     BEGIN
         MENUITEM "User's Guide",                IDM_HELP
-        MENUITEM "License",                     ID_LICENSE
+        MENUITEM "Frequently Asked Questions",  IDM_FAQ
+        MENUITEM "Version History",             IDM_VERSION_HISTORY
+        MENUITEM "Legal Notices",               IDM_LICENSE
         MENUITEM SEPARATOR
-        MENUITEM "TrueCrypt Website",           ID_WEBSITE
-        MENUITEM "TrueCrypt Forums",            ID_FORUMS
-        MENUITEM "Frequently Asked Questions",  40052
+        MENUITEM "TrueCrypt Website",           IDM_WEBSITE
+        MENUITEM "Downloads",                   IDM_TC_DOWNLOADS
+        MENUITEM "News",                        IDM_NEWS
+        MENUITEM SEPARATOR
+        MENUITEM "Report a Bug...",             IDM_BUGREPORT
+        MENUITEM "Forums",                      IDM_FORUMS
+        MENUITEM "Contact...",                  IDM_CONTACT
         MENUITEM SEPARATOR
         MENUITEM "About...",                    IDM_ABOUT
     END
-END
-
-
-/////////////////////////////////////////////////////////////////////////////
-//
-// String Table
-//
-
-STRINGTABLE 
-BEGIN
-    IDS_MOUNT_BUTTON        "&Mount"
-    IDS_UNMOUNT_BUTTON      "&Dismount"
-    IDS_UNMOUNTALL_LOCK_FAILED 
-                            "Some volumes contain files or folders being\nused by applications or system.\n\nForce dismount?"
-    IDS_OPEN_TITLE          "Select a TrueCrypt Volume"
-    IDS_TITLE               "TrueCrypt"
-    IDS_DEVICE_IN_USE_INFO  "WARNING: Some of the mounted devices/partitions were already already in use!\n\nIgnoring this can cause undesired results including system instability.\n\nWe strongly recommend that you close any application that might be using\nthe devices/partitions."
-END
-
-STRINGTABLE 
-BEGIN
-    IDS_PASSWORD            "Password"
-END
-
-STRINGTABLE 
-BEGIN
-    IDS_MOUNTED_NOPWCHANGE  "Volume password cannot be changed while the volume is mounted.\nPlease dismount the volume first."
+    MENUITEM "&Homepage ",                  IDM_HOMEPAGE
 END
 
 #endif    // English (U.S.) resources
-/////////////////////////////////////////////////////////////////////////////
-
-
-/////////////////////////////////////////////////////////////////////////////
-// English (U.K.) resources
-
-#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENG)
-#ifdef _WIN32
-LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_UK
-#pragma code_page(1252)
-#endif //_WIN32
-
-/////////////////////////////////////////////////////////////////////////////
-//
-// Bitmap
-//
-
-IDB_LOGO                BITMAP                  "../common/logo.bmp"
-#endif    // English (U.K.) resources
 /////////////////////////////////////////////////////////////////////////////
 
 

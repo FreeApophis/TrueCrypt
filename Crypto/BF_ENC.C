@@ -60,8 +60,8 @@
 #pragma warning( disable : 4131 )
 
 
-#include "blowfish.h"
-#include "bf_locl.h"
+#include "Blowfish.h"
+#include "Bf_locl.h"
 
 /* Blowfish as implemented from 'Blowfish: Springer-Verlag paper'
  * (From LECTURE NOTES IN COIMPUTER SCIENCE 809, FAST SOFTWARE ENCRYPTION,

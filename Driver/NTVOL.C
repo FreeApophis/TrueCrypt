@@ -1,21 +1,23 @@
-/* The source code contained in this file has been derived from the source code
-   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004-2005
-   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
-   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
-   release. Please see the file license.txt for full license details. */
+/* Legal Notice: The source code contained in this file has been derived from
+   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
+   Encryption for the Masses'. Modifications and additions to that source code
+   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   the full text of which is contained in the file License.txt included in
+   TrueCrypt binary and source code distribution archives.  */
 
 #include "TCdefs.h"
-#include "crypto.h"
-#include "volumes.h"
+#include "Crypto.h"
+#include "Volumes.h"
 
-#include "apidrvr.h"
-#include "ntdriver.h"
-#include "ntvol.h"
-#include "ntrawdv.h"
-#include "ntfiledv.h"
+#include "Apidrvr.h"
+#include "Ntdriver.h"
+#include "Ntvol.h"
+#include "Ntrawdv.h"
+#include "Ntfiledv.h"
 
-#include "cache.h"
+#include "Cache.h"
 
 //#ifdef _DEBUG
 //#define EXTRA_INFO 1
@@ -26,7 +28,7 @@
 NTSTATUS
 TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	       PEXTENSION Extension,
-	       MOUNT_STRUCT * mount,
+	       MOUNT_STRUCT *mount,
 	       PWSTR pwszMountVolume,
 	       BOOL bRawDevice)
 {
@@ -35,14 +37,17 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	OBJECT_ATTRIBUTES oaFileAttributes;
 	UNICODE_STRING FullFileName;
 	IO_STATUS_BLOCK IoStatusBlock;
+	PCRYPTO_INFO cryptoInfoPtr = NULL;
+	PCRYPTO_INFO tmpCryptoInfo = NULL;
 	LARGE_INTEGER lDiskLength;
+	LARGE_INTEGER hiddenVolHeaderOffset;
+	int volumeType;
 	char *readBuffer = 0;
-	char *readBufferHiddenVol = 0;
 	NTSTATUS ntStatus = 0;
-	BOOL bTimeStampValid = FALSE;
 
 	Extension->pfoDeviceFile = NULL;
 	Extension->hDeviceFile = NULL;
+	Extension->bTimeStampValid = FALSE;
 
 	RtlInitUnicodeString (&FullFileName, pwszMountVolume);
 	InitializeObjectAttributes (&oaFileAttributes, &FullFileName, OBJ_CASE_INSENSITIVE,	NULL, NULL);
@@ -115,7 +120,7 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	{
 		ntStatus = STATUS_ACCESS_DENIED;
 	}
-
+	
 	if (mount->bMountReadOnly || ntStatus == STATUS_ACCESS_DENIED)
 	{
 		ntStatus = ZwCreateFile (&Extension->hDeviceFile,
@@ -165,14 +170,17 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 
 		if (NT_SUCCESS (ntStatus))
 		{
-			/* Remember the container timestamp. (Used to reset access/modification file date/time
-			of file-hosted containers upon dismount or after unsuccessful mount attempt to preserve
-			plausible deniability of hidden volumes.) */
-			Extension->fileCreationTime = FileBasicInfo.CreationTime;
-			Extension->fileLastAccessTime = FileBasicInfo.LastAccessTime;
-			Extension->fileLastWriteTime = FileBasicInfo.LastWriteTime;
-			Extension->fileLastChangeTime = FileBasicInfo.ChangeTime;
-			bTimeStampValid = TRUE;
+			if (mount->bPreserveTimestamp)
+			{
+				/* Remember the container timestamp. (Used to reset access/modification file date/time
+				of file-hosted volumes upon dismount or after unsuccessful mount attempt to preserve
+				plausible deniability of hidden volumes.) */
+				Extension->fileCreationTime = FileBasicInfo.CreationTime;
+				Extension->fileLastAccessTime = FileBasicInfo.LastAccessTime;
+				Extension->fileLastWriteTime = FileBasicInfo.LastWriteTime;
+				Extension->fileLastChangeTime = FileBasicInfo.ChangeTime;
+				Extension->bTimeStampValid = TRUE;
+			}
 
 			ntStatus = ZwQueryInformationFile (Extension->hDeviceFile,
 				&IoStatusBlock,
@@ -223,10 +231,11 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		ntStatus = STATUS_SUCCESS;
 		goto error;
 	}
-	
+
 	Extension->DiskLength = lDiskLength.QuadPart;
 
-	// Read normal volume header
+	hiddenVolHeaderOffset.QuadPart = lDiskLength.QuadPart - HIDDEN_VOL_HEADER_OFFSET;
+
 	readBuffer = TCalloc (HEADER_SIZE);
 	if (readBuffer == NULL)
 	{
@@ -234,119 +243,169 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		goto error;
 	}
 
-	ntStatus = ZwReadFile (Extension->hDeviceFile, NULL, NULL, NULL,
-		&IoStatusBlock, readBuffer, HEADER_SIZE, NULL, NULL);
-
-	// Read hidden volume header if needed 
-	if (mountingHiddenVolumesAllowed)
+	// Go through all volume types (e.g., normal, hidden)
+	for (volumeType = VOLUME_TYPE_NORMAL;
+		volumeType < NBR_VOLUME_TYPES;
+		volumeType++)	
 	{
-		LARGE_INTEGER byteOffset;
+		/* Read the volume header */
 
-		readBufferHiddenVol = TCalloc (HEADER_SIZE);
-		if (readBufferHiddenVol == NULL)
+		ntStatus = ZwReadFile (Extension->hDeviceFile,
+			NULL,
+			NULL,
+			NULL,
+			&IoStatusBlock,
+			readBuffer,
+			HEADER_SIZE,
+			volumeType == VOLUME_TYPE_HIDDEN ? &hiddenVolHeaderOffset : NULL,
+			NULL);
+
+		if (!NT_SUCCESS (ntStatus))
 		{
-			ntStatus = STATUS_INSUFFICIENT_RESOURCES;
+			Dump ("Read failed: NTSTATUS 0x%08x\n", ntStatus);
+		}
+		else if (IoStatusBlock.Information != HEADER_SIZE)
+		{
+			Dump ("Read didn't read enough data in: %lu / %lu\n", IoStatusBlock.Information, HEADER_SIZE);
+			ntStatus = STATUS_UNSUCCESSFUL;
+		}
+
+		if (!NT_SUCCESS (ntStatus))
+		{
 			goto error;
 		}
 
-		byteOffset.QuadPart = lDiskLength.QuadPart - HIDDEN_VOL_HEADER_OFFSET;
-		ntStatus = ZwReadFile (Extension->hDeviceFile, NULL, NULL, NULL,
-			&IoStatusBlock, readBufferHiddenVol, HEADER_SIZE, &byteOffset, NULL);
-	}
+		/* Attempt to recognize the volume (decrypt the header) */
 
-	if (!NT_SUCCESS (ntStatus))
-	{
-		Dump ("Read failed: NTSTATUS 0x%08x\n", ntStatus);
-	}
-	else if (IoStatusBlock.Information != HEADER_SIZE)
-	{
-		Dump ("Read didn't read enough data in: %lu / %lu\n", IoStatusBlock.Information, HEADER_SIZE);
-		ntStatus = STATUS_UNSUCCESSFUL;
-	}
-
-	if (!NT_SUCCESS (ntStatus))
-	{
-		goto error;
-	}
-
-
-	/* Attempt to recognize the volume */
-
-	mount->nReturnCode = VolumeReadHeaderCache (
-								mount->bCache,
-								readBuffer,
-								readBufferHiddenVol,
-								mount->szPassword,
-								strlen (mount->szPassword),
-								&Extension->cryptoInfo);
-
-	if (mount->nReturnCode == 0)
-	{
-		/* Volume header successfully decrypted */
-
-		if (Extension->cryptoInfo->hiddenVolume)
+		if (volumeType == VOLUME_TYPE_HIDDEN && mount->bProtectHiddenVolume)
 		{
-			// Hidden volume setup
-
-			// Validate the size of the hidden volume specified in the header
-			if (Extension->DiskLength < (__int64) Extension->cryptoInfo->hiddenVolumeSize + HIDDEN_VOL_HEADER_OFFSET + HEADER_SIZE
-				|| Extension->cryptoInfo->hiddenVolumeSize <= 0)
-			{
-				mount->nReturnCode = ERR_VOL_SIZE_WRONG;
-				ntStatus = STATUS_SUCCESS;
-				goto error;
-			}
-
-			// Determine the offset of the hidden volume
-			Extension->cryptoInfo->hiddenVolumeOffset = Extension->DiskLength - Extension->cryptoInfo->hiddenVolumeSize - HIDDEN_VOL_HEADER_OFFSET;
-
-			Dump("Hidden volume offset = %I64d", Extension->cryptoInfo->hiddenVolumeOffset);
-
-			// Validate the offset
-			if (Extension->cryptoInfo->hiddenVolumeOffset % SECTOR_SIZE != 0)
-			{
-				mount->nReturnCode = ERR_VOL_SIZE_WRONG;
-				ntStatus = STATUS_SUCCESS;
-				goto error;
-			}
-
-			// Set volume size
-			Extension->DiskLength = Extension->cryptoInfo->hiddenVolumeSize;	
+			mount->nReturnCode = VolumeReadHeaderCache (
+				mount->bCache,
+				readBuffer,
+				&mount->ProtectedHidVolPassword,
+				&tmpCryptoInfo);
 		}
 		else
 		{
-			// Normal (not a hidden) volume
-
-			// Set volume size
-			Extension->DiskLength -= HEADER_SIZE;
+			mount->nReturnCode = VolumeReadHeaderCache (
+				mount->bCache,
+				readBuffer,
+				&mount->VolumePassword,
+				&Extension->cryptoInfo);
 		}
 
-		// Calculate virtual volume geometry
-		Extension->TracksPerCylinder = 1;
-		Extension->SectorsPerTrack = 1;
-		Extension->BytesPerSector = 512;
-		Extension->NumberOfCylinders = Extension->DiskLength / 512;
-		Extension->PartitionType = 0;
-
-		Extension->bRawDevice = bRawDevice;
-
-		if (wcslen (pwszMountVolume) < 64)
-			wcscpy (Extension->wszVolume, pwszMountVolume);
-		else
+		if (mount->nReturnCode == 0 || mount->nReturnCode == ERR_CIPHER_INIT_WEAK_KEY)
 		{
-			memcpy (Extension->wszVolume, pwszMountVolume, 60 * 2);
-			Extension->wszVolume[60] = (WCHAR) '.';
-			Extension->wszVolume[61] = (WCHAR) '.';
-			Extension->wszVolume[62] = (WCHAR) '.';
-			Extension->wszVolume[63] = (WCHAR) 0;
+			/* Volume header successfully decrypted */
+
+			Extension->cryptoInfo->bProtectHiddenVolume = FALSE;
+			Extension->cryptoInfo->bHiddenVolProtectionAction = FALSE;
+
+			switch (volumeType)
+			{
+			case VOLUME_TYPE_NORMAL:
+
+				// Correct the volume size for this volume type. Later on, this must be undone
+				// if Extension->DiskLength is used in deriving hidden volume offset
+				Extension->DiskLength -= HEADER_SIZE;	
+				Extension->cryptoInfo->hiddenVolume = FALSE;
+
+				break;
+
+			case VOLUME_TYPE_HIDDEN:
+
+				cryptoInfoPtr = mount->bProtectHiddenVolume ? tmpCryptoInfo : Extension->cryptoInfo;
+
+				// Validate the size of the hidden volume specified in the header
+				if (Extension->DiskLength < (__int64) cryptoInfoPtr->hiddenVolumeSize + HIDDEN_VOL_HEADER_OFFSET + HEADER_SIZE
+					|| cryptoInfoPtr->hiddenVolumeSize <= 0)
+				{
+					mount->nReturnCode = ERR_VOL_SIZE_WRONG;
+					ntStatus = STATUS_SUCCESS;
+					goto error;
+				}
+
+				// Determine the offset of the hidden volume
+				Extension->cryptoInfo->hiddenVolumeOffset = Extension->DiskLength - cryptoInfoPtr->hiddenVolumeSize - HIDDEN_VOL_HEADER_OFFSET;
+
+				Dump("Hidden volume size = %I64d", cryptoInfoPtr->hiddenVolumeSize);
+				Dump("Hidden volume offset = %I64d", Extension->cryptoInfo->hiddenVolumeOffset);
+
+				// Validate the offset
+				if (Extension->cryptoInfo->hiddenVolumeOffset % SECTOR_SIZE != 0)
+				{
+					mount->nReturnCode = ERR_VOL_SIZE_WRONG;
+					ntStatus = STATUS_SUCCESS;
+					goto error;
+				}
+
+				// If we are supposed to actually mount the hidden volume (not just to protect it)
+				if (!mount->bProtectHiddenVolume)	
+				{
+					Extension->DiskLength = cryptoInfoPtr->hiddenVolumeSize;
+					Extension->cryptoInfo->hiddenVolume = TRUE;
+				}
+				else
+				{
+					// Hidden volume protection
+					Extension->cryptoInfo->hiddenVolume = FALSE;
+					Extension->cryptoInfo->bProtectHiddenVolume = TRUE;
+					Extension->cryptoInfo->hiddenVolumeOffset += HEADER_SIZE;	// Offset was incorrect due to loop processing
+					Dump("Hidden volume protection active (offset = %I64d)", Extension->cryptoInfo->hiddenVolumeOffset);
+				}
+
+				break;
+			}
+
+			// If this is a hidden volume, make sure we are supposed to actually
+			// mount it (i.e. not just to protect it)
+			if (!(volumeType == VOLUME_TYPE_HIDDEN && mount->bProtectHiddenVolume))	
+			{
+				// Calculate virtual volume geometry
+				Extension->TracksPerCylinder = 1;
+				Extension->SectorsPerTrack = 1;
+				Extension->BytesPerSector = 512;
+				Extension->NumberOfCylinders = Extension->DiskLength / 512;
+				Extension->PartitionType = 0;
+
+				Extension->bRawDevice = bRawDevice;
+
+				if (wcslen (pwszMountVolume) < 64)
+					wcscpy (Extension->wszVolume, pwszMountVolume);
+				else
+				{
+					memcpy (Extension->wszVolume, pwszMountVolume, 60 * 2);
+					Extension->wszVolume[60] = (WCHAR) '.';
+					Extension->wszVolume[61] = (WCHAR) '.';
+					Extension->wszVolume[62] = (WCHAR) '.';
+					Extension->wszVolume[63] = (WCHAR) 0;
+				}
+			}
+
+			// If we are to protect a hidden volume we cannot exit yet, for we must also
+			// decrypt the hidden volume header.
+			if (!(volumeType == VOLUME_TYPE_NORMAL && mount->bProtectHiddenVolume))
+			{
+				TCfree (readBuffer);
+
+				if (tmpCryptoInfo != NULL)
+					crypto_close (tmpCryptoInfo);
+				
+				return STATUS_SUCCESS;
+			}
 		}
+		else if (mount->bProtectHiddenVolume
+			  || mount->nReturnCode != ERR_PASSWORD_WRONG)
+		{
+			 /* If we are not supposed to protect a hidden volume, the only error that is
+				tolerated is ERR_PASSWORD_WRONG (to allow mounting a possible hidden volume). 
 
-		Extension->mountTime = mount->time;
+				If we _are_ supposed to protect a hidden volume, we do not tolerate any error
+				(both volume headers must be successfully decrypted). */
 
-		TCfree (readBuffer);
-		return STATUS_SUCCESS;
+			break;
+		}
 	}
-
 
 	/* Failed due to some non-OS reason so we drop through and return NT
 	   SUCCESS then nReturnCode is checked later in user-mode */
@@ -357,12 +416,10 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		ntStatus = STATUS_SUCCESS;
 
 error:
-
-	if (bTimeStampValid)
+	if (Extension->bTimeStampValid)
 	{
 		/* Restore the container timestamp to preserve plausible deniability of possible hidden volume. */
 		RestoreTimeStamp (Extension);
-		bTimeStampValid = FALSE;
 	}
 
 	/* Close the hDeviceFile */
@@ -380,9 +437,6 @@ error:
 	if (readBuffer != NULL)
 		TCfree (readBuffer);
 
-	if (readBufferHiddenVol != NULL)
-		TCfree (readBufferHiddenVol);
-
 	return ntStatus;
 }
 
@@ -393,12 +447,12 @@ TCCloseVolume (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension)
 
 	if (Extension->hDeviceFile != NULL)
 	{
-		if (Extension->bRawDevice == FALSE)
+		if (Extension->bRawDevice == FALSE
+			&& Extension->bTimeStampValid)
 		{
 			/* Restore the container timestamp to preserve plausible deniability of possible hidden volume. */
 			RestoreTimeStamp (Extension);
 		}
-
 		ZwClose (Extension->hDeviceFile);
 	}
 	ObDereferenceObject (Extension->pfoDeviceFile);
@@ -480,7 +534,7 @@ TCCompletion (PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID pUserBuffer)
 		ULONG tmpLength = irpSp->Parameters.Read.Length;
 		PUCHAR CurrentAddress;
 
-		if (Extension->bRawDevice == TRUE)
+		if (Extension->bRawDevice)
 			CurrentAddress = MmGetSystemAddressForMdlSafe (Irp->MdlAddress, HighPagePriority);
 		else
 			CurrentAddress = Irp->UserBuffer;
@@ -512,7 +566,7 @@ TCCompletion (PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID pUserBuffer)
 		PUCHAR CurrentAddress;
 		PUCHAR OriginalAddress;
 
-		if (Extension->bRawDevice == TRUE)
+		if (Extension->bRawDevice)
 		{
 			CurrentAddress = MmGetSystemAddressForMdlSafe (Irp->MdlAddress, HighPagePriority);
 			OriginalAddress = MmGetSystemAddressForMdlSafe ((PMDL) pUserBuffer, HighPagePriority);
@@ -525,7 +579,7 @@ TCCompletion (PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID pUserBuffer)
 		}
 	}
 
-	if (Extension->bRawDevice == TRUE && irpSp->MajorFunction == IRP_MJ_WRITE)
+	if (Extension->bRawDevice && irpSp->MajorFunction == IRP_MJ_WRITE)
 	{
 		PUCHAR tmpBuffer = MmGetSystemAddressForMdlSafe (Irp->MdlAddress, HighPagePriority);
 		/* Free the temp buffer we allocated */
@@ -536,7 +590,7 @@ TCCompletion (PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID pUserBuffer)
 		Irp->MdlAddress = pUserBuffer;
 	}
 
-	if (Extension->bRawDevice == TRUE && irpSp->MajorFunction == IRP_MJ_READ)
+	if (Extension->bRawDevice && irpSp->MajorFunction == IRP_MJ_READ)
 	{
 		/* Nothing to do */
 	}
@@ -575,7 +629,7 @@ TCCompletion (PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID pUserBuffer)
 		Dump ("Free allocated buffer = %d\n", bFreeBuffer);
 #endif
 
-		if (bFreeBuffer == TRUE)
+		if (bFreeBuffer)
 			TCfree (tmpBuffer);
 
 		ntStatus = STATUS_MORE_PROCESSING_REQUIRED;
@@ -639,8 +693,43 @@ TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 	}
 #endif
 
-	if (Extension->bReadOnly == TRUE && irpSp->MajorFunction == IRP_MJ_WRITE)
-		return COMPLETE_IRP (DeviceObject, Irp, STATUS_MEDIA_WRITE_PROTECTED, 0);
+	// Volume protection
+	if (irpSp->MajorFunction == IRP_MJ_WRITE)
+	{
+		// Read-only mode
+		if (Extension->bReadOnly)
+			return COMPLETE_IRP (DeviceObject, Irp, STATUS_MEDIA_WRITE_PROTECTED, 0);
+
+		// Hidden volume protection
+		if (Extension->cryptoInfo->bProtectHiddenVolume)
+		{
+			// If there has already been a write operation denied in order to protect the
+			// hidden volume (since the volume mount time)
+			if (Extension->cryptoInfo->bHiddenVolProtectionAction)	
+			{
+				Dump("Write operation denied due to a previous hidden volume protection action");
+
+				// Do not allow writing to this volume anymore. This is to fake a complete volume
+				// or system failure (otherwise certain kinds of inconsistency within the file
+				// system could indicate that this volume has used hidden volume protection).
+				return COMPLETE_IRP (DeviceObject, Irp, STATUS_INVALID_PARAMETER, 0);
+			}
+
+			// Verify that no byte is going to be written to the hidden volume area
+			if (RegionsOverlap ((unsigned __int64) irpSp->Parameters.Read.ByteOffset.QuadPart + HEADER_SIZE,
+								(unsigned __int64) irpSp->Parameters.Read.ByteOffset.QuadPart + HEADER_SIZE + irpSp->Parameters.Read.Length - 1,
+								Extension->cryptoInfo->hiddenVolumeOffset,
+								(unsigned __int64) Extension->DiskLength + HEADER_SIZE - (HIDDEN_VOL_HEADER_OFFSET - HEADER_SIZE) - 1))
+			{
+				Extension->cryptoInfo->bHiddenVolProtectionAction = TRUE;
+				Dump("Write operation denied (offset = %I64d) to protect hidden volume", irpSp->Parameters.Read.ByteOffset.QuadPart);
+
+				// Deny this write operation to prevent the hidden volume from being overwritten
+				return COMPLETE_IRP (DeviceObject, Irp, STATUS_INVALID_PARAMETER, 0);
+			}
+
+		}
+	}
 
 	if (Extension->bRawDevice == FALSE || irpSp->MajorFunction == IRP_MJ_WRITE)
 	{
@@ -654,6 +743,7 @@ TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 //		Dump ("Read: 0x%08x for %lu bytes...\n", irpSp->Parameters.Read.ByteOffset.LowPart,
 //		      irpSp->Parameters.Read.Length);
 
+		Extension->TotalBytesRead += irpSp->Parameters.Read.Length;
 
 		if (Extension->cryptoInfo->hiddenVolume)
 		{
@@ -666,16 +756,14 @@ TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 			irpSp->Parameters.Read.ByteOffset.QuadPart += HEADER_SIZE;  
 		}
 
-		if (Extension->bRawDevice == TRUE)
+		if (Extension->bRawDevice)
 			ntStatus = TCSendIRP_RawDevice (DeviceObject, Extension,
 				     NULL, IRP_READ_OPERATION | IRP_NOCACHE,
-						       irpSp->MajorFunction,
-							 Irp);
+						       irpSp->MajorFunction, Irp);
 		else
 			ntStatus = TCSendIRP_FileDevice (DeviceObject, Extension,
 				tmpBuffer, IRP_READ_OPERATION | IRP_NOCACHE,
-						       irpSp->MajorFunction,
-							  Irp);
+						       irpSp->MajorFunction, Irp);
 	}
 	else
 	{
@@ -684,8 +772,9 @@ TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 //		Dump ("Write: 0x%08x for %lu bytes...\n", irpSp->Parameters.Read.ByteOffset.LowPart,
 //		      irpSp->Parameters.Read.Length);
 
-		CurrentAddress = (PUCHAR) MmGetSystemAddressForMdlSafe (Irp->MdlAddress, HighPagePriority);
+		Extension->TotalBytesWritten += irpSp->Parameters.Read.Length;
 
+		CurrentAddress = (PUCHAR) MmGetSystemAddressForMdlSafe (Irp->MdlAddress, HighPagePriority);
 
 		if (Extension->cryptoInfo->hiddenVolume)
 		{
@@ -708,8 +797,7 @@ TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 			Extension->cryptoInfo->iv,
 			Extension->cryptoInfo->ea);
 
-
-		if (Extension->bRawDevice == TRUE)
+		if (Extension->bRawDevice)
 		{
 			PMDL tmpBufferMdl = IoAllocateMdl (tmpBuffer, irpSp->Parameters.Read.Length, FALSE, FALSE, NULL);
 			PMDL pTrueMdl = Irp->MdlAddress;
@@ -730,17 +818,14 @@ TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 
 			ntStatus = TCSendIRP_RawDevice (DeviceObject, Extension,
 				pTrueMdl, IRP_WRITE_OPERATION | IRP_NOCACHE,
-						       irpSp->MajorFunction,
-							 Irp);
+						       irpSp->MajorFunction, Irp);
 		}
 		else
 		{
 			ntStatus = TCSendIRP_FileDevice (DeviceObject, Extension,
 			       tmpBuffer, IRP_WRITE_OPERATION | IRP_NOCACHE,
-						       irpSp->MajorFunction,
-							  Irp);
+						       irpSp->MajorFunction, Irp);
 		}
-
 	}
 
 //	Dump ("TCReadWrite END\n");
@@ -825,7 +910,10 @@ static void RestoreTimeStamp (PEXTENSION Extension)
 	FILE_BASIC_INFORMATION FileBasicInfo;
 	IO_STATUS_BLOCK IoStatusBlock;
 
-	if (Extension->hDeviceFile != NULL && Extension->bRawDevice == FALSE && Extension->bReadOnly == FALSE)
+	if (Extension->hDeviceFile != NULL 
+		&& Extension->bRawDevice == FALSE 
+		&& Extension->bReadOnly == FALSE
+		&& Extension->bTimeStampValid)
 	{
 		ntStatus = ZwQueryInformationFile (Extension->hDeviceFile,
 			&IoStatusBlock,

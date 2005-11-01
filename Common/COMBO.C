@@ -1,17 +1,20 @@
-/* The source code contained in this file has been derived from the source code
-   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004-2005
-   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
-   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
-   release. Please see the file license.txt for full license details. */
+/* Legal Notice: The source code contained in this file has been derived from
+   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
+   Encryption for the Masses'. Modifications and additions to that source code
+   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   the full text of which is contained in the file License.txt included in
+   TrueCrypt binary and source code distribution archives.  */
 
-#include "TCdefs.h"
-#include "combo.h"
-#include "registry.h"
+#include "Tcdefs.h"
+#include "Combo.h"
+#include "Dlgcode.h"
+#include "Xml.h"
 
 #include <time.h>
 
-#define SIZEOF_MRU_LIST 8
+#define SIZEOF_MRU_LIST 20
 
 void
 AddComboItem (HWND hComboBox, char *lpszFileName)
@@ -23,7 +26,7 @@ AddComboItem (HWND hComboBox, char *lpszFileName)
 
 	if (nIndex == CB_ERR && *lpszFileName)
 	{
-		long lTime = time (NULL);
+		time_t lTime = time (NULL);
 		nIndex = SendMessage (hComboBox, CB_ADDSTRING, 0, (LPARAM) & lpszFileName[0]);
 		if (nIndex != CB_ERR)
 			SendMessage (hComboBox, CB_SETITEMDATA, nIndex, (LPARAM) lTime);
@@ -53,14 +56,14 @@ MoveEditToCombo (HWND hComboBox)
 					     (LPARAM) & szTmp[0]);
 		if (nIndex == CB_ERR)
 		{
-			long lTime = time (NULL);
+			time_t lTime = time (NULL);
 			nIndex = SendMessage (hComboBox, CB_ADDSTRING, 0, (LPARAM) & szTmp[0]);
 			if (nIndex != CB_ERR)
 				SendMessage (hComboBox, CB_SETITEMDATA, nIndex, (DWORD) lTime);
 		}
 		else
 		{
-			long lTime = time (NULL);
+			time_t lTime = time (NULL);
 			SendMessage (hComboBox, CB_SETITEMDATA, nIndex, (DWORD) lTime);
 		}
 
@@ -77,11 +80,11 @@ GetOrderComboIdx (HWND hComboBox, int *nIdxList, int nElems)
 	if (x != CB_ERR)
 	{
 		int i, nHighIdx = CB_ERR;
-		long lHighTime = -1;
+		time_t lHighTime = -1;
 
 		for (i = 0; i < x; i++)
 		{
-			long lTime = SendMessage (hComboBox, CB_GETITEMDATA, (WPARAM) i, 0);
+			time_t lTime = SendMessage (hComboBox, CB_GETITEMDATA, (WPARAM) i, 0);
 			if (lTime > lHighTime)
 			{
 				int n;
@@ -111,7 +114,7 @@ UpdateComboOrder (HWND hComboBox)
 
 	if (nIndex != CB_ERR)
 	{
-		long lTime = time (NULL);
+		time_t lTime = time (NULL);
 		nIndex = SendMessage (hComboBox, CB_SETITEMDATA, (WPARAM) nIndex,
 				      (LPARAM) lTime);
 	}
@@ -120,51 +123,64 @@ UpdateComboOrder (HWND hComboBox)
 }
 
 void
-LoadCombo (HWND hComboBox, char *lpszKey)
+LoadCombo (HWND hComboBox)
 {
-	int i;
+	DWORD size;
+	char *history = LoadFile (GetConfigPath (FILE_HISTORY), &size);
+	char *xml = history;
+	char volume[MAX_PATH];
 
-	for (i = 0; i < SIZEOF_MRU_LIST; i++)
+	if (xml == NULL) return;
+
+	while (xml = XmlFindElement (xml, "volume"))
 	{
-		char szTmp[256], szKey[32], szTmp2[32];
-
-		*szTmp = 0;
-
-		sprintf (szTmp2, "%s%s", lpszKey, "%d");
-		sprintf (szKey, szTmp2, i);
-		ReadRegistryString (szKey, "", szTmp, sizeof (szTmp));
-
-		AddComboItem (hComboBox, szTmp);
+		XmlNodeText (xml, volume, sizeof (volume));
+		AddComboItem (hComboBox, volume);
+		xml++;
 	}
 
 	SendMessage (hComboBox, CB_SETCURSEL, 0, 0);
 
+	free (history);
 }
 
 void
-DumpCombo (HWND hComboBox, char *lpszKey, int bClear)
+DumpCombo (HWND hComboBox, int bClear)
 {
+	FILE *f;
 	int i, nComboIdx[SIZEOF_MRU_LIST];
+
+	if (bClear)
+	{
+		DeleteFile (GetConfigPath (FILE_HISTORY));
+		return;
+	}
+
+	f = fopen (GetConfigPath (FILE_HISTORY), "w");
+	if (f == NULL) return;
+
+	XmlWriteHeader (f);
+	fputs ("\n\t<history>", f);
 
 	/* combo list part:- get mru items */
 	for (i = 0; i < SIZEOF_MRU_LIST; i++)
-		nComboIdx[i] = bClear ? CB_ERR : GetOrderComboIdx (hComboBox, &nComboIdx[0], i);
+		nComboIdx[i] = GetOrderComboIdx (hComboBox, &nComboIdx[0], i);
 
 	/* combo list part:- write out mru items */
 	for (i = 0; i < SIZEOF_MRU_LIST; i++)
 	{
-		char szTmp[256], szKey[32], szTmp2[32];
-
-		*szTmp = 0;
-
-		if (nComboIdx[i] != CB_ERR)
+		char szTmp[MAX_PATH] = { 0 };
+		 
+		if (SendMessage (hComboBox, CB_GETLBTEXTLEN, nComboIdx[i], 0) < sizeof (szTmp))
 			SendMessage (hComboBox, CB_GETLBTEXT, nComboIdx[i], (LPARAM) & szTmp[0]);
 
-		sprintf (szTmp2, "%s%s", lpszKey, "%d");
-		sprintf (szKey, szTmp2, i);
-
-		WriteRegistryString (szKey, szTmp);
+		if (szTmp[0] != 0)
+			fprintf (f, "\n\t\t<volume>%s</volume>", szTmp);
 	}
+
+	fputs ("\n\t</history>", f);
+	XmlWriteFooter (f);
+	fclose (f);
 }
 
 void

@@ -64,12 +64,17 @@
  * 1.0 First working version
  */
 
-#include "des_locl.h"
-#include "podd.h"
-#include "sk.h"
+/* Adapted for TrueCrypt by the TrueCrypt Foundation */
 
+#include "Des_locl.h"
+#include "Podd.h"
+#include "Sk.h"
+
+#ifdef LINUX_DRIVER
+#include <linux/string.h>
+#else
 #pragma intrinsic(memcmp,_lrotr)
-
+#endif
 
 #ifndef NOPROTO
 static int check_parity(des_cblock (*key));
@@ -79,14 +84,14 @@ static int check_parity();
 
 #pragma warning( disable : 4131 )
 
-int des_check_key=0;
+int des_check_key=1;
 
 void des_set_odd_parity(key)
 des_cblock (*key);
 	{
 	int i;
 
-	for (i=0; i<DES_KEY_SZ; i++)
+	for (i=0; i<(int)DES_KEY_SZ; i++)
 		(*key)[i]=odd_parity[(*key)[i]];
 	}
 
@@ -95,7 +100,7 @@ des_cblock (*key);
 	{
 	int i;
 
-	for (i=0; i<DES_KEY_SZ; i++)
+	for (i=0; i<(int)DES_KEY_SZ; i++)
 		{
 		if ((*key)[i] != odd_parity[(*key)[i]])
 			return(0);
@@ -173,15 +178,6 @@ des_key_schedule schedule;
 	register DES_LONG *k;
 	register int i;
 
-	if (des_check_key)
-		{
-		if (!check_parity(key))
-			return(-1);
-
-		if (des_is_weak_key(key))
-			return(-2);
-		}
-
 	k=(DES_LONG *)schedule;
 	in=(unsigned char *)key;
 
@@ -241,6 +237,16 @@ des_key_schedule schedule;
 		t2=((s>>16L)|(t&0xffff0000L));
 		*(k++)=ROTATE(t2,26)&0xffffffffL;
 		}
+		
+	if (des_check_key)
+	{
+		//if (!check_parity(key))
+		//	return(-1);
+
+		if (des_is_weak_key(key))
+			return(-2);
+	}
+
 	return(0);
 	}
 

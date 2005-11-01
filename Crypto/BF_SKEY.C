@@ -56,11 +56,16 @@
  * [including the GNU Public Licence.]
  */
 
+#ifndef LINUX_DRIVER
 #include <stdio.h>
 #include <string.h>
-#include "blowfish.h"
-#include "bf_locl.h"
-#include "bf_pi.h"
+#else
+#include <linux/string.h>
+#endif
+
+#include "Blowfish.h"
+#include "Bf_locl.h"
+#include "Bf_pi.h"
 
 #pragma intrinsic(memcpy)
 

@@ -56,11 +56,12 @@
  * [including the GNU Public Licence.]
  */
 
+/* Adapted for TrueCrypt by the TrueCrypt Foundation */
+
 #pragma warning( disable : 4131 )
 
-
-#include "des_locl.h"
-
+#include "Des_locl.h"
+#include "Endian.h"
 
 void des_encrypt(data, ks, enc)
 DES_LONG *data;
@@ -76,8 +77,8 @@ int enc;
 #endif
 	register DES_LONG *s;
 
-	r=data[0];
-	l=data[1];
+	r=LE32(data[0]);
+	l=LE32(data[1]);
 
 	IP(r,l);
 	/* Things have been modified so that the initial rotate is
@@ -158,8 +159,8 @@ int enc;
 	r=ROTATE(r,3)&0xffffffffL;
 
 	FP(r,l);
-	data[0]=l;
-	data[1]=r;
+	data[0]=LE32(l);
+	data[1]=LE32(r);
 	l=r=t=u=0;
 	}
 

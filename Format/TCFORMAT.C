@@ -1,11 +1,13 @@
-/* The source code contained in this file has been derived from the source code
-   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004-2005
-   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
-   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
-   release. Please see the file license.txt for full license details. */
+/* Legal Notice: The source code contained in this file has been derived from
+   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
+   Encryption for the Masses'. Modifications and additions to that source code
+   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   the full text of which is contained in the file License.txt included in
+   TrueCrypt binary and source code distribution archives.  */
 
-#include "TCdefs.h"
+#include "Tcdefs.h"
 
 #include <stdlib.h>
 #include <limits.h>
@@ -14,25 +16,25 @@
 #include <io.h>
 #include <sys/stat.h>
 
-#include "crypto.h"
-#include "apidrvr.h"
-#include "dlgcode.h"
-#include "combo.h"
-#include "registry.h"
-#include "../common/common.h"
-#include "../common/resource.h"
-#include "random.h"
-#include "fat.h"
-#include "resource.h"
+#include "Crypto.h"
+#include "Apidrvr.h"
+#include "Dlgcode.h"
+#include "Language.h"
+#include "Combo.h"
+#include "Registry.h"
+#include "../Common/Common.h"
+#include "../Common/Dictionary.h"
+#include "../Common/resource.h"
+#include "Random.h"
+#include "Fat.h"
+#include "Resource.h"
 #include "TCFormat.h"
-#include "uncroot.h"
-#include "format.h"
-#include "password.h"
-#include "testcrypt.h"
-#include "redtick.h"
-#include "endian.h"
-
-#include "cmdline.h"
+#include "Uncroot.h"
+#include "Format.h"
+#include "Password.h"
+#include "Tests.h"
+#include "Endian.h"
+#include "Cmdline.h"
 
 #define WM_THREAD_ENDED		0x7ffe	/* WM_USER range message */
 #define WM_FORMAT_FINISHED	0x7ffe+1	
@@ -63,7 +65,7 @@ BOOL bHiddenVolDirect = FALSE;	/* If true, the wizard omits creating a host volu
 BOOL bHiddenVolFinished = FALSE;
 int hiddenVolHostDriveNo = -1;	/* Drive letter for the volume intended to host a hidden volume. */
 int realClusterSize;		/* Parameter used when determining the maximum possible size of a hidden volume. */
-int pkcs5 = SHA1;			/* Which PRF to use in header key derivation, default = HMAC-SHA-1 */
+int hash_algo = DEFAULT_HASH_ALGORITHM;	/* Which PRF to use in header key derivation (PKCS #5) and in the RNG. */
 unsigned __int64 nUIVolumeSize = 0;		/* The volume size. Important: This value is not in bytes. It has to be multiplied by nMultiplier. Do not use this value when actually creating the volume (it may chop off 512 bytes, if it is not a multiple of 1024 bytes). */
 unsigned __int64 nVolumeSize = 0;		/* The volume size, in bytes. */
 unsigned __int64 nHiddenVolHostSize = 0;	/* Size of the hidden volume host, in bytes */
@@ -81,8 +83,9 @@ BOOL showKeys = TRUE;
 HWND hDiskKey = NULL;		/* Text box showing hex dump of disk key */
 HWND hHeaderKey = NULL;		/* Text box showing hex dump of header key */
 
-char szPassword[MAX_PASSWORD + 1];	/* Users password */
-char szVerify[MAX_PASSWORD + 1];/* Tmp password buffer */
+Password volumePassword;			/* Users password */
+char szVerify[MAX_PASSWORD + 1];	/* Tmp password buffer */
+char szRawPassword[MAX_PASSWORD + 1];	/* Password before keyfile was applied to it */
 
 BOOL bHistory = FALSE;		/* Remember all the settings */
 
@@ -102,12 +105,12 @@ localcleanup (void)
 
 	/* Zero the password */
 	burn (&szVerify[0], sizeof (szVerify));
-	burn (&szPassword[0], sizeof (szPassword));
-
-	/* Free the application title */
-	if (lpszTitle != NULL)
-		free (lpszTitle);
-
+	burn (&volumePassword, sizeof (volumePassword));
+	burn (&szRawPassword[0], sizeof (szRawPassword));
+	
+	KeyFileRemoveAll (&FirstKeyFile);
+	KeyFileRemoveAll (&defaultKeyFilesParam.FirstKeyFile);
+	
 	UnregisterRedTick (hInst);
 
 	/* Cleanup common code resources */
@@ -118,33 +121,38 @@ localcleanup (void)
 void
 LoadSettings (HWND hwndDlg)
 {
-	bHistory = ReadRegistryInt ("SaveMountedVolumesHistory", FALSE);
+	defaultKeyFilesParam.EnableKeyFiles = FALSE;
+
+	bHistory = ConfigReadInt ("SaveVolumeHistory", FALSE);
 
 	if (hwndDlg != NULL)
 	{
-		LoadCombo (GetDlgItem (hwndDlg, IDC_COMBO_BOX), "LastMountedVolume");
+		LoadCombo (GetDlgItem (hwndDlg, IDC_COMBO_BOX));
 		return;
 	}
 
-	if (bHistoryCmdLine == TRUE)
+	if (bHistoryCmdLine)
 		return;
 }
 
 void
 SaveSettings (HWND hwndDlg)
 {
-	if (IsNonInstallMode ()) return;
-
 	if (hwndDlg != NULL)
-		DumpCombo (GetDlgItem (hwndDlg, IDC_COMBO_BOX), "LastMountedVolume", !bHistory);
+		DumpCombo (GetDlgItem (hwndDlg, IDC_COMBO_BOX), !bHistory);
 
-	WriteRegistryInt ("SaveMountedVolumesHistory", bHistory);
+	ConfigWriteBegin ();
+
+	ConfigWriteInt ("SaveVolumeHistory", bHistory);
+	if (GetPreferredLangId () != NULL)
+		ConfigWriteString ("Language", GetPreferredLangId ());
+
+	ConfigWriteEnd ();
 }
 
 void
 EndMainDlg (HWND hwndDlg)
 {
-
 	if (nCurPageNo == FILE_PAGE)
 	{
 		if (IsWindow(GetDlgItem(hCurPage, IDC_NO_HISTORY)))
@@ -174,53 +182,37 @@ ComboSelChangeEA (HWND hwndDlg)
 	else
 	{
 		char name[100];
-		char auxLine[1024];
-		char tmpStr[256];
+		wchar_t auxLine[1024];
+		wchar_t *tmpStr;
 		char cipherIDs[5];
 		int i, cnt = 0;
-
-		UINT nID[4];
 
 		nIndex = SendMessage (GetDlgItem (hwndDlg, IDC_COMBO_BOX), CB_GETITEMDATA, nIndex, 0);
 		EAGetName (name, nIndex);
 
-		memset (nID, 0, sizeof (nID));
-
 		if (strcmp (name, "Blowfish") == 0)
 		{
-			nID[0] = IDS_BLOWFISH_HELP0;
-			nID[1] = IDS_BLOWFISH_HELP1;
-			SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("BLOWFISH_HELP"));
 		}
 		else if (strcmp (name, "AES") == 0)
 		{
-			nID[0] = IDS_AES_HELP0;
-			nID[1] = IDS_AES_HELP1;
-			SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("AES_HELP"));
 		}
 		else if (strcmp (name, "CAST5") == 0)
 		{
-			nID[0] = IDS_CAST_HELP0;
-			nID[1] = IDS_CAST_HELP1;
-			SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("CAST_HELP"));
 		}
 		else if (strcmp (name, "Serpent") == 0)
 		{
-			nID[0] = IDS_SERPENT_HELP0;
-			nID[1] = IDS_SERPENT_HELP1;
-			SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("SERPENT_HELP"));
 		}
 		else if (strcmp (name, "Triple DES") == 0)
 		{
-			nID[0] = IDS_TRIPLEDES_HELP0;
-			nID[1] = IDS_TRIPLEDES_HELP1;
-			SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("TRIPLEDES_HELP"));
 		}
 		else if (strcmp (name, "Twofish") == 0)
 		{
-			nID[0] = IDS_TWOFISH_HELP0;
-			nID[1] = IDS_TWOFISH_HELP1;
-			SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("TWOFISH_HELP"));
 		}
 		else if (EAGetCipherCount (nIndex) > 1)
 		{
@@ -229,15 +221,15 @@ ComboSelChangeEA (HWND hwndDlg)
 			switch (EAGetMode(nIndex))
 			{
 			case INNER_CBC:
-				sprintf(tmpStr, "sector");
+				tmpStr = GetString ("SECTOR");
 				break;
 
 			case OUTER_CBC:
-				sprintf(tmpStr, "block");
+				tmpStr = GetString ("BLOCK");
 				break;
 
 			default:
-				sprintf(tmpStr, "[?]");
+				tmpStr = L"[?]";
 				break;
 			}
 
@@ -251,11 +243,8 @@ ComboSelChangeEA (HWND hwndDlg)
 			switch (cnt)	// Number of ciphers in the cascade
 			{
 			case 2:
-				nID[0] = IDS_TWO_LAYER_CASCADE_HELP0;
-				nID[1] = IDS_TWO_LAYER_CASCADE_HELP1;
-
-				sprintf (auxLine, getmultilinestr (nID), 
-					EAGetModeName(name, nIndex, FALSE),
+				wsprintfW (auxLine, GetString ("TWO_LAYER_CASCADE_HELP"), 
+					EAGetModeName(nIndex, FALSE),
 					tmpStr,
 					CipherGetName (cipherIDs[1]),
 					CipherGetKeySize (cipherIDs[1])*8,
@@ -264,11 +253,8 @@ ComboSelChangeEA (HWND hwndDlg)
 				break;
 
 			case 3:
-				nID[0] = IDS_THREE_LAYER_CASCADE_HELP0;
-				nID[1] = IDS_THREE_LAYER_CASCADE_HELP1;
-
-				sprintf (auxLine, getmultilinestr (nID), 
-					EAGetModeName(name, nIndex, FALSE),
+				wsprintfW (auxLine, GetString ("THREE_LAYER_CASCADE_HELP"), 
+					EAGetModeName(nIndex, FALSE),
 					tmpStr,
 					CipherGetName (cipherIDs[2]),
 					CipherGetKeySize (cipherIDs[2])*8,
@@ -277,21 +263,15 @@ ComboSelChangeEA (HWND hwndDlg)
 					CipherGetName (cipherIDs[0]),
 					CipherGetKeySize (cipherIDs[0])*8);
 				break;
-
-			default:
-				nID[0] = IDS_CIPHER_NONE_HELP0;
-				break;
 			}
 
 
-			SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), auxLine);
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), auxLine);
 		}
 		else
 		{
 			// No info available for this encryption algorithm
-
-			nID[0] = IDS_CIPHER_NONE_HELP0;		
-			SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("CIPHER_NONE_HELP"));
 		}
 	}
 
@@ -318,7 +298,7 @@ VerifySizeAndUpdate (HWND hwndDlg, BOOL bUpdate)
 		}
 	}
 
-	if (IsButtonChecked (GetDlgItem (hwndDlg, IDC_KB)) == TRUE)
+	if (IsButtonChecked (GetDlgItem (hwndDlg, IDC_KB)))
 		nMultiplier = BYTES_PER_KB;
 	else
 		nMultiplier = BYTES_PER_MB;
@@ -334,7 +314,7 @@ VerifySizeAndUpdate (HWND hwndDlg, BOOL bUpdate)
 		lTmp = atoi64 (szTmp);
 	}
 
-	if (bEnable == TRUE)
+	if (bEnable)
 	{
 		if (lTmp * i < (bHiddenVolHost ? MIN_HIDDEN_VOLUME_HOST_SIZE : MIN_VOLUME_SIZE))
 			bEnable = FALSE;
@@ -354,7 +334,7 @@ VerifySizeAndUpdate (HWND hwndDlg, BOOL bUpdate)
 			bEnable = FALSE;
 	}
 
-	if (bUpdate == TRUE)
+	if (bUpdate)
 	{
 		nUIVolumeSize = lTmp;
 
@@ -365,19 +345,13 @@ VerifySizeAndUpdate (HWND hwndDlg, BOOL bUpdate)
 	EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), bEnable);
 }
 
-/* Even though certain functions like getstr are not thread safe, they don't
-   need to be, this is because the idea of have this app being multi-threaded
-   is to allow a user to cancel the format process once it begins, not to do
-   two things at once, so getstr will only ever have one thread running
-   through it. */
-
 void
 formatThreadFunction (void *hwndDlg)
 {
 	int nStatus;
 	char szDosDevice[TC_MAX_PATH];
 	char szCFDevice[TC_MAX_PATH];
-	char summaryMsg[512];
+	wchar_t summaryMsg[1024];
 	DWORD dwWin32FormatError;
 	int nDosLinkCreated = -1;
 
@@ -386,12 +360,12 @@ formatThreadFunction (void *hwndDlg)
 	{
 		if (fileSystem == FILESYS_NTFS)
 		{
-			if (MessageBox (hwndDlg, getstr (IDS_ADMIN_PRIVILEGES_WARN_NTFS), lpszTitle, MB_OKCANCEL|MB_ICONWARNING|MB_DEFBUTTON2) == IDCANCEL)
+			if (MessageBoxW (hwndDlg, GetString ("ADMIN_PRIVILEGES_WARN_NTFS"), lpszTitle, MB_OKCANCEL|MB_ICONWARNING|MB_DEFBUTTON2) == IDCANCEL)
 				goto cancel;
 		}
 		if (bDevice)
 		{
-			if (MessageBox (hwndDlg, getstr (IDS_ADMIN_PRIVILEGES_WARN_DEVICES), lpszTitle, MB_OKCANCEL|MB_ICONWARNING|MB_DEFBUTTON2) == IDCANCEL)
+			if (MessageBoxW (hwndDlg, GetString ("ADMIN_PRIVILEGES_WARN_DEVICES"), lpszTitle, MB_OKCANCEL|MB_ICONWARNING|MB_DEFBUTTON2) == IDCANCEL)
 				goto cancel;
 		}
 	}
@@ -403,17 +377,15 @@ formatThreadFunction (void *hwndDlg)
 		int x = _access (szDiskFile, 06);
 		if (x == 0 || errno != ENOENT)
 		{
-			char szTmp[512];
-			UINT nID;
-			if (errno == EACCES)
-				nID = IDS_READONLYPROMPT;
-			else
-				nID = IDS_OVERWRITEPROMPT;
+			wchar_t szTmp[512];
 
-			if (! ((bHiddenVol && !bHiddenVolHost) && nID == IDS_OVERWRITEPROMPT))	// Only ask ask for permission to overwrite an existing volume if we're not creating a hidden volume
+			if (! ((bHiddenVol && !bHiddenVolHost) && errno != EACCES))	// Only ask ask for permission to overwrite an existing volume if we're not creating a hidden volume
 			{
-				sprintf (szTmp, getstr (nID), szDiskFile);
-				x = MessageBox (hwndDlg, szTmp, lpszTitle, YES_NO|MB_ICONWARNING|MB_DEFBUTTON2);
+				_snwprintf (szTmp, sizeof szTmp / 2,
+					GetString (errno == EACCES ? "READONLYPROMPT" : "OVERWRITEPROMPT"),
+					szDiskFile);
+
+				x = MessageBoxW (hwndDlg, szTmp, lpszTitle, YES_NO|MB_ICONWARNING|MB_DEFBUTTON2);
 
 				if (x != IDYES)
 					goto cancel;
@@ -426,7 +398,7 @@ formatThreadFunction (void *hwndDlg)
 			{
 				if (_chmod (szDiskFile, _S_IREAD | _S_IWRITE) != 0)
 				{
-					MessageBox (hwndDlg, getstr (IDS_ACCESSMODEFAIL), lpszTitle, ICON_HAND);
+					MessageBoxW (hwndDlg, GetString ("ACCESSMODEFAIL"), lpszTitle, ICON_HAND);
 					goto cancel;
 				}
 			}
@@ -437,7 +409,7 @@ formatThreadFunction (void *hwndDlg)
 	else
 	{
 		int x;
-		char szTmp[512];
+		wchar_t szTmp[1024];
 		int driveNo;
 		WCHAR deviceName[MAX_PATH];
 
@@ -449,16 +421,16 @@ formatThreadFunction (void *hwndDlg)
 		if (!(bHiddenVol && !bHiddenVolHost))	// Do not ask for permission to overwrite an existing volume if we're creating a hidden volume within it
 		{
 			char drive[] = { driveNo == -1 ? 0 : '(', driveNo + 'A', ':', ')', ' ', 0 };
-			char type[20];
+			wchar_t *type;
 
 			if (strstr (szFileName, "Partition"))
-				strcpy (type, strstr (szFileName, "Partition0") == NULL ? "partition" : "device");
+				type = GetString ( strstr (szFileName, "Partition0") == NULL ? "PARTITION_LC" : "DEVICE_LC");
 			else
-				strcpy (type, "device");
+				type = GetString ("DEVICE_LC");
 
-			sprintf (szTmp, getstr (IDS_OVERWRITEPROMPT_DEVICE), type, szFileName, drive);
+			wsprintfW (szTmp, GetString ("OVERWRITEPROMPT_DEVICE"), type, szFileName, drive);
 
-			x = MessageBox (hwndDlg, szTmp, lpszTitle, YES_NO|MB_ICONWARNING|MB_DEFBUTTON2);
+			x = MessageBoxW (hwndDlg, szTmp, lpszTitle, YES_NO|MB_ICONWARNING|MB_DEFBUTTON2);
 			if (x != IDYES)
 				goto cancel;
 		}
@@ -488,7 +460,7 @@ formatThreadFunction (void *hwndDlg)
 						{ 
 							// Quickformat prevents overwriting of existing filesystems and
 							// an eventual remount could corrupt the volume
-							MessageBox (hwndDlg, getstr (IDS_ERR_MOUNTED_FILESYSTEMS), lpszTitle, MB_ICONSTOP);
+							MessageBoxW (hwndDlg, GetString ("ERR_MOUNTED_FILESYSTEMS"), lpszTitle, MB_ICONSTOP);
 							goto cancel;
 						}
 
@@ -510,14 +482,18 @@ formatThreadFunction (void *hwndDlg)
 
 	ArrowWaitCursor ();
 
+	// Reduce CPU load
+	bFastPollEnabled = FALSE;
+	bRandmixEnabled = FALSE;
+
 	nStatus = FormatVolume (szCFDevice,
 				bDevice,
 				szDiskFile,
 				nVolumeSize,
 				nHiddenVolHostSize,
-				szPassword,
+				&volumePassword,
 				nVolumeEA,
-				pkcs5,
+				hash_algo,
 				quickFormat,
 				fileSystem,
 				clusterSize,
@@ -526,32 +502,39 @@ formatThreadFunction (void *hwndDlg)
 				bHiddenVol && !bHiddenVolHost,
 				&realClusterSize);
 
+	bFastPollEnabled = TRUE;
+	bRandmixEnabled = TRUE;
+
 	NormalCursor ();
 
 	if (nStatus == ERR_OUTOFMEMORY)
 	{
-		AbortProcess (IDS_OUTOFMEMORY);
+		AbortProcess ("OUTOFMEMORY");
 	}
 
 	dwWin32FormatError = GetLastError ();
 
-	if (bHiddenVolHost && !bThreadCancel)
+	RestoreDefaultKeyFilesParam ();
+
+	if (bHiddenVolHost && !bThreadCancel && nStatus == 0)
 	{
 		/* Auto mount the newly created hidden volume host */
-		switch (MountHiddenVolHost (hwndDlg, szDiskFile, &hiddenVolHostDriveNo, szPassword))
+		switch (MountHiddenVolHost (hwndDlg, szDiskFile, &hiddenVolHostDriveNo, &volumePassword))
 		{
 		case ERR_NO_FREE_DRIVES:
-			MessageBox (hwndDlg, "Error: No free drive letter for the outer volume!\nVolume creation cannot continue.", lpszTitle, ICON_HAND);
+			MessageBoxW (hwndDlg, GetString ("NO_FREE_DRIVE_FOR_OUTER_VOL"), lpszTitle, ICON_HAND);
+			bThreadCancel = TRUE;
 			break;
 		case ERR_VOL_MOUNT_FAILED:
-			MessageBox (hwndDlg, "Error: Cannot mount the outer volume!\nVolume creation cannot continue.", lpszTitle, ICON_HAND);
+		case ERR_PASSWORD_WRONG:
+			MessageBoxW (hwndDlg, GetString ("CANT_MOUNT_OUTER_VOL"), lpszTitle, ICON_HAND);
+			bThreadCancel = TRUE;
 			break;
 		}
 	}
 
 	if (nDosLinkCreated == 0)
 	{
-		/* Only comes here when it's WIN_NT & disk partitions */
 		int nStatus = RemoveFakeDosName (szDiskFile, szDosDevice);
 		if (nStatus != 0)
 			handleWin32Error (hwndDlg);
@@ -559,26 +542,32 @@ formatThreadFunction (void *hwndDlg)
 
 	SetLastError (dwWin32FormatError);
 
-	if (bThreadCancel == TRUE)
+	if (bThreadCancel)
 	{
-		if (bDevice == FALSE)
-			remove (szCFDevice);
+		if (!bDevice && !(bHiddenVol && !bHiddenVolHost))	// If we're not creating a hidden volume and if it's a file container
+		{
+			remove (szCFDevice);		// Delete the container
+		}
 
 		goto cancel;
 	}
 
 	if (nStatus != 0)
 	{
-		char szMsg[512];
+		wchar_t szMsg[1024];
+
+		handleError (hwndDlg, nStatus);
 
 		if (!(bHiddenVolHost && hiddenVolHostDriveNo < 0))  // If the error was not that the hidden volume host could not be mounted (this error has already been reported to the user)
 		{
-			sprintf (szMsg, getstr (IDS_CREATE_FAILED), szDiskFile);
-			MessageBox (hwndDlg, szMsg, lpszTitle, ICON_HAND);
+			wsprintfW (szMsg, GetString ("CREATE_FAILED"), szDiskFile);
+			MessageBoxW (hwndDlg, szMsg, lpszTitle, ICON_HAND);
 		}
 
-		if (bDevice == FALSE)
-			remove (szCFDevice);
+		if (!bDevice && !(bHiddenVol && !bHiddenVolHost))	// If we're not creating a hidden volume and if it's a file container
+		{
+			remove (szCFDevice);		// Delete the container
+		}
 
 		goto cancel;
 	}
@@ -591,8 +580,8 @@ formatThreadFunction (void *hwndDlg)
 		if (!bHiddenVolHost)
 		{
 			/* Create the volstats dialog box */
-			DialogBoxParam (hInst, MAKEINTRESOURCE (IDD_VOLSTATS_DLG), hwndDlg,
-				(DLGPROC) VolstatsDlgProc, (LPARAM) & summaryMsg[0]);
+			DialogBoxParamW (hInst, MAKEINTRESOURCEW (IDD_VOLSTATS_DLG), hwndDlg,
+				(DLGPROC) VolstatsDlgProc, (LPARAM) summaryMsg);
 
 			if (bHiddenVol)
 				bHiddenVolFinished = TRUE;
@@ -607,8 +596,9 @@ formatThreadFunction (void *hwndDlg)
 			nHiddenVolHostSize = nVolumeSize;
 
 			// Clear the outer volume password
-			memset(&szPassword[0], 0, sizeof (szPassword));
+			memset(&volumePassword, 0, sizeof (volumePassword));
 			memset(&szVerify[0], 0, sizeof (szVerify));
+			memset(&szRawPassword[0], 0, sizeof (szRawPassword));
 		}
 
 		SetTimer (hwndDlg, 0xff, RANDOM_SHOW_TIMER, NULL);
@@ -635,19 +625,6 @@ cancel:
 }
 
 void
-OpenPageHelp (HWND hwndDlg, int nPage)
-{
-	int r = (int)ShellExecute (NULL, "open", szHelpFile, NULL, NULL, SW_SHOWNORMAL);
-	if (nPage);		/* Remove warning */
-
-	if (r == ERROR_FILE_NOT_FOUND)
-		MessageBox (hwndDlg, getstr (IDS_HELP_ERROR), lpszTitle, MB_ICONERROR);
-
-	if (r == SE_ERR_NOASSOC)
-		MessageBox (hwndDlg, getstr (IDS_HELP_READER_ERROR), lpszTitle, MB_ICONERROR);
-}
-
-void
 LoadPage (HWND hwndDlg, int nPageNo)
 {
 	RECT rW, rD;
@@ -666,56 +643,56 @@ LoadPage (HWND hwndDlg, int nPageNo)
 	switch (nPageNo)
 	{
 	case INTRO_PAGE:
-		hCurPage = CreateDialog (hInst, MAKEINTRESOURCE (IDD_INTRO_PAGE_DLG), hwndDlg,
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_INTRO_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
 		break;
 
 	case HIDDEN_VOL_WIZARD_MODE_PAGE:
-		hCurPage = CreateDialog (hInst, MAKEINTRESOURCE (IDD_HIDDEN_VOL_WIZARD_MODE_PAGE_DLG), hwndDlg,
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_HIDDEN_VOL_WIZARD_MODE_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
 		break;
 
 	case FILE_PAGE:
 
-		hCurPage = CreateDialog (hInst, MAKEINTRESOURCE (IDD_FILE_PAGE_DLG), hwndDlg,
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_FILE_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
 		
-		if (bHistoryCmdLine == TRUE)
+		if (bHistoryCmdLine)
 			EnableWindow (GetDlgItem(hCurPage, IDC_NO_HISTORY),  FALSE);
 		else
 			EnableWindow (GetDlgItem(hCurPage, IDC_NO_HISTORY),  TRUE);
 		break;
 
 	case HIDDEN_VOL_HOST_PRE_CIPHER_PAGE:
-		hCurPage = CreateDialog (hInst, MAKEINTRESOURCE (IDD_INFO_PAGE_DLG), hwndDlg,
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_INFO_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
 		break;
 	case HIDDEN_VOL_PRE_CIPHER_PAGE:
-		hCurPage = CreateDialog (hInst, MAKEINTRESOURCE (IDD_INFO_PAGE_DLG), hwndDlg,
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_INFO_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
 		break;
 	case CIPHER_PAGE:
-		hCurPage = CreateDialog (hInst, MAKEINTRESOURCE (IDD_CIPHER_PAGE_DLG), hwndDlg,
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_CIPHER_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
 		break;
 	case SIZE_PAGE:
-		hCurPage = CreateDialog (hInst, MAKEINTRESOURCE (IDD_SIZE_PAGE_DLG), hwndDlg,
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_SIZE_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
 		break;
 	case HIDVOL_HOST_PASSWORD_PAGE:
-		hCurPage = CreateDialog (hInst, MAKEINTRESOURCE (IDD_HIDVOL_HOST_PASSWORD_PAGE_DLG), hwndDlg,
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_HIDVOL_HOST_PASSWORD_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
 		break;
 	case PASSWORD_PAGE:
-		hCurPage = CreateDialog (hInst, MAKEINTRESOURCE (IDD_PASSWORD_PAGE_DLG), hwndDlg,
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_PASSWORD_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
 		break;
 	case FORMAT_PAGE:
-		hCurPage = CreateDialog (hInst, MAKEINTRESOURCE (IDD_FORMAT_PAGE_DLG), hwndDlg,
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_FORMAT_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
 		break;
 	case FORMAT_FINISHED_PAGE:
-		hCurPage = CreateDialog (hInst, MAKEINTRESOURCE ((bHiddenVol && !bHiddenVolHost && !bHiddenVolFinished) ? IDD_HIDVOL_HOST_FILL_PAGE_DLG : IDD_INFO_PAGE_DLG), hwndDlg,
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW ((bHiddenVol && !bHiddenVolHost && !bHiddenVolFinished) ? IDD_HIDVOL_HOST_FILL_PAGE_DLG : IDD_INFO_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
 		break;
 	}
@@ -751,8 +728,8 @@ VolstatsDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 	switch (msg)
 	{
 	case WM_INITDIALOG:
-		SetDefaultUserFont (hwndDlg);
-		SetWindowText (GetDlgItem (hwndDlg, IDC_STATS_BOX), (char *) lParam);
+		LocalizeDialog (hwndDlg, "IDD_VOLSTATS_DLG");
+		SetWindowTextW (GetDlgItem (hwndDlg, IDC_STATS_BOX), (wchar_t *) lParam);
 		return 1;
 
 	case WM_COMMAND:
@@ -770,9 +747,9 @@ VolstatsDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 int
 PrintFreeSpace (HWND hwndTextBox, char *lpszDrive, PLARGE_INTEGER lDiskFree)
 {
-	UINT nResourceString;
+	char *nResourceString;
 	int nMultiplier;
-	char szTmp2[256];
+	wchar_t szTmp2[256];
 
 	if (lDiskFree->QuadPart < BYTES_PER_KB)
 		nMultiplier = 1;
@@ -784,40 +761,40 @@ PrintFreeSpace (HWND hwndTextBox, char *lpszDrive, PLARGE_INTEGER lDiskFree)
 	if (nMultiplier == 1)
 	{
 		if (bHiddenVol && !bHiddenVolHost)	// If it's a hidden volume
-			nResourceString = IDS_MAX_HIDVOL_SIZE_BYTES;
-		else if (bDevice == TRUE)
-			nResourceString = IDS_DEVICE_FREE_BYTES;
+			nResourceString = "MAX_HIDVOL_SIZE_BYTES";
+		else if (bDevice)
+			nResourceString = "DEVICE_FREE_BYTES";
 		else
-			nResourceString = IDS_DISK_FREE_BYTES;
+			nResourceString = "DISK_FREE_BYTES";
 	}
 	else if (nMultiplier == BYTES_PER_KB)
 	{
 		if (bHiddenVol && !bHiddenVolHost)	// If it's a hidden volume
-			nResourceString = IDS_MAX_HIDVOL_SIZE_KB;
-		else if (bDevice == TRUE)
-			nResourceString = IDS_DEVICE_FREE_KB;
+			nResourceString = "MAX_HIDVOL_SIZE_KB";
+		else if (bDevice)
+			nResourceString = "DEVICE_FREE_KB";
 		else
-			nResourceString = IDS_DISK_FREE_KB;
+			nResourceString = "DISK_FREE_KB";
 	}
 	else 
 	{
 		if (bHiddenVol && !bHiddenVolHost)	// If it's a hidden volume
-			nResourceString = IDS_MAX_HIDVOL_SIZE_MB;
-		else if (bDevice == TRUE)
-			nResourceString = IDS_DEVICE_FREE_MB;
+			nResourceString = "MAX_HIDVOL_SIZE_MB";
+		else if (bDevice)
+			nResourceString = "DEVICE_FREE_MB";
 		else
-			nResourceString = IDS_DISK_FREE_MB;
+			nResourceString = "DISK_FREE_MB";
 	}
  
 	if (bHiddenVol && !bHiddenVolHost)	// If it's a hidden volume
 	{
-		sprintf (szTmp2, getstr (nResourceString), ((double) lDiskFree->QuadPart) / nMultiplier);
-		SetWindowText (GetDlgItem (hwndTextBox, IDC_SIZEBOX), szTmp2);
+		_snwprintf (szTmp2, sizeof szTmp2 / 2, GetString (nResourceString), ((double) lDiskFree->QuadPart) / nMultiplier);
+		SetWindowTextW (GetDlgItem (hwndTextBox, IDC_SIZEBOX), szTmp2);
 	}
 	else
-		sprintf (szTmp2, getstr (nResourceString), lpszDrive, ((double) lDiskFree->QuadPart) / nMultiplier);
+		_snwprintf (szTmp2, sizeof szTmp2 / 2, GetString (nResourceString), lpszDrive, ((double) lDiskFree->QuadPart) / nMultiplier);
 
-	SetWindowText (hwndTextBox, szTmp2);
+	SetWindowTextW (hwndTextBox, szTmp2);
 
 	if (lDiskFree->QuadPart % (__int64) BYTES_PER_MB != 0)
 		nMultiplier = BYTES_PER_KB;
@@ -828,24 +805,17 @@ PrintFreeSpace (HWND hwndTextBox, char *lpszDrive, PLARGE_INTEGER lDiskFree)
 void
 DisplaySizingErrorText (HWND hwndTextBox)
 {
-	char szTmp[256];
+	wchar_t szTmp[1024];
 
-	if (nCurrentOS == WIN_NT)
+	if (translateWin32Error (szTmp, sizeof (szTmp)))
 	{
-		if (translateWin32Error (szTmp, sizeof (szTmp)) == TRUE)
-		{
-			char szTmp2[256];
-			sprintf (szTmp2, "%s\n%s", getstr (IDS_CANNOT_CALC_SPACE), szTmp);
-			SetWindowText (hwndTextBox, szTmp2);
-		}
-		else
-		{
-			SetWindowText (hwndTextBox, "");
-		}
+		wchar_t szTmp2[1024];
+		wsprintfW (szTmp2, L"%s\n%s", GetString ("CANNOT_CALC_SPACE"), szTmp);
+		SetWindowTextW (hwndTextBox, szTmp2);
 	}
 	else
 	{
-		SetWindowText (hwndTextBox, getstr (IDS_CANNOT_CALC_SPACE));
+		SetWindowText (hwndTextBox, "");
 	}
 }
 
@@ -879,29 +849,31 @@ BOOL GetFileVolSize (HWND hwndDlg, unsigned __int64 *size)
 
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
-		MessageBox (hwndDlg, "Error: Cannot access the volume!\n\nMake sure that the selected volume exists, that it is\nnot being used by the system or an application, and\nthat it is not write-protected.", lpszTitle, ICON_HAND);
+		MessageBoxW (hwndDlg, GetString ("CANT_ACCESS_VOL"), lpszTitle, ICON_HAND);
 		return FALSE;
 	}
 
-	/* Remember the container timestamp (used to reset file date and time of file-hosted
-	   containers to preserve plausible deniability of hidden volumes)  */
-	if (GetFileTime (hFile, NULL, &ftLastAccessTime, NULL) == 0)
+	if (bPreserveTimestamp)
 	{
-		bTimeStampValid = FALSE;
-		MessageBox (hwndDlg, getstr (IDS_GETFILETIME_FAILED_IMPLANT), "TrueCrypt", MB_OK | MB_ICONEXCLAMATION);
+		/* Remember the container timestamp (used to reset file date and time of file-hosted
+		   containers to preserve plausible deniability of hidden volumes)  */
+		if (GetFileTime (hFile, NULL, &ftLastAccessTime, NULL) == 0)
+		{
+			bTimeStampValid = FALSE;
+			MessageBoxW (hwndDlg, GetString ("GETFILETIME_FAILED_IMPLANT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
+		}
+		else
+			bTimeStampValid = TRUE;
 	}
-	else
-		bTimeStampValid = TRUE;
-
 
 	if (GetFileSizeEx(hFile, &fileSize) == 0)
 	{
-		MessageBox (hwndDlg, "Error: Cannot get volume size!\n\nMake sure the selected volume is not being used\nby the system or an application.", lpszTitle, ICON_HAND);
+		MessageBoxW (hwndDlg, GetString ("CANT_GET_VOLSIZE"), lpszTitle, ICON_HAND);
 		if (bTimeStampValid)
 		{
 			// Restore the container timestamp (to preserve plausible deniability). 
 			if (SetFileTime (hFile, NULL, &ftLastAccessTime, NULL) == 0)
-				MessageBox (hwndDlg, getstr (IDS_SETFILETIME_FAILED_PREP_IMPLANT), "TrueCrypt", MB_OK | MB_ICONEXCLAMATION);
+				MessageBoxW (hwndDlg, GetString ("SETFILETIME_FAILED_PREP_IMPLANT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
 		}
 		CloseHandle (hFile);
 		return FALSE;
@@ -911,7 +883,7 @@ BOOL GetFileVolSize (HWND hwndDlg, unsigned __int64 *size)
 	{
 		// Restore the container timestamp (to preserve plausible deniability). 
 		if (SetFileTime (hFile, NULL, &ftLastAccessTime, NULL) == 0)
-			MessageBox (hwndDlg, getstr (IDS_SETFILETIME_FAILED_PREP_IMPLANT), "TrueCrypt", MB_OK | MB_ICONEXCLAMATION);
+			MessageBoxW (hwndDlg, GetString ("SETFILETIME_FAILED_PREP_IMPLANT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
 	}
 	CloseHandle (hFile);
 	*size = fileSize.QuadPart;
@@ -960,7 +932,7 @@ QueryFreeSpace (HWND hwndDlg, HWND hwndTextBox, BOOL display)
 			return TRUE;
 		}
 	}
-	else if (nCurrentOS == WIN_NT)
+	else
 	{
 		char szDosDevice[TC_MAX_PATH], szCFDevice[TC_MAX_PATH];
 		int nDosLinkCreated;
@@ -1007,9 +979,9 @@ QueryFreeSpace (HWND hwndDlg, HWND hwndTextBox, BOOL display)
 			bResult = DeviceIoControl (dev, IOCTL_DISK_GET_PARTITION_INFO, NULL, 0,
 				&diskInfo, sizeof (diskInfo), &dwResult, NULL);
 
-			if (bResult == TRUE)
+			if (bResult)
 			{
-				if (bResult == TRUE)
+				if (bResult)
 				{
 					nVolumeSize = diskInfo.PartitionLength.QuadPart;
 
@@ -1021,7 +993,7 @@ QueryFreeSpace (HWND hwndDlg, HWND hwndTextBox, BOOL display)
 					if (nVolumeSize == 0)
 					{
 						if (display)
-							SetWindowText (hwndTextBox, getstr (IDS_EXT_PARTITION));
+							SetWindowTextW (hwndTextBox, GetString ("EXT_PARTITION"));
 
 						CloseHandle (dev);
 						return FALSE;
@@ -1060,69 +1032,6 @@ QueryFreeSpace (HWND hwndDlg, HWND hwndTextBox, BOOL display)
 			return TRUE;
 		}
 	}
-	else
-	{
-		OPEN_TEST_STRUCT driver;
-		BOOL bResult;
-
-		bResult = OpenDevice (szDiskFile, &driver);
-
-		if (bResult == TRUE)
-		{
-			LARGE_INTEGER lDiskFree;
-
-			lDiskFree.QuadPart = (__int64) (driver.seclast - driver.secstart) * SECTOR_SIZE;
-			nVolumeSize = lDiskFree.QuadPart;
-
-			if (display)
-				nMultiplier = PrintFreeSpace (hwndTextBox, szDiskFile, &lDiskFree);
-
-			nUIVolumeSize = lDiskFree.QuadPart / nMultiplier;
-		}
-		else
-		{
-			if (display)
-				DisplaySizingErrorText (hwndTextBox);
-
-			return FALSE;
-		}
-
-		return TRUE;
-	}
-}
-
-void
-AddComboPair (HWND hComboBox, char *lpszItem, int value)
-{
-	LPARAM nIndex;
-
-	nIndex = SendMessage (hComboBox, CB_ADDSTRING, 0, (LPARAM) lpszItem);
-	nIndex = SendMessage (hComboBox, CB_SETITEMDATA, nIndex, (LPARAM) value);
-}
-
-void
-SelectEA (HWND hComboBox, int *ea)
-{
-	LPARAM nCount = SendMessage (hComboBox, CB_GETCOUNT, 0, 0);
-	LPARAM x, i;
-
-	for (i = 0; i < nCount; i++)
-	{
-		x = SendMessage (hComboBox, CB_GETITEMDATA, i, 0);
-		if (x == (LPARAM) * ea)
-		{
-			SendMessage (hComboBox, CB_SETCURSEL, i, 0);
-			return;
-		}
-	}
-
-	/* Something went wrong ; couldn't find the old ea so we drop
-	   back to a default */
-
-	*ea = SendMessage (hComboBox, CB_GETITEMDATA, 0, 0);
-
-	SendMessage (hComboBox, CB_SETCURSEL, 0, 0);
-
 }
 
 /* Except in response to the WM_INITDIALOG message, the dialog box procedure
@@ -1137,32 +1046,24 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	switch (uMsg)
 	{
 	case WM_INITDIALOG:
-
-		SetDefaultUserFont (hwndDlg);
+		LocalizeDialog (hwndDlg, "IDD_MKFS_DLG");
 
 		switch (nCurPageNo)
 		{
 		case INTRO_PAGE:
 			{
-				UINT nID[4];
-
-				nID[0] = IDS_INTRO_HELP0;
-				nID[1] = IDS_INTRO_HELP1;
-				nID[2] = IDS_INTRO_HELP2;
-				nID[3] = IDS_INTRO_HELP3;
-
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), getstr (IDS_INTRO_TITLE));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("INTRO_TITLE"));
 
 				CheckButton (GetDlgItem (hwndDlg, bHiddenVol ? IDC_HIDDEN_VOL : IDC_STD_VOL));
 
-				SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("INTRO_HELP"));
 
 				EnableWindow (GetDlgItem (hwndDlg, IDC_STD_VOL), TRUE);
 				EnableWindow (GetDlgItem (hwndDlg, IDC_HIDDEN_VOL), TRUE);
 
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), getstr (IDS_NEXT));
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_PREV), getstr (IDS_PREV));
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDCANCEL), getstr (IDS_CANCEL));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDCANCEL), GetString ("CANCEL"));
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), FALSE);
 
@@ -1171,25 +1072,18 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		case HIDDEN_VOL_WIZARD_MODE_PAGE:
 			{
-				UINT nID[4];
-
-				nID[0] = IDS_HIDDEN_VOL_WIZARD_MODE_HELP0;
-				nID[1] = IDS_HIDDEN_VOL_WIZARD_MODE_HELP1;
-				nID[2] = IDS_HIDDEN_VOL_WIZARD_MODE_HELP2;
-				nID[3] = IDS_HIDDEN_VOL_WIZARD_MODE_HELP3;
-
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), getstr (IDS_HIDDEN_VOL_WIZARD_MODE_TITLE));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("HIDDEN_VOL_WIZARD_MODE_TITLE"));
 
 				CheckButton (GetDlgItem (hwndDlg, bHiddenVolDirect ? IDC_HIDVOL_WIZ_MODE_DIRECT : IDC_HIDVOL_WIZ_MODE_FULL));
 
-				SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("HIDDEN_VOL_WIZARD_MODE_HELP"));
 
 				EnableWindow (GetDlgItem (hwndDlg, IDC_HIDVOL_WIZ_MODE_DIRECT), TRUE);
 				EnableWindow (GetDlgItem (hwndDlg, IDC_HIDVOL_WIZ_MODE_FULL), TRUE);
 
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), getstr (IDS_NEXT));
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_PREV), getstr (IDS_PREV));
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDCANCEL), getstr (IDS_CANCEL));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDCANCEL), GetString ("CANCEL"));
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
 
@@ -1198,17 +1092,15 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		case FILE_PAGE:
 			{
-				UINT nID[4] = { 0,0,0,0 };
+				char *nID;
 
 				if (bHiddenVolDirect && bHiddenVolHost)
 				{
-					nID[0] = IDS_FILE_HELP0_HIDDEN_HOST_VOL_DIRECT;
-					nID[1] = 0;
+					nID = "FILE_HELP_HIDDEN_HOST_VOL_DIRECT";
 				}
 				else
 				{
-					nID[0] = bHiddenVolHost ? IDS_FILE_HELP0_HIDDEN_HOST_VOL : IDS_FILE_HELP0;
-					nID[1] = bHiddenVolHost ? IDS_FILE_HELP1_HIDDEN_HOST_VOL : IDS_FILE_HELP1;
+					nID = bHiddenVolHost ? "FILE_HELP_HIDDEN_HOST_VOL" : "FILE_HELP";
 				}
 
 				SendMessage (GetDlgItem (hwndDlg, IDC_COMBO_BOX), CB_RESETCONTENT, 0, 0);
@@ -1219,13 +1111,13 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 				SendMessage (GetDlgItem (hwndDlg, IDC_NO_HISTORY), BM_SETCHECK, bHistory ? BST_UNCHECKED : BST_CHECKED, 0);
 
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), getstr (IDS_FILE_TITLE));
-				SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("FILE_TITLE"));
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString (nID));
 
 				SetFocus (GetDlgItem (hwndDlg, IDC_COMBO_BOX));
 
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), getstr (IDS_NEXT));
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_PREV), getstr (IDS_PREV));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
 
 				AddComboItem (GetDlgItem (hwndDlg, IDC_COMBO_BOX), szFileName);
@@ -1238,40 +1130,23 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		case HIDDEN_VOL_HOST_PRE_CIPHER_PAGE:
 			{
-				UINT nID[4];
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("HIDVOL_HOST_PRE_CIPHER_TITLE"));
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("HIDVOL_HOST_PRE_CIPHER_HELP"));
 
-				nID[0] = IDS_HIDVOL_HOST_PRE_CIPHER_HELP0;
-				nID[1] = IDS_HIDVOL_HOST_PRE_CIPHER_HELP1;
-				nID[2] = IDS_HIDVOL_HOST_PRE_CIPHER_HELP2;
-				nID[3] = IDS_HIDVOL_HOST_PRE_CIPHER_HELP3;
-
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), getstr (IDS_HIDVOL_HOST_PRE_CIPHER_TITLE));
-
-				SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
-
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), getstr (IDS_NEXT));
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_PREV), getstr (IDS_PREV));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
-
 			}
 			break;
 
 		case HIDDEN_VOL_PRE_CIPHER_PAGE:
 			{
-				UINT nID[4];
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("HIDVOL_PRE_CIPHER_TITLE"));
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("HIDVOL_PRE_CIPHER_HELP"));
 
-				nID[0] = IDS_HIDVOL_PRE_CIPHER_HELP0;
-				nID[1] = 0;
-				nID[2] = 0;
-				nID[3] = 0;
-
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), getstr (IDS_HIDVOL_PRE_CIPHER_TITLE));
-
-				SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
-
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), getstr (IDS_NEXT));
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_PREV), getstr (IDS_PREV));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), FALSE);
 
@@ -1280,37 +1155,40 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		case CIPHER_PAGE:
 			{
-				int ea;
+				int ea, hid;
 				char buf[100];
+
+				// Encryption algorithms
 
 				SendMessage (GetDlgItem (hwndDlg, IDC_COMBO_BOX), CB_RESETCONTENT, 0, 0);
 
 				if (bHiddenVol)
-					SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), getstr (bHiddenVolHost ? IDS_CIPHER_HIDVOL_HOST_TITLE : IDS_CIPHER_HIDVOL_TITLE));
+					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString (bHiddenVolHost ? "CIPHER_HIDVOL_HOST_TITLE" : "CIPHER_HIDVOL_TITLE"));
 				else
-					SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), getstr (IDS_CIPHER_TITLE));
+					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("CIPHER_TITLE"));
 
 				for (ea = EAGetFirst (); ea != 0; ea = EAGetNext (ea))
 				{
 					AddComboPair (GetDlgItem (hwndDlg, IDC_COMBO_BOX), EAGetName (buf, ea), ea);
 				}
 
-				SelectEA (GetDlgItem (hwndDlg, IDC_COMBO_BOX), &nVolumeEA);
+				SelectAlgo (GetDlgItem (hwndDlg, IDC_COMBO_BOX), &nVolumeEA);
 				ComboSelChangeEA (hwndDlg);
 				SetFocus (GetDlgItem (hwndDlg, IDC_COMBO_BOX));
 
-				switch (pkcs5)
+
+				// Hash algorithms
+				hash_algo = RandGetHashFunction();
+				for (hid = 1; hid <= LAST_PRF_ID; hid++)
 				{
-				case SHA1:		CheckButton (GetDlgItem (hwndDlg, IDC_SHA1)); break;
-				case RIPEMD160:	CheckButton (GetDlgItem (hwndDlg, IDC_RIPEMD160)); break;
-				default:		pkcs5 = SHA1; CheckButton (GetDlgItem (hwndDlg, IDC_SHA1)); break;
+					AddComboPair (GetDlgItem (hwndDlg, IDC_COMBO_BOX_HASH_ALGO), get_hash_algo_name(hid), hid);
 				}
+				SelectAlgo (GetDlgItem (hwndDlg, IDC_COMBO_BOX_HASH_ALGO), &hash_algo);
 
-				EnableWindow (GetDlgItem (hwndDlg, IDC_SHA1), TRUE);
-				EnableWindow (GetDlgItem (hwndDlg, IDC_RIPEMD160), TRUE);
+				// Wizard buttons
 
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), getstr (IDS_NEXT));
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_PREV), getstr (IDS_PREV));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
 			}
@@ -1318,39 +1196,38 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		case SIZE_PAGE:
 			{
-				char szTmp[32];
-				UINT nID[4] = { 0,0,0,0 };
+				wchar_t str[1000];
 
 				if (bHiddenVolHost)
 				{
-					nID[0] = IDS_SIZE_HELP0_HIDDEN_HOST_VOL;
-					nID[1] = IDS_SIZE_HELP1_HIDDEN_HOST_VOL;
+					wcsncpy (str, GetString ("SIZE_HELP_HIDDEN_HOST_VOL"), sizeof (str) / 2);
 				}
 				else
 				{
-					nID[0] = bHiddenVol ? IDS_SIZE_HELP0_HIDDEN_VOL : IDS_SIZE_HELP0;
-					nID[1] = bHiddenVol ? IDS_SIZE_HELP1_HIDDEN_VOL : IDS_SIZE_HELP1;
+					wcsncpy (str, GetString (bHiddenVol ? "SIZE_HELP_HIDDEN_VOL" : "SIZE_HELP"), sizeof (str) / 2);
 				}
 
-				if (bDevice == TRUE && !(bHiddenVol && !bHiddenVolHost))	// If raw device but not a hidden volume
+				if (bDevice && !(bHiddenVol && !bHiddenVolHost))	// If raw device but not a hidden volume
 				{
-					nID[0] = IDS_SIZE_PARTITION_HELP;
-					nID[1] = bHiddenVolHost ? IDS_SIZE_PARTITION_HIDDEN_VOL_HELP : 0;
+					_snwprintf (str, sizeof str / 2, L"%s%s",
+						GetString ("SIZE_PARTITION_HELP"),
+						 bHiddenVolHost ? GetString ("SIZE_PARTITION_HIDDEN_VOL_HELP") : L"");
 				}
-				SendMessage (GetDlgItem (hwndDlg, IDC_SPACE_LEFT), WM_SETFONT, (WPARAM) hSmallBoldFont, (LPARAM) TRUE);
+
+				SendMessage (GetDlgItem (hwndDlg, IDC_SPACE_LEFT), WM_SETFONT, (WPARAM) hBoldFont, (LPARAM) TRUE);
 				SendMessage (GetDlgItem (hwndDlg, IDC_SIZEBOX), EM_LIMITTEXT, 10, 0);
 
 				if(!QueryFreeSpace (hwndDlg, GetDlgItem (hwndDlg, IDC_SPACE_LEFT), TRUE))
 				{
 					nUIVolumeSize=0;
 					nVolumeSize=0;
-					SetWindowText (GetDlgItem (hwndDlg, IDC_SIZEBOX), "UNKNOWN");
+					SetWindowTextW (GetDlgItem (hwndDlg, IDC_SIZEBOX), GetString ("UNKNOWN"));
 					EnableWindow (GetDlgItem (hwndDlg, IDC_SIZEBOX), FALSE);
 					EnableWindow (GetDlgItem (hwndDlg, IDC_KB), FALSE);
 					EnableWindow (GetDlgItem (hwndDlg, IDC_MB), FALSE);
 
 				}
-				else if (bDevice == TRUE && !(bHiddenVol && !bHiddenVolHost))	// If raw device but not a hidden volume
+				else if (bDevice && !(bHiddenVol && !bHiddenVolHost))	// If raw device but not a hidden volume
 				{
 					EnableWindow (GetDlgItem (hwndDlg, IDC_SIZEBOX), FALSE);
 					EnableWindow (GetDlgItem (hwndDlg, IDC_KB), FALSE);
@@ -1370,22 +1247,23 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 				if (nUIVolumeSize != 0)
 				{
+					char szTmp[32];
 					sprintf (szTmp, "%I64u", nUIVolumeSize);
 					SetWindowText (GetDlgItem (hwndDlg, IDC_SIZEBOX), szTmp);
 				}
 
 				SetFocus (GetDlgItem (hwndDlg, IDC_SIZEBOX));
 
-				SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), str);
 
 				if (bHiddenVol)
-					SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), getstr (bHiddenVolHost ? IDS_SIZE_HIDVOL_HOST_TITLE : IDS_SIZE_HIDVOL_TITLE));
+					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString (bHiddenVolHost ? "SIZE_HIDVOL_HOST_TITLE" : "SIZE_HIDVOL_TITLE"));
 				else
-					SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), getstr (IDS_SIZE_TITLE));
+					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("SIZE_TITLE"));
 
 
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), getstr (IDS_NEXT));
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_PREV), getstr (IDS_PREV));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
 
 
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
@@ -1396,25 +1274,21 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		case HIDVOL_HOST_PASSWORD_PAGE:
 			{
-				UINT nID[4];
-
-				nID[0] = IDS_PASSWORD_HIDDENVOL_HOST_DIRECT_HELP0;
-				nID[1] = IDS_PASSWORD_HIDDENVOL_HOST_DIRECT_HELP1;
-				nID[2] = IDS_PASSWORD_HIDDENVOL_HOST_DIRECT_HELP2;
-				nID[3] = 0;
-
 				SendMessage (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT), EM_LIMITTEXT, MAX_PASSWORD, 0);
 
-				SetWindowText (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT), szPassword);
+				SetWindowText (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT), szRawPassword);
 
 				SetFocus (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT));
 
-				SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
+				SetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE, KeyFilesEnable);
+				EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
 
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), getstr (IDS_PASSWORD_HIDVOL_HOST_TITLE));
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("PASSWORD_HIDDENVOL_HOST_DIRECT_HELP"));
 
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), getstr (IDS_NEXT));
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_PREV), getstr (IDS_PREV));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("PASSWORD_HIDVOL_HOST_TITLE"));
+
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
 
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
@@ -1423,93 +1297,83 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		case PASSWORD_PAGE:
 			{
-				UINT nID[4];
+				wchar_t str[1000];
 
 				if (bHiddenVolHost)
 				{
-					nID[0] = IDS_PASSWORD_HIDDENVOL_HOST_HELP0;
-					nID[1] = 0;
-					nID[2] = 0;
-					nID[3] = 0;
+					wcsncpy (str, GetString ("PASSWORD_HIDDENVOL_HOST_HELP"), sizeof (str) / 2);
 				}
 				else if (bHiddenVol)
 				{
-					nID[0] = IDS_PASSWORD_HIDDENVOL_HELP0;
-					nID[1] = IDS_PASSWORD_HELP1;
-					nID[2] = IDS_PASSWORD_HELP2;
-					nID[3] = IDS_PASSWORD_HELP3;
+					_snwprintf (str, sizeof str / 2, L"%s%s",
+						GetString ("PASSWORD_HIDDENVOL_HELP"),
+						GetString ("PASSWORD_HELP"));
 				}
 				else
 				{
-					nID[0] = IDS_PASSWORD_HELP1;
-					nID[1] = IDS_PASSWORD_HELP2;
-					nID[2] = IDS_PASSWORD_HELP3;
-					nID[3] = IDS_PASSWORD_HELP0;
+					wcsncpy (str, GetString ("PASSWORD_HELP"), sizeof (str) / 2);
 				}
 
 				SendMessage (GetDlgItem (hwndDlg, IDC_PASSWORD), EM_LIMITTEXT, MAX_PASSWORD, 0);
 				SendMessage (GetDlgItem (hwndDlg, IDC_VERIFY), EM_LIMITTEXT, MAX_PASSWORD, 0);
 
-				SetWindowText (GetDlgItem (hwndDlg, IDC_PASSWORD), szPassword);
+				SetWindowText (GetDlgItem (hwndDlg, IDC_PASSWORD), szRawPassword);
 				SetWindowText (GetDlgItem (hwndDlg, IDC_VERIFY), szVerify);
 
 				SetFocus (GetDlgItem (hwndDlg, IDC_PASSWORD));
 
-				SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
+				SetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE, KeyFilesEnable);
+				EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
+
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), str);
 
 				if (bHiddenVol)
-					SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), getstr (bHiddenVolHost ? IDS_PASSWORD_HIDVOL_HOST_TITLE : IDS_PASSWORD_HIDVOL_TITLE));
+					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString (bHiddenVolHost ? "PASSWORD_HIDVOL_HOST_TITLE" : "PASSWORD_HIDVOL_TITLE"));
 				else
-					SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), getstr (IDS_PASSWORD_TITLE));
+					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("PASSWORD_TITLE"));
 
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), getstr (IDS_NEXT));
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_PREV), getstr (IDS_PREV));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
 
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
 
 				VerifyPasswordAndUpdate (hwndDlg, GetDlgItem (GetParent (hwndDlg), IDC_NEXT),
 					 GetDlgItem (hwndDlg, IDC_PASSWORD),
 					   GetDlgItem (hwndDlg, IDC_VERIFY),
-						      NULL, NULL);
+						      NULL, NULL, KeyFilesEnable && FirstKeyFile!=NULL);
+				volumePassword.Length = strlen (volumePassword.Text);
 
 			}
 			break;
 
 		case FORMAT_PAGE:
 			{
-				UINT nID[4];
-
-				nID[0] = bHiddenVolHost ? IDS_FORMAT_HIDVOL_HOST_HELP0 : IDS_FORMAT_HELP0;
-				nID[1] = bHiddenVolHost ? IDS_FORMAT_HIDVOL_HOST_HELP1 : IDS_FORMAT_HELP1;
-				nID[2] = bHiddenVolHost ? IDS_FORMAT_HIDVOL_HOST_HELP2 : IDS_FORMAT_HELP2;
-				nID[3] = 0;
-
-
 				SetTimer (GetParent (hwndDlg), 0xff, RANDOM_SHOW_TIMER, NULL);
 
 				hDiskKey = GetDlgItem (hwndDlg, IDC_DISK_KEY);
 				hHeaderKey = GetDlgItem (hwndDlg, IDC_HEADER_KEY);
 
-				SendMessage (GetDlgItem (hwndDlg, IDC_RANDOM_BYTES), WM_SETFONT, (WPARAM) hSmallFont, (LPARAM) TRUE);
-				SendMessage (GetDlgItem (hwndDlg, IDC_DISK_KEY), WM_SETFONT, (WPARAM) hSmallFont, (LPARAM) TRUE);
-				SendMessage (GetDlgItem (hwndDlg, IDC_HEADER_KEY), WM_SETFONT, (WPARAM) hSmallFont, (LPARAM) TRUE);
+				SendMessage (GetDlgItem (hwndDlg, IDC_RANDOM_BYTES), WM_SETFONT, (WPARAM) hFixedDigitFont, (LPARAM) TRUE);
+				SendMessage (GetDlgItem (hwndDlg, IDC_DISK_KEY), WM_SETFONT, (WPARAM) hFixedDigitFont, (LPARAM) TRUE);
+				SendMessage (GetDlgItem (hwndDlg, IDC_HEADER_KEY), WM_SETFONT, (WPARAM) hFixedDigitFont, (LPARAM) TRUE);
 
-				SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP),
+					GetString (bHiddenVolHost ? "FORMAT_HIDVOL_HOST_HELP" : "FORMAT_HELP"));
 
 				if (bHiddenVol)
-					SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), getstr (bHiddenVolHost ? IDS_FORMAT_HIDVOL_HOST_TITLE : IDS_FORMAT_HIDVOL_TITLE));
+					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString (bHiddenVolHost ? "FORMAT_HIDVOL_HOST_TITLE" : "FORMAT_HIDVOL_TITLE"));
 				else
-					SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), getstr (IDS_FORMAT_TITLE));
+					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("FORMAT_TITLE"));
 
 				EnableWindow (GetDlgItem (hwndDlg, IDC_QUICKFORMAT), bDevice && (!bHiddenVol));
 
 				SendMessage (GetDlgItem (hwndDlg, IDC_SHOW_KEYS), BM_SETCHECK, showKeys ? BST_CHECKED : BST_UNCHECKED, 0);
-				SetWindowText (GetDlgItem (hwndDlg, IDC_RANDOM_BYTES), showKeys ? "" : "****************************");
-				SetWindowText (GetDlgItem (hwndDlg, IDC_HEADER_KEY), showKeys ? "" : "****************************");
-				SetWindowText (GetDlgItem (hwndDlg, IDC_DISK_KEY), showKeys ? "" : "****************************");
+				SetWindowText (GetDlgItem (hwndDlg, IDC_RANDOM_BYTES), showKeys ? "" : "********************************");
+				SetWindowText (GetDlgItem (hwndDlg, IDC_HEADER_KEY), showKeys ? "" : "********************************");
+				SetWindowText (GetDlgItem (hwndDlg, IDC_DISK_KEY), showKeys ? "" : "********************************");
 
 				SendMessage (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), CB_RESETCONTENT, 0, 0);
-				AddComboPair (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), "Default", 0);
+				AddComboPairW (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), GetString ("DEFAULT"), 0);
 				AddComboPair (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), "0.5 KB", 1);
 				AddComboPair (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), "1 KB", 2);
 				AddComboPair (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), "2 KB", 4);
@@ -1527,7 +1391,7 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					if (nVolumeSize <= MAX_FAT_VOLUME_SIZE)
 						AddComboPair (GetDlgItem (hwndDlg, IDC_FILESYS), "FAT", FILESYS_FAT);
 					else
-						AddComboPair (GetDlgItem (hwndDlg, IDC_FILESYS), "None", FILESYS_NONE);
+						AddComboPairW (GetDlgItem (hwndDlg, IDC_FILESYS), GetString ("NONE"), FILESYS_NONE);
 
 					SendMessage (GetDlgItem (hwndDlg, IDC_QUICKFORMAT), BM_SETCHECK, BST_UNCHECKED, 0);
 
@@ -1539,7 +1403,7 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					if (bHiddenVol)
 						SendMessage (GetDlgItem (hwndDlg, IDC_QUICKFORMAT), BM_SETCHECK, BST_CHECKED, 0);
 
-					AddComboPair (GetDlgItem (hwndDlg, IDC_FILESYS), "None", FILESYS_NONE);
+					AddComboPairW (GetDlgItem (hwndDlg, IDC_FILESYS), GetString ("NONE"), FILESYS_NONE);
 
 					if (nVolumeSize <= MAX_FAT_VOLUME_SIZE)
 						AddComboPair (GetDlgItem (hwndDlg, IDC_FILESYS), "FAT", FILESYS_FAT);
@@ -1562,10 +1426,10 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				}
 
 				EnableWindow (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), TRUE);
-				EnableWindow (GetDlgItem (hwndDlg, IDC_CANCEL_BAR), FALSE);
+				EnableWindow (GetDlgItem (hwndDlg, IDC_ABORT_BUTTON), FALSE);
 
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), getstr (IDS_FINISH));
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_PREV), getstr (IDS_PREV));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("FINISH"));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
 
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
@@ -1576,39 +1440,29 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		case FORMAT_FINISHED_PAGE:
 			{
-				UINT nID[4];
 
 				if (!bHiddenVolHost && bHiddenVol && !bHiddenVolFinished)
 				{
-					char msg[1028];
-					char driveStr[2] = {hiddenVolHostDriveNo + 'A', 0};
-
-					nID[0] = IDS_HIDVOL_HOST_FILLING_HELP0;
-					nID[1] = IDS_HIDVOL_HOST_FILLING_HELP1;
-					nID[2] = IDS_HIDVOL_HOST_FILLING_HELP2;
-					nID[3] = IDS_HIDVOL_HOST_FILLING_HELP3;
-					sprintf (msg, getmultilinestr (nID), driveStr);			
-					SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), msg);
-					SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), getstr (IDS_HIDVOL_HOST_FILLING_TITLE));
+					wchar_t msg[1024];
+					wsprintfW (msg, GetString ("HIDVOL_HOST_FILLING_HELP"), hiddenVolHostDriveNo + 'A');			
+					SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), msg);
+					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("HIDVOL_HOST_FILLING_TITLE"));
 				}
 				else 
 				{
-					nID[0] = bHiddenVol ? IDS_HIDVOL_FORMAT_FINISHED_HELP0 : IDS_FORMAT_FINISHED_HELP;
-					nID[1] = bHiddenVol ? IDS_HIDVOL_FORMAT_FINISHED_HELP1 : 0;
-					nID[2] = bHiddenVol ? IDS_HIDVOL_FORMAT_FINISHED_HELP2 : 0;
-					nID[3] = bHiddenVol ? IDS_HIDVOL_FORMAT_FINISHED_HELP3 : 0;
-					SetWindowText (GetDlgItem (hwndDlg, IDC_BOX_HELP), getmultilinestr (nID));
-					SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), getstr (bHiddenVol ? IDS_HIDVOL_FORMAT_FINISHED_TITLE : IDS_FORMAT_FINISHED_TITLE));
+					SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP),
+						GetString (bHiddenVol ? "HIDVOL_FORMAT_FINISHED_HELP" : "FORMAT_FINISHED_HELP"));
+					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString (bHiddenVol ? "HIDVOL_FORMAT_FINISHED_TITLE" : "FORMAT_FINISHED_TITLE"));
 				}
 
 
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), getstr (IDS_NEXT));
-				SetWindowText (GetDlgItem (GetParent (hwndDlg), IDC_PREV), getstr (IDS_PREV));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), (!bHiddenVol || bHiddenVolFinished) ? TRUE : FALSE);
 
 				if (!bHiddenVol || bHiddenVolFinished)
-					SetWindowText (GetDlgItem (GetParent (hwndDlg), IDCANCEL), getstr (IDS_EXIT));
+					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDCANCEL), GetString ("EXIT"));
 			}
 			break;
 
@@ -1627,32 +1481,11 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		if (lw == IDC_HIDDEN_VOL_HELP && nCurPageNo == INTRO_PAGE)
 		{
-			MessageBox (hwndDlg, 
-"It may happen that you are forced by somebody to reveal the password to an\n\
-encrypted volume. There are many situations where you cannot refuse to reveal the\n\
-password (for example, when the adversary uses violence). Using a so-called hidden\n\
-volume allows you to solve such situations in a diplomatic manner without revealing\n\
-the password to your volume.\n\
-\n\
-The principle is that a TrueCrypt volume is created within another TrueCrypt volume\n\
-(within the free space on the volume). Even when the outer volume is mounted, it is\n\
-impossible to tell whether there is a hidden volume within it or not, because free\n\
-space on any TrueCrypt volume is always filled with random data when the volume is\n\
-created (if Quick Format is disabled) and no part of the hidden volume can be\n\
-distinguished from random data. The password for the hidden volume must be different\n\
-from the password for the outer volume. To the outer volume (before creating the\n\
-hidden volume within it) you should copy some sensitive-looking files that you do\n\
-NOT really want to hide. These files will be there for anyone who would force you to\n\
-hand over the password. You will reveal only the password for the outer volume, not\n\
-for the hidden one. Files that are really sensitive will be stored on the hidden\n\
-volume.\n\
-\n\
-For more information, please refer to TrueCrypt User's Guide."
-				, lpszTitle, MB_OK);
+			MessageBoxW (hwndDlg, GetString ("HIDDEN_VOL_HELP"), lpszTitle, MB_OK);
 		}
-		if (lw == IDC_CANCEL_BAR && nCurPageNo == FORMAT_PAGE)
+		if (lw == IDC_ABORT_BUTTON && nCurPageNo == FORMAT_PAGE)
 		{
-			if (MessageBox (hwndDlg, getstr (IDS_FORMAT_ABORT), lpszTitle, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2 ) == IDYES)
+			if (MessageBoxW (hwndDlg, GetString ("FORMAT_ABORT"), lpszTitle, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2 ) == IDYES)
 				bThreadCancel = TRUE;
 			return 1;
 		}
@@ -1660,14 +1493,14 @@ For more information, please refer to TrueCrypt User's Guide."
 		if (lw == IDC_CIPHER_TEST && nCurPageNo == CIPHER_PAGE)
 		{
 			LPARAM nIndex;
-			int i = 0, c;
+			int c;
 
 			nIndex = SendMessage (GetDlgItem (hCurPage, IDC_COMBO_BOX), CB_GETCURSEL, 0, 0);
 			nVolumeEA = SendMessage (GetDlgItem (hCurPage, IDC_COMBO_BOX), CB_GETITEMDATA, nIndex, 0);
 
 			for (c = EAGetLastCipher (nVolumeEA); c != 0; c = EAGetPreviousCipher (nVolumeEA, c))
 			{
-				DialogBoxParam (hInst, MAKEINTRESOURCE (IDD_CIPHER_TEST_DLG), 
+				DialogBoxParamW (hInst, MAKEINTRESOURCEW (IDD_CIPHER_TEST_DLG), 
 					GetParent (hwndDlg), (DLGPROC) CipherTestDialogProc, (LPARAM) c);
 			}
 			return 1;
@@ -1675,9 +1508,16 @@ For more information, please refer to TrueCrypt User's Guide."
 
 		if (lw == IDC_WIZ_BENCHMARK && nCurPageNo == CIPHER_PAGE)
 		{
-			int nResult = DialogBoxParam (hInst,
-				MAKEINTRESOURCE (IDD_BENCHMARK_DLG), hwndDlg,
+			// Reduce CPU load
+			bFastPollEnabled = FALSE;	
+			bRandmixEnabled = FALSE;
+
+			DialogBoxParamW (hInst,
+				MAKEINTRESOURCEW (IDD_BENCHMARK_DLG), hwndDlg,
 				(DLGPROC) BenchmarkDlgProc, (LPARAM) NULL);
+
+			bFastPollEnabled = TRUE;
+			bRandmixEnabled = TRUE;
 
 			return 1;
 		}
@@ -1718,13 +1558,85 @@ For more information, please refer to TrueCrypt User's Guide."
 			VerifyPasswordAndUpdate (hwndDlg, GetDlgItem (GetParent (hwndDlg), IDC_NEXT),
 					 GetDlgItem (hwndDlg, IDC_PASSWORD),
 					   GetDlgItem (hwndDlg, IDC_VERIFY),
-						 NULL, NULL);
+						 NULL, NULL, KeyFilesEnable && FirstKeyFile!=NULL);
+			volumePassword.Length = strlen (volumePassword.Text);
+
+			return 1;
+		}
+
+		if (lw == IDC_SHOW_PASSWORD && nCurPageNo == PASSWORD_PAGE)
+		{
+			SendMessage (GetDlgItem (hwndDlg, IDC_PASSWORD),
+						EM_SETPASSWORDCHAR,
+						GetCheckBox (hwndDlg, IDC_SHOW_PASSWORD) ? 0 : '*',
+						0);
+			SendMessage (GetDlgItem (hwndDlg, IDC_VERIFY),
+						EM_SETPASSWORDCHAR,
+						GetCheckBox (hwndDlg, IDC_SHOW_PASSWORD) ? 0 : '*',
+						0);
+			InvalidateRect (GetDlgItem (hwndDlg, IDC_PASSWORD), NULL, TRUE);
+			InvalidateRect (GetDlgItem (hwndDlg, IDC_VERIFY), NULL, TRUE);
 			return 1;
 		}
 		
+		if (lw == IDC_KEY_FILES && (nCurPageNo == PASSWORD_PAGE || nCurPageNo == HIDVOL_HOST_PASSWORD_PAGE))
+		{
+			KeyFilesDlgParam param;
+			param.EnableKeyFiles = KeyFilesEnable;
+			param.FirstKeyFile = FirstKeyFile;
+
+			if (IDOK == DialogBoxParamW (hInst,
+				MAKEINTRESOURCEW (IDD_KEYFILES), hwndDlg,
+				(DLGPROC) KeyFilesDlgProc, (LPARAM) &param))
+			{
+				KeyFilesEnable = param.EnableKeyFiles;
+				FirstKeyFile = param.FirstKeyFile;
+
+				SetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE, KeyFilesEnable);
+				EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
+
+				if (nCurPageNo != HIDVOL_HOST_PASSWORD_PAGE)
+				{
+					VerifyPasswordAndUpdate (hwndDlg, GetDlgItem (GetParent (hwndDlg), IDC_NEXT),
+						GetDlgItem (hCurPage, IDC_PASSWORD),
+						GetDlgItem (hCurPage, IDC_VERIFY),
+						volumePassword.Text, szVerify, KeyFilesEnable && FirstKeyFile!=NULL);
+				}
+			}
+
+			return 1;
+		}
+
+		if (lw == IDC_KEYFILES_ENABLE && (nCurPageNo == PASSWORD_PAGE || nCurPageNo == HIDVOL_HOST_PASSWORD_PAGE))
+		{
+			KeyFilesEnable = GetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
+
+			if (nCurPageNo != HIDVOL_HOST_PASSWORD_PAGE)
+			{
+				VerifyPasswordAndUpdate (hwndDlg, GetDlgItem (GetParent (hwndDlg), IDC_NEXT),
+					GetDlgItem (hCurPage, IDC_PASSWORD),
+					GetDlgItem (hCurPage, IDC_VERIFY),
+					volumePassword.Text, szVerify, KeyFilesEnable && FirstKeyFile!=NULL);
+			}
+
+			return 1;
+		}
+
 		if (hw == EN_CHANGE && nCurPageNo == HIDVOL_HOST_PASSWORD_PAGE)
 		{
-			GetWindowText (GetDlgItem (hCurPage, IDC_PASSWORD_DIRECT), szPassword, sizeof (szPassword));
+			GetWindowText (GetDlgItem (hCurPage, IDC_PASSWORD_DIRECT), volumePassword.Text, sizeof (volumePassword.Text));
+			volumePassword.Length = strlen (volumePassword.Text);
+			return 1;
+		}
+
+		if (lw == IDC_SHOW_PASSWORD_HIDVOL_HOST && nCurPageNo == HIDVOL_HOST_PASSWORD_PAGE)
+		{
+			SendMessage (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT),
+						EM_SETPASSWORDCHAR,
+						GetCheckBox (hwndDlg, IDC_SHOW_PASSWORD_HIDVOL_HOST) ? 0 : '*',
+						0);
+			InvalidateRect (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT), NULL, TRUE);
 			return 1;
 		}
 
@@ -1761,9 +1673,9 @@ For more information, please refer to TrueCrypt User's Guide."
 			return 1;
 		}
 
-		if (lw == IDC_BROWSE_FILES && nCurPageNo == FILE_PAGE)
+		if (lw == IDC_SELECT_FILE && nCurPageNo == FILE_PAGE)
 		{
-			if (BrowseFiles (hwndDlg, IDS_OPEN_TITLE, szFileName, bHistory) == FALSE)
+			if (BrowseFiles (hwndDlg, "OPEN_TITLE", szFileName, bHistory) == FALSE)
 				return 1;
 
 			AddComboItem (GetDlgItem (hwndDlg, IDC_COMBO_BOX), szFileName);
@@ -1774,15 +1686,15 @@ For more information, please refer to TrueCrypt User's Guide."
 			return 1;
 		}
 		
-		if (lw == IDC_BROWSE_DEVICES && nCurPageNo == FILE_PAGE)
+		if (lw == IDC_SELECT_DEVICE && nCurPageNo == FILE_PAGE)
 		{
-			int nResult = DialogBoxParam (hInst,
-						      MAKEINTRESOURCE (IDD_RAWDEVICES_DLG), GetParent (hwndDlg),
+			int nResult = DialogBoxParamW (hInst,
+						      MAKEINTRESOURCEW (IDD_RAWDEVICES_DLG), GetParent (hwndDlg),
 						      (DLGPROC) RawDevicesDlgProc, (LPARAM) & szFileName[0]);
 
 			// Check administrator privileges
 			if (!strstr (szFileName, "Floppy") && !IsAdmin())
-				MessageBox (hwndDlg, getstr (IDS_ADMIN_PRIVILEGES_WARN_DEVICES), lpszTitle, MB_OK|MB_ICONWARNING);
+				MessageBoxW (hwndDlg, GetString ("ADMIN_PRIVILEGES_WARN_DEVICES"), lpszTitle, MB_OK|MB_ICONWARNING);
 
 			if (nResult == IDOK)
 			{
@@ -1803,7 +1715,7 @@ For more information, please refer to TrueCrypt User's Guide."
 
 		if (lw == IDC_QUICKFORMAT && IsButtonChecked (GetDlgItem (hCurPage, IDC_QUICKFORMAT)))
 		{
-			MessageBox (hwndDlg, getstr (IDS_WARN_QUICK_FORMAT), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
+			MessageBoxW (hwndDlg, GetString ("WARN_QUICK_FORMAT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
 			return 1;
 		}
 
@@ -1812,9 +1724,9 @@ For more information, please refer to TrueCrypt User's Guide."
 		{
 			showKeys = IsButtonChecked (GetDlgItem (hCurPage, IDC_SHOW_KEYS));
 
-			SetWindowText (GetDlgItem (hCurPage, IDC_RANDOM_BYTES), showKeys ? "" : "****************************");
-			SetWindowText (GetDlgItem (hCurPage, IDC_HEADER_KEY), showKeys ? "" : "****************************");
-			SetWindowText (GetDlgItem (hCurPage, IDC_DISK_KEY), showKeys ? "" : "****************************");
+			SetWindowText (GetDlgItem (hCurPage, IDC_RANDOM_BYTES), showKeys ? "                                " : "********************************");
+			SetWindowText (GetDlgItem (hCurPage, IDC_HEADER_KEY), showKeys ? "" : "********************************");
+			SetWindowText (GetDlgItem (hCurPage, IDC_DISK_KEY), showKeys ? "" : "********************************");
 			return 1;
 		}
 		
@@ -1844,12 +1756,15 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_INITDIALOG:
 		{
-			/* Call the common dialog init code */
+			MainDlg = hwndDlg;
 			InitDialog (hwndDlg);
+			LocalizeDialog (hwndDlg, "IDD_MKFS_DLG");
 			LoadSettings (hwndDlg);
+			LoadDefaultKeyFilesParam ();
+			RestoreDefaultKeyFilesParam ();
 
 			SendMessage (GetDlgItem (hwndDlg, IDC_BOX_TITLE), WM_SETFONT, (WPARAM) hTitleFont, (LPARAM) TRUE);
-			SetWindowText (hwndDlg, lpszTitle);
+			SetWindowTextW (hwndDlg, lpszTitle);
 
 			ExtractCommandLine (hwndDlg, (char *) lParam);
 
@@ -1860,7 +1775,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	case WM_SYSCOMMAND:
 		if (lw == IDC_ABOUT)
 		{
-			DialogBox (hInst, MAKEINTRESOURCE (IDD_ABOUT_DLG), hwndDlg, (DLGPROC) AboutDlgProc);
+			DialogBoxW (hInst, MAKEINTRESOURCEW (IDD_ABOUT_DLG), hwndDlg, (DLGPROC) AboutDlgProc);
 			return 1;
 		}
 		return 0;
@@ -1872,8 +1787,6 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			int i;
 
 			if (!showKeys) return 1;
-
-			SendMessage (GetDlgItem (hwndDlg, IDC_RANDOM_BYTES), WM_SETFONT, (WPARAM) hSmallFont, (LPARAM) TRUE);
 
 			RandpeekBytes (tmp, sizeof (tmp));
 
@@ -1890,6 +1803,8 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             SetWindowText (GetDlgItem (hCurPage, IDC_RANDOM_BYTES), tmp2);
 
+			memset (tmp, 0, sizeof(tmp));
+			memset (tmp2, 0, sizeof(tmp2));
 			return 1;
 		}
 
@@ -1900,7 +1815,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		EnableWindow (GetDlgItem (hCurPage, IDC_QUICKFORMAT), bDevice && (!bHiddenVol));
 		EnableWindow (GetDlgItem (hCurPage, IDC_FILESYS), TRUE);
 		EnableWindow (GetDlgItem (hCurPage, IDC_CLUSTERSIZE), TRUE);
-		EnableWindow (GetDlgItem (hCurPage, IDC_CANCEL_BAR), FALSE);
+		EnableWindow (GetDlgItem (hCurPage, IDC_ABORT_BUTTON), FALSE);
 		EnableWindow (GetDlgItem (hwndDlg, IDC_NEXT), TRUE);
 		SendMessage (GetDlgItem (hCurPage, IDC_PROGRESS_BAR), PBM_SETPOS, 0, 0L);
 		SetFocus (GetDlgItem (hwndDlg, IDC_NEXT));
@@ -1921,7 +1836,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		EnableWindow (GetDlgItem (hwndDlg, IDC_PREV), TRUE);
 		EnableWindow (GetDlgItem (hwndDlg, IDHELP), TRUE);
 		EnableWindow (GetDlgItem (hwndDlg, IDCANCEL), TRUE);
-		EnableWindow (GetDlgItem (hCurPage, IDC_CANCEL_BAR), FALSE);
+		EnableWindow (GetDlgItem (hCurPage, IDC_ABORT_BUTTON), FALSE);
 		EnableWindow (GetDlgItem (hwndDlg, IDC_NEXT), TRUE);
 		SendMessage (GetDlgItem (hCurPage, IDC_PROGRESS_BAR), PBM_SETPOS, 0, 0L);
 		SetFocus (GetDlgItem (hwndDlg, IDC_NEXT));
@@ -1950,10 +1865,10 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		{
 			if (nCurPageNo == INTRO_PAGE)
 			{
-				if (IsButtonChecked (GetDlgItem (hCurPage, IDC_HIDDEN_VOL)) == TRUE)
+				if (IsButtonChecked (GetDlgItem (hCurPage, IDC_HIDDEN_VOL)))
 				{
 					if (!IsAdmin()
-						&& IDNO == MessageBox (hwndDlg, getstr (IDS_ADMIN_PRIVILEGES_WARN_HIDVOL),
+						&& IDNO == MessageBoxW (hwndDlg, GetString ("ADMIN_PRIVILEGES_WARN_HIDVOL"),
 							lpszTitle, MB_ICONWARNING|MB_YESNO|MB_DEFBUTTON2))
 					{
 						nCurPageNo--;
@@ -1975,7 +1890,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 			else if (nCurPageNo == HIDDEN_VOL_WIZARD_MODE_PAGE)
 			{
-				if (IsButtonChecked (GetDlgItem (hCurPage, IDC_HIDVOL_WIZ_MODE_DIRECT)) == TRUE)
+				if (IsButtonChecked (GetDlgItem (hCurPage, IDC_HIDVOL_WIZ_MODE_DIRECT)))
 					bHiddenVolDirect = TRUE;
 				else
 					bHiddenVolDirect = FALSE;
@@ -2000,7 +1915,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					{
 						if(!QueryFreeSpace (hwndDlg, GetDlgItem (hwndDlg, IDC_SPACE_LEFT), FALSE))
 						{
-							MessageBox (hwndDlg, "Error: Cannot get volume size!\n\nMake sure the selected volume exists and is not being\nused by the system or an application.", lpszTitle, ICON_HAND);
+							MessageBoxW (hwndDlg, GetString ("CANT_GET_VOLSIZE"), lpszTitle, ICON_HAND);
 							nCurPageNo = FILE_PAGE - 1; 
 						}
 						else
@@ -2035,10 +1950,10 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				nIndex = SendMessage (GetDlgItem (hCurPage, IDC_COMBO_BOX), CB_GETCURSEL, 0, 0);
 				nVolumeEA = SendMessage (GetDlgItem (hCurPage, IDC_COMBO_BOX), CB_GETITEMDATA, nIndex, 0);
 
-				if (IsButtonChecked (GetDlgItem (hCurPage, IDC_SHA1)))		pkcs5 = SHA1;
-				if (IsButtonChecked (GetDlgItem (hCurPage, IDC_RIPEMD160)))	pkcs5 = RIPEMD160;
+				nIndex = SendMessage (GetDlgItem (hCurPage, IDC_COMBO_BOX_HASH_ALGO), CB_GETCURSEL, 0, 0);
+				hash_algo = SendMessage (GetDlgItem (hCurPage, IDC_COMBO_BOX_HASH_ALGO), CB_GETITEMDATA, nIndex, 0);
 
-				RandSetHashFunction (pkcs5);
+				RandSetHashFunction (hash_algo);
 			}
 
 			else if (nCurPageNo == SIZE_PAGE)
@@ -2051,35 +1966,60 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 			else if (nCurPageNo == PASSWORD_PAGE)
 			{
-				VerifyPasswordAndUpdate (hwndDlg, GetDlgItem (hwndDlg, IDC_NEXT),
+				VerifyPasswordAndUpdate (hwndDlg, GetDlgItem (GetParent (hwndDlg), IDC_NEXT),
 					GetDlgItem (hCurPage, IDC_PASSWORD),
 					  GetDlgItem (hCurPage, IDC_VERIFY),
-					    szPassword, szVerify);
+					    volumePassword.Text, szVerify, KeyFilesEnable && FirstKeyFile!=NULL);
+				volumePassword.Length = strlen (volumePassword.Text);
 
-				// Check password length
-				if (!bHiddenVolHost && !CheckPasswordLength (hwndDlg, GetDlgItem (hCurPage, IDC_PASSWORD)))
+				if (volumePassword.Length > 0)
+				{
+					// Password character encoding
+					if (!CheckPasswordCharEncoding (GetDlgItem (hCurPage, IDC_PASSWORD), NULL))
+					{
+						Error ("UNSUPPORTED_CHARS_IN_PWD");
 						nCurPageNo--;
+					}
+					// Check password length
+					else if (!bHiddenVolHost && !CheckPasswordLength (hwndDlg, GetDlgItem (hCurPage, IDC_PASSWORD)))
+						nCurPageNo--;
+				}
+
+				// Store the password in case we need to restore it after keyfile is applied to it
+				GetWindowText (GetDlgItem (hCurPage, IDC_PASSWORD), szRawPassword, sizeof (szRawPassword));
+
+				if (KeyFilesEnable)
+					KeyFilesApply (&volumePassword, FirstKeyFile, bPreserveTimestamp);
 			}
 
 			else if (nCurPageNo == HIDVOL_HOST_PASSWORD_PAGE)
 			{
 				int retCode;
-				GetWindowText (GetDlgItem (hCurPage, IDC_PASSWORD_DIRECT), szPassword, sizeof (szPassword));
+				GetWindowText (GetDlgItem (hCurPage, IDC_PASSWORD_DIRECT), volumePassword.Text, sizeof (volumePassword.Text));
+				volumePassword.Length = strlen (volumePassword.Text);
+
+				// Store the password in case we need to restore it after keyfile is applied to it
+				GetWindowText (GetDlgItem (hCurPage, IDC_PASSWORD_DIRECT), szRawPassword, sizeof (szRawPassword));
+
+				if (KeyFilesEnable)
+					KeyFilesApply (&volumePassword, FirstKeyFile, bPreserveTimestamp);
+
 
 				/* Mount the volume which is to host the new hidden volume */
 
 				if (hiddenVolHostDriveNo < 0)		// If the hidden volume host is not mounted yet
-					retCode = MountHiddenVolHost (hwndDlg, szDiskFile, &hiddenVolHostDriveNo, szPassword);
+					retCode = MountHiddenVolHost (hwndDlg, szDiskFile, &hiddenVolHostDriveNo, &volumePassword);
 				else
 					retCode = 0;					// Mounted
 
 				switch (retCode)
 				{
 				case ERR_NO_FREE_DRIVES:
-					MessageBox (hwndDlg, "Error: No free drive letter for the outer volume!", lpszTitle, ICON_HAND);
+					MessageBoxW (hwndDlg, GetString ("NO_FREE_DRIVES"), lpszTitle, ICON_HAND);
 					nCurPageNo--;
 					break;
 				case ERR_VOL_MOUNT_FAILED:
+				case ERR_PASSWORD_WRONG:
 					NormalCursor ();
 					nCurPageNo--;
 					break;
@@ -2115,19 +2055,20 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						{
 							// Maximum possible size of the hidden volume successfully determined
 
-							nCurPageNo = HIDDEN_VOL_PRE_CIPHER_PAGE - 1;
-
 							bHiddenVolHost = FALSE; 
 							bHiddenVolFinished = FALSE;
 
 							// Clear the outer volume password
-							memset(&szPassword[0], 0, sizeof (szPassword));
+							memset(&volumePassword, 0, sizeof (volumePassword));
 							memset(&szVerify[0], 0, sizeof (szVerify));
+							memset(&szRawPassword[0], 0, sizeof (szRawPassword));
+
+							RestoreDefaultKeyFilesParam ();
 
 							EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
 							NormalCursor ();
 
-							nCurPageNo = HIDDEN_VOL_PRE_CIPHER_PAGE - 1; 
+							nCurPageNo = HIDDEN_VOL_HOST_PRE_CIPHER_PAGE; 
 						}
 						break;
 					}
@@ -2137,7 +2078,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			// Format start
 			else if (nCurPageNo == FORMAT_PAGE)
 			{
-				if (bThreadRunning == TRUE)
+				if (bThreadRunning)
 					return 1;
 				else
 					bThreadRunning = TRUE;
@@ -2151,8 +2092,8 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				EnableWindow (GetDlgItem (hCurPage, IDC_QUICKFORMAT), FALSE);
 				EnableWindow (GetDlgItem (hCurPage, IDC_CLUSTERSIZE), FALSE);
 				EnableWindow (GetDlgItem (hCurPage, IDC_FILESYS), FALSE);
-				EnableWindow (GetDlgItem (hCurPage, IDC_CANCEL_BAR), TRUE);
-				SetFocus (GetDlgItem (hCurPage, IDC_CANCEL_BAR));
+				EnableWindow (GetDlgItem (hCurPage, IDC_ABORT_BUTTON), TRUE);
+				SetFocus (GetDlgItem (hCurPage, IDC_ABORT_BUTTON));
 
 				if (bHiddenVolHost)
 				{
@@ -2186,7 +2127,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						fixed = TRUE;
 					}
 					if (fixed)
-						MessageBox (hwndDlg, "The selected cluster size is too small for this volume size.\nA greater cluster size will be used instead.", lpszTitle, MB_ICONWARNING);
+						MessageBoxW (hwndDlg, GetString ("CLUSTER_TOO_SMALL"), lpszTitle, MB_ICONWARNING);
 				}
 				
 				_beginthread (formatThreadFunction, 4096, hwndDlg);
@@ -2200,10 +2141,11 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				if (!bHiddenVol || bHiddenVolFinished)
 				{
 
-					SetWindowText (GetDlgItem (GetParent (hwndDlg), IDCANCEL), getstr (IDS_CANCEL));
+					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDCANCEL), GetString ("CANCEL"));
 					bHiddenVolFinished = FALSE;
-					memset(&szPassword[0], 0, sizeof (szPassword));
+					memset(&volumePassword, 0, sizeof (volumePassword));
 					memset(&szVerify[0], 0, sizeof (szVerify));
+					memset(&szRawPassword[0], 0, sizeof (szRawPassword));
 					nCurPageNo = INTRO_PAGE;
 					LoadPage (hwndDlg, INTRO_PAGE);
 					return 1;
@@ -2235,7 +2177,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 							goto ovf_end;
 						}
 
-						nCurPageNo = HIDDEN_VOL_PRE_CIPHER_PAGE - 1;
+						nCurPageNo = HIDDEN_VOL_HOST_PRE_CIPHER_PAGE;
 
 						EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
 						NormalCursor ();
@@ -2255,7 +2197,7 @@ ovf_end:
 		{
 			if (nCurPageNo == HIDDEN_VOL_WIZARD_MODE_PAGE)
 			{
-				if (IsButtonChecked (GetDlgItem (hCurPage, IDC_HIDVOL_WIZ_MODE_DIRECT)) == TRUE)
+				if (IsButtonChecked (GetDlgItem (hCurPage, IDC_HIDVOL_WIZ_MODE_DIRECT)))
 					bHiddenVolDirect = TRUE;
 				else
 					bHiddenVolDirect = FALSE;
@@ -2279,10 +2221,10 @@ ovf_end:
 				nIndex = SendMessage (GetDlgItem (hCurPage, IDC_COMBO_BOX), CB_GETCURSEL, 0, 0);
 				nVolumeEA = SendMessage (GetDlgItem (hCurPage, IDC_COMBO_BOX), CB_GETITEMDATA, nIndex, 0);
 
-				if (IsButtonChecked (GetDlgItem (hCurPage, IDC_SHA1)))		pkcs5 = SHA1;
-				if (IsButtonChecked (GetDlgItem (hCurPage, IDC_RIPEMD160)))	pkcs5 = RIPEMD160;
+				nIndex = SendMessage (GetDlgItem (hCurPage, IDC_COMBO_BOX_HASH_ALGO), CB_GETCURSEL, 0, 0);
+				hash_algo = SendMessage (GetDlgItem (hCurPage, IDC_COMBO_BOX_HASH_ALGO), CB_GETITEMDATA, nIndex, 0);
 
-				RandSetHashFunction (pkcs5);
+				RandSetHashFunction (hash_algo);
 
 				if (!bHiddenVol)
 					nCurPageNo = HIDDEN_VOL_HOST_PRE_CIPHER_PAGE;	// Skip the extra info on hidden volume 
@@ -2295,17 +2237,25 @@ ovf_end:
 
 			else if (nCurPageNo == PASSWORD_PAGE)
 			{
-				VerifyPasswordAndUpdate (hwndDlg, GetDlgItem (hwndDlg, IDC_NEXT),
+				// Store the password in case we need to restore it after keyfile is applied to it
+				GetWindowText (GetDlgItem (hCurPage, IDC_PASSWORD), szRawPassword, sizeof (szRawPassword));
+
+				VerifyPasswordAndUpdate (hwndDlg, GetDlgItem (GetParent (hwndDlg), IDC_NEXT),
 					GetDlgItem (hCurPage, IDC_PASSWORD),
 					  GetDlgItem (hCurPage, IDC_VERIFY),
-					    szPassword, szVerify);
+					    volumePassword.Text, szVerify, KeyFilesEnable && FirstKeyFile!=NULL);
+				volumePassword.Length = strlen (volumePassword.Text);
 
 				nCurPageNo--;		// Skip the hidden volume host password page
 			}
 
 			else if (nCurPageNo == HIDVOL_HOST_PASSWORD_PAGE)
 			{
-				GetWindowText (GetDlgItem (hCurPage, IDC_PASSWORD_DIRECT), szPassword, sizeof (szPassword));
+				// Store the password in case we need to restore it after keyfile is applied to it
+				GetWindowText (GetDlgItem (hCurPage, IDC_PASSWORD_DIRECT), szRawPassword, sizeof (szRawPassword));
+
+				GetWindowText (GetDlgItem (hCurPage, IDC_PASSWORD_DIRECT), volumePassword.Text, sizeof (volumePassword.Text));
+				volumePassword.Length = strlen (volumePassword.Text);
 				nCurPageNo = FILE_PAGE + 1;
 			}
 
@@ -2327,7 +2277,7 @@ ovf_end:
 
 	case WM_CLOSE:
 		{
-			if (bThreadRunning && MessageBox (hwndDlg, getstr (IDS_FORMAT_ABORT), lpszTitle, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2 ) == IDYES)
+			if (bThreadRunning && MessageBoxW (hwndDlg, GetString ("FORMAT_ABORT"), lpszTitle, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2 ) == IDYES)
 			{
 				bThreadCancel = TRUE;
 				return 1;
@@ -2393,7 +2343,7 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 
 			case '?':
 			default:
-				DialogBoxParam (hInst, MAKEINTRESOURCE (IDD_COMMANDHELP_DLG), hwndDlg, (DLGPROC)
+				DialogBoxParamW (hInst, MAKEINTRESOURCEW (IDD_COMMANDHELP_DLG), hwndDlg, (DLGPROC)
 						CommandHelpDlgProc, (LPARAM) &as);
 
 				exit(0);
@@ -2437,7 +2387,7 @@ int DetermineMaxHiddenVolSize (HWND hwndDlg)
 
 	if (nbrFreeClusters * realClusterSize < MIN_VOLUME_SIZE + HIDDEN_VOL_HEADER_OFFSET)
 	{
-		MessageBox (hwndDlg, getstr (IDS_NO_SPACE_FOR_HIDDEN_VOL), lpszTitle, ICON_HAND);
+		MessageBoxW (hwndDlg, GetString ("NO_SPACE_FOR_HIDDEN_VOL"), lpszTitle, ICON_HAND);
 		AbortProcessSilent ();
 	}
 
@@ -2455,7 +2405,7 @@ int DetermineMaxHiddenVolSize (HWND hwndDlg)
 
 	if (nMaximumHiddenVolSize < MIN_VOLUME_SIZE)
 	{
-		MessageBox (hwndDlg, getstr (IDS_NO_SPACE_FOR_HIDDEN_VOL), lpszTitle, ICON_HAND);
+		MessageBoxW (hwndDlg, GetString ("NO_SPACE_FOR_HIDDEN_VOL"), lpszTitle, ICON_HAND);
 		AbortProcessSilent ();
 	}
 	else if (nMaximumHiddenVolSize > MAX_HIDDEN_VOLUME_SIZE)
@@ -2490,7 +2440,7 @@ int AnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, int *realClusterSize)
 
 	if (hDevice == INVALID_HANDLE_VALUE)
 	{
-		MessageBox (hwndDlg, "Error: Cannot access the outer volume!\nVolume creation cannot continue.", lpszTitle, ICON_HAND);
+		MessageBoxW (hwndDlg, GetString ("CANT_ACCESS_OUTER_VOL"), lpszTitle, ICON_HAND);
 		goto efsf_error;
 	}
 
@@ -2499,7 +2449,6 @@ int AnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, int *realClusterSize)
 	if (SetFilePointerEx (hDevice, offset, &offsetNew, FILE_BEGIN) == 0)
 	{
 		handleWin32Error (hwndDlg);
-		MessageBox (hwndDlg, "Cannot seek position within the outer volume!\nVolume creation cannot continue.", lpszTitle, ICON_HAND);
 		goto efs_error;
 	}
 
@@ -2508,7 +2457,7 @@ int AnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, int *realClusterSize)
 	if (result == 0)
 	{
 		handleWin32Error (hwndDlg);
-		MessageBox (hwndDlg, "Cannot read volume!\nVolume creation cannot continue.", lpszTitle, ICON_HAND);
+		MessageBoxW (hwndDlg, GetString ("CANT_ACCESS_OUTER_VOL"), lpszTitle, ICON_HAND);
 		goto efs_error;
 	}
 
@@ -2531,7 +2480,7 @@ int AnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, int *realClusterSize)
 			*driveNo = -1;
 		}
 
-		MessageBox (hwndDlg, "A hidden volume can only be created within a FAT volume.\n\nFor more information, please refer to the documentation.", lpszTitle, ICON_HAND);
+		MessageBoxW (hwndDlg, GetString ("HIDDEN_HOST_FAT_ONLY"), lpszTitle, ICON_HAND);
 		return 0;
 	}
 
@@ -2549,7 +2498,7 @@ efsf_error:
 
 
 // Mounts a volume within which the user intends to create a hidden volume
-int MountHiddenVolHost (HWND hwndDlg, char *volumePath, int *driveNo, char *lpszPassword)
+int MountHiddenVolHost (HWND hwndDlg, char *volumePath, int *driveNo, Password *password)
 {
 	MountOptions mountOptions;
 
@@ -2562,9 +2511,11 @@ int MountHiddenVolHost (HWND hwndDlg, char *volumePath, int *driveNo, char *lpsz
 	}
 
 	mountOptions.ReadOnly = bHiddenVolDirect;
-	mountOptions.Removable = ReadRegistryInt ("MountVolumesRemovable", FALSE);
+	mountOptions.Removable = ConfigReadInt ("MountVolumesRemovable", FALSE);
+	mountOptions.ProtectHiddenVolume = FALSE;
+	mountOptions.PreserveTimestamp = bPreserveTimestamp;
 
-	if (MountVolume (hwndDlg, *driveNo, volumePath, lpszPassword, FALSE, TRUE, &mountOptions, FALSE) < 1)
+	if (MountVolume (hwndDlg, *driveNo, volumePath, password, FALSE, TRUE, &mountOptions, FALSE, TRUE) < 1)
 	{
 		*driveNo = -3;
 		return ERR_VOL_MOUNT_FAILED;
@@ -2575,7 +2526,7 @@ int MountHiddenVolHost (HWND hwndDlg, char *volumePath, int *driveNo, char *lpsz
 
 /* Gets the map of the clusters that are free and in use on a volume that is to host
    a hidden volume. The map is scanned to determine the size of the uninterrupted
-   block of free space (provided there is any) whose end is aligned with the end
+   area of free space (provided there is any) whose end is aligned with the end
    of the volume. The value will then be used to determine the maximum possible size
    of the hidden volume. */
 int ScanVolClusterBitmap (HWND hwndDlg, int *driveNo, __int64 nbrClusters, __int64 *nbrFreeClusters)
@@ -2597,7 +2548,7 @@ int ScanVolClusterBitmap (HWND hwndDlg, int *driveNo, __int64 nbrClusters, __int
 
 	if (hDevice == INVALID_HANDLE_VALUE)
 	{
-		MessageBox (hwndDlg, "Error: Cannot access the outer volume!\nVolume creation cannot continue.", lpszTitle, ICON_HAND);
+		MessageBoxW (hwndDlg, GetString ("CANT_ACCESS_OUTER_VOL"), lpszTitle, ICON_HAND);
 		goto vcmf_error;
 	}
 
@@ -2608,7 +2559,7 @@ int ScanVolClusterBitmap (HWND hwndDlg, int *driveNo, __int64 nbrClusters, __int
 	{
 		if (i <= 0)
 		{
-			retVal = MessageBox (hwndDlg, "Error: Cannot lock the outer volume!\n\nVolume cannot be locked if it contains files or folders\nbeing used by an application or the system.\n\nPlease close any application that might be using files\nor directories on the volume and click Retry.\n\nWARNING: If you decide to ignore this, you must ensure\nthat after you click Ignore, no more data will be written\nto the volume until it is dismounted. Failure to do so may\nadversely affect plausible deniability of the hidden volume!", lpszTitle, MB_ABORTRETRYIGNORE | MB_DEFBUTTON2);
+			retVal = MessageBoxW (hwndDlg, GetString ("CANT_LOCK_OUTER_VOL"), lpszTitle, MB_ABORTRETRYIGNORE | MB_DEFBUTTON2);
 			if (retVal == IDABORT)
 			{
 				CloseHandle (hDevice);
@@ -2630,7 +2581,7 @@ int ScanVolClusterBitmap (HWND hwndDlg, int *driveNo, __int64 nbrClusters, __int
 
 	if (lpOutBuffer == NULL)
 	{
-		MessageBox (hwndDlg, "Error: Cannot allocate memory for cluster bitmap!\nVolume creation cannot continue.", lpszTitle, ICON_HAND);
+		MessageBoxW (hwndDlg, GetString ("ERR_MEM_ALLOC"), lpszTitle, ICON_HAND);
 		goto vcmf_error;
 	}
 
@@ -2646,7 +2597,7 @@ int ScanVolClusterBitmap (HWND hwndDlg, int *driveNo, __int64 nbrClusters, __int
 		NULL))
 	{
 		handleWin32Error (hwndDlg);
-		MessageBox (hwndDlg, "Error: Cannot get volume cluster bitmap!\nVolume creation cannot continue.", lpszTitle, ICON_HAND);
+		MessageBoxW (hwndDlg, GetString ("CANT_GET_CLUSTER_BITMAP"), lpszTitle, ICON_HAND);
 
 		goto vcm_error;
 	}
@@ -2680,7 +2631,7 @@ int ScanVolClusterBitmap (HWND hwndDlg, int *driveNo, __int64 nbrClusters, __int
 	free(lpOutBuffer);
 	while (!UnmountVolume (hwndDlg, *driveNo, FALSE))
 	{
-		if (MessageBox (hwndDlg, "Error: Cannot dismount the outer volume!\n\nVolume cannot be dismounted if it contains files or folders\nbeing used by a program or the system.\n\nPlease close any program that might be using files\nor directories on the volume and click Retry.", lpszTitle, MB_RETRYCANCEL) != IDRETRY)
+		if (MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_OUTER_VOL"), lpszTitle, MB_RETRYCANCEL) != IDRETRY)
 			return 0;
 	}
 
@@ -2710,21 +2661,21 @@ WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	if (hPrevInstance && lpszCommandLine && nCmdShow);	/* Remove unused 
 								   parameter warning */
+
+	atexit (localcleanup);
+
 	InitCommonControls ();
+	InitApp (hInstance);
 
 	nPbar = IDC_PROGRESS_BAR;
 
 	if (Randinit ())
-		AbortProcess (IDS_INIT_RAND);
+		AbortProcess ("INIT_RAND");
 
 	RegisterRedTick(hInstance);
 
-	atexit (localcleanup);
-
 	/* Allocate, dup, then store away the application title */
-	lpszTitle = err_strdup (getstr (IDS_TITLE));
-
-	InitApp (hInstance);
+	lpszTitle = GetString ("IDD_MKFS_DLG");
 
 	status = DriverAttach ();
 	if (status != 0)
@@ -2734,15 +2685,15 @@ WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		else
 			handleError (NULL, status);
 
-		AbortProcess (IDS_NODRIVER);
+		AbortProcess ("NODRIVER");
 	}
 
 	if (!AutoTestAlgorithms())
-		AbortProcess (IDS_AUTOTEST_FAILED_WIZARD);
+		AbortProcess ("ERR_SELF_TESTS_FAILED");
 
 
 	/* Create the main dialog box */
-	DialogBoxParam (hInstance, MAKEINTRESOURCE (IDD_MKFS_DLG), NULL, (DLGPROC) MainDialogProc, 
+	DialogBoxParamW (hInstance, MAKEINTRESOURCEW (IDD_MKFS_DLG), NULL, (DLGPROC) MainDialogProc, 
 		(LPARAM)lpszCommandLine);
 
 	return 0;

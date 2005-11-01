@@ -1,45 +1,40 @@
-/* The source code contained in this file has been derived from the source code
-   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004-2005
-   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
-   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
-   release. Please see the file license.txt for full license details. */
+/* Legal Notice: The source code contained in this file has been derived from
+   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
+   Encryption for the Masses'. Modifications and additions to that source code
+   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   the full text of which is contained in the file License.txt included in
+   TrueCrypt binary and source code distribution archives.  */
 
-#include "TCdefs.h"
+#include "Tcdefs.h"
 
 #include <tlhelp32.h>
 
-#include "crypto.h"
-#include "crc.h"
-#include "random.h"
-#include "apidrvr.h"
-#include "dlgcode.h"
-
-
-/* random management defines & pool pointers */
-#define POOLSIZE 256
-#define RANDOMPOOL_ALLOCSIZE	( ( POOLSIZE + SHA_DIGESTSIZE - 1 ) \
-	/ SHA_DIGESTSIZE ) * SHA_DIGESTSIZE
+#include "Crc.h"
+#include "Random.h"
+#include "Apidrvr.h"
+#include "Dlgcode.h"
 
 unsigned char *pRandPool = NULL;
 int nRandIndex = 0, randPoolReadIndex = 0;
 
-int hashFunction = SHA1;
+int hashFunction = DEFAULT_HASH_ALGORITHM;
 
 /* Macro to add a single byte to the pool */
 #define RandaddByte(x) {\
-	if (nRandIndex==POOLSIZE) nRandIndex = 0;\
+	if (nRandIndex == RNG_POOL_SIZE) nRandIndex = 0;\
 	pRandPool[nRandIndex] = (unsigned char) ((unsigned char)x + pRandPool[nRandIndex]); \
+	if (nRandIndex % 8 == 0) Randmix();\
 	nRandIndex++; \
-	Randmix(); \
 	}
 
 /* Macro to add four bytes to the pool */
-#define RandaddLong(x) _RandaddLong((unsigned long)x);
+#define RandaddInt32(x) _RandaddInt32((unsigned __int32)x);
 
 #pragma warning( disable : 4710 ) /* inline func. not expanded warning */
 
-_inline void _RandaddLong(unsigned long x)
+_inline void _RandaddInt32(unsigned __int32 x)
 {
 	RandaddByte(x); 
 	RandaddByte((x >> 8)); 
@@ -48,22 +43,22 @@ _inline void _RandaddLong(unsigned long x)
 }
 
 HHOOK hMouse = NULL;		/* Mouse hook for the random number generator */
-HHOOK hKeyboard = NULL;		/* Keyboard hook for the random number
-				   generator */
+HHOOK hKeyboard = NULL;		/* Keyboard hook for the random number generator */
 
 /* Variables for thread control, the thread is used to gather up info about
    the system in in the background */
 CRITICAL_SECTION critRandProt;	/* The critical section */
-BOOL volatile bThreadTerminate = FALSE;	/* This variable is shared among
-					   thread's so its made volatile */
+BOOL volatile bThreadTerminate = FALSE;	/* This variable is shared among thread's so its made volatile */
 BOOL bDidSlowPoll = FALSE;	/* We do the slow poll only once */
+BOOL volatile bFastPollEnabled = TRUE;	/* Used to reduce CPU load when performing benchmarks and formatting */
+BOOL volatile bRandmixEnabled = TRUE;	/* Used to reduce CPU load when performing benchmarks and formatting */
 
 /* Network library handle for the slowPollWinNT function */
 HANDLE hNetAPI32 = NULL;
 
 // CryptoAPI
 HCRYPTPROV hCryptProv;
-unsigned __int8 buffer[POOLSIZE];
+unsigned __int8 buffer[RNG_POOL_SIZE];
 
 BOOL bRandDidInit = FALSE;
 
@@ -73,7 +68,7 @@ Randinit ()
 {
 	HANDLE threadID;
 
-	if(bRandDidInit == TRUE) return 0;
+	if(bRandDidInit) return 0;
 
 	InitializeCriticalSection (&critRandProt);
 
@@ -172,34 +167,90 @@ Randfree ()
 	bRandDidInit = FALSE;
 }
 
-void RandSetHashFunction (int hash)
+void RandSetHashFunction (int hash_algo_id)
 {
-	hashFunction = hash;
+	hashFunction = hash_algo_id;
 }
 
-/* Mix random pool with the hash function */
+int RandGetHashFunction (void)
+{
+	return hashFunction;
+}
+
+/* The random pool mixing function */
 void
 Randmix ()
 {
-	int i;
-
-	for (i = 0; i < POOLSIZE; i += SHA_DIGESTSIZE)
+	if (bRandmixEnabled)
 	{
-		unsigned char inputBuffer[SHA_BLOCKSIZE];
-		int j;
+		unsigned char hashOutputBuffer [MAX_DIGESTSIZE];
+		WHIRLPOOL_CTX	wctx;
+		RMD160_CTX		rctx;
+		sha1_ctx		sctx;
+		int poolIndex, digestIndex, digestSize;
 
-		/* Copy SHA_BLOCKSIZE bytes from the circular buffer into the
-		   hash data buffer, hash the data, and copy the result back
-		   into the random pool */
-		for (j = 0; j < SHA_BLOCKSIZE; j++)
-			inputBuffer[j] = pRandPool[(i + j) % POOLSIZE];
+		switch (hashFunction)
+		{
+		case SHA1:
+			digestSize = SHA1_DIGESTSIZE;
+			break;
 
-		if (hashFunction == SHA1)
-			SHA1TRANSFORM ((unsigned long *) (pRandPool + i), inputBuffer);
-		else
-			RMD160Transform ((unsigned long *) (pRandPool + i), inputBuffer);
+		case RIPEMD160:
+			digestSize = RIPEMD160_DIGESTSIZE;
+			break;
 
-		memset (inputBuffer, 0, SHA_BLOCKSIZE);
+		case WHIRLPOOL:
+			digestSize = WHIRLPOOL_DIGESTSIZE;
+			break;
+		}
+
+		for (poolIndex = 0; poolIndex < RNG_POOL_SIZE; poolIndex += digestSize)		
+		{
+			/* Compute the message digest of the entire pool using the selected hash function. */
+			switch (hashFunction)
+			{
+			case SHA1:
+				sha1_begin (&sctx);
+				sha1_hash (pRandPool, RNG_POOL_SIZE, &sctx);
+				sha1_end (hashOutputBuffer, &sctx);
+				break;
+
+			case RIPEMD160:
+				RMD160Init(&rctx);
+				RMD160Update(&rctx, pRandPool, RNG_POOL_SIZE);
+				RMD160Final(hashOutputBuffer, &rctx);
+				break;
+
+			case WHIRLPOOL:
+				WHIRLPOOL_init (&wctx);
+				WHIRLPOOL_add (pRandPool, RNG_POOL_SIZE * 8, &wctx);
+				WHIRLPOOL_finalize (&wctx, hashOutputBuffer);
+				break;
+			}
+
+			/* XOR the resultant message digest to the pool at the poolIndex position. */
+			for (digestIndex = 0; digestIndex < digestSize; digestIndex++)
+			{
+				pRandPool [poolIndex + digestIndex] ^= hashOutputBuffer [digestIndex];
+			}
+		}
+
+		/* Prevent leaks */
+		memset (hashOutputBuffer, 0, MAX_DIGESTSIZE);	
+		switch (hashFunction)
+		{
+		case SHA1:
+			memset (&sctx, 0, sizeof(sctx));		
+			break;
+
+		case RIPEMD160:
+			memset (&rctx, 0, sizeof(rctx));		
+			break;
+
+		case WHIRLPOOL:
+			memset (&wctx, 0, sizeof(wctx));		
+			break;
+		}
 	}
 }
 
@@ -217,12 +268,15 @@ RandaddBuf (void *buf, int len)
 void
 RandpeekBytes (unsigned char *buf, int len)
 {
+	if (len > RNG_POOL_SIZE)
+		len = RNG_POOL_SIZE;
+
 	EnterCriticalSection (&critRandProt);
 	memcpy (buf, pRandPool, len);
 	LeaveCriticalSection (&critRandProt);
 }
 
-/* Get a certain amount of true random bytes from the pool */
+/* Get len random bytes from the pool (max. RNG_POOL_SIZE bytes per a single call) */
 void
 RandgetBytes (unsigned char *buf, int len, BOOL forceSlowPoll)
 {
@@ -238,44 +292,48 @@ RandgetBytes (unsigned char *buf, int len, BOOL forceSlowPoll)
 
 	FastPoll ();
 
-	/* There's never more than POOLSIZE worth of randomess */
-	if (len > POOLSIZE)
-		len = POOLSIZE;
+	/* There's never more than RNG_POOL_SIZE worth of randomess */
+	if (len > RNG_POOL_SIZE)
+	{
+		Error ("ERR_NOT_ENOUGH_RANDOM_DATA");	
+		len = RNG_POOL_SIZE;
+	}
 
 	// Requested number of bytes is copied from pool to output buffer,
 	// pool is rehashed, and output buffer is XORed with new data from pool
 	for (i = 0; i < len; i++)
 	{
 		buf[i] = pRandPool[randPoolReadIndex++];
-		if (randPoolReadIndex == POOLSIZE) randPoolReadIndex = 0;
+		if (randPoolReadIndex == RNG_POOL_SIZE) randPoolReadIndex = 0;
 	}
 
-	/* Now invert the pool */
-	for (i = 0; i < POOLSIZE / 4; i++)
+	/* Invert the pool */
+	for (i = 0; i < RNG_POOL_SIZE / 4; i++)
 	{
-		((unsigned long *) pRandPool)[i] = ~((unsigned long *) pRandPool)[i];
+		((unsigned __int32 *) pRandPool)[i] = ~((unsigned __int32 *) pRandPool)[i];
 	}
 
-	/* Now remix the pool, creating the new pool */
+	// Mix the pool
 	FastPoll ();
 
+	// XOR the current pool content into the output buffer to prevent pool state leaks
 	for (i = 0; i < len; i++)
 	{
 		buf[i] ^= pRandPool[randPoolReadIndex++];
-		if (randPoolReadIndex == POOLSIZE) randPoolReadIndex = 0;
+		if (randPoolReadIndex == RNG_POOL_SIZE) randPoolReadIndex = 0;
 	}
 
 	LeaveCriticalSection (&critRandProt);
 }
 
 /* Capture the mouse, and as long as the event is not the same as the last
-   two events :- add a crc of the event, and a crc of the time difference
+   two events, add the crc of the event, and the crc of the time difference
    between this event and the last + the current time to the pool */
 LRESULT CALLBACK
 MouseProc (int nCode, WPARAM wParam, LPARAM lParam)
 {
 	static DWORD dwLastTimer;
-	static unsigned long lastCrc, lastCrc2;
+	static unsigned __int32 lastCrc, lastCrc2;
 	MOUSEHOOKSTRUCT *lpMouse = (MOUSEHOOKSTRUCT *) lParam;
 
 	if (nCode < 0)
@@ -284,7 +342,7 @@ MouseProc (int nCode, WPARAM wParam, LPARAM lParam)
 	{
 		DWORD dwTimer = GetTickCount ();
 		DWORD j = dwLastTimer - dwTimer;
-		unsigned long crc = 0L;
+		unsigned __int32 crc = 0L;
 		int i;
 
 		dwLastTimer = dwTimer;
@@ -296,7 +354,7 @@ MouseProc (int nCode, WPARAM wParam, LPARAM lParam)
 
 		if (crc != lastCrc && crc != lastCrc2)
 		{
-			unsigned long timeCrc = 0L;
+			unsigned __int32 timeCrc = 0L;
 
 			for (i = 0; i < 4; i++)
 			{
@@ -309,8 +367,7 @@ MouseProc (int nCode, WPARAM wParam, LPARAM lParam)
 			}
 
 			EnterCriticalSection (&critRandProt);
-			RandaddLong (timeCrc);
-			RandaddLong (crc);
+			RandaddInt32 ((unsigned __int32) (crc + timeCrc));
 			LeaveCriticalSection (&critRandProt);
 		}
 		lastCrc2 = lastCrc;
@@ -321,7 +378,7 @@ MouseProc (int nCode, WPARAM wParam, LPARAM lParam)
 }
 
 /* Capture the keyboard, as long as the event is not the same as the last two
-   events :- add a crc of the event to the pool along with a crc of the time
+   events, add the crc of the event to the pool along with the crc of the time
    difference between this event and the last */
 LRESULT CALLBACK
 KeyboardProc (int nCode, WPARAM wParam, LPARAM lParam)
@@ -346,7 +403,7 @@ KeyboardProc (int nCode, WPARAM wParam, LPARAM lParam)
 	{
 		DWORD dwTimer = GetTickCount ();
 		DWORD j = dwLastTimer - dwTimer;
-		unsigned long timeCrc = 0L;
+		unsigned __int32 timeCrc = 0L;
 		int i;
 
 		dwLastTimer = dwTimer;
@@ -364,8 +421,7 @@ KeyboardProc (int nCode, WPARAM wParam, LPARAM lParam)
 		}
 
 		EnterCriticalSection (&critRandProt);
-		RandaddLong (lParam);
-		RandaddLong (timeCrc);
+		RandaddInt32 ((unsigned __int32) (crc32int(&lParam) + timeCrc));
 		LeaveCriticalSection (&critRandProt);
 	}
 	return 0;
@@ -381,20 +437,20 @@ ThreadSafeThreadFunction (void *dummy)
 	{
 		EnterCriticalSection (&critRandProt);
 
-		if (bThreadTerminate == TRUE)
+		if (bThreadTerminate)
 		{
 			bThreadTerminate = FALSE;
 			LeaveCriticalSection (&critRandProt);
 			_endthread ();
 		}
-		else
+		else if (bFastPollEnabled)
 		{
 			FastPoll ();
 		}
 
 		LeaveCriticalSection (&critRandProt);
 
-		Sleep (250);
+		Sleep (500);
 	}
 }
 
@@ -526,157 +582,17 @@ SlowPollWinNT (void)
 	}
 
 	// CryptoAPI
-	for (i = 0; i < 100; i++)
+	for (i = 0; i < 25; i++)
 	{
 		if (hCryptProv && CryptGenRandom(hCryptProv, sizeof (buffer), buffer)) 
 			RandaddBuf (buffer, sizeof (buffer));
 	}
+
+	Randmix();
 }
 
 
-/* Win9x typedefs and variables for toolhelp32 use */
-typedef BOOL (WINAPI * MODULEWALK) (HANDLE hSnapshot, LPMODULEENTRY32 lpme);
-typedef BOOL (WINAPI * THREADWALK) (HANDLE hSnapshot, LPTHREADENTRY32 lpte);
-typedef BOOL (WINAPI * PROCESSWALK) (HANDLE hSnapshot, LPPROCESSENTRY32 lppe);
-typedef BOOL (WINAPI * HEAPLISTWALK) (HANDLE hSnapshot, LPHEAPLIST32 lphl);
-typedef BOOL (WINAPI * HEAPFIRST) (LPHEAPENTRY32 lphe, DWORD th32ProcessID, DWORD th32HeapID);
-typedef BOOL (WINAPI * HEAPNEXT) (LPHEAPENTRY32 lphe);
-typedef HANDLE (WINAPI * CREATESNAPSHOT) (DWORD dwFlags, DWORD th32ProcessID);
-CREATESNAPSHOT pCreateToolhelp32Snapshot = NULL;
-MODULEWALK pModule32First = NULL;
-MODULEWALK pModule32Next = NULL;
-PROCESSWALK pProcess32First = NULL;
-PROCESSWALK pProcess32Next = NULL;
-THREADWALK pThread32First = NULL;
-THREADWALK pThread32Next = NULL;
-HEAPLISTWALK pHeap32ListFirst = NULL;
-HEAPLISTWALK pHeap32ListNext = NULL;
-HEAPFIRST pHeap32First = NULL;
-HEAPNEXT pHeap32Next = NULL;
-
-void
-SlowPollWin9x (void)
-{
-	PROCESSENTRY32 pe32;
-	THREADENTRY32 te32;
-	MODULEENTRY32 me32;
-	HEAPLIST32 hl32;
-	HANDLE hSnapshot;
-
-	/* Initialize the Toolhelp32 function pointers if necessary */
-	if (pCreateToolhelp32Snapshot == NULL)
-	{
-		HANDLE hKernel = NULL;
-
-		/* Obtain the module handle of the kernel to retrieve the
-		   addresses of the Toolhelp32 functions */
-		if ((hKernel = GetModuleHandle ("KERNEL32.DLL")) == NULL)
-			return;
-
-		/* Now get pointers to the functions */
-		pCreateToolhelp32Snapshot = (CREATESNAPSHOT) GetProcAddress (hKernel,
-						"CreateToolhelp32Snapshot");
-		pModule32First = (MODULEWALK) GetProcAddress (hKernel,
-							   "Module32First");
-		pModule32Next = (MODULEWALK) GetProcAddress (hKernel,
-							     "Module32Next");
-		pProcess32First = (PROCESSWALK) GetProcAddress (hKernel,
-							  "Process32First");
-		pProcess32Next = (PROCESSWALK) GetProcAddress (hKernel,
-							   "Process32Next");
-		pThread32First = (THREADWALK) GetProcAddress (hKernel,
-							   "Thread32First");
-		pThread32Next = (THREADWALK) GetProcAddress (hKernel,
-							     "Thread32Next");
-		pHeap32ListFirst = (HEAPLISTWALK) GetProcAddress (hKernel,
-							 "Heap32ListFirst");
-		pHeap32ListNext = (HEAPLISTWALK) GetProcAddress (hKernel,
-							  "Heap32ListNext");
-		pHeap32First = (HEAPFIRST) GetProcAddress (hKernel,
-							   "Heap32First");
-		pHeap32Next = (HEAPNEXT) GetProcAddress (hKernel,
-							 "Heap32Next");
-
-		/* Make sure we got valid pointers for every Toolhelp32
-		   function */
-		if (pModule32First == NULL || pModule32Next == NULL || \
-		    pProcess32First == NULL || pProcess32Next == NULL || \
-		    pThread32First == NULL || pThread32Next == NULL || \
-		    pHeap32ListFirst == NULL || pHeap32ListNext == NULL || \
-		    pHeap32First == NULL || pHeap32Next == NULL || \
-		    pCreateToolhelp32Snapshot == NULL)
-		{
-			/* Mark the main function as unavailable in case for
-			   future reference */
-			pCreateToolhelp32Snapshot = NULL;
-			return;
-		}
-	}
-
-	/* Take a snapshot of everything we can get to which is currently in
-	   the system */
-	hSnapshot = pCreateToolhelp32Snapshot (TH32CS_SNAPALL, 0);
-	if (!hSnapshot)
-		return;
-
-	/* Walk through the local heap */
-	hl32.dwSize = sizeof (HEAPLIST32);
-	if (pHeap32ListFirst (hSnapshot, &hl32))
-		do
-		{
-			HEAPENTRY32 he32;
-
-			/* First add the information from the basic
-			   Heaplist32 structure */
-			RandaddBuf ((BYTE *) & hl32, sizeof (HEAPLIST32));
-
-			/* Now walk through the heap blocks getting
-			   information on each of them */
-			he32.dwSize = sizeof (HEAPENTRY32);
-			if (pHeap32First (&he32, hl32.th32ProcessID, hl32.th32HeapID))
-				do
-				{
-					RandaddBuf ((BYTE *) & he32, sizeof (HEAPENTRY32));
-				}
-				while (pHeap32Next (&he32));
-		}
-		while (pHeap32ListNext (hSnapshot, &hl32));
-
-	/* Walk through all processes */
-	pe32.dwSize = sizeof (PROCESSENTRY32);
-	if (pProcess32First (hSnapshot, &pe32))
-		do
-		{
-			RandaddBuf ((BYTE *) & pe32, sizeof (PROCESSENTRY32));
-		}
-		while (pProcess32Next (hSnapshot, &pe32));
-
-	/* Walk through all threads */
-	te32.dwSize = sizeof (THREADENTRY32);
-	if (pThread32First (hSnapshot, &te32))
-		do
-		{
-			RandaddBuf ((BYTE *) & te32, sizeof (THREADENTRY32));
-		}
-		while (pThread32Next (hSnapshot, &te32));
-
-	/* Walk through all modules associated with the process */
-	me32.dwSize = sizeof (MODULEENTRY32);
-	if (pModule32First (hSnapshot, &me32))
-		do
-		{
-			RandaddBuf ((BYTE *) & me32, sizeof (MODULEENTRY32));
-		}
-		while (pModule32Next (hSnapshot, &me32));
-
-	/* Clean up the snapshot */
-	CloseHandle (hSnapshot);
-}
-
-
-
-/* This is the fastpoll function which gathers up info by calling various
-   api's */
+/* This is the fastpoll function which gathers up info by calling various api's */
 void
 FastPoll (void)
 {
@@ -687,33 +603,34 @@ FastPoll (void)
 	MEMORYSTATUS memoryStatus;
 	HANDLE handle;
 	POINT point;
+	int nOriginalRandIndex = nRandIndex;
 
 	/* Get various basic pieces of system information */
-	RandaddLong (GetActiveWindow ());	/* Handle of active window */
-	RandaddLong (GetCapture ());	/* Handle of window with mouse
+	RandaddInt32 (GetActiveWindow ());	/* Handle of active window */
+	RandaddInt32 (GetCapture ());	/* Handle of window with mouse
 					   capture */
-	RandaddLong (GetClipboardOwner ());	/* Handle of clipboard owner */
-	RandaddLong (GetClipboardViewer ());	/* Handle of start of
+	RandaddInt32 (GetClipboardOwner ());	/* Handle of clipboard owner */
+	RandaddInt32 (GetClipboardViewer ());	/* Handle of start of
 						   clpbd.viewer list */
-	RandaddLong (GetCurrentProcess ());	/* Pseudohandle of current
+	RandaddInt32 (GetCurrentProcess ());	/* Pseudohandle of current
 						   process */
-	RandaddLong (GetCurrentProcessId ());	/* Current process ID */
-	RandaddLong (GetCurrentThread ());	/* Pseudohandle of current
+	RandaddInt32 (GetCurrentProcessId ());	/* Current process ID */
+	RandaddInt32 (GetCurrentThread ());	/* Pseudohandle of current
 						   thread */
-	RandaddLong (GetCurrentThreadId ());	/* Current thread ID */
-	RandaddLong (GetCurrentTime ());	/* Milliseconds since Windows
+	RandaddInt32 (GetCurrentThreadId ());	/* Current thread ID */
+	RandaddInt32 (GetCurrentTime ());	/* Milliseconds since Windows
 						   started */
-	RandaddLong (GetDesktopWindow ());	/* Handle of desktop window */
-	RandaddLong (GetFocus ());	/* Handle of window with kb.focus */
-	RandaddLong (GetInputState ());	/* Whether sys.queue has any events */
-	RandaddLong (GetMessagePos ());	/* Cursor pos.for last message */
-	RandaddLong (GetMessageTime ());	/* 1 ms time for last message */
-	RandaddLong (GetOpenClipboardWindow ());	/* Handle of window with
+	RandaddInt32 (GetDesktopWindow ());	/* Handle of desktop window */
+	RandaddInt32 (GetFocus ());	/* Handle of window with kb.focus */
+	RandaddInt32 (GetInputState ());	/* Whether sys.queue has any events */
+	RandaddInt32 (GetMessagePos ());	/* Cursor pos.for last message */
+	RandaddInt32 (GetMessageTime ());	/* 1 ms time for last message */
+	RandaddInt32 (GetOpenClipboardWindow ());	/* Handle of window with
 							   clpbd.open */
-	RandaddLong (GetProcessHeap ());	/* Handle of process heap */
-	RandaddLong (GetProcessWindowStation ());	/* Handle of procs
+	RandaddInt32 (GetProcessHeap ());	/* Handle of process heap */
+	RandaddInt32 (GetProcessWindowStation ());	/* Handle of procs
 							   window station */
-	RandaddLong (GetQueueStatus (QS_ALLEVENTS));	/* Types of events in
+	RandaddInt32 (GetQueueStatus (QS_ALLEVENTS));	/* Types of events in
 							   input queue */
 
 	/* Get multiword system information */
@@ -748,8 +665,8 @@ FastPoll (void)
 	   process */
 	GetProcessWorkingSetSize (handle, &minimumWorkingSetSize,
 				  &maximumWorkingSetSize);
-	RandaddLong (minimumWorkingSetSize);
-	RandaddLong (maximumWorkingSetSize);
+	RandaddInt32 (minimumWorkingSetSize);
+	RandaddInt32 (maximumWorkingSetSize);
 
 	/* The following are fixed for the lifetime of the process so we only
 	   add them once */
@@ -780,4 +697,15 @@ FastPoll (void)
 	// CryptoAPI
 	if (hCryptProv && CryptGenRandom(hCryptProv, sizeof (buffer), buffer)) 
 		RandaddBuf (buffer, sizeof (buffer));
+
+	/* Apply the pool mixing function */
+	Randmix();
+
+	/* Restore the original pool cursor position. If this wasn't done, mouse coordinates
+	   could be written to a limited area of the pool, especially when moving the mouse
+	   uninterruptedly. The severity of the problem would depend on the length of data
+	   written by FastPoll (if it was equal to the size of the pool, mouse coordinates
+	   would be written only to a particular 4-byte area, whenever moving the mouse
+	   uninterruptedly). */
+	nRandIndex = nOriginalRandIndex;
 }

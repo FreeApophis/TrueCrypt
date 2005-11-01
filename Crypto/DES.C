@@ -1,3 +1,3 @@
-#include "des.h"
-#include "spr.h"
+#include "Des.h"
+#include "Spr.h"
 

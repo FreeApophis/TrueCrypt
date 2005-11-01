@@ -1,63 +1,54 @@
-/* The source code contained in this file has been derived from the source code
-   of Encryption for the Masses 2.02a by Paul Le Roux. Modifications and
-   additions to that source code contained in this file are Copyright (c) 2004-2005
-   TrueCrypt Foundation and Copyright (c) 2004 TrueCrypt Team. Unmodified
-   parts are Copyright (c) 1998-99 Paul Le Roux. This is a TrueCrypt Foundation
-   release. Please see the file license.txt for full license details. */
+/* Legal Notice: The source code contained in this file has been derived from
+   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
+   Encryption for the Masses'. Modifications and additions to that source code
+   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   the full text of which is contained in the file License.txt included in
+   TrueCrypt binary and source code distribution archives.  */
 
-#include "tcdefs.h"
+#include "Tcdefs.h"
 
 #ifndef NT4_DRIVER
 #pragma VxD_LOCKED_CODE_SEG
 #pragma VxD_LOCKED_DATA_SEG
 #endif
 
-#include "crypto.h"
-#include "fat.h"
-#include "volumes.h"
-#include "apidrvr.h"
+#include "Crypto.h"
+#include "Fat.h"
+#include "Volumes.h"
+#include "Apidrvr.h"
+#include "Common.h"
+#include "Cache.h"
 
-#include "cache.h"
-
-#define CACHE_SIZE 4
-
-char szDriverPassword[CACHE_SIZE][MAX_PASSWORD + 1];
-int nDriverPasswordLen[CACHE_SIZE];
-int nPasswordIdx = 0;
+Password CachedPasswords[CACHE_SIZE];
 int cacheEmpty = 1;
+static int nPasswordIdx = 0;
 
 int
-VolumeReadHeaderCache (BOOL bCache, char *header, char *headerHiddenVol, char *lpszPassword, int nPasswordLen,
-		       PCRYPTO_INFO * retInfo)
+VolumeReadHeaderCache (BOOL bCache, char *header, Password *password, PCRYPTO_INFO *retInfo)
 {
 	int nReturnCode = ERR_PASSWORD_WRONG;
 	int i;
 
 	/* Attempt to recognize volume using mount password */
-	if (nPasswordLen > 0)
+	if (password->Length > 0)
 	{
-		nReturnCode = VolumeReadHeader (header, headerHiddenVol, lpszPassword, retInfo);
+		nReturnCode = VolumeReadHeader (header, password, retInfo);
 
 		/* Save mount passwords back into cache if asked to do so */
-		if (bCache == TRUE && nReturnCode == 0)
+		if (bCache && (nReturnCode == 0 || nReturnCode == ERR_CIPHER_INIT_WEAK_KEY))
 		{
 			for (i = 0; i < CACHE_SIZE; i++)
 			{
-				if (nDriverPasswordLen[i] > 0 && nDriverPasswordLen[i] == nPasswordLen &&
-					memcmp (szDriverPassword[i], lpszPassword, nPasswordLen) == 0)
+				if (memcmp (&CachedPasswords[i], password, sizeof (Password)) == 0)
 					break;
 			}
 
 			if (i == CACHE_SIZE)
 			{
 				/* Store the password */
-				memcpy (szDriverPassword[nPasswordIdx], lpszPassword, nPasswordLen);
-
-				/* Add in the null as we made room for this */
-				szDriverPassword[nPasswordIdx][nPasswordLen] = 0;
-
-				/* Save the length for later */
-				nDriverPasswordLen[nPasswordIdx] = nPasswordLen;
+				CachedPasswords[nPasswordIdx] = *password;
 
 				/* Try another slot */
 				nPasswordIdx = (nPasswordIdx + 1) % CACHE_SIZE;
@@ -71,14 +62,13 @@ VolumeReadHeaderCache (BOOL bCache, char *header, char *headerHiddenVol, char *l
 		/* Attempt to recognize volume using cached passwords */
 		for (i = 0; i < CACHE_SIZE; i++)
 		{
-			if (nDriverPasswordLen[i] > 0)
+			if (CachedPasswords[i].Length > 0)
 			{
-				nReturnCode = VolumeReadHeader (header, headerHiddenVol, szDriverPassword[i], retInfo);
+				nReturnCode = VolumeReadHeader (header, &CachedPasswords[i], retInfo);
 
 				if (nReturnCode != ERR_PASSWORD_WRONG)
 					break;
 			}
-
 		}
 	}
 
@@ -88,8 +78,7 @@ VolumeReadHeaderCache (BOOL bCache, char *header, char *headerHiddenVol, char *l
 void
 WipeCache ()
 {
-	burn (szDriverPassword, sizeof (szDriverPassword));
-	burn (nDriverPasswordLen, sizeof (nDriverPasswordLen));
+	burn (CachedPasswords, sizeof (CachedPasswords));
 	nPasswordIdx = 0;
 	cacheEmpty = 1;
 }
