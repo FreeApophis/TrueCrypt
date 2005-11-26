@@ -270,10 +270,10 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 	   to recover the overwritten header. According to Peter Gutmann, data should be overwritten 22
 	   times (ideally, 35 times). As users might impatiently interupt the process (e.g. on slow media)
 	   we will not wipe with just random data. Instead, during each pass we will write a valid working
-	   header. Each pass will use the same master key, and also the same header key, IV, etc. derived
-	   from the new password. The only item that will be different for each pass will be the salt.
-	   This is sufficient to cause each "version" of the header to differ substantially and in a
-	   random manner from the versions written during the other passes. */
+	   header. Each pass will use the same master key, and also the same header key, secondary key (LRW),
+	   etc. derived from the new password. The only item that will be different for each pass will be
+	   the salt. This is sufficient to cause each "version" of the header to differ substantially and
+	   in a random manner from the versions written during the other passes. */
 	for (wipePass = 0; wipePass < DISK_WIPE_PASSES; wipePass++)
 	{
 		// Seek the volume header
@@ -299,6 +299,7 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 		// Prepare new volume header
 		nStatus = VolumeWriteHeader (buffer,
 			cryptoInfo->ea,
+			cryptoInfo->mode,
 			newPassword,
 			cryptoInfo->pkcs5,
 			cryptoInfo->master_key,

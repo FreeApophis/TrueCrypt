@@ -12,6 +12,7 @@
 #include "Tcdefs.h"
 #include "Crc.h"
 #include "Crypto.h"
+#include "Endian.h"
 #include "Tests.h"
 
 #ifdef LINUX_DRIVER
@@ -1216,78 +1217,232 @@ BOOL Des56TestLoop(void *test_vectors, int nVectorCount, int enc)
 	return TRUE;
 }
 
-static unsigned char test_ks[MAX_EXPANDED_KEY];
 
-BOOL TestSectorBufEncryption ()
+typedef struct {
+	unsigned __int8 key1[32];
+	unsigned __int8 key2[16];
+	unsigned __int8 index[16];
+	unsigned __int8 plaintext[16];
+	unsigned __int8 ciphertext[16];
+} LRW_TEST;
+
+#define LRW_TEST_COUNT 2
+
+LRW_TEST lrw_vectors[LRW_TEST_COUNT] = {
+	{
+		{ 0xf8, 0xd4, 0x76, 0xff, 0xd6, 0x46, 0xee, 0x6c, 0x23, 0x84, 0xcb, 0x1c, 0x77, 0xd6, 0x19, 0x5d,
+		  0xfe, 0xf1, 0xa9, 0xf3, 0x7b, 0xbc, 0x8d, 0x21, 0xa7, 0x9c, 0x21, 0xf8, 0xcb, 0x90, 0x02, 0x89 },
+		{ 0xa8, 0x45, 0x34, 0x8e, 0xc8, 0xc5, 0xb5, 0xf1, 0x26, 0xf5, 0x0e, 0x76, 0xfe, 0xfd, 0x1b, 0x1e },
+		{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 },
+		{ 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46 },
+		{ 0xbd, 0x06, 0xb8, 0xe1, 0xdb, 0x98, 0x89, 0x9e, 0xc4, 0x98, 0xe4, 0x91, 0xcf, 0x1c, 0x70, 0x2b }
+	},
+	{
+		{ 0xfb, 0x76, 0x15, 0xb2, 0x3d, 0x80, 0x89, 0x1d, 0xd4, 0x70, 0x98, 0x0b, 0xc7, 0x95, 0x84, 0xc8,
+		  0xb2, 0xfb, 0x64, 0xce, 0x60, 0x97, 0x87, 0x8d, 0x17, 0xfc, 0xe4, 0x5a, 0x49, 0xe8, 0x30, 0xb7 },
+		{ 0x6e, 0x78, 0x17, 0xe7, 0x2d, 0x5e, 0x12, 0xd4, 0x60, 0x64, 0x04, 0x7a, 0xf1, 0x2f, 0x9e, 0x0c },
+		{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00 },
+		{ 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46 },
+		{ 0x5b, 0x90, 0x8e, 0xc1, 0xab, 0xdd, 0x67, 0x5f, 0x3d, 0x69, 0x8a, 0x95, 0x53, 0xc8, 0x9c, 0xe5 }
+	}
+};
+
+
+BOOL LRWAesTest (PCRYPTO_INFO ci)
 {
-	unsigned char buf[SECTOR_SIZE], iv[DISK_IV_SIZE];
-	unsigned int i, ea;
+	unsigned __int8 p[16];
+	int i;
+
+	for (i = 0; i < LRW_TEST_COUNT; i++)
+	{
+		ci->ea = EAGetByName ("AES");
+		if (ci->ea == 0)
+			return TRUE;
+
+		ci->mode = LRW;
+
+		if (EAInit (ci->ea, lrw_vectors[i].key1, ci->ks) != 0)
+			return FALSE;
+
+		memcpy (&ci->iv, lrw_vectors[i].key2, sizeof (lrw_vectors[i].key2));
+		if (!EAInitMode (ci))
+			return FALSE;
+
+		memcpy (p, lrw_vectors[i].plaintext, sizeof (p));
+
+		EncryptBufferLRW128 (p, sizeof (p), BE64(((unsigned __int64 *)(lrw_vectors[i].index))[1]), ci);
+
+		if (memcmp (lrw_vectors[i].ciphertext, p, sizeof (p)) != 0)
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+
+BOOL TestSectorBufEncryption (PCRYPTO_INFO ci)
+{
+	unsigned char buf[SECTOR_SIZE * 2];
+	unsigned int i;
 	char name[64];
 	unsigned __int32 crc;
-	unsigned char *ks = test_ks;
-	unsigned __int64 secNo = 0x12345678;
-	secNo = (secNo << 32) | 0x90ABCDEF;
+	unsigned __int64 secNo = 0x0234567890ABCDEFull;
+	int blockSize;
+	BOOL lrw64InitDone = FALSE;
+	BOOL lrw128InitDone = FALSE;
 
 	for (i = 0; i < sizeof (buf); i++)
 		buf[i] = (unsigned char) i;
 
-	for (i = 0; i < sizeof (iv); i++)
-		iv[i] = (unsigned char) i;
+	for (i = 0; i < sizeof (ci->iv); i++)
+		ci->iv[i] = (unsigned char) i;
 
 	// Test all EAs
-	for (ea = EAGetFirst (); ea != 0; ea = EAGetNext (ea))
+	for (ci->ea = EAGetFirst (); ci->ea != 0; ci->ea = EAGetNext (ci->ea))
 	{
-		EAGetName (name, ea);
+		EAGetName (name, ci->ea);
+		blockSize = CipherGetBlockSize (EAGetFirstCipher (ci->ea));
 
-		// Copy header for decryption and init an encryption algorithm
-		if (EAInit (ea, (unsigned char *)buf, ks) == ERR_CIPHER_INIT_FAILURE)
-			return FALSE;
-
-		EncryptSectors ((unsigned __int32 *)buf, secNo, 1, ks, iv, ea);
-		crc = crc32 (buf, sizeof (buf));
-
-		if (strcmp (name, "AES") == 0 && crc != 0x51d3645b)
-			return FALSE;
-		if (strcmp (name, "Blowfish") == 0 && crc != 0x129edcd8)
-			return FALSE;
-		if (strcmp (name, "CAST5") == 0 && crc != 0x0d88aa74)
-			return FALSE;
-		if (strcmp (name, "Serpent") == 0 && crc != 0xfa02f4a3)
-			return FALSE;
-		if (strcmp (name, "Triple DES") == 0 && crc != 0xeede9b5b)
-			return FALSE;
-		if (strcmp (name, "AES-Blowfish") == 0 && crc != 0xd0af336e)
-			return FALSE;
-		if (strcmp (name, "Serpent-Twofish-AES") == 0 && crc != 0x8f3b1b8a)
+		if (EAInit (ci->ea, (unsigned char *)buf, ci->ks) == ERR_CIPHER_INIT_FAILURE)
 			return FALSE;
 
-		if (crc == 0x1c613576)
-			return FALSE;
+		// Test all available modes of operation
+		for (ci->mode = EAGetFirstMode (ci->ea);
+			ci->mode != 0;
+			ci->mode = EAGetNextMode (ci->ea, ci->mode))
+		{
+			if (ci->mode == LRW
+				&& (blockSize == 8 && !lrw64InitDone || blockSize == 16 && !lrw128InitDone ))
+			{
+				if (!EAInitMode (ci))
+					return FALSE;
 
-		DecryptSectors ((unsigned __int32 *)buf, secNo, 1, ks, iv, ea);
-		
-		if (crc32 (buf, sizeof (buf)) != 0x1c613576)
-			return FALSE;
+				if (blockSize == 8)
+					lrw64InitDone = TRUE;
+				else if (blockSize == 16)
+					lrw128InitDone = TRUE;
+			}
 
-		EncryptBuffer ((unsigned __int32 *)buf, sizeof (buf), ks, iv, iv, ea);
-		crc = crc32 (buf, sizeof (buf));
+			EncryptSectors ((unsigned __int32 *)buf, secNo, sizeof (buf) / SECTOR_SIZE, ci);
+			crc = crc32 (buf, sizeof (buf));
 
-		if (strcmp (name, "AES") == 0 && crc != 0xdea34fa9)
-			return FALSE;
-		if (strcmp (name, "Blowfish") == 0 && crc != 0xdd2c10ef)
-			return FALSE;
-		if (strcmp (name, "AES-Blowfish") == 0 && crc != 0xd50b63d1)
-			return FALSE;
-		if (strcmp (name, "Serpent-Twofish-AES") == 0 && crc != 0xb10f4616)
-			return FALSE;
+			switch (ci->mode)
+			{
+			case LRW:
+				if (strcmp (name, "AES") == 0 &&					crc != 0x5237acf9)
+					return FALSE;
+				if (strcmp (name, "Blowfish") == 0 &&				crc != 0xf94d5300)
+					return FALSE;
+				if (strcmp (name, "CAST5") == 0 &&					crc != 0x33971e82)
+					return FALSE;
+				if (strcmp (name, "Serpent") == 0 &&				crc != 0x7fb86805)
+					return FALSE;
+				if (strcmp (name, "Triple DES") == 0 &&				crc != 0x2b20bb84)
+					return FALSE;
+				if (strcmp (name, "Twofish") == 0 &&				crc != 0xa9de0f0b)
+					return FALSE;
+				if (strcmp (name, "AES-Twofish") == 0 &&			crc != 0x4ed0fd80)
+					return FALSE;
+				if (strcmp (name, "AES-Twofish-Serpent") == 0 &&	crc != 0xea04b3cf)
+					return FALSE;
+				if (strcmp (name, "Serpent-AES") == 0 &&			crc != 0x0d33596a)
+					return FALSE;
+				if (strcmp (name, "Serpent-Twofish-AES") == 0 &&	crc != 0x2845d0e3)
+					return FALSE;
+				if (strcmp (name, "Twofish-Serpent") == 0 &&		crc != 0xca65c5cd)
+					return FALSE;
+				break;
 
-		if (crc == 0x1c613576)
-			return FALSE;
+			case CBC:
+			case INNER_CBC:
+			case OUTER_CBC:
+				if (strcmp (name, "AES") == 0 &&					crc != 0x2274f53d)
+					return FALSE;
+				if (strcmp (name, "Blowfish") == 0 &&				crc != 0x033899a1)
+					return FALSE;
+				if (strcmp (name, "CAST5") == 0 &&					crc != 0x331cecc7)
+					return FALSE;
+				if (strcmp (name, "Serpent") == 0 &&				crc != 0x42dff3d4)
+					return FALSE;
+				if (strcmp (name, "Triple DES") == 0 &&				crc != 0xfe497d0c)
+					return FALSE;
+				if (strcmp (name, "AES-Blowfish") == 0 &&			crc != 0xa7a80c84)
+					return FALSE;
+				if (strcmp (name, "AES-Blowfish-Serpent") == 0 &&	crc != 0xa0584562)
+					return FALSE;
+				if (strcmp (name, "AES-Twofish") == 0 &&			crc != 0x3c226444)
+					return FALSE;
+				if (strcmp (name, "AES-Twofish-Serpent") == 0 &&	crc != 0x5e5e77fd)
+					return FALSE;
+				if (strcmp (name, "Serpent-AES") == 0 &&			crc != 0x57c612d5)
+					return FALSE;
+				if (strcmp (name, "Serpent-Twofish-AES") == 0 &&	crc != 0x081e045a)
+					return FALSE;
+				if (strcmp (name, "Twofish-Serpent") == 0 &&		crc != 0xa7b659f3)
+					return FALSE;
+				break;
+			}
 
-		DecryptBuffer ((unsigned __int32 *)buf, sizeof (buf), ks, iv, iv, ea);
-		
-		if (crc32 (buf, sizeof (buf)) != 0x1c613576)
-			return FALSE;
+			if (crc == 0xb70b4c26)
+				return FALSE;
+
+			DecryptSectors ((unsigned __int32 *)buf, secNo, sizeof (buf) / SECTOR_SIZE, ci);
+
+			if (crc32 (buf, sizeof (buf)) != 0xb70b4c26)
+				return FALSE;
+
+			EncryptBuffer ((unsigned __int32 *)buf, sizeof (buf), ci);
+			crc = crc32 (buf, sizeof (buf));
+
+			switch (ci->mode)
+			{
+			case LRW:
+				if (strcmp (name, "AES") == 0 &&					crc != 0x5ae1e3d8)
+					return FALSE;
+				if (strcmp (name, "Blowfish") == 0 &&				crc != 0x2738426f)
+					return FALSE;
+				if (strcmp (name, "AES-Twofish-Serpent") == 0 &&	crc != 0x14f2948a)
+					return FALSE;
+				break;
+
+			case CBC:
+			case INNER_CBC:
+			case OUTER_CBC:
+				if (strcmp (name, "AES") == 0 &&					crc != 0x960f740e)
+					return FALSE;
+				if (strcmp (name, "Blowfish") == 0 &&				crc != 0x7e1cfabb)
+					return FALSE;
+				if (strcmp (name, "CAST5") == 0 &&					crc != 0xeaae21c8)
+					return FALSE;
+				if (strcmp (name, "Serpent") == 0 &&				crc != 0xa8139d62)
+					return FALSE;
+				if (strcmp (name, "Triple DES") == 0 &&				crc != 0xecf5d7d0)
+					return FALSE;
+				if (strcmp (name, "AES-Blowfish") == 0 &&			crc != 0xb70171b6)
+					return FALSE;
+				if (strcmp (name, "AES-Blowfish-Serpent") == 0 &&	crc != 0x1e749a87)
+					return FALSE;
+				if (strcmp (name, "AES-Twofish") == 0 &&			crc != 0xb4b8bb9b)
+					return FALSE;
+				if (strcmp (name, "AES-Twofish-Serpent") == 0 &&	crc != 0x76b6c1cb)
+					return FALSE;
+				if (strcmp (name, "Serpent-AES") == 0 &&			crc != 0x634f12ed)
+					return FALSE;
+				if (strcmp (name, "Serpent-Twofish-AES") == 0 &&	crc != 0xe54bc1b9)
+					return FALSE;
+				if (strcmp (name, "Twofish-Serpent") == 0 &&		crc != 0x21cdb382)
+					return FALSE;
+				break;
+			}
+
+			if (crc == 0xb70b4c26)
+				return FALSE;
+
+			DecryptBuffer ((unsigned __int32 *)buf, sizeof (buf), ci);
+
+			if (crc32 (buf, sizeof (buf)) != 0xb70b4c26)
+				return FALSE;
+		}
 	}
 	return TRUE;
 }
@@ -1295,10 +1450,17 @@ BOOL TestSectorBufEncryption ()
 
 BOOL AutoTestAlgorithms (void)
 {
+	PCRYPTO_INFO ci;
 	char key[32];
 	unsigned char tmp[16];
 	BOOL bFailed = FALSE;
 	int i;
+
+	ci = crypto_open ();
+	if (!ci)
+		return FALSE;
+
+	memset (ci, 0, sizeof (*ci));
 
 	/* Blowfish */
 
@@ -1466,21 +1628,30 @@ BOOL AutoTestAlgorithms (void)
 
 	
 	/* PKCS #5 and HMACs */
-
 #ifndef LINUX_DRIVER
 	if (!test_pkcs5 ())
 		bFailed = TRUE;
 #endif
 
 	/* CRC-32 */
-
 	if (!crc32_selftests ())
 		bFailed = TRUE;
 
+	/* GF multiplicator */
+#if 0
+	if (!GfMulSelfTest ())
+		bFailed = TRUE;
+#endif
+
+	/* LRW-AES */
+	if (!LRWAesTest (ci))
+		bFailed = TRUE;
+
 	/* Sector and buffer algorithms */
-	if (!TestSectorBufEncryption ())
+	if (!TestSectorBufEncryption (ci))
 		bFailed = TRUE;
 	
+	crypto_close (ci);
 	return !bFailed;
 }
 

@@ -12,7 +12,7 @@ typedef struct _THREAD_BLOCK_
 {
 	PDEVICE_OBJECT DeviceObject;
 	NTSTATUS ntCreateStatus;
-	WCHAR wszMountVolume[TC_MAX_PATH];
+	WCHAR wszMountVolume[TC_MAX_PATH + 8];
 	MOUNT_STRUCT *mount;
 } THREAD_BLOCK, *PTHREAD_BLOCK;
 
@@ -61,12 +61,7 @@ typedef struct EXTENSION
 	BOOL bRawDevice;			/* Is this a raw-partition or raw-floppy device ? */
 	BOOL bMountManager;			/* Mount manager knows about volume */
 
-	WCHAR wszVolume[64];	/* For the tree view in the user-mode
-				   application, here we only store 64
-				   characters rather than TC_MAX_PATH to try
-				   to keep this structures size down - DONT
-				   change this size without also changing
-				   MOUNT_LIST_STRUCT! */
+	WCHAR wszVolume[TC_MAX_PATH];	/*  DONT change this size without also changing MOUNT_LIST_STRUCT! */
 
 	// Container file date/time (used to reset date and time of file-hosted volumes after dismount or unsuccessful mount attempt, to preserve plausible deniability of hidden volumes).
 	LARGE_INTEGER fileCreationTime;

@@ -484,7 +484,7 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 		{
 			ULONG outLength;
 			UNICODE_STRING ntUnicodeString;
-			WCHAR ntName[64];
+			WCHAR ntName[256];
 			PMOUNTDEV_NAME outputBuffer = (PMOUNTDEV_NAME) Irp->AssociatedIrp.SystemBuffer;
 
 			Dump("IOCTL_MOUNTDEV_QUERY_DEVICE_NAME:");
@@ -553,7 +553,7 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 		{
 			ULONG outLength;
 			UNICODE_STRING ntUnicodeString;
-			WCHAR ntName[64];
+			WCHAR ntName[256];
 			PMOUNTDEV_SUGGESTED_LINK_NAME outputBuffer = (PMOUNTDEV_SUGGESTED_LINK_NAME) Irp->AssociatedIrp.SystemBuffer;
 			
 			Dump("IOCTL_MOUNTDEV_QUERY_SUGGESTED_LINK_NAME:");
@@ -868,6 +868,7 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 					wcscpy (prop->wszVolume, ListExtension->wszVolume);
 					prop->diskLength = ListExtension->DiskLength;
 					prop->ea = ListExtension->cryptoInfo->ea;
+					prop->mode = ListExtension->cryptoInfo->mode;
 					prop->pkcs5 = ListExtension->cryptoInfo->pkcs5;
 					prop->pkcs5Iterations = ListExtension->cryptoInfo->noIterations;
 					prop->volumeCreationTime = ListExtension->cryptoInfo->volume_creation_time;
@@ -1145,12 +1146,14 @@ TCThreadIRP (PVOID Context)
 	if (memcmp (pThreadBlock->mount->wszVolume, WIDE ("\\Device"), 14) != 0)
 	{
 		wcscpy (pThreadBlock->wszMountVolume, WIDE ("\\??\\"));
-		wcscat (pThreadBlock->wszMountVolume, pThreadBlock->mount->wszVolume);
+		wcsncat (pThreadBlock->wszMountVolume, pThreadBlock->mount->wszVolume,
+			sizeof (pThreadBlock->wszMountVolume) / 2 - 5);
 		bDevice = FALSE;
 	}
 	else
 	{
-		wcscpy (pThreadBlock->wszMountVolume, pThreadBlock->mount->wszVolume);
+		wcsncpy (pThreadBlock->wszMountVolume, pThreadBlock->mount->wszVolume,
+			sizeof (pThreadBlock->wszMountVolume) / 2 - 1);
 		bDevice = TRUE;
 	}
 
@@ -1158,10 +1161,10 @@ TCThreadIRP (PVOID Context)
 	      pThreadBlock->wszMountVolume, pThreadBlock->mount->nDosDriveNo, bDevice);
 
 	pThreadBlock->ntCreateStatus = TCOpenVolume (DeviceObject,
-						      Extension,
-						      pThreadBlock->mount,
-					       pThreadBlock->wszMountVolume,
-						      bDevice);
+		Extension,
+		pThreadBlock->mount,
+		pThreadBlock->wszMountVolume,
+		bDevice);
 
 #ifdef USE_KERNEL_MUTEX
 	KeReleaseMutex (&Extension->KernelMutex, FALSE);
@@ -1542,7 +1545,7 @@ TCOpenFsVolume (PEXTENSION Extension, PHANDLE volumeHandle, PFILE_OBJECT * fileO
 	OBJECT_ATTRIBUTES objectAttributes;
 	UNICODE_STRING fullFileName;
 	IO_STATUS_BLOCK ioStatus;
-	WCHAR volumeName[64];
+	WCHAR volumeName[TC_MAX_PATH];
 
 	TCGetDosNameFromNumber (volumeName, Extension->nDosDriveNo);
 	RtlInitUnicodeString (&fullFileName, volumeName);
@@ -1643,7 +1646,7 @@ TCFsctlCall (PFILE_OBJECT fileObject, LONG IoControlCode,
 NTSTATUS
 CreateDriveLink (int nDosDriveNo)
 {
-	WCHAR dev[64], link[64];
+	WCHAR dev[256], link[256];
 	UNICODE_STRING deviceName, symLink;
 	NTSTATUS ntStatus;
 
@@ -1662,7 +1665,7 @@ CreateDriveLink (int nDosDriveNo)
 NTSTATUS
 RemoveDriveLink (int nDosDriveNo)
 {
-	WCHAR link[64];
+	WCHAR link[256];
 	UNICODE_STRING symLink;
 	NTSTATUS ntStatus;
 
@@ -1679,7 +1682,7 @@ NTSTATUS
 MountManagerMount (MOUNT_STRUCT *mount)
 {
 	NTSTATUS ntStatus; 
-	WCHAR arrVolume[64];
+	WCHAR arrVolume[256];
 	char buf[200];
 	PMOUNTMGR_TARGET_NAME in = (PMOUNTMGR_TARGET_NAME) buf;
 	PMOUNTMGR_CREATE_POINT_INPUT point = (PMOUNTMGR_CREATE_POINT_INPUT) buf;
@@ -1717,7 +1720,7 @@ NTSTATUS
 MountManagerUnmount (int nDosDriveNo)
 {
 	NTSTATUS ntStatus; 
-	char buf[64], out[300];
+	char buf[256], out[300];
 	PMOUNTMGR_MOUNT_POINT in = (PMOUNTMGR_MOUNT_POINT) buf;
 
 	memset (buf, 0, sizeof buf);

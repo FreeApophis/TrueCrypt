@@ -50,8 +50,8 @@ HHOOK hKeyboard = NULL;		/* Keyboard hook for the random number generator */
 CRITICAL_SECTION critRandProt;	/* The critical section */
 BOOL volatile bThreadTerminate = FALSE;	/* This variable is shared among thread's so its made volatile */
 BOOL bDidSlowPoll = FALSE;	/* We do the slow poll only once */
-BOOL volatile bFastPollEnabled = TRUE;	/* Used to reduce CPU load when performing benchmarks and formatting */
-BOOL volatile bRandmixEnabled = TRUE;	/* Used to reduce CPU load when performing benchmarks and formatting */
+BOOL volatile bFastPollEnabled = TRUE;	/* Used to reduce CPU load when performing benchmarks */
+BOOL volatile bRandmixEnabled = TRUE;	/* Used to reduce CPU load when performing benchmarks */
 
 /* Network library handle for the slowPollWinNT function */
 HANDLE hNetAPI32 = NULL;
@@ -269,7 +269,10 @@ void
 RandpeekBytes (unsigned char *buf, int len)
 {
 	if (len > RNG_POOL_SIZE)
+	{
+		Error ("ERR_NOT_ENOUGH_RANDOM_DATA");	
 		len = RNG_POOL_SIZE;
+	}
 
 	EnterCriticalSection (&critRandProt);
 	memcpy (buf, pRandPool, len);
@@ -582,7 +585,7 @@ SlowPollWinNT (void)
 	}
 
 	// CryptoAPI
-	for (i = 0; i < 25; i++)
+	for (i = 0; i < 100; i++)
 	{
 		if (hCryptProv && CryptGenRandom(hCryptProv, sizeof (buffer), buffer)) 
 			RandaddBuf (buffer, sizeof (buffer));

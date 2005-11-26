@@ -178,6 +178,9 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\Common\GfMul.c">
+				</File>
+				<File
 					RelativePath="..\Common\Keyfiles.c">
 				</File>
 				<File
@@ -236,6 +239,9 @@
 			</File>
 			<File
 				RelativePath="..\Common\Format.h">
+			</File>
+			<File
+				RelativePath="..\Common\GfMul.h">
 			</File>
 			<File
 				RelativePath="..\Common\Keyfiles.h">
@@ -316,6 +322,9 @@
 				</File>
 				<File
 					RelativePath="..\Common\Language.xml">
+				</File>
+				<File
+					RelativePath="..\Release\Setup Files\License.txt">
 				</File>
 				<File
 					RelativePath="..\Common\TrueCrypt.ico">

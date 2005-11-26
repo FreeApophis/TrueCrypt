@@ -369,16 +369,18 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 				Extension->PartitionType = 0;
 
 				Extension->bRawDevice = bRawDevice;
-
-				if (wcslen (pwszMountVolume) < 64)
-					wcscpy (Extension->wszVolume, pwszMountVolume);
+				
+				if (wcsstr (pwszMountVolume, WIDE ("\\??\\UNC\\")) == pwszMountVolume)
+				{
+					/* UNC path */
+					_snwprintf (Extension->wszVolume,
+						sizeof (Extension->wszVolume) / sizeof (WCHAR) - 1,
+						WIDE ("\\??\\\\%s"),
+						pwszMountVolume + 7);
+				}
 				else
 				{
-					memcpy (Extension->wszVolume, pwszMountVolume, 60 * 2);
-					Extension->wszVolume[60] = (WCHAR) '.';
-					Extension->wszVolume[61] = (WCHAR) '.';
-					Extension->wszVolume[62] = (WCHAR) '.';
-					Extension->wszVolume[63] = (WCHAR) 0;
+					wcsncpy (Extension->wszVolume, pwszMountVolume, sizeof (Extension->wszVolume) / sizeof (WCHAR) - 1);
 				}
 			}
 
@@ -545,9 +547,7 @@ TCCompletion (PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID pUserBuffer)
 			DecryptSectors ((ULONG *) CurrentAddress,
 				tmpOffset / SECTOR_SIZE,
 				tmpLength / SECTOR_SIZE,
-				Extension->cryptoInfo->ks,
-				Extension->cryptoInfo->iv,
-				Extension->cryptoInfo->ea);
+				Extension->cryptoInfo);
 		}
 
 		if (Extension->bRawDevice == FALSE)
@@ -793,9 +793,7 @@ TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 		EncryptSectors ((ULONG *) tmpBuffer,
 			irpSp->Parameters.Read.ByteOffset.QuadPart / SECTOR_SIZE,
 			irpSp->Parameters.Read.Length / SECTOR_SIZE,
-			Extension->cryptoInfo->ks,
-			Extension->cryptoInfo->iv,
-			Extension->cryptoInfo->ea);
+			Extension->cryptoInfo);
 
 		if (Extension->bRawDevice)
 		{

@@ -1,5 +1,5 @@
 
-TrueCrypt 4.0 Source Code Distribution
+TrueCrypt 4.1 Source Code Distribution
 Released by TrueCrypt Foundation
 
 
@@ -68,13 +68,13 @@ Requirements for Building TrueCrypt for Linux:
 
 - Standard development tools: make, gcc, ld, strip
 
-- Source code of Linux kernel, version 2.6.5 or higher/compatible.
+- Source code of the Linux kernel, version 2.6.5 or higher/compatible.
   The version of the kernel source code and its configuration must match the
   one under which you will be running TrueCrypt. Linux kernel sources are
   available at: http://kernel.org/pub/linux/kernel/
 
 - Linux kernel source code must be configured and all modules built
-  (make config modules)  
+  (make config modules).  
 
 
 Instructions for Building TrueCrypt for Linux:
@@ -110,7 +110,7 @@ Cli/Man/truecrypt.1
 Requirements for Running Truecrypt on Linux
 -------------------------------------------
 
-- Linux kernel version 2.6.5 or any higher/compatible version
+- Linux kernel version 2.6.5 or any higher/compatible version.
   
 - Device mapper (dmsetup, http://sources.redhat.com/dm) and loop device
   (losetup) infrastructure, which are available in all major Linux

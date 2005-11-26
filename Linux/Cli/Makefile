@@ -48,6 +48,7 @@ OBJS += $(TC_CRYPTO)/Whirlpool.o
 OBJS += $(TC_COMMON)/Crc.o
 OBJS += $(TC_COMMON)/Crypto.o
 OBJS += $(TC_COMMON)/Endian.o
+OBJS += $(TC_COMMON)/GfMul.o
 OBJS += $(TC_COMMON)/Keyfiles.o
 OBJS += $(TC_COMMON)/Pkcs5.o
 OBJS += $(TC_COMMON)/Volumes.o
@@ -56,10 +57,7 @@ OBJS += Cli.o
 
 %.o: %.c
 	@echo Compiling $(<F)
-	@$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ -c $<
-
-%.dep: %.c
-	@$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -M -MT $*.o $< >$@
+	@$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -MMD -o $@ -c $<
 
 all: objclean truecrypt
 	@echo Done.
@@ -68,15 +66,13 @@ all: objclean truecrypt
 	@$(CC) -o ../Common/platform $<
 	@../Common/platform >../Common/.platform
 
-ifneq ($(MAKECMDGOALS),clean)
--include $(OBJS:.o=.dep)
-endif
+-include $(OBJS:.o=.d)
 
 truecrypt: $(OBJS)
-	@echo Linking truecrypt
-	@$(CC) -o truecrypt $(OBJS)
+	@echo Linking $@
+	@$(CC) -o $@ $(OBJS)
 ifndef DEBUG
-	@strip truecrypt
+	@strip $@
 endif
 
 man: truecrypt.1
@@ -89,4 +85,4 @@ objclean:
 	@>$(USER_OBJS_F)
 
 clean:
-	-rm -f truecrypt ${OBJS} *.dep $(TC_COMMON)/*.dep $(TC_CRYPTO)/*.dep ../Common/platform ../Common/.platform
+	-rm -f truecrypt ${OBJS} *.d $(TC_COMMON)/*.d $(TC_CRYPTO)/*.d ../Common/platform ../Common/.platform

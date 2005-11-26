@@ -10,4 +10,5 @@
 #include "Common.h"
 
 int VolumeReadHeader (char *encryptedHeader, Password *password, PCRYPTO_INFO *retInfo);
-int VolumeWriteHeader (char *encryptedHeader , int cipher , Password *password , int pkcs5 , char *masterKey, unsigned __int64 volumeCreationTime, PCRYPTO_INFO *retInfo, unsigned __int64 hiddenVolumeSize, BOOL bWipeMode);
+int VolumeWriteHeader (char *encryptedHeader, int ea, int mode, Password *password , int pkcs5 , char *masterKey, unsigned __int64 volumeCreationTime, PCRYPTO_INFO *retInfo, unsigned __int64 hiddenVolumeSize, BOOL bWipeMode);
+BOOL DetectWeakSecondaryKey (unsigned char *key, int len);

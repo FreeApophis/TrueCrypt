@@ -40,13 +40,13 @@
 // 64		4		ASCII string 'TRUE'
 // 68		2		Header version
 // 70		2		Required program version
-// 72		4		CRC32 of disk IV and key
+// 72		4		CRC-32 checksum of the (decrypted) bytes 256-511
 // 76		8		Volume creation time
 // 84		8		Header creation time
 // 92		8		Size of hidden volume in bytes (0 = normal volume)
-// 100		156		Unused
-// 256		32		Disk IV
-// 288		224		Disk key
+// 100		156		Reserved (set to zero)
+// 256		32		Secondary key (LRW mode)
+// 288		224		Master key(s)
 
 int
 VolumeReadHeader (char *encryptedHeader, Password *password, PCRYPTO_INFO *retInfo)
@@ -61,18 +61,22 @@ VolumeReadHeader (char *encryptedHeader, Password *password, PCRYPTO_INFO *retIn
 	int headerVersion, requiredVersion;
 	int status;
 
+
 	cryptoInfo = *retInfo = crypto_open ();
 	if (cryptoInfo == NULL)
 		return ERR_OUTOFMEMORY;
 
 	crypto_loadkey (&keyInfo, password->Text, password->Length);
 
-	// PKCS5 is used to derive header key and IV from user password
+	// PKCS5 is used to derive the header key and the secondary header key (LRW mode) from the user password
 	memcpy (keyInfo.key_salt, encryptedHeader + HEADER_USERKEY_SALT, PKCS5_SALT_SIZE);
 
 	// Test all available PKCS5 PRFs
 	for (pkcs5 = 1; pkcs5 <= LAST_PRF_ID; pkcs5++)
 	{
+		BOOL lrw64InitDone = FALSE;
+		BOOL lrw128InitDone = FALSE;
+
 		keyInfo.noIterations = get_pkcs5_iteration_count (pkcs5);
 
 		switch (pkcs5)
@@ -94,85 +98,118 @@ VolumeReadHeader (char *encryptedHeader, Password *password, PCRYPTO_INFO *retIn
 		} 
 
 		// Test all available encryption algorithms
-		for (cryptoInfo->ea = EAGetFirst (); cryptoInfo->ea != 0; cryptoInfo->ea = EAGetNext (cryptoInfo->ea))
+		for (cryptoInfo->ea = EAGetFirst ();
+			cryptoInfo->ea != 0;
+			cryptoInfo->ea = EAGetNext (cryptoInfo->ea))
 		{
-			// Copy header for decryption and init an encryption algorithm
-			memcpy (header, encryptedHeader, SECTOR_SIZE);  
-			memcpy (cryptoInfo->iv, dk, DISK_IV_SIZE);
+			int blockSize = CipherGetBlockSize (EAGetFirstCipher (cryptoInfo->ea));
 
 			status = EAInit (cryptoInfo->ea, dk + DISK_IV_SIZE, cryptoInfo->ks);
 			if (status == ERR_CIPHER_INIT_FAILURE)
 				goto err;
 
-			input = header;
-
-			// Try to decrypt header 
-
-			DecryptBuffer ((unsigned __int32 *) (header + HEADER_ENCRYPTEDDATA), HEADER_ENCRYPTEDDATASIZE,
-				cryptoInfo->ks, cryptoInfo->iv, &cryptoInfo->iv[8], cryptoInfo->ea);
-
-			input += HEADER_ENCRYPTEDDATA;
-
-			// Magic 'TRUE'
-			if (mgetLong (input) != 0x54525545)
-				continue;
-
-			// Header version
-			headerVersion = mgetWord (input);
-
-			// Required program version
-			requiredVersion = mgetWord (input);
-
-			// Check CRC of disk IV and key
-			if (mgetLong (input) != crc32 (header + HEADER_DISKKEY, DISKKEY_SIZE))
-				continue;
-
-			// Now we have the correct password, cipher, hash algorithm, and volume type
-
-			// Check the version required to handle this volume
-			if (requiredVersion > VERSION_NUM)
+			// Test all available modes of operation
+			for (cryptoInfo->mode = EAGetFirstMode (cryptoInfo->ea);
+				cryptoInfo->mode != 0;
+				cryptoInfo->mode = EAGetNextMode (cryptoInfo->ea, cryptoInfo->mode))
 			{
-				status = ERR_NEW_VERSION_REQUIRED;
-				goto err;
+				// Copy header for decryption and init an encryption algorithm
+				memcpy (header, encryptedHeader, SECTOR_SIZE);  
+				memcpy (cryptoInfo->iv, dk, DISK_IV_SIZE);
+
+				if (cryptoInfo->mode == LRW
+					&& (blockSize == 8 && !lrw64InitDone || blockSize == 16 && !lrw128InitDone))
+				{
+					if (!EAInitMode (cryptoInfo))
+					{
+						status = ERR_MODE_INIT_FAILED;
+						goto err;
+					}
+
+					if (blockSize == 8)
+						lrw64InitDone = TRUE;
+					else if (blockSize == 16)
+						lrw128InitDone = TRUE;
+				}
+
+				input = header;
+
+				// Try to decrypt header 
+
+				DecryptBuffer ((unsigned __int32 *) (header + HEADER_ENCRYPTEDDATA), HEADER_ENCRYPTEDDATASIZE,
+					cryptoInfo);
+
+				input += HEADER_ENCRYPTEDDATA;
+
+				// Magic 'TRUE'
+				if (mgetLong (input) != 0x54525545)
+					continue;
+
+				// Header version
+				headerVersion = mgetWord (input);
+
+				// Required program version
+				requiredVersion = mgetWord (input);
+
+				// Check CRC of the key set
+				if (mgetLong (input) != crc32 (header + HEADER_DISKKEY, DISKKEY_SIZE))
+					continue;
+
+				// Now we have the correct password, cipher, hash algorithm, and volume type
+
+				// Check the version required to handle this volume
+				if (requiredVersion > VERSION_NUM)
+				{
+					status = ERR_NEW_VERSION_REQUIRED;
+					goto err;
+				}
+
+				// Volume creation time
+				cryptoInfo->volume_creation_time = mgetInt64 (input);
+
+				// Header creation time
+				cryptoInfo->header_creation_time = mgetInt64 (input);
+
+				// Hidden volume size (if any)
+				cryptoInfo->hiddenVolumeSize = mgetInt64 (input);
+
+				// Disk key
+				nKeyLen = DISKKEY_SIZE;
+				memcpy (keyInfo.key, header + HEADER_DISKKEY, nKeyLen);
+
+				memcpy (cryptoInfo->master_key, keyInfo.key, nKeyLen);
+				memcpy (cryptoInfo->key_salt, keyInfo.key_salt, PKCS5_SALT_SIZE);
+				cryptoInfo->pkcs5 = pkcs5;
+				cryptoInfo->noIterations = keyInfo.noIterations;
+
+				// Init the encryption algorithm with the decrypted master key
+				status = EAInit (cryptoInfo->ea, keyInfo.key + DISK_IV_SIZE, cryptoInfo->ks);
+				if (status == ERR_CIPHER_INIT_FAILURE)
+					goto err;
+
+				// The secondary key (LRW mode) for the data area
+				memcpy (cryptoInfo->iv, keyInfo.key, DISK_IV_SIZE);
+
+				// Mode of operation
+				if (!EAInitMode (cryptoInfo))
+				{
+					status = ERR_MODE_INIT_FAILED;
+					goto err;
+				}
+
+				// Clear out the temp. key buffers
+				burn (dk, sizeof(dk));
+
+				return 0;
+
 			}
-
-			// Volume creation time
-			cryptoInfo->volume_creation_time = mgetInt64 (input);
-
-			// Header creation time
-			cryptoInfo->header_creation_time = mgetInt64 (input);
-
-			// Hidden volume size (if any)
-			cryptoInfo->hiddenVolumeSize = mgetInt64 (input);
-
-			// Disk key
-			nKeyLen = DISKKEY_SIZE;
-			memcpy (keyInfo.key, header + HEADER_DISKKEY, nKeyLen);
-
-			memcpy (cryptoInfo->master_key, keyInfo.key, nKeyLen);
-			memcpy (cryptoInfo->key_salt, keyInfo.key_salt, PKCS5_SALT_SIZE);
-			cryptoInfo->pkcs5 = pkcs5;
-			cryptoInfo->noIterations = keyInfo.noIterations;
-
-			// Init the encryption algorithm with the decrypted master key
-			status = EAInit (cryptoInfo->ea, keyInfo.key + DISK_IV_SIZE, cryptoInfo->ks);
-			if (status == ERR_CIPHER_INIT_FAILURE)
-				goto err;
-
-			// Data area IV seed
-			memcpy (cryptoInfo->iv, keyInfo.key, DISK_IV_SIZE);
-
-			// Clear out the temp. key buffers
-			burn (dk, sizeof(dk));
-
-			return 0;
-
 		}
 	}
 	status = ERR_PASSWORD_WRONG;
 
 err:
 	crypto_close(cryptoInfo);
+	*retInfo = NULL; 
 	burn (&keyInfo, sizeof (keyInfo));
 	return status;
 }
@@ -190,7 +227,7 @@ extern HWND hHeaderKey;
 // VolumeWriteHeader:
 // Creates volume header in memory
 int
-VolumeWriteHeader (char *header, int ea, Password *password,
+VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 		   int pkcs5, char *masterKey, unsigned __int64 volumeCreationTime, PCRYPTO_INFO * retInfo,
 		   unsigned __int64 hiddenVolumeSize, BOOL bWipeMode)
 {
@@ -212,9 +249,15 @@ VolumeWriteHeader (char *header, int ea, Password *password,
 
 	/* Encryption setup */
 
-	// If necessary, generate the master key, IV and whitening seeds
+	// If necessary, generate the master key and the secondary key (LRW mode)
 	if(masterKey == 0)
+	{
 		RandgetBytes (keyInfo.key, DISKKEY_SIZE, TRUE);
+
+		// Verify that the secondary key is not weak
+		if (DetectWeakSecondaryKey (keyInfo.key, CipherGetBlockSize (EAGetFirstCipher (ea))))
+			return ERR_CIPHER_INIT_WEAK_KEY; 
+	}
 	else
 		memcpy (keyInfo.key, masterKey, DISKKEY_SIZE);
 
@@ -226,10 +269,13 @@ VolumeWriteHeader (char *header, int ea, Password *password,
 	// User selected encryption algorithm
 	cryptoInfo->ea = ea;
 
+	// Mode of operation
+	cryptoInfo->mode = mode;
+
 	// Salt for header key derivation 
 	RandgetBytes (keyInfo.key_salt, PKCS5_SALT_SIZE, !bWipeMode);
 
-	// PKCS5 is used to derive the header key and IV from the password
+	// PKCS5 is used to derive the header key and the secondary header key (LRW mode) from the password
 	switch (pkcs5)
 	{
 	case SHA1:
@@ -247,6 +293,10 @@ VolumeWriteHeader (char *header, int ea, Password *password,
 			PKCS5_SALT_SIZE, keyInfo.noIterations, dk, DISK_IV_SIZE + EAGetLargestKey());
 		break;
 	} 
+	// Verify that the secondary key is not weak
+	if (DetectWeakSecondaryKey (dk, CipherGetBlockSize (EAGetFirstCipher (ea))))
+		return ERR_CIPHER_INIT_WEAK_KEY; 
+
 
 	/* Header setup */
 
@@ -262,7 +312,7 @@ VolumeWriteHeader (char *header, int ea, Password *password,
 	// Required program version to handle this volume
 	mputWord (p, VOL_REQ_PROG_VERSION);
 
-	// CRC of disk key
+	// CRC of the key set
 	x = crc32(keyInfo.key, DISKKEY_SIZE);
 	mputLong (p, x);
 
@@ -295,8 +345,9 @@ VolumeWriteHeader (char *header, int ea, Password *password,
 	// Hidden volume size
 	cryptoInfo->hiddenVolumeSize = hiddenVolumeSize;
 	mputInt64 (p, cryptoInfo->hiddenVolumeSize);
+	cryptoInfo->hiddenVolume = cryptoInfo->hiddenVolumeSize != 0;
 
-	// Disk key and IV
+	// The key set
 	memcpy (header + HEADER_DISKKEY, keyInfo.key, DISKKEY_SIZE);
 
 
@@ -307,8 +358,13 @@ VolumeWriteHeader (char *header, int ea, Password *password,
 	if (retVal != 0)
 		return retVal;
 
-	EncryptBuffer ((unsigned __int32 *) (header + HEADER_ENCRYPTEDDATA), HEADER_ENCRYPTEDDATASIZE,
-			cryptoInfo->ks, cryptoInfo->iv, &cryptoInfo->iv[8], cryptoInfo->ea);
+	// Mode of operation
+	if (!EAInitMode (cryptoInfo))
+		return ERR_OUTOFMEMORY;
+
+	EncryptBuffer ((unsigned __int32 *) (header + HEADER_ENCRYPTEDDATA),
+		HEADER_ENCRYPTEDDATASIZE,
+		cryptoInfo);
 
 
 	/* cryptoInfo setup for further use (disk format) */
@@ -318,8 +374,12 @@ VolumeWriteHeader (char *header, int ea, Password *password,
 	if (retVal != 0)
 		return retVal;
 
-	// Disk IV
+	// The secondary key (LRW mode)
 	memcpy (cryptoInfo->iv, keyInfo.key, DISK_IV_SIZE);
+
+	// Mode of operation
+	if (!EAInitMode (cryptoInfo))
+		return ERR_OUTOFMEMORY;
 
 
 #ifdef VOLFORMAT
@@ -382,3 +442,15 @@ VolumeWriteHeader (char *header, int ea, Password *password,
 
 #endif				/* !NT4_DRIVER */
 
+
+BOOL DetectWeakSecondaryKey (unsigned char *key, int len)
+{
+	int i;
+
+	for (i = 0; i < len; i++)
+	{
+		if (key[i] != 0)
+			return FALSE;
+	}
+	return TRUE;
+}

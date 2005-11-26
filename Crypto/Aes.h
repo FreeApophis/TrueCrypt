@@ -27,24 +27,29 @@
  in respect of its properties, including, but not limited to, correctness
  and/or fitness for purpose.
  ---------------------------------------------------------------------------
- Issue 28/01/2004
+ Issue 1/08/2005
 
  This file contains the definitions required to use AES in C. See aesopt.h
  for optimisation details.
 */
 
-#if !defined( _AES_H )
+/* Adapted for TrueCrypt by the TrueCrypt Foundation */
+
+#ifndef _AES_H
 #define _AES_H
 
-/*  This include is used to find 8 & 32 bit unsigned integer types  */
-#ifndef LINUX_DRIVER
-#include <limits.h>
-#else
-#undef UCHAR_MAX
-#define UCHAR_MAX 0xff 
-#undef UINT_MAX
-#define UINT_MAX 4294967295
+#ifndef EXIT_SUCCESS
+#define EXIT_SUCCESS    0
+#define EXIT_FAILURE    1
 #endif
+
+typedef unsigned __int8 uint_8t;
+typedef unsigned __int16 uint_16t;
+typedef unsigned __int32 uint_32t;
+typedef unsigned __int64 uint_64t;
+
+#define void_ret  void
+#define int_ret   int
 
 #if defined(__cplusplus)
 extern "C"
@@ -55,34 +60,21 @@ extern "C"
 #define AES_192     /* define if AES with 192 bit keys is needed    */
 #define AES_256     /* define if AES with 256 bit keys is needed    */
 #define AES_VAR     /* define if a variable key size is needed      */
+#define AES_MODES   /* define if support is needed for modes        */
 
 /* The following must also be set in assembler files if being used  */
 
 #define AES_ENCRYPT /* if support for encryption is needed          */
 #define AES_DECRYPT /* if support for decryption is needed          */
 #define AES_ERR_CHK /* for parameter checks & error return codes    */
-
-#if UCHAR_MAX == 0xff                   /* an unsigned 8 bit type   */
-  typedef unsigned char      aes_08t;
-#else
-#  error Please define aes_08t as an 8-bit unsigned integer type in aes.h
-#endif
-
-#if UINT_MAX == 4294967295              /* an unsigned 32 bit type  */
-  typedef   unsigned int     aes_32t;
-#elif ULONG_MAX == 4294967295ul
-  typedef   unsigned __int32    aes_32t;
-#else
-#  error Please define aes_32t as a 32-bit unsigned integer type in aes.h
-#endif
+#define AES_REV_DKS /* define to reverse decryption key schedule    */
 
 #define AES_BLOCK_SIZE  16  /* the AES block size in bytes          */
 #define N_COLS           4  /* the number of columns in the state   */
 
 /* The key schedule length is 11, 13 or 15 16-byte blocks for 128,  */
 /* 192 or 256-bit keys respectively. That is 176, 208 or 240 bytes  */
-/* or 44, 52 or 60 32-bit words. For simplicity this code allocates */
-/* the maximum 60 word array for the key schedule for all key sizes */
+/* or 44, 52 or 60 32-bit words.                                    */
 
 #if defined( AES_VAR ) || defined( AES_256 )
 #define KS_LENGTH       60
@@ -93,77 +85,119 @@ extern "C"
 #endif
 
 #if defined( AES_ERR_CHK )
-#define aes_ret     int
-#define aes_good    0
-#define aes_error  -1
+#define aes_rval     int_ret
 #else
-#define aes_ret     void
+#define aes_rval     void_ret
 #endif
 
-#if !defined( AES_DLL )                 /* implement normal/DLL functions   */
-#define aes_rval    aes_ret
-#else
-#define aes_rval    aes_ret __declspec(dllexport) _stdcall
-#endif
+/* the character array 'inf' in the following structures is used    */
+/* to hold AES context information. This AES code uses cx->inf.b[0] */
+/* to hold the number of rounds multiplied by 16. The other three   */
+/* elements can be used by code that implements additional modes    */
+
+typedef union
+{   uint_32t l;
+    uint_8t b[4];
+} aes_inf;
 
 typedef struct
-{   aes_32t ks[KS_LENGTH];
-    aes_32t rn;
+{   uint_32t ks[KS_LENGTH];
+    aes_inf inf;
 } aes_encrypt_ctx;
 
 typedef struct
-{   aes_32t ks[KS_LENGTH];
-    aes_32t rn;
+{   uint_32t ks[KS_LENGTH];
+    aes_inf inf;
 } aes_decrypt_ctx;
 
 /* This routine must be called before first use if non-static       */
 /* tables are being used                                            */
 
-void gen_tabs(void);
+aes_rval gen_tabs(void);
 
-/* The key length (klen) is input in bytes when it is in the range  */
-/* 16 <= klen <= 32 or in bits when in the range 128 <= klen <= 256 */
+/* Key lengths in the range 16 <= key_len <= 32 are given in bytes, */
+/* those in the range 128 <= key_len <= 256 are given in bits       */
 
 #if defined( AES_ENCRYPT )
 
 #if defined(AES_128) || defined(AES_VAR)
-aes_rval aes_encrypt_key128(const unsigned char *in_key, aes_encrypt_ctx cx[1]);
+aes_rval aes_encrypt_key128(const unsigned char *key, aes_encrypt_ctx cx[1]);
 #endif
 
 #if defined(AES_192) || defined(AES_VAR)
-aes_rval aes_encrypt_key192(const unsigned char *in_key, aes_encrypt_ctx cx[1]);
+aes_rval aes_encrypt_key192(const unsigned char *key, aes_encrypt_ctx cx[1]);
 #endif
 
 #if defined(AES_256) || defined(AES_VAR)
-aes_rval aes_encrypt_key256(const unsigned char *in_key, aes_encrypt_ctx cx[1]);
+aes_rval aes_encrypt_key256(const unsigned char *key, aes_encrypt_ctx cx[1]);
 #endif
 
 #if defined(AES_VAR)
-aes_rval _cdecl aes_encrypt_key(const unsigned char *in_key, int key_len, aes_encrypt_ctx cx[1]);
+aes_rval _cdecl aes_encrypt_key(const unsigned char *key, int key_len, aes_encrypt_ctx cx[1]);
 #endif
 
-aes_rval _cdecl aes_encrypt(const unsigned char *in_blk, unsigned char *out_blk, const aes_encrypt_ctx cx[1]);
+aes_rval _cdecl aes_encrypt(const unsigned char *in, unsigned char *out, const aes_encrypt_ctx cx[1]);
+
 #endif
 
 #if defined( AES_DECRYPT )
 
 #if defined(AES_128) || defined(AES_VAR)
-aes_rval aes_decrypt_key128(const unsigned char *in_key, aes_decrypt_ctx cx[1]);
+aes_rval aes_decrypt_key128(const unsigned char *key, aes_decrypt_ctx cx[1]);
 #endif
 
 #if defined(AES_192) || defined(AES_VAR)
-aes_rval aes_decrypt_key192(const unsigned char *in_key, aes_decrypt_ctx cx[1]);
+aes_rval aes_decrypt_key192(const unsigned char *key, aes_decrypt_ctx cx[1]);
 #endif
 
 #if defined(AES_256) || defined(AES_VAR)
-aes_rval aes_decrypt_key256(const unsigned char *in_key, aes_decrypt_ctx cx[1]);
+aes_rval aes_decrypt_key256(const unsigned char *key, aes_decrypt_ctx cx[1]);
 #endif
 
 #if defined(AES_VAR)
-aes_rval _cdecl aes_decrypt_key(const unsigned char *in_key, int key_len, aes_decrypt_ctx cx[1]);
+aes_rval _cdecl aes_decrypt_key(const unsigned char *key, int key_len, aes_decrypt_ctx cx[1]);
 #endif
 
-aes_rval _cdecl aes_decrypt(const unsigned char *in_blk,  unsigned char *out_blk, const aes_decrypt_ctx cx[1]);
+aes_rval _cdecl aes_decrypt(const unsigned char *in, unsigned char *out, const aes_decrypt_ctx cx[1]);
+
+#endif
+
+#if defined(AES_MODES)
+
+aes_rval aes_ecb_encrypt(const unsigned char *ibuf, unsigned char *obuf,
+                    int len, const aes_encrypt_ctx cx[1]);
+
+aes_rval aes_ecb_decrypt(const unsigned char *ibuf, unsigned char *obuf,
+                    int len, const aes_decrypt_ctx cx[1]);
+
+aes_rval aes_cbc_encrypt(const unsigned char *ibuf, unsigned char *obuf,
+                    int len, unsigned char *iv, const aes_encrypt_ctx cx[1]);
+
+aes_rval aes_cbc_decrypt(const unsigned char *ibuf, unsigned char *obuf,
+                    int len, unsigned char *iv, const aes_decrypt_ctx cx[1]);
+
+aes_rval aes_mode_reset(aes_encrypt_ctx cx[1]);
+
+aes_rval aes_cfb_encrypt(const unsigned char *ibuf, unsigned char *obuf,
+                    int len, unsigned char *iv, aes_encrypt_ctx cx[1]);
+
+aes_rval aes_cfb_decrypt(const unsigned char *ibuf, unsigned char *obuf,
+                    int len, unsigned char *iv, aes_encrypt_ctx cx[1]);
+
+#define aes_ofb_encrypt aes_ofb_crypt
+#define aes_ofb_decrypt aes_ofb_crypt
+
+aes_rval aes_ofb_crypt(const unsigned char *ibuf, unsigned char *obuf,
+                    int len, unsigned char *iv, aes_encrypt_ctx cx[1]);
+
+typedef void cbuf_inc(unsigned char *cbuf);
+
+#define aes_ctr_encrypt aes_ctr_crypt
+#define aes_ctr_decrypt aes_ctr_crypt
+
+aes_rval aes_ctr_crypt(const unsigned char *ibuf, unsigned char *obuf,
+            int len, unsigned char *cbuf, cbuf_inc ctr_inc, aes_encrypt_ctx cx[1]);
+
 #endif
 
 #if defined(__cplusplus)

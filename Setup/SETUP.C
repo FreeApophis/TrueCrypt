@@ -34,6 +34,8 @@
 #pragma warning( default : 4115 )
 
 char dlg_file_name[TC_MAX_PATH];
+char SetupFilesDir[TC_MAX_PATH];
+
 BOOL bUninstall = FALSE;
 BOOL bDone = FALSE;
 char *UninstallPath;
@@ -162,52 +164,6 @@ IconMessage (HWND hwndDlg, char *txt)
 }
 
 
-void
-LoadLicense (HWND hwndDlg)
-{
-	FILE *fp;
-
-	fp = fopen ("Setup Files\\License.txt", "rb");
-
-	if (fp == NULL)
-		return;
-	else
-	{
-		long x;
-
-		fseek (fp, 0, SEEK_END);
-		x = ftell (fp);
-		rewind (fp);
-
-		if (x > 0)
-		{
-			char *tmp = malloc (x + 1);
-			size_t z;
-
-			if (tmp == NULL)
-				goto exit;
-			z = fread (tmp, 1, x, fp);
-			if (z != x)
-			{
-				free (tmp);
-				goto exit;
-			}
-			else
-			{
-				tmp[x] = 0;
-
-				SendMessage (GetDlgItem (hwndDlg, IDC_LICENSE), WM_SETFONT, (WPARAM) hFixedFont, (LPARAM) 0);
-				SetWindowText (GetDlgItem (hwndDlg, IDC_LICENSE), tmp);
-
-				free (tmp);
-			}
-		}
-	}
-
-exit:
-	fclose (fp);
-}
-
 BOOL
 DoFilesInstall (HWND hwndDlg, char *szDestDir, BOOL bUninstallSupport)
 {
@@ -279,6 +235,8 @@ DoFilesInstall (HWND hwndDlg, char *szDestDir, BOOL bUninstallSupport)
 
 		if (bUninstall == FALSE)
 		{
+			SetCurrentDirectory (SetupFilesDir);
+
 			bResult = TCCopyFile (szFiles[i] + 1, szTmp);
 			if (!bResult)
 			{
@@ -329,7 +287,11 @@ DoFilesInstall (HWND hwndDlg, char *szDestDir, BOOL bUninstallSupport)
 	if (bUninstall == FALSE)
 	{
 		WIN32_FIND_DATA f;
-		HANDLE h = FindFirstFile ("Language.*.xml", &f);
+		HANDLE h;
+		
+		SetCurrentDirectory (SetupFilesDir);
+		h = FindFirstFile ("Language.*.xml", &f);
+
 		if (h != INVALID_HANDLE_VALUE)
 		{
 			char d[MAX_PATH*2];
@@ -338,6 +300,19 @@ DoFilesInstall (HWND hwndDlg, char *szDestDir, BOOL bUninstallSupport)
 			TCCopyFile (f.cFileName, d);
 			FindClose (h);
 		}
+
+		SetCurrentDirectory (SetupFilesDir);
+		SetCurrentDirectory ("Setup files");
+		h = FindFirstFile ("TrueCrypt User Guide.*.pdf", &f);
+		if (h != INVALID_HANDLE_VALUE)
+		{
+			char d[MAX_PATH*2];
+			sprintf (d, "%s\\%s", szDestDir, f.cFileName);
+			CopyMessage (hwndDlg, d);
+			TCCopyFile (f.cFileName, d);
+			FindClose (h);
+		}
+		SetCurrentDirectory (SetupFilesDir);
 	}
 
 	return bOK;
@@ -1408,6 +1383,15 @@ WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine,
 	if (IsAdmin () != TRUE)
 		if (MessageBoxW (NULL, GetString ("SETUP_ADMIN"), lpszTitle, MB_YESNO | MB_ICONQUESTION) != IDYES)
 			return 0;
+
+	/* Setup directory */
+	{
+		char *s;
+		GetModuleFileName (NULL, SetupFilesDir, sizeof (SetupFilesDir));
+		s = strrchr (SetupFilesDir, '\\');
+		if (s)
+			s[1] = 0;
+	}
 
 	if (lpszCommandLine[0] == '/' && lpszCommandLine[1] == 'u')
 	{

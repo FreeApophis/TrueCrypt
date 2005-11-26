@@ -26,17 +26,17 @@
 #define CRYPTO_H
 
 // User text input limits
-#define MIN_PASSWORD		1			// Minimum password length
-#define MAX_PASSWORD		64			// Maximum password length
+#define MIN_PASSWORD			1		// Minimum password length
+#define MAX_PASSWORD			64		// Maximum password length
 
 #define PASSWORD_LEN_WARNING	12		// Display a warning when a password is shorter than this
 
 // Header key derivation
-#define PKCS5_SALT_SIZE				64
+#define PKCS5_SALT_SIZE			64
 
-// Disk/master key + IV
-#define DISKKEY_SIZE		256
-#define DISK_IV_SIZE		32
+// Master key + secondary key (LRW mode)
+#define DISKKEY_SIZE			256
+#define DISK_IV_SIZE			32
 
 // Volume header byte offsets
 #define	HEADER_USERKEY_SALT		0
@@ -73,9 +73,11 @@
 // Modes of operation
 enum
 {
-	CBC = 1,
-	OUTER_CBC,
-	INNER_CBC
+	LRW = 1,
+	CBC,		// Deprecated/legacy
+	OUTER_CBC,	// Deprecated/legacy
+	INNER_CBC,	// Deprecated/legacy
+	INVALID_MODE
 };
 
 // Cipher IDs
@@ -100,7 +102,7 @@ typedef struct
 typedef struct
 {
 	int Ciphers[4];			// Null terminated array of ciphers used by encryption algorithm
-	int Mode;				// The mode of operation of the whole EA (cipher cascade)
+	int Modes[3];			// Null terminated array of modes of operation
 } EncryptionAlgorithm;
 
 // Maxium length of scheduled key
@@ -123,26 +125,27 @@ typedef struct
 #include "Whirlpool.h"
 #endif
 
+#include "GfMul.h"
+
 typedef struct keyInfo_t
 {
 	int noIterations;					/* No.of times to iterate setup */
 	int keyLength;						/* Length of the key */
-	char userKey[MAX_PASSWORD];			/* Max pass, WITHOUT +1 for the NULL */
-	char key_salt[PKCS5_SALT_SIZE];	/* Key setup salt */
-	char key[DISKKEY_SIZE];				/* The keying material itself */
+	__int8 userKey[MAX_PASSWORD];		/* Password (to which keyfiles may have been applied). Max pass, WITHOUT +1 for the NULL */
+	__int8 key_salt[PKCS5_SALT_SIZE];	/* PKCS-5 salt */
+	__int8 key[DISKKEY_SIZE];			/* The actual encryption key */
 } KEY_INFO, *PKEY_INFO;
 
 typedef struct CRYPTO_INFO_t
 {
-	/* Encryption alogrithm information */
-	int ea;
-	unsigned char iv[DISK_IV_SIZE];
-	unsigned char ks[MAX_EXPANDED_KEY];
+	int ea;									/* Encryption algorithm ID */
+	int mode;								/* Mode of operation (e.g., LRW) */
+	unsigned __int8 iv[DISK_IV_SIZE];		/* For LRW mode this contains the secondary key; for CBC it contains the IV (deprecated/legacy) */
+	unsigned __int8 ks[MAX_EXPANDED_KEY];
+	GfCtx gf_ctx; 
 
-	/* Volume information */
-
-	unsigned char master_key[DISKKEY_SIZE];
-	unsigned char key_salt[PKCS5_SALT_SIZE];
+	unsigned __int8 master_key[DISKKEY_SIZE];
+	unsigned __int8 key_salt[PKCS5_SALT_SIZE];
 	int noIterations;
 	int pkcs5;
 
@@ -151,7 +154,7 @@ typedef struct CRYPTO_INFO_t
 
 	// Hidden volume status & parameters
 	BOOL hiddenVolume;					// Indicates whether the volume is mounted/mountable as hidden volume
-	BOOL bProtectHiddenVolume;			// Indicates whether the volume contains a hidden volume to be protected against overwriting (if so, no data must be written at offset hiddenVolumeOffset or beyond).
+	BOOL bProtectHiddenVolume;			// Indicates whether the volume contains a hidden volume to be protected against overwriting
 	BOOL bHiddenVolProtectionAction;		// TRUE if a write operation has been denied by the driver in order to prevent the hidden volume from being overwritten (set to FALSE upon volume mount).
 	unsigned __int64 hiddenVolumeSize;		// Size of the hidden volume excluding the header (in bytes). Set to 0 for standard volumes.
 	unsigned __int64 hiddenVolumeOffset;	// Absolute position, in bytes, of the first hidden volume data sector within the host volume (provided that there is a hidden volume within). This must be set for all hidden volumes; in case of a normal volume, this variable is only used when protecting a hidden volume within it.
@@ -169,6 +172,7 @@ char * CipherGetName (int cipher);
 
 int CipherInit (int cipher, unsigned char *key, unsigned char *ks);
 int EAInit (int ea, unsigned char *key, unsigned char *ks);
+int EAInitMode (PCRYPTO_INFO ci);
 void EncipherBlock(int cipher, void *data, void *ks);
 void DecipherBlock(int cipher, void *data, void *ks);
 
@@ -176,9 +180,11 @@ int EAGetFirst ();
 int EAGetCount (void);
 int EAGetNext (int previousEA);
 char * EAGetName (char *buf, int ea);
+int EAGetByName (char *name);
 int EAGetKeySize (int ea);
-int EAGetMode (int ea);
-char * EAGetModeName (int ea, BOOL capitalLetters);
+int EAGetFirstMode (int ea);
+int EAGetNextMode (int ea, int previousModeId);
+char * EAGetModeName (int ea, int mode, BOOL capitalLetters);
 int EAGetKeyScheduleSize (int ea);
 int EAGetLargestKey ();
 
@@ -188,10 +194,16 @@ int EAGetLastCipher (int ea);
 int EAGetNextCipher (int ea, int previousCipherId);
 int EAGetPreviousCipher (int ea, int previousCipherId);
 
-void EncryptBuffer (unsigned __int32 *buf, unsigned __int64 len, unsigned char *ks, void *iv, void *whitening, int ea);
-void DecryptBuffer (unsigned __int32 *buf, unsigned __int64 len, unsigned char *ks, void *iv, void *whitening, int ea);
-void _cdecl EncryptSectors (unsigned __int32 *buf, unsigned __int64 secNo, unsigned __int64 noSectors, unsigned char *ks, void *iv, int ea);
-void _cdecl DecryptSectors (unsigned __int32 *buf, unsigned __int64 secNo, unsigned __int64 noSectors, unsigned char *ks, void *iv, int ea);
+void EncryptBuffer (unsigned __int32 *buf, unsigned __int64 len, PCRYPTO_INFO cryptoInfo);
+void DecryptBuffer (unsigned __int32 *buf, unsigned __int64 len, PCRYPTO_INFO cryptoInfo);
+void EncryptBufferLRW128 (unsigned __int8 *plainText, unsigned int length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo);
+void DecryptBufferLRW128 (unsigned __int8 *plainText, int length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo);
+void EncryptBufferLRW64 (unsigned __int8 *plainText, unsigned int length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo);
+void DecryptBufferLRW64 (unsigned __int8 *plainText, int length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo);
+void _cdecl EncryptSectors (unsigned __int32 *buf, unsigned __int64 secNo, unsigned __int64 noSectors, PCRYPTO_INFO cryptoInfo);
+void _cdecl DecryptSectors (unsigned __int32 *buf, unsigned __int64 secNo, unsigned __int64 noSectors, PCRYPTO_INFO cryptoInfo);
+
+unsigned __int64 LRWSector2Index (unsigned __int64 sector, int blockSize, PCRYPTO_INFO ci);
 
 char *get_hash_algo_name (int hash_algo_id);
 

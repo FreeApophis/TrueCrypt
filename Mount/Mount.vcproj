@@ -165,6 +165,9 @@
 					RelativePath="..\Common\Endian.c">
 				</File>
 				<File
+					RelativePath="..\Common\GfMul.c">
+				</File>
+				<File
 					RelativePath="..\Common\Keyfiles.c">
 				</File>
 				<File
@@ -222,6 +225,9 @@
 				RelativePath="..\Common\Dlgcode.h">
 			</File>
 			<File
+				RelativePath="..\Common\GfMul.h">
+			</File>
+			<File
 				RelativePath=".\Hotkeys.h">
 			</File>
 			<File
@@ -246,10 +252,10 @@
 				RelativePath="..\Common\Registry.h">
 			</File>
 			<File
-				RelativePath=".\resource.h">
+				RelativePath="..\Common\resource.h">
 			</File>
 			<File
-				RelativePath="..\Common\resource.h">
+				RelativePath=".\resource.h">
 			</File>
 			<File
 				RelativePath="..\Common\Tcdefs.h">

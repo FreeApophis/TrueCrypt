@@ -27,18 +27,18 @@
  in respect of its properties, including, but not limited to, correctness
  and/or fitness for purpose.
  ---------------------------------------------------------------------------
- Issue 28/01/2004
-
+ Issue 01/08/2005
 */
+
+#define DO_TABLES
+
+#include "Aes.h"
+#include "Aesopt.h"
 
 #if defined(__cplusplus)
 extern "C"
 {
 #endif
-
-#define DO_TABLES
-
-#include "Aesopt.h"
 
 #if defined(FIXED_TABLES)
 
@@ -197,8 +197,9 @@ extern "C"
 
 /* implemented in case of wrong call for fixed tables */
 
-void gen_tabs(void)
+aes_rval gen_tabs(void)
 {
+    return EXIT_SUCCESS;
 }
 
 #else   /* dynamic table generation */
@@ -218,8 +219,8 @@ void gen_tabs(void)
     used so that locals within fi can be bytes rather than words
 */
 
-static aes_08t hibit(const aes_32t x)
-{   aes_08t r = (aes_08t)((x >> 1) | (x >> 2));
+static uint_8t hibit(const uint_32t x)
+{   uint_8t r = (uint_8t)((x >> 1) | (x >> 2));
 
     r |= (r >> 2);
     r |= (r >> 4);
@@ -228,8 +229,8 @@ static aes_08t hibit(const aes_32t x)
 
 /* return the inverse of the finite field element x */
 
-static aes_08t fi(const aes_08t x)
-{   aes_08t p1 = x, p2 = BPOLY, n1 = hibit(x), n2 = 0x80, v1 = 1, v2 = 0;
+static uint_8t fi(const uint_8t x)
+{   uint_8t p1 = x, p2 = BPOLY, n1 = hibit(x), n2 = 0x80, v1 = 1, v2 = 0;
 
     if(x < 2) return x;
 
@@ -256,19 +257,19 @@ static aes_08t fi(const aes_08t x)
 /* The forward and inverse affine transformations used in the S-box */
 
 #define fwd_affine(x) \
-    (w = (aes_32t)x, w ^= (w<<1)^(w<<2)^(w<<3)^(w<<4), 0x63^(aes_08t)(w^(w>>8)))
+    (w = (uint_32t)x, w ^= (w<<1)^(w<<2)^(w<<3)^(w<<4), 0x63^(uint_8t)(w^(w>>8)))
 
 #define inv_affine(x) \
-    (w = (aes_32t)x, w = (w<<1)^(w<<3)^(w<<6), 0x05^(aes_08t)(w^(w>>8)))
+    (w = (uint_32t)x, w = (w<<1)^(w<<3)^(w<<6), 0x05^(uint_8t)(w^(w>>8)))
 
 static int init = 0;
 
-void gen_tabs(void)
-{   aes_32t  i, w;
+aes_rval gen_tabs(void)
+{   uint_32t  i, w;
 
 #if defined(FF_TABLES)
 
-    aes_08t  pow[512], log[256];
+    uint_8t  pow[512], log[256];
 
     if(init) return;
     /*  log and power tables for GF(2^8) finite field with
@@ -279,9 +280,9 @@ void gen_tabs(void)
     i = 0; w = 1;
     do
     {
-        pow[i] = (aes_08t)w;
-        pow[i + 255] = (aes_08t)w;
-        log[w] = (aes_08t)i++;
+        pow[i] = (uint_8t)w;
+        pow[i + 255] = (uint_8t)w;
+        log[w] = (uint_8t)i++;
         w ^=  (w << 1) ^ (w & 0x80 ? WPOLY : 0);
     }
     while (w != 1);
@@ -297,9 +298,9 @@ void gen_tabs(void)
     }
 
     for(i = 0; i < 256; ++i)
-    {   aes_08t    b;
+    {   uint_8t    b;
 
-        b = fwd_affine(fi((aes_08t)i));
+        b = fwd_affine(fi((uint_8t)i));
         w = bytes2word(f2(b), b, b, f3(b));
 
 #if defined( SBX_SET )
@@ -337,7 +338,7 @@ void gen_tabs(void)
         t_set(l,s)[3][i] = upr(w,3);
 #endif
 
-        b = fi(inv_affine((aes_08t)i));
+        b = fi(inv_affine((uint_8t)i));
         w = bytes2word(fe(b), f9(b), fd(b), fb(b));
 
 #if defined( IM1_SET )                 /* tables for the inverse mix column operation  */
@@ -374,6 +375,7 @@ void gen_tabs(void)
 #endif
     }
     init = 1;
+    return EXIT_SUCCESS;
 }
 
 #endif

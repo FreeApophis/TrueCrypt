@@ -13,6 +13,11 @@
 #define MSG_TASKBAR_ICON			7
 #define FILE_FAVORITE_VOLUMES		"Favorite Volumes.xml"
 
+#define APP_MESSAGE_ENABLE_DISABLE	100
+#define APP_MESSAGE_SHOW_WINDOW		101
+
+#define WM_COPY_SET_VOLUME_NAME		"VNAM"
+
 /* Password Change dialog modes */
 enum
 {

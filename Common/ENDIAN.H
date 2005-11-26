@@ -110,6 +110,14 @@
 #	define LE64(x) (x)
 #endif
 
+#if BYTE_ORDER == LITTLE_ENDIAN
+#	define BE32(x) MirrorBytes32(x)
+#	define BE64(x) MirrorBytes64(x)
+#else
+#	define BE32(x) (x)
+#	define BE64(x) (x)
+#endif
+
 unsigned __int32 MirrorBytes32 (unsigned __int32 x);
 unsigned __int64 MirrorBytes64 (unsigned __int64 x);
 void LongReverse ( unsigned __int32 *buffer , unsigned byteCount );

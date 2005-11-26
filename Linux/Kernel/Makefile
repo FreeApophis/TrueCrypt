@@ -43,6 +43,7 @@ OBJS += $(TC_CRYPTO)/Twofish.o
 OBJS += $(TC_COMMON)/Crc.o
 OBJS += $(TC_COMMON)/Crypto.o
 OBJS += $(TC_COMMON)/Endian.o
+OBJS += $(TC_COMMON)/GfMul.o
 OBJS += $(TC_COMMON)/Tests.o
 OBJS += Dm-target.o
 

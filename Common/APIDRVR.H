@@ -110,7 +110,7 @@ typedef struct
 typedef struct
 {
 	unsigned __int32 ulMountedDrives;	/* Bitfield of all mounted drive letters */
-	short wszVolume[26][64];	/* Volume names of mounted volumes */
+	short wszVolume[26][TC_MAX_PATH];	/* Volume names of mounted volumes */
 	unsigned __int64 diskLength[26];
 	int ea[26];
 	int volumeType[26];	/* Volume type (e.g. PROP_VOL_TYPE_OUTER, PROP_VOL_TYPE_OUTER_VOL_WRITE_PREVENTED, etc.) */
@@ -120,9 +120,10 @@ typedef struct
 {
 	int driveNo;
 	int uniqueId;
-	short wszVolume[64];
+	short wszVolume[TC_MAX_PATH];
 	unsigned __int64 diskLength;
 	int ea;
+	int mode;
 	int pkcs5;
 	int pkcs5Iterations;
 	BOOL hiddenVolume;

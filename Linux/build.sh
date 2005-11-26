@@ -13,9 +13,9 @@ error ()
 check_kernel_version ()
 {
 	M="$1/Makefile"
-	VER=$(grep '^VERSION *=' "$M" | head -1 | tr -d ' ' | cut -d'=' -f2)
-	VER=$VER.$(grep '^PATCHLEVEL *=' "$M" | head -1 | tr -d ' ' | cut -d'=' -f2)
-	VER=$VER.$(grep '^SUBLEVEL *=' "$M" | head -1 | tr -d ' ' | cut -d'=' -f2)
+	VER=$(grep '^VERSION *=' "$M" | head -n 1 | tr -d ' ' | cut -d'=' -f2)
+	VER=$VER.$(grep '^PATCHLEVEL *=' "$M" | head -n 1 | tr -d ' ' | cut -d'=' -f2)
+	VER=$VER.$(grep '^SUBLEVEL *=' "$M" | head -n 1 | tr -d ' ' | cut -d'=' -f2)
 
 	[ $VER = $( uname -r | tr -- - . | cut -d. -f1-3) ] && return 0
 	return 1
@@ -54,6 +54,12 @@ fi
 if [ ! -f "$KERNEL_SRC/.config" ]
 then
 	error "Kernel not configured. You should run make -C $KERNEL_SRC config modules"
+	exit 1
+fi
+
+if [ ! -f "$KERNEL_SRC/drivers/md/dm.h" ]
+then
+	error "Kernel source code is incomplete - header file dm.h not found."
 	exit 1
 fi
 

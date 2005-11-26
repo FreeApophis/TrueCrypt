@@ -8,14 +8,14 @@
    TrueCrypt binary and source code distribution archives.  */
 
 // Version displayed to user 
-#define VERSION_STRING                  "4.0"
+#define VERSION_STRING                  "4.1"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x0400
+#define VERSION_NUM						0x0410
 
 // Version number written to volume header during format,
 // specifies the minimum program version required to mount the volume
-#define VOL_REQ_PROG_VERSION			0x0100
+#define VOL_REQ_PROG_VERSION			0x0410
 
 // Volume header version
 #define VOLUME_HEADER_VERSION			0x0002 
@@ -59,6 +59,7 @@
 #define ERR_VOL_MOUNT_FAILED            36
 #define ERR_INVALID_DEVICE              37
 #define ERR_ACCESS_DENIED               38
+#define ERR_MODE_INIT_FAILED            39
 
 #define ERR_DONT_REPORT                 100
 
@@ -77,9 +78,8 @@
 
 #ifndef LINUX_DRIVER
 #include <string.h>
-#endif
-
 #pragma intrinsic(memcmp, memcpy, memset, strcat, strcmp, strcpy, strlen)
+#endif
 
 #ifdef NT4_DRIVER
 
@@ -141,8 +141,14 @@ typedef unsigned int UINT;
 #ifndef LRESULT
 typedef unsigned __int32 LRESULT;
 #endif
+/* NT4_DRIVER */
 
-#else	/* NT4_DRIVER */
+#elif defined(LINUX_DRIVER)	
+
+#define TCalloc(size) (kmalloc( size, GFP_KERNEL ))
+#define TCfree(memblock) kfree( memblock )
+
+#else
 
 #define TCalloc malloc
 #define TCfree free

@@ -53,8 +53,8 @@ LINK_OPTS = -nologo -machine:$(MACHINE) \
 -subsystem:native -base:0x10000 -entry:DriverEntry
 
 OBJECTS = $(OBJECTS) Ntdriver.obj Ntvol.obj Ntrawdv.obj Ntfiledv.obj \
-Volumes.obj Crypto.obj Endian.obj Crc.obj Pkcs5.obj Cache.obj Tests.obj \
-Driver.res
+Volumes.obj Crypto.obj Endian.obj Crc.obj GfMul.obj Pkcs5.obj Cache.obj \
+Tests.obj Driver.res
 
 LIBS = $(DDK)\lib\$(OS)\$(ARCH)\ntoskrnl.lib \
 $(DDK)\lib\$(OS)\$(ARCH)\hal.lib \

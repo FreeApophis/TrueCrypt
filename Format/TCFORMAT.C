@@ -71,8 +71,8 @@ unsigned __int64 nVolumeSize = 0;		/* The volume size, in bytes. */
 unsigned __int64 nHiddenVolHostSize = 0;	/* Size of the hidden volume host, in bytes */
 __int64 nMaximumHiddenVolSize = 0;		/* Maximum possible size of the hidden volume, in bytes */
 int nMultiplier = 1024*1024;		/* Size selection multiplier.  */
-char szFileName[TC_MAX_PATH];	/* The file selected by the user */
-char szDiskFile[TC_MAX_PATH];	/* Fully qualified name derived from szFileName */
+char szFileName[TC_MAX_PATH+1];	/* The file selected by the user */
+char szDiskFile[TC_MAX_PATH+1];	/* Fully qualified name derived from szFileName */
 
 BOOL bThreadCancel = FALSE;		/* TRUE if the user cancels the volume formatting */
 BOOL bThreadRunning = FALSE;	/* Is the thread running */
@@ -183,7 +183,6 @@ ComboSelChangeEA (HWND hwndDlg)
 	{
 		char name[100];
 		wchar_t auxLine[1024];
-		wchar_t *tmpStr;
 		char cipherIDs[5];
 		int i, cnt = 0;
 
@@ -217,22 +216,6 @@ ComboSelChangeEA (HWND hwndDlg)
 		else if (EAGetCipherCount (nIndex) > 1)
 		{
 			// Cascade
-
-			switch (EAGetMode(nIndex))
-			{
-			case INNER_CBC:
-				tmpStr = GetString ("SECTOR");
-				break;
-
-			case OUTER_CBC:
-				tmpStr = GetString ("BLOCK");
-				break;
-
-			default:
-				tmpStr = L"[?]";
-				break;
-			}
-
 			cipherIDs[cnt++] = i = EAGetLastCipher(nIndex);
 			while (i = EAGetPreviousCipher(nIndex, i))
 			{
@@ -244,8 +227,6 @@ ComboSelChangeEA (HWND hwndDlg)
 			{
 			case 2:
 				wsprintfW (auxLine, GetString ("TWO_LAYER_CASCADE_HELP"), 
-					EAGetModeName(nIndex, FALSE),
-					tmpStr,
 					CipherGetName (cipherIDs[1]),
 					CipherGetKeySize (cipherIDs[1])*8,
 					CipherGetName (cipherIDs[0]),
@@ -254,8 +235,6 @@ ComboSelChangeEA (HWND hwndDlg)
 
 			case 3:
 				wsprintfW (auxLine, GetString ("THREE_LAYER_CASCADE_HELP"), 
-					EAGetModeName(nIndex, FALSE),
-					tmpStr,
 					CipherGetName (cipherIDs[2]),
 					CipherGetKeySize (cipherIDs[2])*8,
 					CipherGetName (cipherIDs[1]),
@@ -271,7 +250,7 @@ ComboSelChangeEA (HWND hwndDlg)
 		else
 		{
 			// No info available for this encryption algorithm
-			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("CIPHER_NONE_HELP"));
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), L"");
 		}
 	}
 
@@ -482,10 +461,6 @@ formatThreadFunction (void *hwndDlg)
 
 	ArrowWaitCursor ();
 
-	// Reduce CPU load
-	bFastPollEnabled = FALSE;
-	bRandmixEnabled = FALSE;
-
 	nStatus = FormatVolume (szCFDevice,
 				bDevice,
 				szDiskFile,
@@ -501,9 +476,6 @@ formatThreadFunction (void *hwndDlg)
 				hwndDlg,
 				bHiddenVol && !bHiddenVolHost,
 				&realClusterSize);
-
-	bFastPollEnabled = TRUE;
-	bRandmixEnabled = TRUE;
 
 	NormalCursor ();
 
@@ -1169,7 +1141,8 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 				for (ea = EAGetFirst (); ea != 0; ea = EAGetNext (ea))
 				{
-					AddComboPair (GetDlgItem (hwndDlg, IDC_COMBO_BOX), EAGetName (buf, ea), ea);
+					if (EAGetFirstMode (ea) == LRW)
+						AddComboPair (GetDlgItem (hwndDlg, IDC_COMBO_BOX), EAGetName (buf, ea), ea);
 				}
 
 				SelectAlgo (GetDlgItem (hwndDlg, IDC_COMBO_BOX), &nVolumeEA);
@@ -1675,7 +1648,7 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		if (lw == IDC_SELECT_FILE && nCurPageNo == FILE_PAGE)
 		{
-			if (BrowseFiles (hwndDlg, "OPEN_TITLE", szFileName, bHistory) == FALSE)
+			if (BrowseFiles (hwndDlg, "OPEN_TITLE", szFileName, bHistory, FALSE) == FALSE)
 				return 1;
 
 			AddComboItem (GetDlgItem (hwndDlg, IDC_COMBO_BOX), szFileName);
@@ -1958,9 +1931,20 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 			else if (nCurPageNo == SIZE_PAGE)
 			{
+				BOOL cancel = FALSE;
+
 				VerifySizeAndUpdate (hCurPage, TRUE);
 
-				if (!(bHiddenVolDirect && bHiddenVolHost))
+				/* Warn if a 64-bit block cipher is selected for a too large volume */
+				if (CipherGetBlockSize (EAGetFirstCipher (nVolumeEA)) == 8	// If a 64-bit block cipher is selected
+					&& nUIVolumeSize * nMultiplier >= 34359738368			// If the volume size over 32 GB (birthday paradox)
+					&& AskWarnNoYes ("WARN_VOL_SIZE_VS_BLOCK_SIZE") == IDNO)
+				{
+					cancel = TRUE;
+				}
+				if (cancel)
+					nCurPageNo--;
+				else if (!(bHiddenVolDirect && bHiddenVolHost))
 					nCurPageNo++;
 			}
 

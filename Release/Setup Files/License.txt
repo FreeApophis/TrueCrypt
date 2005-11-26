@@ -178,17 +178,18 @@ software. All other trademarks are the sole property of their respective
 owners.
 
 Portions of this software are:
-Copyright (c) 2004-2005 TrueCrypt Foundation. All Rights Reserved.
-Copyright (c) 1998-2000 Paul Le Roux. All Rights Reserved.
-Copyright (c) 2004 TrueCrypt Team. All Rights Reserved.
-Copyright (c) 1995-1997 Eric Young. All Rights Reserved.
-Copyright (c) 1999-2004 Dr. Brian Gladman, Worcester, UK. All Rights Reserved.
-Copyright (c) 2001 Markus Friedl. All Rights Reserved.
+Copyright (c) TrueCrypt Foundation. All Rights Reserved.
+Copyright (c) Paul Le Roux. All Rights Reserved.
+Copyright (c) TrueCrypt Team. All Rights Reserved.
+Copyright (c) Eric Young. All Rights Reserved.
+Copyright (c) Dr. Brian Gladman, Worcester, UK. All Rights Reserved.
+Copyright (c) Markus Friedl. All Rights Reserved.
 
 For more information, please see the legal notices attached to parts of the
 source code.
 
-Graphics (logos, icons, etc.) are Copyright (c) 2004-2005 TrueCrypt Foundation
+Graphics (logos, icons, etc.) are Copyright (c) TrueCrypt Foundation
+
 
 
 COMPONENT LEGAL NOTICES

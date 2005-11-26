@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 4,0,0,0
- PRODUCTVERSION 4,0,0,0
+ FILEVERSION 4,1,0,0
+ PRODUCTVERSION 4,1,0,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -46,12 +46,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Format"
-            VALUE "FileVersion", "4.0"
+            VALUE "FileVersion", "4.1"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
+            VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt Format.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "4.0"
-            VALUE "SpecialBuild", "November 2005"
+            VALUE "ProductVersion", "4.1"
+            VALUE "SpecialBuild", "2005-11-25"
         END
     END
     BLOCK "VarFileInfo"
@@ -85,7 +86,7 @@ BEGIN
     PUSHBUTTON      "",IDC_PREV,235,189,50,14
     DEFPUSHBUTTON   "",IDC_NEXT,285,189,50,14
     PUSHBUTTON      "Cancel",IDCANCEL,343,189,50,14
-    LTEXT           "",IDC_BOX_TITLE,160,8,220,17
+    LTEXT           "",IDC_BOX_TITLE,160,8,233,17
     GROUPBOX        "",IDC_STATIC,4,0,392,183
     CONTROL         20,IDC_STATIC,"Static",SS_BITMAP | SS_SUNKEN,10,9,137,
                     169
@@ -112,11 +113,11 @@ FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     EDITTEXT        IDC_PASSWORD,53,2,163,14,ES_PASSWORD | ES_AUTOHSCROLL
     EDITTEXT        IDC_VERIFY,53,18,163,14,ES_PASSWORD | ES_AUTOHSCROLL
-    CONTROL         "Display Password",IDC_SHOW_PASSWORD,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,53,33,79,11,
+    CONTROL         "Display password",IDC_SHOW_PASSWORD,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,53,33,95,11,
                     WS_EX_TRANSPARENT
     CONTROL         "Use keyfiles",IDC_KEYFILES_ENABLE,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,53,43,82,11
+                    BS_AUTOCHECKBOX | WS_TABSTOP,53,43,95,11
     PUSHBUTTON      "Keyfiles..",IDC_KEY_FILES,152,35,64,14,WS_DISABLED
     RTEXT           "Password:",IDT_PASSWORD,1,5,50,8
     RTEXT           "&Confirm:",IDT_CONFIRM,1,22,50,8
@@ -141,7 +142,7 @@ FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     COMBOBOX        IDC_COMBO_BOX,0,14,148,80,CBS_DROPDOWN | CBS_AUTOHSCROLL | 
                     WS_VSCROLL | WS_TABSTOP
-    CONTROL         "&Never save history",IDC_NO_HISTORY,"Button",
+    CONTROL         "Never &save history",IDC_NO_HISTORY,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,3,33,137,10
     PUSHBUTTON      "Select &File...",IDC_SELECT_FILE,155,14,62,14
     PUSHBUTTON      "Select D&evice...",IDC_SELECT_DEVICE,155,30,62,14
@@ -210,7 +211,7 @@ BEGIN
     CONTROL         "Create a hi&dden TrueCrypt volume ",IDC_HIDDEN_VOL,
                     "Button",BS_AUTORADIOBUTTON,0,17,212,10
     LTEXT           "",IDC_BOX_HELP,0,36,217,96
-    PUSHBUTTON      "What is a hidden volume?",IDC_HIDDEN_VOL_HELP,0,135,96,
+    PUSHBUTTON      "What is a hidden volume?",IDC_HIDDEN_VOL_HELP,0,135,116,
                     14,0,WS_EX_STATICEDGE
 END
 
@@ -248,7 +249,7 @@ FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     EDITTEXT        IDC_PASSWORD_DIRECT,50,11,149,14,ES_PASSWORD | 
                     ES_AUTOHSCROLL
-    CONTROL         "Display Password",IDC_SHOW_PASSWORD_HIDVOL_HOST,"Button",
+    CONTROL         "Display password",IDC_SHOW_PASSWORD_HIDVOL_HOST,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,50,27,79,11,
                     WS_EX_TRANSPARENT
     CONTROL         "Use keyfiles",IDC_KEYFILES_ENABLE,"Button",

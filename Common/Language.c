@@ -131,6 +131,9 @@ BOOL LoadLanguageFile ()
 	{
 		xml = (char *) res;
 		xml = XmlFindElement (xml, "localization");
+		if (!xml)
+			continue;
+
 		// Required TrueCrypt version
 		XmlAttribute (xml, "prog-version", attr, sizeof (attr));
 
@@ -168,7 +171,8 @@ BOOL LoadLanguageFile ()
 				|| strcmp (attr, langId) == 0)
 			{
 				Font font;
-				
+				memset (&font, 0, sizeof (font));
+
 				XmlAttribute (xml, "face", attr, sizeof (attr));
 			
 				len = MultiByteToWideChar (CP_UTF8, 0, attr, -1, wattr, sizeof (wattr));
@@ -179,7 +183,8 @@ BOOL LoadLanguageFile ()
 
 				strcpy (attr, "font_");
 				XmlAttribute (xml, "class", attr + 5, sizeof (attr) - 5);
-				AddDictionaryEntry (AddPoolData ((void *) attr, sizeof (attr)), 0,
+				AddDictionaryEntry (
+					AddPoolData ((void *) attr, strlen (attr) + 1), 0,
 					AddPoolData ((void *) &font, sizeof(font)));
 			}
 
@@ -453,8 +458,8 @@ BOOL WINAPI LanguageDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPara
 			char tmpstr [256];
 
 			ArrowWaitCursor ();
-			if (strlen(ActiveLangPackVersion) > 0 && strlen(PreferredLangId) > 0)
-				sprintf (tmpstr, "http://www.truecrypt.org/applink.php?version=%s&dest=localizations&langpackversion=%s&lang=%s", VERSION_STRING, ActiveLangPackVersion, PreferredLangId);
+			if (strlen(ActiveLangPackVersion) > 0 && strlen(GetPreferredLangId()) > 0)
+				sprintf (tmpstr, "http://www.truecrypt.org/applink.php?version=%s&dest=localizations&langpackversion=%s&lang=%s", VERSION_STRING, ActiveLangPackVersion, GetPreferredLangId());
 			else
 				sprintf (tmpstr, "http://www.truecrypt.org/applink.php?version=%s&dest=localizations", VERSION_STRING);
 

@@ -4,7 +4,7 @@
 BIN_DIR=/usr/local/bin
 MAN_DIR=/usr/local/man
 MOD_DIR=/lib/modules/$(uname -r)/extra
-BIN_PERM=750
+BIN_PERM=755
 
 umask 022
 
@@ -78,7 +78,7 @@ fi
 
 echo -n "Testing truecrypt... "
 ./Cli/truecrypt --test >/dev/null 2>/dev/null
-[ $? -ne -0 ] && echo "FAILED" && exit 1
+[ $? -ne 0 ] && echo "FAILED" && exit 1
 echo Done.
 
 

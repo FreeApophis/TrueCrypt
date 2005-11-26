@@ -33,7 +33,7 @@ CommandHelpDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 	case WM_INITDIALOG:
 		{
 		char * tmp = err_malloc(8192);
-		char tmp2[256];
+		char tmp2[MAX_PATH * 2];
 		argumentspec *as;
 		int i;
 
@@ -71,7 +71,7 @@ Win32CommandLine (char *lpszCommandLine, char ***lpszArgs)
 	int i = 0, k = 0, x = 0, nValid = TRUE;
 	int nLen = strlen (lpszCommandLine);
 	int nArrSize = 16;
-	char szTmp[256];
+	char szTmp[MAX_PATH * 2];
 
 	*lpszArgs = malloc (sizeof (char *)* nArrSize);
 
@@ -178,7 +178,7 @@ GetArgSepPosOffset (char *lpszArgument)
 int
 GetArgumentID (argumentspec *as, char *lpszArgument, int *nArgPos)
 {
-	char szTmp[256];
+	char szTmp[MAX_PATH * 2];
 	int i;
 
 	i = strlen (lpszArgument);

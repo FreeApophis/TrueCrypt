@@ -28,7 +28,7 @@ FormatVolume (char *lpszFilename,
 	      unsigned __int64 size,
 		  unsigned __int64 hiddenVolHostSize,
 	      Password *password,
-	      int cipher,
+	      int ea,
 	      int pkcs5,
 		  BOOL quickFormat,
 		  int fileSystem,
@@ -60,7 +60,8 @@ FormatVolume (char *lpszFilename,
 	/* Copies any header structures into header, but does not do any
 	   disk io */
 	nStatus = VolumeWriteHeader (header,
-				     cipher,
+				     ea,
+					 LRW, // The only supported mode of operation when creating new volumes
 				     password,
 				     pkcs5,
 					 0,
@@ -83,7 +84,7 @@ FormatVolume (char *lpszFilename,
 		dev = CreateFile (lpszFilename, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
 		if (dev == INVALID_HANDLE_VALUE)
 		{
-			// Try opening device in shared mode
+			// Try opening the device in shared mode
 			dev = CreateFile (lpszFilename, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 			if (dev != INVALID_HANDLE_VALUE)
 			{
@@ -106,7 +107,7 @@ FormatVolume (char *lpszFilename,
 
 		if (!hiddenVol)
 		{
-			// Preallocate file
+			// Preallocate the file
 			LARGE_INTEGER volumeSize;
 			volumeSize.QuadPart = size;
 
@@ -115,7 +116,8 @@ FormatVolume (char *lpszFilename,
 				|| SetFilePointer (dev, 0, NULL, FILE_BEGIN) != 0)
 			{
 				handleWin32Error (hwndDlg);
-				nStatus = ERR_OS_ERROR; goto error;
+				nStatus = ERR_OS_ERROR;
+				goto error;
 			}
 		}
 	}
@@ -154,13 +156,15 @@ FormatVolume (char *lpszFilename,
 		// Check hidden volume size
 		if (hiddenVolHostSize < MIN_HIDDEN_VOLUME_HOST_SIZE || hiddenVolHostSize > MAX_HIDDEN_VOLUME_HOST_SIZE)
 		{		
-			nStatus = ERR_VOL_SIZE_WRONG; goto error;
+			nStatus = ERR_VOL_SIZE_WRONG;
+			goto error;
 		}
 
 		// Seek to hidden volume header location
 		if (!SeekHiddenVolHeader ((HFILE) dev, hiddenVolHostSize, bDevice))
 		{
-			nStatus = ERR_VOL_SEEKING; goto error;
+			nStatus = ERR_VOL_SEEKING;
+			goto error;
 		}
 
 	}
@@ -178,6 +182,7 @@ FormatVolume (char *lpszFilename,
 	{
 		// Calculate data area position of hidden volume
 		unsigned __int64 startOffset = hiddenVolHostSize - size - HIDDEN_VOL_HEADER_OFFSET;
+		cryptoInfo->hiddenVolumeOffset = startOffset;
 
 		// Validate the offset
 		if (startOffset % SECTOR_SIZE != 0)
@@ -293,7 +298,7 @@ error:
 					return ERR_VOL_MOUNT_FAILED;
 				}
 
-				// Quickformat volume as NTFS
+				// Quick-format volume as NTFS
 				if (!FormatNtfs (driveNo, clusterSize))
 				{
 					MessageBoxW (hwndDlg, GetString ("FORMAT_NTFS_FAILED"), lpszTitle, MB_ICONERROR);
@@ -333,6 +338,7 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, HFILE dev, PC
 	LARGE_INTEGER startOffset;
 	LARGE_INTEGER newOffset;
 	int retVal;
+	char temporaryKey[DISKKEY_SIZE];
 
 	// Seek to start sector
 	startOffset.QuadPart = startSector * SECTOR_SIZE;
@@ -345,26 +351,44 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, HFILE dev, PC
 	write_buf = TCalloc (WRITE_BUF_SIZE);
 	memset (sector, 0, sizeof (sector));
 
-	// Write sectors
+	/* Fill the rest of the data area with random data */
+
 	if(!quickFormat)
 	{
-		/* Generate a random key and IV to be used for "dummy" encryption that will fill the
-		   free disk space (data area) with random data. That will reduce the amount of
-		   predictable plaintext within the volume and also increase the level of plausible
-		   deniability of hidden volumes. */
-		char key[DISKKEY_SIZE];
-		RandgetBytes (key, DISKKEY_SIZE, FALSE); 
-		RandgetBytes (cryptoInfo->iv, sizeof cryptoInfo->iv, FALSE); 
+		/* Generate a random temporary key set to be used for "dummy" encryption that will fill
+		the free disk space (data area) with random data.  This is necessary for plausible
+		deniability of hidden volumes (and also reduces the amount of predictable plaintext
+		within the volume). */
 
-		retVal = EAInit (cryptoInfo->ea, key, cryptoInfo->ks);
+		RandgetBytes (temporaryKey, DISKKEY_SIZE, FALSE);				// Temporary master key
+		RandgetBytes (cryptoInfo->iv, sizeof cryptoInfo->iv, FALSE);	// Secondary key (LRW mode)
+
+		retVal = EAInit (cryptoInfo->ea, temporaryKey, cryptoInfo->ks);
 		if (retVal != 0)
+		{
+			burn (temporaryKey, sizeof(temporaryKey));
 			return retVal;
-
-		RandgetBytes (sector, 256, FALSE); 
-		RandgetBytes (sector + 256, 256, FALSE); 
+		}
+		if (!EAInitMode (cryptoInfo))
+		{
+			burn (temporaryKey, sizeof(temporaryKey));
+			return ERR_MODE_INIT_FAILED;
+		}
 
 		while (num_sectors--)
 		{
+			/* Generate random plaintext. Note that reused plaintext blocks are not a concern
+			here since LRW mode is designed to hide patterns. Furthermore, patterns in plaintext
+			do occur commonly on media in the "real world", so it might actually be a fatal
+			mistake to try to avoid them completely. */
+#if RNG_POOL_SIZE < SECTOR_SIZE
+			RandpeekBytes (sector, RNG_POOL_SIZE);
+			RandpeekBytes (sector + RNG_POOL_SIZE, SECTOR_SIZE - RNG_POOL_SIZE);
+#else
+			RandpeekBytes (sector, SECTOR_SIZE);
+#endif
+
+			// Encrypt the random plaintext and write it to the disk
 			if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo,
 				cryptoInfo, write) == FALSE)
 				goto fail;
@@ -378,11 +402,13 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, HFILE dev, PC
 	UpdateProgressBar (nSecNo);
 
 	TCfree (write_buf);
+	burn (temporaryKey, sizeof(temporaryKey));
 	return 0;
 
 fail:
 
 	TCfree (write_buf);
+	burn (temporaryKey, sizeof(temporaryKey));
 	return ERR_OS_ERROR;
 }
 
@@ -431,7 +457,7 @@ WriteSector (HFILE dev, char *sector,
 	static DWORD updateTime = 0;
 
 	EncryptSectors ((unsigned __int32 *) sector,
-		(*nSecNo)++, 1, cryptoInfo->ks, cryptoInfo->iv, cryptoInfo->ea);
+		(*nSecNo)++, 1, cryptoInfo);
 
 	memcpy (write_buf + *write_buf_cnt, sector, SECTOR_SIZE);
 	(*write_buf_cnt) += SECTOR_SIZE;

@@ -27,12 +27,7 @@
  in respect of its properties, including, but not limited to, correctness
  and/or fitness for purpose.
  ---------------------------------------------------------------------------
- Issue 28/01/2004
-
- This file contains the code for implementing encryption and decryption
- for AES (Rijndael) for block and key sizes of 16, 24 and 32 bytes. It
- can optionally be replaced by code written in assembler using NASM. For
- further details see the file aesopt.h
+ Issue 01/08/2005
 */
 
 #include "Aesopt.h"
@@ -58,7 +53,7 @@ extern "C"
 #define state_out(y,x)  so(y,x,0); so(y,x,1); so(y,x,2); so(y,x,3)
 #define round(rm,y,x,k) rm(y,x,k,0); rm(y,x,k,1); rm(y,x,k,2); rm(y,x,k,3)
 
-#if defined(ENCRYPTION) && !defined(AES_ASM)
+#if ( FUNCS_IN_C & ENCRYPTION_IN_C)
 
 /* Visual C++ .Net v7.1 provides the fastest encryption code when using
    Pentium optimiation with small code but this is poor for decryption
@@ -66,7 +61,7 @@ extern "C"
 */
 
 #if defined(_MSC_VER)
-//#pragma optimize( "s", on )
+#pragma optimize( "s", on )
 #endif
 
 /* Given the column (c) of the output state variable, the following
@@ -104,34 +99,34 @@ extern "C"
 #define fwd_lrnd(y,x,k,c)   (s(y,c) = (k)[c] ^ no_table(x,t_use(s,box),fwd_var,rf1,c))
 #endif
 
-aes_rval aes_encrypt(const unsigned char *in,
-                        unsigned char *out, const aes_encrypt_ctx cx[1])
-{   aes_32t         locals(b0, b1);
-    const aes_32t   *kp = cx->ks;
+aes_rval aes_encrypt(const unsigned char *in, unsigned char *out, const aes_encrypt_ctx cx[1])
+{   uint_32t         locals(b0, b1);
+    const uint_32t   *kp;
 #if defined( dec_fmvars )
     dec_fmvars; /* declare variables for fwd_mcol() if needed */
 #endif
 
 #if defined( AES_ERR_CHK )
-    if( cx->rn != 10 && cx->rn != 12 && cx->rn != 14 )
-        return aes_error;
+    if( cx->inf.b[0] != 10 * 16 && cx->inf.b[0] != 12 * 16 && cx->inf.b[0] != 14 * 16 )
+        return EXIT_FAILURE;
 #endif
 
+    kp = cx->ks;
     state_in(b0, in, kp);
 
 #if (ENC_UNROLL == FULL)
 
-    switch(cx->rn)
+    switch(cx->inf.b[0])
     {
-    case 14:
+    case 14 * 16:
         round(fwd_rnd,  b1, b0, kp + 1 * N_COLS);
         round(fwd_rnd,  b0, b1, kp + 2 * N_COLS);
         kp += 2 * N_COLS;
-    case 12:
+    case 12 * 16:
         round(fwd_rnd,  b1, b0, kp + 1 * N_COLS);
         round(fwd_rnd,  b0, b1, kp + 2 * N_COLS);
         kp += 2 * N_COLS;
-    case 10:
+    case 10 * 16:
         round(fwd_rnd,  b1, b0, kp + 1 * N_COLS);
         round(fwd_rnd,  b0, b1, kp + 2 * N_COLS);
         round(fwd_rnd,  b1, b0, kp + 3 * N_COLS);
@@ -147,8 +142,8 @@ aes_rval aes_encrypt(const unsigned char *in,
 #else
 
 #if (ENC_UNROLL == PARTIAL)
-    {   aes_32t    rnd;
-        for(rnd = 0; rnd < (cx->rn >> 1) - 1; ++rnd)
+    {   uint_32t    rnd;
+        for(rnd = 0; rnd < (cx->inf.b[0] >> 5) - 1; ++rnd)
         {
             kp += N_COLS;
             round(fwd_rnd, b1, b0, kp);
@@ -158,8 +153,8 @@ aes_rval aes_encrypt(const unsigned char *in,
         kp += N_COLS;
         round(fwd_rnd,  b1, b0, kp);
 #else
-    {   aes_32t    rnd;
-        for(rnd = 0; rnd < cx->rn - 1; ++rnd)
+    {   uint_32t    rnd;
+        for(rnd = 0; rnd < (cx->inf.b[0] >> 4) - 1; ++rnd)
         {
             kp += N_COLS;
             round(fwd_rnd, b1, b0, kp);
@@ -172,14 +167,15 @@ aes_rval aes_encrypt(const unsigned char *in,
 #endif
 
     state_out(out, b0);
+
 #if defined( AES_ERR_CHK )
-    return aes_good;
+    return EXIT_SUCCESS;
 #endif
 }
 
 #endif
 
-#if defined(DECRYPTION) && !defined(AES_ASM)
+#if ( FUNCS_IN_C & DECRYPTION_IN_C)
 
 /* Visual C++ .Net v7.1 provides the fastest encryption code when using
    Pentium optimiation with small code but this is poor for decryption
@@ -187,7 +183,7 @@ aes_rval aes_encrypt(const unsigned char *in,
 */
 
 #if defined(_MSC_VER)
-//#pragma optimize( "t", on )
+#pragma optimize( "t", on )
 #endif
 
 /* Given the column (c) of the output state variable, the following
@@ -225,76 +221,91 @@ aes_rval aes_encrypt(const unsigned char *in,
 #define inv_lrnd(y,x,k,c)   (s(y,c) = (k)[c] ^ no_table(x,t_use(i,box),inv_var,rf1,c))
 #endif
 
-aes_rval aes_decrypt(const unsigned char *in,
-                        unsigned char *out, const aes_decrypt_ctx cx[1])
-{   aes_32t        locals(b0, b1);
+/* This code can work with the decryption key schedule in the   */
+/* order that is used for encrytpion (where the 1st decryption  */
+/* round key is at the high end ot the schedule) or with a key  */
+/* schedule that has been reversed to put the 1st decryption    */
+/* round key at the low end of the schedule in memory (when     */
+/* AES_REV_DKS is defined)                                      */
+
+#ifdef AES_REV_DKS
+#define key_ofs     0
+#define rnd_key(n)  (kp + n * N_COLS)
+#else
+#define key_ofs     1
+#define rnd_key(n)  (kp - n * N_COLS)
+#endif
+
+aes_rval aes_decrypt(const unsigned char *in, unsigned char *out, const aes_decrypt_ctx cx[1])
+{   uint_32t        locals(b0, b1);
 #if defined( dec_imvars )
     dec_imvars; /* declare variables for inv_mcol() if needed */
 #endif
-    const aes_32t *kp = cx->ks + cx->rn * N_COLS;
+    const uint_32t *kp;
 
 #if defined( AES_ERR_CHK )
-    if( cx->rn != 10 && cx->rn != 12 && cx->rn != 14 )
-        return aes_error;
+    if( cx->inf.b[0] != 10 * 16 && cx->inf.b[0] != 12 * 16 && cx->inf.b[0] != 14 * 16 )
+        return EXIT_FAILURE;
 #endif
 
+    kp = cx->ks + (key_ofs ? (cx->inf.b[0] >> 2) : 0);
     state_in(b0, in, kp);
 
 #if (DEC_UNROLL == FULL)
 
-    switch(cx->rn)
+    kp = cx->ks + (key_ofs ? 0 : (cx->inf.b[0] >> 2));
+    switch(cx->inf.b[0])
     {
-    case 14:
-        round(inv_rnd,  b1, b0, kp -  1 * N_COLS);
-        round(inv_rnd,  b0, b1, kp -  2 * N_COLS);
-        kp -= 2 * N_COLS;
-    case 12:
-        round(inv_rnd,  b1, b0, kp -  1 * N_COLS);
-        round(inv_rnd,  b0, b1, kp -  2 * N_COLS);
-        kp -= 2 * N_COLS;
-    case 10:
-        round(inv_rnd,  b1, b0, kp -  1 * N_COLS);
-        round(inv_rnd,  b0, b1, kp -  2 * N_COLS);
-        round(inv_rnd,  b1, b0, kp -  3 * N_COLS);
-        round(inv_rnd,  b0, b1, kp -  4 * N_COLS);
-        round(inv_rnd,  b1, b0, kp -  5 * N_COLS);
-        round(inv_rnd,  b0, b1, kp -  6 * N_COLS);
-        round(inv_rnd,  b1, b0, kp -  7 * N_COLS);
-        round(inv_rnd,  b0, b1, kp -  8 * N_COLS);
-        round(inv_rnd,  b1, b0, kp -  9 * N_COLS);
-        round(inv_lrnd, b0, b1, kp - 10 * N_COLS);
+    case 14 * 16:
+        round(inv_rnd,  b1, b0, rnd_key(-13));
+        round(inv_rnd,  b0, b1, rnd_key(-12));
+    case 12 * 16:
+        round(inv_rnd,  b1, b0, rnd_key(-11));
+        round(inv_rnd,  b0, b1, rnd_key(-10));
+    case 10 * 16:
+        round(inv_rnd,  b1, b0, rnd_key(-9));
+        round(inv_rnd,  b0, b1, rnd_key(-8));
+        round(inv_rnd,  b1, b0, rnd_key(-7));
+        round(inv_rnd,  b0, b1, rnd_key(-6));
+        round(inv_rnd,  b1, b0, rnd_key(-5));
+        round(inv_rnd,  b0, b1, rnd_key(-4));
+        round(inv_rnd,  b1, b0, rnd_key(-3));
+        round(inv_rnd,  b0, b1, rnd_key(-2));
+        round(inv_rnd,  b1, b0, rnd_key(-1));
+        round(inv_lrnd, b0, b1, rnd_key( 0));
     }
 
 #else
 
 #if (DEC_UNROLL == PARTIAL)
-    {   aes_32t    rnd;
-        for(rnd = 0; rnd < (cx->rn >> 1) - 1; ++rnd)
+    {   uint_32t    rnd;
+        for(rnd = 0; rnd < (cx->inf.b[0] >> 5) - 1; ++rnd)
         {
-            kp -= N_COLS;
+            kp = rnd_key(1);
             round(inv_rnd, b1, b0, kp);
-            kp -= N_COLS;
+            kp = rnd_key(1);
             round(inv_rnd, b0, b1, kp);
         }
-        kp -= N_COLS;
+        kp = rnd_key(1);
         round(inv_rnd, b1, b0, kp);
 #else
-    {   aes_32t    rnd;
-        for(rnd = 0; rnd < cx->rn - 1; ++rnd)
+    {   uint_32t    rnd;
+        for(rnd = 0; rnd < (cx->inf.b[0] >> 4) - 1; ++rnd)
         {
-            kp -= N_COLS;
+            kp = rnd_key(1);
             round(inv_rnd, b1, b0, kp);
             l_copy(b0, b1);
         }
 #endif
-        kp -= N_COLS;
+        kp = rnd_key(1);
         round(inv_lrnd, b0, b1, kp);
-    }
+        }
 #endif
 
     state_out(out, b0);
+
 #if defined( AES_ERR_CHK )
-    return aes_good;
+    return EXIT_SUCCESS;
 #endif
 }
 

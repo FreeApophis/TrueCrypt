@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <TrueCrypt>
-	<localization prog-version="4.0">
+	<localization prog-version="4.1">
 		<!-- Languages -->
 		<language langid="en" name="English" en-name="English" version="0.0.0" translators="" />
 		<!-- Fonts -->
@@ -20,13 +20,13 @@
 		<control lang="en" key="IDC_KEYFILES_ENABLE">Use keyfiles</control>
 		<control lang="en" key="IDC_KEY_FILES">Keyfiles..</control>
 		<control lang="en" key="IDC_MB">&amp;MB</control>
-		<control lang="en" key="IDC_NO_HISTORY">&amp;Never save history</control>
+		<control lang="en" key="IDC_NO_HISTORY">Never &amp;save history</control>
 		<control lang="en" key="IDC_OPEN_OUTER_VOLUME">Open Outer Volume</control>
 		<control lang="en" key="IDC_QUICKFORMAT">Quick Format</control>
 		<control lang="en" key="IDC_SELECT_DEVICE">Select D&amp;evice...</control>
 		<control lang="en" key="IDC_SELECT_FILE">Select &amp;File...</control>
-		<control lang="en" key="IDC_SHOW_PASSWORD">Display Password</control>
-		<control lang="en" key="IDC_SHOW_PASSWORD_HIDVOL_HOST">Display Password</control>
+		<control lang="en" key="IDC_SHOW_PASSWORD">Display password</control>
+		<control lang="en" key="IDC_SHOW_PASSWORD_HIDVOL_HOST">Display password</control>
 		<control lang="en" key="IDC_STD_VOL">Create a standard TrueCrypt volume</control>
 		<control lang="en" key="IDC_WIZ_BENCHMARK">&amp;Benchmark</control>
 		<control lang="en" key="IDD_MKFS_DLG">TrueCrypt Volume Creation Wizard</control>
@@ -48,7 +48,7 @@
 		<control lang="en" key="IDT_RANDOM_POOL">Random Pool: </control>
 		<control lang="en" key="IDT_SPEED">Speed </control>
 		<control lang="en" key="IDC_AUTORUN_DISABLE">Do nothing</control>
-		<control lang="en" key="IDC_AUTORUN_MOUNT">&amp;Auto-mount TrueCrypt volume</control>
+		<control lang="en" key="IDC_AUTORUN_MOUNT">&amp;Auto-mount TrueCrypt volume (specified below)</control>
 		<control lang="en" key="IDC_AUTORUN_START">&amp;Start TrueCrypt</control>
 		<control lang="en" key="IDC_BROWSE_DIRS">Browse...</control>
 		<control lang="en" key="IDC_BROWSE_FILES">Browse...</control>
@@ -93,8 +93,8 @@
 		<control lang="en" key="IDC_PREF_WIPE_CACHE_ON_EXIT">Wipe cached passwords on exit</control>
 		<control lang="en" key="IDC_PRESERVE_TIMESTAMPS">Preserve timestamps of file containers and keyfiles</control>
 		<control lang="en" key="IDC_RESET_HOTKEYS">Reset</control>
-		<control lang="en" key="IDC_SHOW_PASSWORD_CHPWD_NEW">Display Password</control>
-		<control lang="en" key="IDC_SHOW_PASSWORD_CHPWD_ORI">Display Password</control>
+		<control lang="en" key="IDC_SHOW_PASSWORD_CHPWD_NEW">Display password</control>
+		<control lang="en" key="IDC_SHOW_PASSWORD_CHPWD_ORI">Display password</control>
 		<control lang="en" key="IDC_TRAVEL_OPEN_EXPLORER">Open &amp;Explorer window for mounted volume</control>
 		<control lang="en" key="IDC_TRAV_CACHE_PASSWORDS">&amp;Cache password in driver memory</control>
 		<control lang="en" key="IDC_UNMOUNTALL">Di&amp;smount All</control>
@@ -184,17 +184,18 @@
 		<control lang="en" key="IDC_ENCRYPT">&amp;Encrypt</control>
 		<control lang="en" key="IDC_GENERATE_AND_SAVE_KEYFILE">Generate and Save Keyfile...</control>
 		<control lang="en" key="IDC_GENERATE_KEYFILE">Generate Random Keyfile...</control>
-		<control lang="en" key="IDC_HOMEPAGE">www.truecrypt.org</control>
+		<control lang="en" key="IDC_GET_LANG_PACKS">Download language pack</control>
 		<control lang="en" key="IDC_KEYADD">Add File...</control>
 		<control lang="en" key="IDC_KEYFILES_ENABLE_HIDVOL_PROT">Use keyfiles</control>
 		<control lang="en" key="IDC_KEYFILES_HIDVOL_PROT">&amp;Keyfiles...</control>
 		<control lang="en" key="IDC_KEYREMOVE">Remove</control>
 		<control lang="en" key="IDC_KEYREMOVEALL">Remove All</control>
+		<control lang="en" key="IDC_LRW_MODE_ENABLED">LRW mode</control>
 		<control lang="en" key="IDC_MOUNT_REMOVABLE">Mount volume as removable &amp;medium</control>
 		<control lang="en" key="IDC_PERFORM_BENCHMARK">Benchmark</control>
 		<control lang="en" key="IDC_PROTECT_HIDDEN_VOL">&amp;Protect hidden volume against damage caused by writing to outer volume</control>
 		<control lang="en" key="IDC_RESET">&amp;Reset</control>
-		<control lang="en" key="IDC_SHOW_PASSWORD_MO">Display Password</control>
+		<control lang="en" key="IDC_SHOW_PASSWORD_MO">Display password</control>
 		<control lang="en" key="IDD_ABOUT_DLG">About TrueCrypt</control>
 		<control lang="en" key="IDD_BENCHMARK_DLG">TrueCrypt - Encryption Algorithm Benchmark</control>
 		<control lang="en" key="IDD_CIPHER_TEST_DLG">TrueCrypt - Test Vectors</control>
@@ -205,7 +206,6 @@
 		<control lang="en" key="IDD_LEGAL_NOTICES_DLG">TrueCrypt - Legal Notices</control>
 		<control lang="en" key="IDD_MOUNT_OPTIONS">TrueCrypt - Mount Options</control>
 		<control lang="en" key="IDD_RAWDEVICES_DLG">Select a Partition or Device</control>
-		<control lang="en" key="IDT_ABOUT_VERSION">TrueCrypt x.x</control>
 		<control lang="en" key="IDT_ACTIVE_LANG_PACK">Active language pack</control>
 		<control lang="en" key="IDT_BOX_BENCHMARK_INFO">Speed is affected by CPU load and storage device characteristics.\n\nThese tests take place in RAM.</control>
 		<control lang="en" key="IDT_BUFFER_SIZE">Buffer Size:</control>
@@ -217,6 +217,9 @@
 		<control lang="en" key="IDT_KEYFILE_WARNING">WARNING: If you lose a keyfile or if its first 1024 kilobytes are corrupted, it will be impossible to mount volumes that use the keyfile!</control>
 		<control lang="en" key="IDT_KEY_UNIT">bits</control>
 		<control lang="en" key="IDT_LANGPACK_AUTHORS">Translated by:</control>
+		<control lang="en" key="IDT_LRW_BLOCK_INDEX">Block index (hexadecimal)</control>
+		<control lang="en" key="IDT_LRW_KEY">Secondary key (hexadecimal)</control>
+		<control lang="en" key="IDT_LRW_MODE">LRW mode</control>
 		<control lang="en" key="IDT_PLAINTEXT">Plaintext size:</control>
 		<control lang="en" key="IDT_PLAINTEXT_SIZE_UNIT">bits</control>
 		<control lang="en" key="IDT_POOL_CONTENTS">Current Pool Content</control>
@@ -229,8 +232,8 @@
 		<control lang="en" key="IDT_KEYFILES_NOTE">Any kind of file (for example, .mp3, .jpg, .zip, .avi) may be used as a TrueCrypt keyfile. Note that TrueCrypt never modifies the keyfile contents. You can select more than one keyfile (the order does not matter). If you add a folder, all files found in it will be used as keyfiles.</control>
 		<control lang="en" key="IDT_TEST_CONFIG">Cipher Configuration (all sizes in bytes)</control>
 		<control lang="en" key="IDD_PCDM_CHANGE_PKCS5_PRF">Set Header Key Derivation Algorithm</control>
-		<control lang="en" key="IDD_PCDM_ADD_REMOVE_VOL_KEYFILES">Add/Remove Keyfiles to/from Volume...</control>
-		<control lang="en" key="IDD_PCDM_REMOVE_ALL_KEYFILES_FROM_VOL">Remove All Keyfiles from Volume...</control>
+		<control lang="en" key="IDD_PCDM_ADD_REMOVE_VOL_KEYFILES">Add/Remove Keyfiles to/from Volume</control>
+		<control lang="en" key="IDD_PCDM_REMOVE_ALL_KEYFILES_FROM_VOL">Remove All Keyfiles from Volume</control>
 		<control lang="en" key="IDT_EXPLORER_OPTIONS">Windows Explorer</control>
 		<control lang="en" key="IDC_BROWSE_KEYFILES">Browse...</control>
 		<control lang="en" key="IDC_FORUMS">TrueCrypt Forums</control>
@@ -253,12 +256,12 @@
 		<control lang="en" key="IDC_NEXT">NEXT/FINISH</control>
 		<control lang="en" key="IDC_PREV">PREV</control>
 		<control lang="en" key="MENU_FILE">File</control>
-		<control lang="en" key="MENU_VOLUMES">Volumes</control>
-		<control lang="en" key="MENU_KEYFILES">Keyfiles</control>
-		<control lang="en" key="MENU_TOOLS">Tools</control>
-		<control lang="en" key="MENU_SETTINGS">Settings</control>
-		<control lang="en" key="MENU_HELP">Help</control>
-		<control lang="en" key="MENU_WEBSITE">   &amp;Homepage   </control>
+		<control lang="en" key="MENU_VOLUMES">&amp;Volumes</control>
+		<control lang="en" key="MENU_KEYFILES">&amp;Keyfiles</control>
+		<control lang="en" key="MENU_TOOLS">T&amp;ools</control>
+		<control lang="en" key="MENU_SETTINGS">Setti&amp;ngs</control>
+		<control lang="en" key="MENU_HELP">&amp;Help</control>
+		<control lang="en" key="MENU_WEBSITE">   Home&amp;page   </control>
 		<!-- Strings -->
 		<string lang="en" key="ABOUTBOX">&amp;About...</string>
 		<string lang="en" key="ACCESSMODEFAIL">The read-only attribute on your old volume could not be changed. Please check the file access permissions.</string>
@@ -267,19 +270,18 @@
 		<string lang="en" key="ADMIN_PRIVILEGES_WARN_DEVICES">Please note that in order to encrypt/format a partition/device you\nneed to be logged into an account with administrator privileges.\n\nThis does not apply to file-hosted volumes.</string>
 		<string lang="en" key="ADMIN_PRIVILEGES_WARN_HIDVOL">In order to create a hidden volume you need to be\nlogged into an account with administrator privileges.\n\nContinue?</string>
 		<string lang="en" key="ADMIN_PRIVILEGES_WARN_NTFS">Please note that in order to format the volume as NTFS you need to\nbe logged into an account with administrator privileges.\n\nWithout administrator privileges, you can format the volume as FAT.</string>
-		<string lang="en" key="AES_HELP">FIPS-approved cryptographic algorithm (Rijndael, published in 1998) that may be used by US federal departments and agencies to cryptographically protect sensitive information. 256-bit key, 14 rounds (AES-256, published in 2001).</string>
+		<string lang="en" key="AES_HELP">FIPS-approved cipher (Rijndael, published in 1998) that may be used by U.S. government departments and agencies to protect classified information up to the Top Secret level. 256-bit key, 14 rounds, 128-bit block (AES-256, published in 2001). Mode of operation is LRW.</string>
 		<string lang="en" key="ALREADY_MOUNTED">Volume is already mounted.</string>
 		<string lang="en" key="ERR_SELF_TESTS_FAILED">CAUTION: At least one encryption or hash algorithm\nfailed the built-in automatic self-tests!\n\nTrueCrypt installation may be corrupted.</string>
 		<string lang="en" key="ERR_NOT_ENOUGH_RANDOM_DATA">CAUTION: There is not enough data in the Random Number Generator pool to provide the requested amount of random data.\n\nYou should not proceed any further. Please select 'Report a Bug' from the Help menu, and report this error.</string>
 		<string lang="en" key="BAD_DRIVE_LETTER">Invalid drive letter.</string>
-		<string lang="en" key="BLOWFISH_HELP">Designed by Bruce Schneier in 1993. TrueCrypt uses Blowfish with 16 rounds and a 448-bit key. Blowfish is the fastest of the implemented ciphers.</string>
+		<string lang="en" key="BLOWFISH_HELP">Designed by Bruce Schneier in 1993. 448-bit key, 64-bit block. TrueCrypt uses 16-round Blowfish operating in LRW mode.</string>
 		<string lang="en" key="CANCEL">Cancel</string>
 		<string lang="en" key="CANNOT_CALC_SPACE">Cannot access device. Make sure the selected device exists and is not used by system.</string>
 		<string lang="en" key="CAPSLOCK_ON">Warning: Caps Lock is on.\nThis may cause you to enter your password incorrectly.</string>
-		<string lang="en" key="CAST_HELP">CAST5 (alias CAST-128) was designed by Carlisle Adams and Stafford Tavares, and published in 1997. It uses a 128-bit key and a 64-bit block. Although patented, CAST5 is royalty-free both for commercial and non-commercial uses.</string>
+		<string lang="en" key="CAST_HELP">CAST5 (alias CAST-128) was designed by Carlisle Adams and Stafford Tavares, and published in 1997. 128-bit key, 64-bit block. Mode of operation is LRW. Although patented, CAST5 is royalty-free both for commercial and non-commercial uses.</string>
 		<string lang="en" key="CIPHER_HIDVOL_HOST_TITLE">Outer Volume Encryption Options</string>
 		<string lang="en" key="CIPHER_HIDVOL_TITLE">Hidden Volume Encryption Options</string>
-		<string lang="en" key="CIPHER_NONE_HELP"></string>
 		<string lang="en" key="CIPHER_TITLE">Encryption Options</string>
 		<string lang="en" key="CLEAN_WINMRU_FAILED">WARNING: Failed to clear the path of the last selected volume/keyfile (remembered by file selector)!</string>
 		<string lang="en" key="COMPRESSION_NOT_SUPPORTED">The volume has been compressed on an NTFS partition. This is not supported. Please remove the compression attribute.</string>
@@ -293,7 +295,7 @@
 		<string lang="en" key="DEVICE_IN_USE">WARNING: Device/partition is already in use!\n\nIgnoring this can cause undesired results including system instability.\nAll applications that might be using the device/partition should be closed\nbefore mounting the volume.\n\nContinue with mounting?</string>
 		<string lang="en" key="DEVICE_IN_USE_FAILED">Error: Cannot mount volume. Device/partition is already in use.\nAttempt to mount without exclusive access failed as well.</string>
 		<string lang="en" key="DEVICE_IN_USE_FORMAT">WARNING: Device is in use!\n\nThe device to be formatted is used by system or applications.\nFormatting it may lead to data loss or system instability.\n\nProceed with format?</string>
-		<string lang="en" key="DEVICE_IN_USE_INFO">WARNING: Some of the mounted devices/partitions were already already in use!\n\nIgnoring this can cause undesired results including system instability.\n\nWe strongly recommend that you close any application that might be using\nthe devices/partitions.</string>
+		<string lang="en" key="DEVICE_IN_USE_INFO">WARNING: Some of the mounted devices/partitions were already in use!\n\nIgnoring this can cause undesired results including system instability.\n\nWe strongly recommend that you close any application that might be using\nthe devices/partitions.</string>
 		<string lang="en" key="DEVICE_PARTITIONS_WARN">WARNING: Selected device contains partitions!\n\nFormatting the device will destroy the partitions and\nmay lead to data loss and/or system instability.\nYou should either select a partition located on the\ndevice or remove all its partitions first.</string>
 		<string lang="en" key="WHOLE_DEVICE_WARNING">CAUTION: Encrypting an entire device may be risky!\n\nThe operating system will consider the device as new and unformatted (as it will contain no partition table).\nThis will make the volume susceptible to accidental initialization, which may cause it to be impossible to mount.\n\nIt is preferable to create a partition on the device and encrypt the partition instead.</string>
 		<string lang="en" key="WHOLE_DEVICE_NOTE">IMPORTANT: Keep in mind to answer 'No', whenever Windows asks you whether you wish\nto initialize this device. Otherwise, you may damage the volume and make it impossible to mount.\n\nWe also recommend that you backup the volume header after the volume is created\n(Tools -&gt; Backup Volume Header).</string>
@@ -308,7 +310,7 @@
 		<string lang="en" key="DRIVER_VERSION">An incompatible version of the TrueCrypt device driver is currently running.\n\nRequired version: TrueCrypt %hs</string>
 		<string lang="en" key="ERR_MOUNTED_FILESYSTEMS">There may be mounted filesystems located on the device to be formatted.\nPlease either disable quick format or remove all partitions on the device\nto enable safe formatting of the device.</string>
 		<string lang="en" key="ERR_CIPHER_INIT_FAILURE">Error: Cipher initialization failure.</string>
-		<string lang="en" key="ERR_CIPHER_INIT_WEAK_KEY">Error: Weak encryption key detected! Please try again.</string>
+		<string lang="en" key="ERR_CIPHER_INIT_WEAK_KEY">Error: A weak key has been detected! Please try again.</string>
 		<string lang="en" key="EXIT">Exit</string>
 		<string lang="en" key="EXT_PARTITION">Please create a logical drive for this extended partition, and then try again.</string>
 		<string lang="en" key="FILE_HELP">You can create file-hosted volumes or encrypt entire hard disk partitions, floppy disks, USB memory sticks, and other storage devices. Click 'Select File...' to specify the name and path of the file to be created to host the new volume, or click 'Select Device...' to choose a partition or device to encrypt.\n\nWarning: If you encrypt a partition or a device, all data currently stored on the partition or the device will be erased.</string>
@@ -333,12 +335,12 @@
 		<string lang="en" key="GETFILETIME_FAILED_PW">WARNING: Could not get container timestamp!\n\nIf there is a hidden volume within this container, the plausible deniability of the hidden volume\nmight be affected after changing or attempting to change the password.</string>
 		<string lang="en" key="GETFILETIME_FAILED_KEYFILE">WARNING: Could not get keyfile timestamp! Cannot preserve last access date/time.\n\nIt will be possible to tell that this file has been accessed.</string>
 		<string lang="en" key="HELP_ERROR">Document not found!</string>
-		<string lang="en" key="HELP_READER_ERROR">Adobe Acrobat Reader (or a compatible tool) is necessary\nto view or print the TrueCrypt User's Guide.\n\nAdobe Acrobat Reader (freeware) can be downloaded at:\nwww.adobe.com</string>
+		<string lang="en" key="HELP_READER_ERROR">Adobe Reader (or a compatible tool) is necessary\nto view or print the TrueCrypt User's Guide.\n\nAdobe Reader (freeware) can be downloaded at:\nwww.adobe.com</string>
 		<string lang="en" key="HIDDEN_VOL_WIZARD_MODE_HELP">Inexperienced users should select the first option. If you select the second option, it will be assumed that you have already created a TrueCrypt volume that is suitable to host the hidden volume.</string>
 		<string lang="en" key="HIDDEN_VOL_WIZARD_MODE_TITLE">Wizard Mode</string>
 		<string lang="en" key="HIDVOL_FORMAT_FINISHED_HELP">The hidden TrueCrypt volume has been successfully created and is ready for use. If all the instructions have been followed, the hidden volume will be undetectable even when the outer volume is mounted.\n\nWARNING: If you do not protect the hidden volume (for information on how to do so, refer to TrueCrypt User's Guide), do not write to the outer volume. Otherwise, you may overwrite and damage the hidden volume!\n\nTo create another TrueCrypt volume, click Next.</string>
 		<string lang="en" key="HIDVOL_FORMAT_FINISHED_TITLE">Hidden Volume Created</string>
-		<string lang="en" key="HIDVOL_HOST_FILLING_HELP">The outer volume has been successfully created and mounted as drive %hc:. To this volume you should now copy some sensitive-looking files that you actually do not want to hide. These files will be there for anyone who would force you to hand over the password. You will reveal only the password for this outer volume, not for the hidden one. The files that you really care about will be stored in the hidden volume, which will be created later on.\n\nWhen you have finished copying, click Next. Do not dismount the volume. After you click Next, the cluster bitmap of the outer volume will be scanned to determine the size of the uninterrupted area of free space (if there is any) whose end is aligned with the end of the volume. This block will accommodate the hidden volume and therefore will limit its maximum possible size. Cluster map scanning is necessary to ensure that no data on the outer volume will be overwritten by the hidden volume.</string>
+		<string lang="en" key="HIDVOL_HOST_FILLING_HELP">The outer volume has been successfully created and mounted as drive %hc:. To this volume you should now copy some sensitive-looking files that you actually do not want to hide. These files will be there for anyone who would force you to hand over the password. You will reveal only the password for this outer volume, not for the hidden one. The files that you really care about will be stored in the hidden volume, which will be created later on.\n\nWhen you have finished copying, click Next. Do not dismount the volume. After you click Next, the cluster bitmap of the outer volume will be scanned to determine the size of the uninterrupted area of free space (if there is any) whose end is aligned with the end of the volume. This area will accommodate the hidden volume and therefore will limit its maximum possible size. Cluster map scanning is necessary to ensure that no data on the outer volume will be overwritten by the hidden volume.</string>
 		<string lang="en" key="HIDVOL_HOST_FILLING_TITLE">Outer Volume Contents</string>
 		<string lang="en" key="HIDVOL_HOST_PRE_CIPHER_HELP">\n\nIn the next steps you will set the options for the outer volume (within which the hidden volume will be created later on). </string>
 		<string lang="en" key="HIDVOL_HOST_PRE_CIPHER_TITLE">Outer Volume</string>
@@ -350,7 +352,7 @@
 		<string lang="en" key="INIT_MUTEX">Unable to initialize the application. Failed to create a required mutex object.</string>
 		<string lang="en" key="INIT_RAND">Failed to initialize the random number generator!</string>
 		<string lang="en" key="INIT_REGISTER">Unable to initialize the application. Failed to register the Dialog class.</string>
-		<string lang="en" key="INTRO_HELP">\nThis wizard will help you to create a new TrueCrypt volume.\n\nImportant: Collection of random data has begun. The data will be used in generating the master key, salt, and values used to create the IV and 'whitening' values for the new volume. The collected data include your mouse movements within this window, key presses, and other data obtained from the system. The data should be as random as possible, so the more randomly and the longer you move the mouse, the better.</string>
+		<string lang="en" key="INTRO_HELP">\nThis wizard will help you to create a new TrueCrypt volume.\n\nImportant: Collection of random data has begun. The data will be used in generating the master key, the secondary key (LRW mode), and salt, for the new volume. The collected data include your mouse movements within this window, keystrokes, and other data obtained from the system. The data should be as random as possible, so the more randomly and the longer you move the mouse, the better.</string>
 		<string lang="en" key="INTRO_TITLE">TrueCrypt Volume Creation Wizard</string>
 		<string lang="en" key="INVALID_DEVICE">Invalid drive or partition specified. Use the following syntax to mount partitions: \\Device\\Harddisk0\\Partition4</string>
 		<string lang="en" key="MAX_HIDVOL_SIZE_BYTES">Maximum possible hidden volume size for this volume is %.2f bytes.</string>
@@ -368,7 +370,6 @@
 		<string lang="en" key="NO_FILE_SELECTED">No file selected!</string>
 		<string lang="en" key="NO_FREE_DRIVES">No drive letters available.</string>
 		<string lang="en" key="NO_FREE_DRIVE_FOR_OUTER_VOL">No free drive letter for the outer volume!\nVolume creation cannot continue.</string>
-		<string lang="en" key="NO_FREE_SLOTS">On this operating system, the device driver only supports 8 mounted volumes.</string>
 		<string lang="en" key="NO_OS_VER">Could not determine your operating system version or you are using an unsupported operating system.</string>
 		<string lang="en" key="NO_PATH_SELECTED">No path selected!</string>
 		<string lang="en" key="NO_SPACE_FOR_HIDDEN_VOL">Not enough free space for the hidden volume!\nVolume creation cannot continue.</string>
@@ -385,7 +386,7 @@
 		<string lang="en" key="PKCS5_PRF_CHANGED">Header key derivation algorithm successfully set.</string>
 		<string lang="en" key="PASSWORD_HELP">It is very important that you choose a good password. You should avoid choosing one that contains only a single word that can be found in a dictionary (or a combination of 2, 3, or 4 such words). It should not contain any names or dates of birth. It should not be easy to guess. A good password is a random combination of upper and lower case letters, numbers, and special characters, such as @ ^ = $ * + etc.\n\nWe recommend choosing a password consisting of more than 20 characters (the longer, the better). The maximum password length is 64 characters.</string>
 		<string lang="en" key="PASSWORD_HIDDENVOL_HELP">Please choose a password for the hidden volume. </string>
-		<string lang="en" key="PASSWORD_HIDDENVOL_HOST_DIRECT_HELP">Please enter the password for the volume within which you wish to create a hidden volume. \n\nAfter you click Next, TrueCrypt will attempt to mount the volume. As soon as the volume is mounted, its cluster bitmap will be scanned to determine the size of the uninterrupted area of free space (if there is any) whose end is aligned with the end of the volume. This block will accommodate the hidden volume and therefore will limit its maximum possible size. Cluster map scanning is necessary to ensure that no data on the outer volume will be overwritten by the hidden volume.</string>
+		<string lang="en" key="PASSWORD_HIDDENVOL_HOST_DIRECT_HELP">Please enter the password for the volume within which you wish to create a hidden volume. \n\nAfter you click Next, TrueCrypt will attempt to mount the volume. As soon as the volume is mounted, its cluster bitmap will be scanned to determine the size of the uninterrupted area of free space (if there is any) whose end is aligned with the end of the volume. This area will accommodate the hidden volume and therefore will limit its maximum possible size. Cluster map scanning is necessary to ensure that no data on the outer volume will be overwritten by the hidden volume.</string>
 		<string lang="en" key="PASSWORD_HIDDENVOL_HOST_HELP">\nPlease choose a password for the outer volume. This will be the password that you will be able to reveal to an adversary if you are asked or forced to do so.\n\nThe password must be different from the one you will choose for the hidden volume.\n\n\nNote: The maximum password length is 64 characters.</string>
 		<string lang="en" key="PASSWORD_HIDVOL_HOST_TITLE">Outer Volume Password</string>
 		<string lang="en" key="PASSWORD_HIDVOL_TITLE">Hidden Volume Password</string>
@@ -402,7 +403,7 @@
 		<string lang="en" key="SELECT_DEST_DIR">Select destination directory</string>
 		<string lang="en" key="SELECT_KEYFILE">Select Keyfile</string>
 		<string lang="en" key="SELECT_KEYFILE_PATH">Select a keyfile search path. WARNING: Note that only the path will be remembered, not the filenames!</string>
-		<string lang="en" key="SERPENT_HELP">Designed by Ross Anderson, Eli Biham, and Lars Knudsen. Published in 1998. 256-bit key, 128-bit block. Serpent was one of the AES finalists.</string>
+		<string lang="en" key="SERPENT_HELP">Designed by Ross Anderson, Eli Biham, and Lars Knudsen. Published in 1998. 256-bit key, 128-bit block. Mode of operation is LRW. Serpent was one of the AES finalists.</string>
 		<string lang="en" key="SETFILETIME_FAILED_GENERIC">WARNING: Failed to restore container timestamp (file modification/access date/time)!\n\nIf there is a hidden volume within this container, the plausible deniability of the\nhidden volume might be affected.</string>
 		<string lang="en" key="SETFILETIME_FAILED_IMPLANT">WARNING: Failed to restore container timestamp (file modification/access date/time)!\n\nThe plausible deniability of the hidden volume might be affected.</string>
 		<string lang="en" key="SETFILETIME_FAILED_PREP_IMPLANT">WARNING: Failed to restore container timestamp!\n\nIf you do not reset the timestamp using an external tool, we recommend that\nyou do not create a hidden volume within this container.</string>
@@ -416,18 +417,19 @@
 		<string lang="en" key="SIZE_PARTITION_HELP">Size of a device cannot be modified. Make sure the size of the selected device is correct and click Next.</string>
 		<string lang="en" key="SIZE_PARTITION_HIDDEN_VOL_HELP">\n\nNote that the minimum possible size of a volume within which a hidden volume is intended to be created is 40 KB. The maximum possible size of such volume is 1024 GB.</string>
 		<string lang="en" key="SIZE_TITLE">Volume Size</string>
-		<string lang="en" key="SYMLINK">Could not assign a DOS drive letter to the device.</string>
-		<string lang="en" key="SYMLINK_REMOVE">Could not remove the DOS drive letter assigned to the device.</string>
 		<string lang="en" key="TESTS_FAILED">CAUTION: SELF-TEST FAILED!</string>
 		<string lang="en" key="TESTS_PASSED">Self-tests of all algorithms passed</string>
+		<string lang="en" key="TEST_INCORRECT_LRW_INDEX_SIZE">The LRW block index that you supplied is too long or short.</string>
+		<string lang="en" key="TEST_INCORRECT_LRW_KEY_SIZE">The secondary key that you supplied is too long or short.</string>
 		<string lang="en" key="TEST_CIPHERTEXT_SIZE">The test ciphertext you have supplied is too long or short.</string>
 		<string lang="en" key="TEST_KEY_SIZE">The test key you have supplied is too long or short.</string>
 		<string lang="en" key="TEST_PLAINTEXT_SIZE">The test plaintext you have supplied is too long or short.</string>
-		<string lang="en" key="THREE_LAYER_CASCADE_HELP">Three ciphers in a cascade operating in %hs mode. Each %s is first encrypted with %hs (%d-bit key), then with %hs (%d-bit key), and finally with %hs (%d-bit key). Each cipher uses its own key. All keys are mutually independent.</string>
+		<string lang="en" key="TEST_LRW_INDEX_OVERRUN">Error: TrueCrypt currently does not support LRW block index values greater than 2^64.\n\nAlso note that the maximum supported volume size is 2^63 bytes.</string>
+		<string lang="en" key="TWO_LAYER_CASCADE_HELP">Two ciphers in a cascade operating in LRW mode. Each block is first encrypted with %hs (%d-bit key) and then with %hs (%d-bit key). Each cipher uses its own key. All keys are mutually independent.</string>
+		<string lang="en" key="THREE_LAYER_CASCADE_HELP">Three ciphers in a cascade operating in LRW mode. Each block is first encrypted with %hs (%d-bit key), then with %hs (%d-bit key), and finally with %hs (%d-bit key). Each cipher uses its own key. All keys are mutually independent.</string>
 		<string lang="en" key="TRAVELLER_DISK_CREATED">TrueCrypt traveller disk has been successfully created.\n\nNote that you need administrator privileges to run TrueCrypt in traveller mode.\nAlso note that, after examining the registry file, it may be possible to tell that\nTrueCrypt was run on a Windows system even if it is run in traveller mode.</string>
-		<string lang="en" key="TRIPLEDES_HELP">Triple DES, published in 1978, is 3 iterations of the DES cipher designed by IBM and NSA (1976) . It operates in outer-CBC mode and uses 3 independent 56-bit keys (1 per iteration). Note that this cipher is very slow.</string>
-		<string lang="en" key="TWOFISH_HELP">Designed by Bruce Schneier, David Wagner, John Kelsey, Niels Ferguson, Doug Whiting, and Chris Hall. Published in 1998. 256-bit key, 128-bit block. Twofish was one of the AES finalists.</string>
-		<string lang="en" key="TWO_LAYER_CASCADE_HELP">Two ciphers in a cascade operating in %hs mode. Each %s is first encrypted with %hs (%d-bit key) and then with %hs (%d-bit key). Each cipher uses its own key. All keys are mutually independent.</string>
+		<string lang="en" key="TRIPLEDES_HELP">Triple DES, published in 1978, is 3 iterations of the DES cipher designed by IBM and NSA (1976). It operates in LRW mode and uses 3 independent 56-bit keys (1 per iteration) and 64-bit block. Note that this cipher is very slow.</string>
+		<string lang="en" key="TWOFISH_HELP">Designed by Bruce Schneier, John Kelsey, Doug Whiting, David Wagner, Chris Hall, and Niels Ferguson. Published in 1998. 256-bit key, 128-bit block. Mode of operation is LRW. Twofish was one of the AES finalists.</string>
 		<string lang="en" key="UNKNOWN">Unknown</string>
 		<string lang="en" key="ERR_UNKNOWN">An unspecified or unknown error occurred.</string>
 		<string lang="en" key="UNKNOWN_DRIVER_CODE">The device driver returned an unrecognized error, code = %d</string>
@@ -458,7 +460,7 @@
 		<string lang="en" key="ALL_FILES">All Files</string>
 		<string lang="en" key="TC_VOLUMES">TrueCrypt Volumes</string>
 		<string lang="en" key="FORMAT_STAT">Volume size:\t\t%I64d sectors (%I64d MB)\nFile system:\t\t%s\n\nFormatting took %lu seconds.</string>
-		<string lang="en" key="FORMAT_STAT_FAT">Volume size:\t\t%d sectors (%I64d MB)\nFile system:\t\tFAT%d\nFAT size:\t\t%d bytes\nCluster size:\t\t%d bytes\nClusters available:\t%d\n\nFormatting took %lu seconds.</string>
+		<string lang="en" key="FORMAT_STAT_FAT">Volume size:\t\t%d sectors (%I64d MB)\nFile system:\t\tFAT%d\nFAT size:\t\t%d bytes\nCluster size:\t\t%d bytes\nTotal clusters:\t\t%d\n\nFormatting took %lu seconds.</string>
 		<string lang="en" key="FORMAT_NTFS_STOP">NTFS formatting cannot continue.</string>
 		<string lang="en" key="CANT_MOUNT_VOLUME">Cannot mount volume.</string>
 		<string lang="en" key="CANT_DISMOUNT_VOLUME">Cannot dismount volume.</string>
@@ -471,7 +473,7 @@
 		<string lang="en" key="DEVICE">Device</string>
 		<string lang="en" key="DEVICE_LC">device</string>
 		<string lang="en" key="CLUSTER_TOO_SMALL">The selected cluster size is too small for this volume size.\nA greater cluster size will be used instead.</string>
-		<string lang="en" key="CANT_GET_VOLSIZE">"Error: Cannot get volume size!\n\nMake sure the selected volume is not being used\nby the system or an application.</string>
+		<string lang="en" key="CANT_GET_VOLSIZE">Error: Cannot get volume size!\n\nMake sure the selected volume is not being used\nby the system or an application.</string>
 		<string lang="en" key="HIDDEN_HOST_FAT_ONLY">A hidden volume can only be created within a FAT volume.\n\nFor more information, please refer to the documentation.</string>
 		<string lang="en" key="HIDDEN_VOL_HELP">It may happen that you are forced by somebody to reveal the password to an\nencrypted volume. There are many situations where you cannot refuse to reveal the\npassword (for example, when the adversary uses violence). Using a so-called hidden\nvolume allows you to solve such situations in a diplomatic manner without revealing\nthe password to your volume.\n\nThe principle is that a TrueCrypt volume is created within another TrueCrypt volume\n(within the free space on the volume). Even when the outer volume is mounted, it is\nimpossible to prove whether there is a hidden volume within it or not, because free\nspace on any TrueCrypt volume is always filled with random data when the volume is\ncreated (if Quick Format is disabled) and no part of the hidden volume can be\ndistinguished from random data. The password for the hidden volume must be different\nfrom the password for the outer volume. To the outer volume (before creating the\nhidden volume within it) you should copy some sensitive-looking files that you actually\ndo NOT want to hide. These files will be there for anyone who would force you to\nhand over the password. You will reveal only the password for the outer volume, not\nfor the hidden one. Files that really are sensitive will be stored on the hidden\nvolume.\n\nFor more information, please refer to TrueCrypt User's Guide.</string>
 		<string lang="en" key="CANT_ACCESS_VOL">Error: Cannot access the volume!\n\nMake sure that the selected volume exists, that it is not\nmounted or being used by the system or an application,\nand that it is not write-protected.</string>
@@ -553,6 +555,7 @@
 		<string lang="en" key="DAYS">days</string>
 		<string lang="en" key="HOURS">hours</string>
 		<string lang="en" key="MINUTES">minutes</string>
+		<string lang="en" key="SECONDS">s</string>
 		<string lang="en" key="OPEN">Open</string>
 		<string lang="en" key="DISMOUNT">Dismount</string>
 		<string lang="en" key="SHOW_TC">Show TrueCrypt</string>
@@ -606,8 +609,9 @@
 		<string lang="en" key="LANG_PACK_VERSION">Language pack version:  %s</string>
 		<string lang="en" key="CHECKING_FS">Checking the file system on the TrueCrypt volume mounted as %hs...</string>
 		<string lang="en" key="REPAIRING_FS">Attempting to repair the file system on the TrueCrypt volume mounted as %hs...</string>
-		<string lang="en" key="ERRORS_DETECTED">* * *  WARNING:  Errors detected!  * * *</string>
+		<string lang="en" key="WARN_VOL_SIZE_VS_BLOCK_SIZE">You have selected a 64-bit block cipher. For the volume size you specified it is recommended\nto select a 128-bit block cipher (e.g., AES, Serpent, or Twofish) instead.\n\nAre you sure you want to use a 64-bit block cipher?</string>
 		<string lang="en" key="SYS_AUTOMOUNT_DISABLED">Your system is not configured to auto-mount new volumes.\nIt may be impossible to mount device-hosted TrueCrypt volumes.\nAuto-mounting can be enabled by executing the following\ncommand and restarting the system.\n\nmountvol.exe /E</string>
+		<string lang="en" key="KEYFILE">Keyfile</string>
 		<string lang="en" key="VKEY_08">Backspace</string>
 		<string lang="en" key="VKEY_09">Tab</string>
 		<string lang="en" key="VKEY_0C">Clear</string>

@@ -388,7 +388,7 @@ BOOL WINAPI KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPara
 	{
 	case WM_INITDIALOG:
 		{
-			LVCOLUMN LvCol;
+			LVCOLUMNW LvCol;
 			HWND hList = GetDlgItem (hwndDlg, IDC_KEYLIST);
 
 			param = (KeyFilesDlgParam *) lParam;
@@ -399,16 +399,16 @@ BOOL WINAPI KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPara
 			LocalizeDialog (hwndDlg, "IDD_KEYFILES");
 			DragAcceptFiles (hwndDlg, TRUE);
 
-			SendMessage (hList,LVM_SETEXTENDEDLISTVIEWSTYLE,0,
+			SendMessageW (hList,LVM_SETEXTENDEDLISTVIEWSTYLE,0,
 				LVS_EX_FULLROWSELECT|LVS_EX_HEADERDRAGDROP
 				); 
 
 			memset (&LvCol,0,sizeof(LvCol));               
 			LvCol.mask = LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM|LVCF_FMT;  
-			LvCol.pszText = "Keyfile";                           
-			LvCol.cx = 357;
+			LvCol.pszText = GetString ("KEYFILE");                           
+			LvCol.cx = 366;
 			LvCol.fmt = LVCFMT_LEFT;
-			SendMessage (hList, LVM_INSERTCOLUMN, 0, (LPARAM)&LvCol);
+			SendMessageW (hList, LVM_INSERTCOLUMNW, 0, (LPARAM)&LvCol);
 
 			LoadKeyList (hwndDlg, param->FirstKeyFile);
 			SetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE, param->EnableKeyFiles);
@@ -423,7 +423,7 @@ BOOL WINAPI KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPara
 		{
 			KeyFile *kf = malloc (sizeof (KeyFile));
 
-			if (BrowseFiles (hwndDlg, "SELECT_KEYFILE", kf->FileName, FALSE))
+			if (BrowseFiles (hwndDlg, "SELECT_KEYFILE", kf->FileName, FALSE, FALSE))
 			{
 				param->FirstKeyFile = KeyFileAdd (param->FirstKeyFile, kf);
 				LoadKeyList (hwndDlg, param->FirstKeyFile);

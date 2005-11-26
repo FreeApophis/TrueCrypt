@@ -5,7 +5,6 @@ Covered by TrueCrypt License 2.0 the full text of which is contained in the file
 License.txt included in TrueCrypt binary and source code distribution archives. 
 */
 
-//FIXME remove stale dmsetup device
 #define _LARGEFILE_SOURCE	1
 #define _FILE_OFFSET_BITS	64
 
@@ -49,6 +48,7 @@ typedef struct
 	uint64_t VolumeSize;
 	char VolumePath[MAX_PATH];
 	int EA;
+	int Mode;
 	BOOL Hidden;
 	uint64_t ReadOnlyStart;
 	uint64_t ReadOnlyEnd;
@@ -387,16 +387,18 @@ static BOOL GetMountList ()
 
 	for (i = 0; i < MAX_VOLUMES; i++)
 	{
+		int n = 0;
 		char s[2048];
 		MountListEntry *e = &MountList[i];
 
 		if (!fgets (s, sizeof (s), p))
 			break;
 
-		if (sscanf (s, "truecrypt%d: 0 %lld truecrypt %d 0 0 %d:%d %lld %lld %lld %lld %lld %d %" MAX_PATH_STR "s\n",
+		if (sscanf (s, "truecrypt%d: 0 %lld truecrypt %d %d 0 0 %d:%d %lld %lld %lld %lld %lld %d %n",
 			&e->DeviceNumber,
 			&e->VolumeSize,
 			&e->EA,
+			&e->Mode,
 			&e->DeviceMajor,
 			&e->DeviceMinor,
 			&e->Hidden,
@@ -405,8 +407,14 @@ static BOOL GetMountList ()
 			&e->ModTime,
 			&e->AcTime,
 			&e->Flags,
-			e->VolumePath) == 12)
+			&n) >= 12 && n > 0)
 		{
+			int l;
+			strncpy (e->VolumePath, s + n, sizeof (e->VolumePath));
+			l = strlen (s + n);
+			if (l > 0)
+				e->VolumePath[l - 1] = 0;
+
 			e->Hidden = e->Hidden == 1 ? FALSE : TRUE;
 			e->VolumeSize *= SECTOR_SIZE;
 		}
@@ -502,7 +510,7 @@ static BOOL OpenVolume (char *volumePath, Password *password, PCRYPTO_INFO *cryp
 		goto err;
 	}
 
-	f = fopen (volumePath, "r");
+	f = fopen (volumePath, "rb");
 	if (!f)
 	{
 		perror ("Cannot open volume");
@@ -519,9 +527,10 @@ static BOOL OpenVolume (char *volumePath, Password *password, PCRYPTO_INFO *cryp
 	fseek (f, 0, SEEK_END);
 	*totalSectors = ftello (f) / SECTOR_SIZE - 1;
 
+	*startSector = 1;
 	r = VolumeReadHeader (header, password, cryptoInfo);
 
-	if (r != 0)
+	if (r == ERR_PASSWORD_WRONG)
 	{
 		// Hidden header
 		if (fseek (f, -HIDDEN_VOL_HEADER_OFFSET, SEEK_END) == -1
@@ -533,7 +542,7 @@ static BOOL OpenVolume (char *volumePath, Password *password, PCRYPTO_INFO *cryp
 
 		r = VolumeReadHeader (header, password, cryptoInfo);
 
-		if (r != 0)
+		if (r == ERR_PASSWORD_WRONG)
 		{
 			if (IsTerminal)
 				puts ("Incorrect password or not a TrueCrypt volume");
@@ -550,8 +559,30 @@ static BOOL OpenVolume (char *volumePath, Password *password, PCRYPTO_INFO *cryp
 
 		*totalSectors = (*cryptoInfo)->hiddenVolumeSize / SECTOR_SIZE;
 	}
-	else
-		*startSector = 1;
+
+	// Report errors
+	if (r != 0 && r != ERR_PASSWORD_WRONG)
+	{
+		char msg[128];
+
+		switch (r)
+		{
+		case ERR_NEW_VERSION_REQUIRED:
+			strcpy (msg, "A newer version of TrueCrypt is required to open this volume"); 
+			break;
+
+		default:
+			sprintf (msg, "Volume cannot be opened: Error %d", r);
+			break;
+		}
+
+		if (IsTerminal)
+			printf ("%s\n", msg);
+		else
+			error ("%s\n", msg);
+
+		goto err;
+	}
 
 	fclose (f);
 
@@ -609,6 +640,27 @@ static void GetPassword (char *prompt, char *volumePath, Password *password)
 		tcsetattr (0, TCSANOW, &TerminalAttributes);
 		puts ("");
 	}
+}
+
+
+static char *EscapeSpaces (char *string)
+{
+	static char escapedString[MAX_PATH * 2];
+	char *e = escapedString;
+	char c;
+
+	if (strlen (string) > MAX_PATH)
+		return NULL;
+
+	while ((c = *string++))
+	{
+		if (c == ' ')
+			*e++ = '\\';
+
+		*e++ = c;
+	}
+
+	return escapedString;
 }
 
 
@@ -786,7 +838,7 @@ static BOOL MountVolume (char *volumePath, char *mountPoint)
 		goto err;
 	}
 
-	fprintf (w, "0 %lld truecrypt %d ", totalSectors, ci->ea);
+	fprintf (w, "0 %lld truecrypt %d %d ", totalSectors, ci->ea, ci->mode);
 
 	for (i = DISK_IV_SIZE; i < EAGetKeySize (ci->ea) + DISK_IV_SIZE; i++)
 		fprintf (w, "%02x", ci->master_key[i]);
@@ -811,7 +863,7 @@ static BOOL MountVolume (char *volumePath, char *mountPoint)
 		(uint64_t) modTime,
 		(uint64_t) acTime,
 		flags,
-		volumePath);
+		EscapeSpaces (volumePath));
 
 	fclose (w);
 
@@ -879,8 +931,8 @@ static void DumpVersion (FILE *f)
 "Copyright (C) 2004-2005 TrueCrypt Foundation. All Rights Reserved.\n\
 Copyright (C) 1998-2000 Paul Le Roux. All Rights Reserved.\n\
 Copyright (C) 2004 TrueCrypt Team. All Rights Reserved.\n\
+Copyright (C) 1999-2005 Dr. Brian Gladman. All Rights Reserved.\n\
 Copyright (C) 1995-1997 Eric Young. All Rights Reserved.\n\
-Copyright (C) 1999-2004 Dr. Brian Gladman. All Rights Reserved.\n\
 Copyright (C) 2001 Markus Friedl. All Rights Reserved.\n\n"
 	, VERSION_STRING);
 }
@@ -1090,6 +1142,7 @@ static BOOL DumpMountList (int devNo)
 					" Type: %s\n"
 					" Size: %lld bytes\n"
 					" Encryption algorithm: %s\n"
+					" Mode of operation: %s\n"
 					" Read-only: %s\n"
 					" Hidden volume protected: %s\n\n",
 				e->DeviceNumber,
@@ -1097,6 +1150,7 @@ static BOOL DumpMountList (int devNo)
 				e->Hidden ? "Hidden" : "Normal",
 				e->VolumeSize,
 				eaName,
+				EAGetModeName (e->EA, e->Mode, TRUE),
 				(e->Flags & FLAG_READ_ONLY) ? "Yes" : "No",
 				(e->Flags & FLAG_PROTECTION_ACTIVATED) ? "Yes - damage prevented" : (
 					(e->Flags & FLAG_HIDDEN_VOLUME_PROTECTION) ? "Yes" : "No" )
@@ -1303,13 +1357,57 @@ BOOL ToDeviceNumber (char *text, int *deviceNumber)
 }
 
 
-int main(int argc, char **argv)
+BOOL CheckAdminPrivileges ()
+{
+	char path[MAX_PATH];
+	char *env;
+
+	if (getuid () != 0 && geteuid () != 0)
+	{
+		error ("Administrator (root) privileges required\n");
+		return FALSE;
+	}
+
+	if (getuid () != 0)
+	{
+		// Impersonate root to support executing of commands like mount
+		setuid (0);
+
+		env = getenv ("PATH");
+		
+		snprintf (path, sizeof (path),
+			"%s%s/sbin:/usr/sbin:/bin",
+			env ? env : "",
+			env ? ":" : "");
+
+		setenv ("PATH", path, 1);
+	}
+
+	return TRUE;
+}
+
+
+BOOL LockMemory ()
+{
+	// Lock process memory
+	if (mlockall (MCL_FUTURE) != 0)
+	{
+		perror ("Cannot prevent memory swapping: mlockall");
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+
+int main (int argc, char **argv)
 {
 	char *volumePath = NULL;
 	char *mountPoint = NULL;
 	char volumePathBuf[MAX_PATH];
 	int i, o;
 	int optIndex = 0;
+	FILE *f;
 
 	struct option longOptions[] = {
 		{"device-number", required_argument, 0, 0},
@@ -1332,14 +1430,18 @@ int main(int argc, char **argv)
 		{0, 0, 0, 0}
 	};
 
-	if (getuid () != 0 && geteuid () != 0)
-	{
-		error ("administrator (root) privileges required\n");
-		return FALSE;
-	}
+	// Make sure pipes will not use file descriptors <= STDERR_FILENO
+	f = fdopen (STDIN_FILENO, "r");
+	if (f == NULL)
+		open ("/dev/null", 0);
 
-	if (mlockall (MCL_FUTURE) != 0)
-		perror ("Cannot prevent memory swapping: mlockall");
+	f = fdopen (STDOUT_FILENO, "w");
+	if (f == NULL)
+		open ("/dev/null", 0);
+
+	f = fdopen (STDERR_FILENO, "w");
+	if (f == NULL)
+		open ("/dev/null", 0);
 
 	signal (SIGHUP, OnSignal);
 	signal (SIGINT, OnSignal);
@@ -1370,6 +1472,9 @@ int main(int argc, char **argv)
 				else
 					devNo = -1;
 
+				if (!CheckAdminPrivileges ())
+					return 1;
+
 				return DismountVolume (devNo) ? 0 : 1;
 			}
 
@@ -1388,6 +1493,9 @@ int main(int argc, char **argv)
 				}
 				else
 					devNo = -1;
+
+				if (!CheckAdminPrivileges ())
+					return 1;
 
 				return DumpMountList (devNo) ? 0 : 1;
 			}
@@ -1521,6 +1629,11 @@ int main(int argc, char **argv)
 
 	if (optind < argc)
 		goto usage;
+
+	if (!CheckAdminPrivileges ())
+		return 1;
+
+	LockMemory ();
 
 	// Relative path => absolute
 	if (volumePath[0] != '/')

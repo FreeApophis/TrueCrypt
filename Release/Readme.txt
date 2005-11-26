@@ -1,4 +1,4 @@
-This archive contains TrueCrypt 4.0 setup and documentation.
+This archive contains TrueCrypt 4.1 setup and documentation.
 
 
 IMPORTANT -- PLEASE READ
@@ -11,13 +11,13 @@ found in the 'Setup Files' folder.
 
 
 If you are upgrading from an older version of TrueCrypt, it is normally 
-not necessary to uninstall it first. However, if any errors are reported
-during the process of installation, please uninstall the older version
-first, restart the operating system, and then try to install the new
-version again. To uninstall TrueCrypt, click Start Menu -> Settings ->
+not necessary to uninstall it first. However, if any errors occur during
+the process of installation, please uninstall the older version first,
+restart the operating system, and then try to install the new version of
+TrueCrypt again. To uninstall TrueCrypt, click Start Menu -> Settings ->
 -> Control Panel -> Add or Remove Programs -> TrueCrypt ->
 -> Change/Remove). Note that when you uninstall TrueCrypt, no TrueCrypt
-volume is removed (nor affected in any way).
+volume is removed or modified.
 
 
 IMPORTANT NOTE TO USERS UPGRADING FROM TRUECRYPT 3.0 OR 3.0A: Note that 

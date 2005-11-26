@@ -224,6 +224,7 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, HFILE dev, PCRYPTO_INFO
 	LARGE_INTEGER newOffset;
 	int x, n;
 	int retVal;
+	char temporaryKey[DISKKEY_SIZE];
 
 	// Seek to start sector
 	startOffset.QuadPart = startSector * SECTOR_SIZE;
@@ -341,29 +342,45 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, HFILE dev, PCRYPTO_INFO
 
 	}
 
-	/* Fill the rest of the data area */
+	/* Fill the rest of the data area with random data */
 
 	if(!quickFormat)
 	{
-		char key[DISKKEY_SIZE];
+		/* Generate a random temporary key set to be used for "dummy" encryption that will fill
+		the free disk space (data area) with random data.  This is necessary for plausible
+		deniability of hidden volumes (and also reduces the amount of predictable plaintext
+		within the volume). */
 
-		/* Generate a random key and IV to be used for "dummy" encryption that will fill the
-		   free disk space (data area) with random data. That will reduce the amount of
-		   predictable plaintext within the volume and also increase the level of plausible
-		   deniability of hidden volumes. */
-		RandgetBytes (key, DISKKEY_SIZE, FALSE); 
-		RandgetBytes (cryptoInfo->iv, sizeof cryptoInfo->iv, FALSE); 
+		RandgetBytes (temporaryKey, DISKKEY_SIZE, FALSE); 				// Temporary master key
+		RandgetBytes (cryptoInfo->iv, sizeof cryptoInfo->iv, FALSE);	// Secondary key (LRW mode)
 
-		retVal = EAInit (cryptoInfo->ea, key, cryptoInfo->ks);
+		retVal = EAInit (cryptoInfo->ea, temporaryKey, cryptoInfo->ks);
 		if (retVal != 0)
+		{
+			burn (temporaryKey, sizeof(temporaryKey));
 			return retVal;
-
-		RandgetBytes (sector, 256, FALSE); 
-		RandgetBytes (sector + 256, 256, FALSE); 
+		}
+		if (!EAInitMode (cryptoInfo))
+		{
+			burn (temporaryKey, sizeof(temporaryKey));
+			return ERR_MODE_INIT_FAILED;
+		}
 
 		x = ft->num_sectors - ft->reserved - ft->size_root_dir / SECTOR_SIZE - ft->fat_length * 2;
 		while (x--)
 		{
+			/* Generate random plaintext. Note that reused plaintext blocks are not a concern
+			here since LRW mode is designed to hide patterns. Furthermore, patterns in plaintext
+			do occur commonly on media in the "real world", so it might actually be a fatal
+			mistake to try to avoid them completely. */
+#if RNG_POOL_SIZE < SECTOR_SIZE
+			RandpeekBytes (sector, RNG_POOL_SIZE);
+			RandpeekBytes (sector + RNG_POOL_SIZE, SECTOR_SIZE - RNG_POOL_SIZE);
+#else
+			RandpeekBytes (sector, SECTOR_SIZE);
+#endif
+
+			// Encrypt the random plaintext and write it to the disk
 			if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo,
 				cryptoInfo, write) == FALSE)
 				goto fail;
@@ -377,10 +394,12 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, HFILE dev, PCRYPTO_INFO
 		goto fail;
 
 	TCfree (write_buf);
+	burn (temporaryKey, sizeof(temporaryKey));
 	return 0;
 
-    fail:
+fail:
 
 	TCfree (write_buf);
+	burn (temporaryKey, sizeof(temporaryKey));
 	return ERR_OS_ERROR;
 }

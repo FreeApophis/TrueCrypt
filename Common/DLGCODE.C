@@ -59,8 +59,6 @@ int CurrentOSMinor = 0;
 BOOL	KeyFilesEnable = FALSE;
 KeyFile	*FirstKeyFile = NULL;
 KeyFilesDlgParam		defaultKeyFilesParam;
-int idTestCipher = -1;		/* Currently selected cipher for the test vector facility (none = -1). */
-
 
 /* Handle to the device driver */
 HANDLE hDriver = INVALID_HANDLE_VALUE;
@@ -343,8 +341,8 @@ AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 
 			LocalizeDialog (hwndDlg, "IDD_ABOUT_DLG");
 
+			SetWindowText (GetDlgItem (hwndDlg, IDC_HOMEPAGE), "www.truecrypt.org");
 			SendMessage (GetDlgItem (hwndDlg, IDC_HOMEPAGE), WM_SETFONT, (WPARAM) hUserUnderlineFont, 0);
-			SendMessage (GetDlgItem (hwndDlg, IDC_FORUMS), WM_SETFONT, (WPARAM) hUserUnderlineFont, 0);
 
 			// Version
 			SendMessage (GetDlgItem (hwndDlg, IDT_ABOUT_VERSION), WM_SETFONT, (WPARAM) hUserBoldFont, 0);
@@ -372,8 +370,8 @@ Portions of this software:\r\n\
 Copyright \xA9 2004-2005 TrueCrypt Foundation. All Rights Reserved.\r\n\
 Copyright \xA9 1998-2000 Paul Le Roux. All Rights Reserved.\r\n\
 Copyright \xA9 2004 TrueCrypt Team. All Rights Reserved.\r\n\
+Copyright \xA9 1999-2005 Dr. Brian Gladman. All Rights Reserved.\r\n\
 Copyright \xA9 1995-1997 Eric Young. All Rights Reserved.\r\n\
-Copyright \xA9 1999-2004 Dr. Brian Gladman. All Rights Reserved.\r\n\
 Copyright \xA9 2001 Markus Friedl. All Rights Reserved.\r\n\r\n\
 A TrueCrypt Foundation Release");
 
@@ -1346,12 +1344,12 @@ RawDevicesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			SendMessage (hList,LVM_INSERTCOLUMNW,0,(LPARAM)&LvCol);
 
 			LvCol.pszText = GetString ("DRIVE");  
-			LvCol.cx = 38;           
-			LvCol.fmt = LVCFMT_LEFT;
+			LvCol.cx = 49;           
+			LvCol.fmt = LVCFMT_RIGHT;
 			SendMessage (hList,LVM_INSERTCOLUMNW,1,(LPARAM)&LvCol);
 
 			LvCol.pszText = GetString ("SIZE");  
-			LvCol.cx = 62;           
+			LvCol.cx = 66;           
 			LvCol.fmt = LVCFMT_RIGHT;
 			SendMessage (hList,LVM_INSERTCOLUMNW,2,(LPARAM)&LvCol);
 
@@ -1607,18 +1605,46 @@ DriverAttach (void)
 {
 	/* Try to open a handle to the device driver. It will be closed later. */
 
+#ifndef SETUP
+retry:
+#endif
 	hDriver = CreateFile (WIN32_ROOT_PREFIX, 0, 0, NULL, OPEN_EXISTING, 0, NULL);
 
 	if (hDriver == INVALID_HANDLE_VALUE)
 	{
 #ifndef SETUP
+		SC_HANDLE hManager, hService = NULL;
+		SERVICE_STATUS status;
+
+		// Windows lets users log in before all services scheduled to start on
+		// boot are started. Retry if the system is running only for a few minutes
+		// and the driver is not available.
+
+		if ((hManager = OpenSCManager (NULL, NULL, SC_MANAGER_ENUMERATE_SERVICE))
+			&& (hService = OpenService (hManager, "truecrypt", SERVICE_QUERY_STATUS))
+			&& QueryServiceStatus (hService, &status)
+			&& status.dwCurrentState != SERVICE_RUNNING
+			&& GetTickCount () < 300 * 1000)
+		{
+			if (hService != NULL) CloseServiceHandle (hService);
+			if (hManager != NULL) CloseServiceHandle (hManager);
+
+			Sleep (2000);
+			goto retry;
+		}
+
+		if (hService != NULL) CloseServiceHandle (hService);
+		if (hManager != NULL) CloseServiceHandle (hManager);
+
 		// Attempt to load driver (non-install mode)
-		BOOL res = DriverLoad ();
+		{
+			BOOL res = DriverLoad ();
 
-		if (res != ERROR_SUCCESS)
-			return res;
+			if (res != ERROR_SUCCESS)
+				return res;
 
-		hDriver = CreateFile (WIN32_ROOT_PREFIX, 0, 0, NULL, OPEN_EXISTING, 0, NULL);
+			hDriver = CreateFile (WIN32_ROOT_PREFIX, 0, 0, NULL, OPEN_EXISTING, 0, NULL);
+		}
 #endif
 		if (hDriver == INVALID_HANDLE_VALUE)
 			return ERR_OS_ERROR;
@@ -1675,7 +1701,7 @@ BOOL SeekHiddenVolHeader (HFILE dev, unsigned __int64 volSize, BOOL deviceFlag)
 }
 
 BOOL
-BrowseFiles (HWND hwndDlg, char *stringId, char *lpszFileName, BOOL keepHistory)
+BrowseFiles (HWND hwndDlg, char *stringId, char *lpszFileName, BOOL keepHistory, BOOL saveMode)
 {
 	OPENFILENAMEW ofn;
 	wchar_t file[TC_MAX_PATH] = { 0 };
@@ -1697,20 +1723,27 @@ BrowseFiles (HWND hwndDlg, char *stringId, char *lpszFileName, BOOL keepHistory)
 	ofn.nMaxFileTitle = TC_MAX_PATH;
 	ofn.lpstrInitialDir = NULL;
 	ofn.lpstrTitle = GetString (stringId);
-	ofn.Flags = OFN_HIDEREADONLY | OFN_PATHMUSTEXIST | (keepHistory ? 0 : OFN_DONTADDTORECENT);
-
-	if (!GetOpenFileNameW (&ofn))
+	ofn.Flags = OFN_HIDEREADONLY
+		| OFN_PATHMUSTEXIST
+		| (keepHistory ? 0 : OFN_DONTADDTORECENT)
+		| (saveMode ? OFN_OVERWRITEPROMPT : 0);
+	
+	if (!saveMode)
 	{
-		return FALSE;
+		if (!GetOpenFileNameW (&ofn))
+			return FALSE;
 	}
 	else
 	{
-		if (!keepHistory)
-			CleanLastVisitedMRU ();
-
-		WideCharToMultiByte (CP_ACP, 0, file, -1, lpszFileName, MAX_PATH, NULL, NULL);
-		return TRUE;
+		if (!GetSaveFileNameW (&ofn))
+			return FALSE;
 	}
+
+	if (!keepHistory)
+		CleanLastVisitedMRU ();
+
+	WideCharToMultiByte (CP_ACP, 0, file, -1, lpszFileName, MAX_PATH, NULL, NULL);
+	return TRUE;
 }
 
 
@@ -1857,9 +1890,6 @@ handleError (HWND hwndDlg, int code)
 	case ERR_VOL_MOUNT_FAILED:
 		MessageBoxW (hwndDlg, GetString  ("VOL_MOUNT_FAILED"), lpszTitle, ICON_HAND);
 		break;
-	case ERR_NO_FREE_SLOTS:
-		MessageBoxW (hwndDlg, GetString ("NO_FREE_SLOTS"), lpszTitle, ICON_HAND);
-		break;
 	case ERR_NO_FREE_DRIVES:
 		MessageBoxW (hwndDlg, GetString ("NO_FREE_DRIVES"), lpszTitle, ICON_HAND);
 		break;
@@ -1922,6 +1952,7 @@ static BOOL CALLBACK LocalizeDialogEnum( HWND hwnd, LPARAM font)
 void LocalizeDialog (HWND hwnd, char *stringId)
 {
 	SetWindowLongPtr (hwnd, GWLP_USERDATA, (LONG_PTR) 'TRUE');
+	SendMessage (hwnd, WM_SETFONT, (WPARAM) hUserFont, 0);
 
 	if (LocalizationActive && stringId != NULL)
 		SetWindowTextW (hwnd, GetString (stringId));
@@ -2170,11 +2201,11 @@ static BOOL PerformBenchmark(HWND hwndDlg)
 {
     LARGE_INTEGER performanceCountStart, performanceCountEnd;
 	BYTE *lpTestBuffer;
+	PCRYPTO_INFO ci = NULL;
 #if !(PKCS5_BENCHMARKS || HASH_FNC_BENCHMARKS)
-	int ea;
-	unsigned char iv[DISK_IV_SIZE];
-	unsigned char ks[MAX_EXPANDED_KEY];
-	unsigned char key[DISKKEY_SIZE];
+	ci = crypto_open ();
+	if (!ci)
+		return FALSE;
 #endif
 
 	if (QueryPerformanceFrequency (&benchmarkPerformanceFrequency) == 0)
@@ -2259,7 +2290,6 @@ static BOOL PerformBenchmark(HWND hwndDlg)
 	   The PKCS-5 benchmarks are included here for development purposes only. Do not enable 
 	   them when building a public release (the benchmark GUI strings wouldn't make sense). */
 	{
-
 		int thid, i;
 		char dk[HEADER_DISKKEY];
 		char *tmp_salt = {"\x00\x11\x22\x33\x44\x55\x66\x77\x88\x99\xAA\xBB\xCC\xDD\xEE\xFF\x01\x23\x45\x67\x89\xAB\xCD\xEF\x00\x11\x22\x33\x44\x55\x66\x77\x88\x99\xAA\xBB\xCC\xDD\xEE\xFF\x01\x23\x45\x67\x89\xAB\xCD\xEF\x00\x11\x22\x33\x44\x55\x66\x77\x88\x99\xAA\xBB\xCC\xDD\xEE\xFF"};
@@ -2304,15 +2334,22 @@ static BOOL PerformBenchmark(HWND hwndDlg)
 #else	// #elif PKCS5_BENCHMARKS
 
 	/* Encryption algorithm benchmarks */
-
-	for (ea = EAGetFirst(); ea != 0; ea = EAGetNext(ea))
+		
+	for (ci->ea = EAGetFirst(); ci->ea != 0; ci->ea = EAGetNext(ci->ea))
 	{
-		EAInit (ea, key, ks);
-        
+		if (EAGetFirstMode (ci->ea) != LRW)
+			continue;
+
+		EAInit (ci->ea, ci->master_key, ci->ks);
+
+		ci->mode = LRW;
+		if (!EAInitMode (ci))
+			break;
+
 		if (QueryPerformanceCounter (&performanceCountStart) == 0)
 			goto counter_error;
 
-		EncryptBuffer ((unsigned __int32 *) lpTestBuffer, (unsigned __int64) benchmarkBufferSize, ks, iv, iv, ea);
+		EncryptBuffer ((unsigned __int32 *) lpTestBuffer, (unsigned __int64) benchmarkBufferSize, ci);
 
 		if (QueryPerformanceCounter (&performanceCountEnd) == 0)
 			goto counter_error;
@@ -2322,20 +2359,23 @@ static BOOL PerformBenchmark(HWND hwndDlg)
 		if (QueryPerformanceCounter (&performanceCountStart) == 0)
 			goto counter_error;
 
-		DecryptBuffer ((unsigned __int32 *) lpTestBuffer, (unsigned __int64) benchmarkBufferSize, ks, iv, iv, ea);
-		
+		DecryptBuffer ((unsigned __int32 *) lpTestBuffer, (unsigned __int64) benchmarkBufferSize, ci);
+
 		if (QueryPerformanceCounter (&performanceCountEnd) == 0)
 			goto counter_error;
 
 		benchmarkTable[benchmarkTotalItems].decSpeed = performanceCountEnd.QuadPart - performanceCountStart.QuadPart;
-		benchmarkTable[benchmarkTotalItems].id = ea;
+		benchmarkTable[benchmarkTotalItems].id = ci->ea;
 		benchmarkTable[benchmarkTotalItems].meanBytesPerSec = ((unsigned __int64) (benchmarkBufferSize / ((float) benchmarkTable[benchmarkTotalItems].encSpeed / benchmarkPerformanceFrequency.QuadPart)) + (unsigned __int64) (benchmarkBufferSize / ((float) benchmarkTable[benchmarkTotalItems].decSpeed / benchmarkPerformanceFrequency.QuadPart))) / 2;
-		EAGetName (benchmarkTable[benchmarkTotalItems].name, ea);
+		EAGetName (benchmarkTable[benchmarkTotalItems].name, ci->ea);
 
 		benchmarkTotalItems++;
 	}
 
 #endif	// #elif PKCS5_BENCHMARKS (#else)
+
+	if (ci)
+		crypto_close (ci);
 
 	VirtualUnlock (lpTestBuffer, benchmarkBufferSize - (benchmarkBufferSize % 16));
 
@@ -2352,6 +2392,9 @@ static BOOL PerformBenchmark(HWND hwndDlg)
 	return TRUE;
 
 counter_error:
+	
+	if (ci)
+		crypto_close (ci);
 
 	VirtualUnlock (lpTestBuffer, benchmarkBufferSize - (benchmarkBufferSize % 16));
 
@@ -2635,7 +2678,7 @@ KeyfileGeneratorDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			int fhKeyfile = -1;
 
 			/* Select filename */
-			if (!BrowseFiles (hwndDlg, "OPEN_TITLE", szFileName, FALSE))
+			if (!BrowseFiles (hwndDlg, "OPEN_TITLE", szFileName, FALSE, TRUE))
 				return 1;
 
 			/* Conceive the file */
@@ -2697,6 +2740,10 @@ not. - see DialogProc */
 BOOL CALLBACK
 CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+	static int idTestCipher = -1;		/* Currently selected cipher for the test vector facility (none = -1). */
+	static BOOL bLRWTestEnabled = TRUE;
+
+	PCRYPTO_INFO ci;
 	WORD lw = LOWORD (wParam);
 	WORD hw = HIWORD (wParam);
 
@@ -2718,6 +2765,15 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			SendMessage(GetDlgItem(hwndDlg, IDC_PLAINTEXT), WM_SETFONT, (WPARAM)hFixedDigitFont, MAKELPARAM(1,0));
 			SendMessage(GetDlgItem(hwndDlg, IDC_CIPHERTEXT), EM_LIMITTEXT,128,0);
 			SendMessage(GetDlgItem(hwndDlg, IDC_CIPHERTEXT), WM_SETFONT, (WPARAM)hFixedDigitFont, MAKELPARAM(1,0));
+			SendMessage(GetDlgItem(hwndDlg, IDC_LRW_KEY), EM_LIMITTEXT,128,0);
+			SendMessage(GetDlgItem(hwndDlg, IDC_LRW_KEY), WM_SETFONT, (WPARAM)hFixedDigitFont, MAKELPARAM(1,0));
+			SendMessage(GetDlgItem(hwndDlg, IDC_LRW_BLOCK_INDEX), EM_LIMITTEXT,128,0);
+			SendMessage(GetDlgItem(hwndDlg, IDC_LRW_BLOCK_INDEX), WM_SETFONT, (WPARAM)hFixedDigitFont, MAKELPARAM(1,0));
+			SetCheckBox (hwndDlg, IDC_LRW_MODE_ENABLED, bLRWTestEnabled);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_LRW_KEY), bLRWTestEnabled);
+			EnableWindow (GetDlgItem (hwndDlg, IDT_LRW_KEY), bLRWTestEnabled);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_LRW_BLOCK_INDEX), bLRWTestEnabled);
+			EnableWindow (GetDlgItem (hwndDlg, IDT_LRW_BLOCK_INDEX), bLRWTestEnabled);
 
 			if (idTestCipher == -1)
 				idTestCipher = (int) lParam;
@@ -2725,7 +2781,7 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			SendMessage (GetDlgItem (hwndDlg, IDC_CIPHER), CB_RESETCONTENT, 0, 0);
 			for (ea = EAGetFirst (); ea != 0; ea = EAGetNext (ea))
 			{
-				if (EAGetCipherCount (ea) == 1)
+				if (EAGetCipherCount (ea) == 1 && EAGetFirstMode (ea) == LRW)
 					AddComboPair (GetDlgItem (hwndDlg, IDC_CIPHER), EAGetName (buf, ea), ea);
 			}
 
@@ -2777,9 +2833,18 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		}
 
+		if (lw == IDC_LRW_MODE_ENABLED)
+		{
+			bLRWTestEnabled = GetCheckBox (hwndDlg, IDC_LRW_MODE_ENABLED);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_LRW_KEY), bLRWTestEnabled);
+			EnableWindow (GetDlgItem (hwndDlg, IDT_LRW_KEY), bLRWTestEnabled);
+			EnableWindow (GetDlgItem (hwndDlg, IDT_LRW_BLOCK_INDEX), bLRWTestEnabled);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_LRW_BLOCK_INDEX), bLRWTestEnabled);
+		}
+
 		if (lw == IDOK || lw == IDC_ENCRYPT || lw == IDC_DECRYPT)
 		{
-			char key[128], inputtext[128], szTmp[128];
+			char key[128], inputtext[128], lrwKey[16], lrwIndex[16], szTmp[128];
 			int ks, pt, n;
 			BOOL bEncrypt;
 
@@ -2815,8 +2880,10 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				key[n] = (char) x;
 			}
 
-			memset(inputtext,0,sizeof(inputtext));
-			memset(szTmp,0,sizeof(szTmp));
+			memset(inputtext, 0, sizeof(inputtext));
+			memset(lrwKey, 0, sizeof(lrwKey));
+			memset(lrwIndex, 0, sizeof(lrwIndex));
+			memset(szTmp, 0, sizeof(szTmp));
 
 			if (bEncrypt)
 			{
@@ -2840,7 +2907,7 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					return 1;
 				}
 			}
-			
+
 			for (n = 0; n < pt; n ++)
 			{
 				char szTmp2[3], *ptr;
@@ -2855,41 +2922,133 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				inputtext[n] = (char) x;
 			}
 			
+			// LRW
+			if (bLRWTestEnabled)
+			{
+				if (GetWindowText(GetDlgItem(hwndDlg, IDC_LRW_KEY), szTmp, sizeof(szTmp)) != pt * 2)
+				{
+					Warning ("TEST_INCORRECT_LRW_KEY_SIZE");
+					return 1;
+				}
+
+				// LRW key
+
+				for (n = 0; n < pt; n ++)
+				{
+					char szTmp2[3], *ptr;
+					long x;
+
+					szTmp2[2] = 0;
+					szTmp2[0] = szTmp[n * 2];
+					szTmp2[1] = szTmp[n * 2 + 1];
+
+					x = strtol(szTmp2, &ptr, 16);
+
+					lrwKey[n] = (char) x;
+				}
+
+				// LRW block index
+
+				if (GetWindowText(GetDlgItem(hwndDlg, IDC_LRW_BLOCK_INDEX), szTmp, sizeof(szTmp)) != pt * 2)
+				{
+					Warning ("TEST_INCORRECT_LRW_INDEX_SIZE");
+					return 1;
+				}
+				for (n = 0; n < pt; n ++)
+				{
+					char szTmp2[3], *ptr;
+					long x;
+
+					szTmp2[2] = 0;
+					szTmp2[0] = szTmp[n * 2];
+					szTmp2[1] = szTmp[n * 2 + 1];
+
+					x = strtol(szTmp2, &ptr, 16);
+
+					lrwIndex[n] = (char) x;
+				}
+			}
+
+			
+			/* Perform the actual tests */
+
 			if (ks != CB_ERR && pt != CB_ERR) 
 			{
 				char tmp[128];
 
-				/* Copy in the plain/ciphertext */
+				/* Copy the plain/ciphertext */
 				memcpy(tmp,inputtext, pt);
 
-				if (idTestCipher == BLOWFISH)
+				if (bLRWTestEnabled)
 				{
-					/* Convert to little-endian, this is needed here and not in
-					above auto-tests because BF_ecb_encrypt above correctly converts
-					from big to little endian, and EncipherBlock does not! */
-					LongReverse((void*)tmp, pt);
-				}
+					/* LRW mode */
 
-				CipherInit2(idTestCipher, key, ks_tmp, ks);
+					ci = crypto_open ();
+					if (!ci)
+						return 1;
 
-				if (bEncrypt)
-				{
-					EncipherBlock(idTestCipher, tmp, ks_tmp);
+					ci->mode = LRW;
+					ci->ea = idTestCipher;
+
+					if (EAInit (ci->ea, key, ci->ks) != 0)
+						return 1;
+
+					memcpy (&ci->iv, lrwKey, sizeof (lrwKey));
+					if (!EAInitMode (ci))
+						return 1;
+
+					if (pt == 16)
+					{
+						if (((unsigned __int64 *)lrwIndex)[0])
+						{
+							Error ("TEST_LRW_INDEX_OVERRUN");
+							return 1;
+						}
+
+						if (bEncrypt)
+							EncryptBufferLRW128 (tmp, pt, BE64(((unsigned __int64 *)lrwIndex)[1]), ci);
+						else
+							DecryptBufferLRW128 (tmp, pt, BE64(((unsigned __int64 *)lrwIndex)[1]), ci);
+					}
+					else if (pt == 8)
+					{
+						if (bEncrypt)
+							EncryptBufferLRW64 (tmp, pt, BE64(((unsigned __int64 *)lrwIndex)[0]), ci);
+						else
+							DecryptBufferLRW64 (tmp, pt, BE64(((unsigned __int64 *)lrwIndex)[0]), ci);
+					}
+					crypto_close (ci);
 				}
 				else
 				{
-					DecipherBlock(idTestCipher, tmp, ks_tmp);
-				}
+					if (idTestCipher == BLOWFISH)
+					{
+						/* Convert to little-endian, this is needed here and not in
+						above auto-tests because BF_ecb_encrypt above correctly converts
+						from big to little endian, and EncipherBlock does not! */
+						LongReverse((void*)tmp, pt);
+					}
 
-				if (idTestCipher == BLOWFISH)
-				{
-					/* Convert back to big-endian */
-					LongReverse((void*)tmp, pt);
-				}
+					CipherInit2(idTestCipher, key, ks_tmp, ks);
 
+					if (bEncrypt)
+					{
+						EncipherBlock(idTestCipher, tmp, ks_tmp);
+					}
+					else
+					{
+						DecipherBlock(idTestCipher, tmp, ks_tmp);
+					}
+
+					if (idTestCipher == BLOWFISH)
+					{
+						/* Convert back to big-endian */
+						LongReverse((void*)tmp, pt);
+					}
+				}
 				*szTmp = 0;
 
-				for (n = 0 ; n < pt ; n ++)
+				for (n = 0; n < pt; n ++)
 				{
 					char szTmp2[3];
 					sprintf(szTmp2, "%02x", (int)((unsigned char)tmp[n]));
@@ -2900,9 +3059,8 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					SetWindowText(GetDlgItem(hwndDlg,IDC_CIPHERTEXT), szTmp);
 				else
 					SetWindowText(GetDlgItem(hwndDlg,IDC_PLAINTEXT), szTmp);
-
 			}
-			
+
 			return 1;
 		}
 
@@ -2944,6 +3102,9 @@ ResetCipherTest(HWND hwndDlg, int idTestCipher)
 	ndx = SendMessage (GetDlgItem(hwndDlg, IDC_PLAINTEXT_SIZE), CB_ADDSTRING, 0,(LPARAM) "64");
 	SendMessage(GetDlgItem(hwndDlg, IDC_PLAINTEXT_SIZE), CB_SETITEMDATA, ndx,(LPARAM) 8);
 	SendMessage(GetDlgItem(hwndDlg, IDC_PLAINTEXT_SIZE), CB_SETCURSEL, ndx,0);
+
+	SetWindowText(GetDlgItem(hwndDlg, IDC_LRW_KEY), "0000000000000000");
+	SetWindowText(GetDlgItem(hwndDlg, IDC_LRW_BLOCK_INDEX), "0000000000000000");
 
 	if (idTestCipher == BLOWFISH)
 	{
@@ -3001,6 +3162,9 @@ ResetCipherTest(HWND hwndDlg, int idTestCipher)
 		SetWindowText(GetDlgItem(hwndDlg, IDC_KEY), "0000000000000000000000000000000000000000000000000000000000000000");
 		SetWindowText(GetDlgItem(hwndDlg, IDC_PLAINTEXT), "00000000000000000000000000000000");
 		SetWindowText(GetDlgItem(hwndDlg, IDC_CIPHERTEXT), "00000000000000000000000000000000");
+
+		SetWindowText(GetDlgItem(hwndDlg, IDC_LRW_KEY), "00000000000000000000000000000000");
+		SetWindowText(GetDlgItem(hwndDlg, IDC_LRW_BLOCK_INDEX), "00000000000000000000000000000000");
 	}
 }
 
@@ -3212,7 +3376,7 @@ retry:
 	if (bResult == FALSE)
 	{
 		// Volume already open by another process
-		if (GetLastError() == ERROR_SHARING_VIOLATION)
+		if (GetLastError () == ERROR_SHARING_VIOLATION)
 		{
 			if (mount.bExclusiveAccess == FALSE)
 			{
@@ -3240,6 +3404,13 @@ retry:
 			}
 
 			return -1;
+		}
+
+		// Mount failed in kernel space => retry in user process context
+		if (!mount.bUserContext)
+		{
+			mount.bUserContext = TRUE;
+			goto retry;
 		}
 
 		if (!quiet)
@@ -3568,9 +3739,8 @@ int BackupVolumeHeader (HWND hwndDlg, BOOL bRequireConfirmation, char *lpszVolum
 
 
 	/* Select backup file */
-	if (!BrowseFiles (hwndDlg, "OPEN_TITLE", szFileName, FALSE))
+	if (!BrowseFiles (hwndDlg, "OPEN_TITLE", szFileName, FALSE, TRUE))
 		return 0;
-
 
 	/* Conceive the backup file */
 	if ((fBackup = _open(szFileName, _O_CREAT|_O_TRUNC|_O_WRONLY|_O_BINARY, _S_IREAD|_S_IWRITE)) == -1)
@@ -3742,7 +3912,7 @@ int RestoreVolumeHeader (HWND hwndDlg, char *lpszVolume)
 
 
 	/* Select backup file */
-	if (!BrowseFiles (hwndDlg, "OPEN_TITLE", szFileName, FALSE))
+	if (!BrowseFiles (hwndDlg, "OPEN_TITLE", szFileName, FALSE, FALSE))
 		return 0;
 
 
@@ -4464,7 +4634,7 @@ void CheckSystemAutoMount ()
 }
 
 
-BOOL CALLBACK CloseTCWindowsEnum( HWND hwnd, LPARAM lParam)
+BOOL CALLBACK CloseTCWindowsEnum (HWND hwnd, LPARAM lParam)
 {
 	if (GetWindowLongPtr (hwnd, GWLP_USERDATA) == (LONG_PTR) 'TRUE')
 	{
@@ -4477,6 +4647,25 @@ BOOL CALLBACK CloseTCWindowsEnum( HWND hwnd, LPARAM lParam)
 
 			if (lParam != 0)
 				*((BOOL *)lParam) = TRUE;
+		}
+	}
+	return TRUE;
+}
+
+
+BOOL CALLBACK FindTCWindowEnum (HWND hwnd, LPARAM lParam)
+{
+	if (*(HWND *)lParam == hwnd)
+		return TRUE;
+
+	if (GetWindowLongPtr (hwnd, GWLP_USERDATA) == (LONG_PTR) 'TRUE')
+	{
+		char name[32] = { 0 };
+		GetWindowText (hwnd, name, sizeof (name) - 1);
+		if (hwnd != MainDlg && strstr (name, "TrueCrypt") == name)
+		{
+			if (lParam != 0)
+				*((HWND *)lParam) = hwnd;
 		}
 	}
 	return TRUE;

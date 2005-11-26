@@ -270,19 +270,19 @@ BOOL WINAPI HotkeysDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 			currentVKeyCode = 0;
 			memcpy (tmpHotkeys, Hotkeys, sizeof(tmpHotkeys));
 
-			SendMessage (hList,LVM_SETEXTENDEDLISTVIEWSTYLE,0,
+			SendMessageW (hList,LVM_SETEXTENDEDLISTVIEWSTYLE,0,
 				LVS_EX_FULLROWSELECT|LVS_EX_HEADERDRAGDROP|LVS_EX_LABELTIP 
 				); 
 
 			memset (&col,0,sizeof(col));               
 			col.mask = LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM|LVCF_FMT;  
 			col.pszText = GetString ("ACTION");                           
-			col.cx = 220;
+			col.cx = 341;
 			col.fmt = LVCFMT_LEFT;
 			SendMessageW (hList,LVM_INSERTCOLUMNW,0,(LPARAM)&col);
 
 			col.pszText = GetString ("SHORTCUT");  
-			col.cx = 210;           
+			col.cx = 190;           
 			col.fmt = LVCFMT_LEFT;
 			SendMessageW (hList,LVM_INSERTCOLUMNW,1,(LPARAM)&col);
 

@@ -8,7 +8,7 @@ License.txt included in TrueCrypt binary and source code distribution archives.
 #include "../Common/Dictionary.h"
 #include <windows.h>
 
-static DictionaryEntry StringDictionary[2048];
+static DictionaryEntry StringDictionary[4096];
 static int LastDictionaryEntry = -1;
 static int MaxDictionaryEntry = sizeof (StringDictionary) / sizeof (DictionaryEntry) - 1;
 
@@ -91,8 +91,10 @@ void *AddPoolData (void *data, size_t dataSize)
 	//else
 	//	((WCHAR *)((BYTE *)DataPool + DataPoolSize))[0] = L'*';
 
+	// Ensure 32-bit alignment for next entries
+	dataSize = (dataSize + 3) & (~(size_t)3);
+
 	DataPoolSize += dataSize;
-	
 	return (BYTE *)DataPool + DataPoolSize - dataSize;
 }
 

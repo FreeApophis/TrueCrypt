@@ -37,9 +37,6 @@ struct target_ctx
 {
 	struct dm_dev *dev;
 	sector_t start;
-	int ea;
-	u8 *ks;
-	u8 iv[DISK_IV_SIZE];
 	char *volume_path;
 	mempool_t *bio_ctx_pool;
 	mempool_t *pg_pool;
@@ -48,6 +45,7 @@ struct target_ctx
 	u64 mtime;
 	u64 atime;
 	int flags;
+	PCRYPTO_INFO ci;
 };
 
 struct bio_ctx
@@ -105,18 +103,28 @@ static void mempool_free_pg (void *element, void *pool_data)
 }
 
 
+static void wipe_args (unsigned int argc, char **argv)
+{
+	int i;
+	for (i = 0; i < argc; i++)
+	{
+		if (argv[i] != NULL)
+			burn (argv[i], strlen (argv[i]));
+	}
+}
+
+
 static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 {
 	struct target_ctx *tc;
-	u8 *key = NULL;
 	int key_size;
 	int error = -EINVAL;
 
 	trace (3, "truecrypt_ctr (%p, %d, %p)\n", ti, argc, argv);
 
-	if (argc != 11)
+	if (argc != LAST_ARG + 1)
 	{
-		ti->error = "truecrypt: Usage: <start_sector> <sector_count> truecrypt <EA> <key> <IV> <host_device> <sector_offset> <read_only_start> <read_only_end> <mtime> <atime> <flags> <volume_path>";
+		ti->error = "truecrypt: Usage: <start_sector> <sector_count> truecrypt <EA> <mode> <key> <key2/IV> <host_device> <sector_offset> <read_only_start> <read_only_end> <mtime> <atime> <flags> <volume_path>";
 		return -EINVAL;
 	}
 
@@ -128,6 +136,14 @@ static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 		goto err;
 	}
 	memset (tc, 0, sizeof (*tc));
+
+	tc->ci = crypto_open ();
+	if (tc == NULL)
+	{
+		ti->error = "truecrypt: Cannot allocate crypto_info";
+		error = -ENOMEM;
+		goto err;
+	}
 
 	tc->bio_ctx_pool = mempool_create (MIN_POOL_SIZE, mempool_alloc_slab, mempool_free_slab, bio_ctx_cache);
 	if (!tc->bio_ctx_pool)
@@ -158,49 +174,52 @@ static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 	}
 
 	// Encryption algorithm
-	tc->ea = 0;
-	if (sscanf (argv[ARG_EA], "%d", &tc->ea) != 1
-		|| tc->ea < EAGetFirst ()
-		|| tc->ea > EAGetCount ())
+	tc->ci->ea = 0;
+	if (sscanf (argv[ARG_EA], "%d", &tc->ci->ea) != 1
+		|| tc->ci->ea < EAGetFirst ()
+		|| tc->ci->ea > EAGetCount ())
 	{
 		ti->error = "truecrypt: Invalid encryption algorithm";
 		goto err;
 	}
 
-	// Key
-	key_size = EAGetKeySize (tc->ea);
-	key = kmalloc (key_size, GFP_KERNEL);
-	if (!key)
+	// Mode of operation
+	tc->ci->mode = 0;
+	if (sscanf (argv[ARG_MODE], "%d", &tc->ci->mode) != 1
+		|| tc->ci->mode < 1
+		|| tc->ci->mode >= INVALID_MODE)
 	{
-		ti->error = "truecrypt: Cannot allocate key buffer";
-		error = -ENOMEM;
+		ti->error = "truecrypt: Invalid mode of operation";
 		goto err;
 	}
 
-	if (hex2bin (argv[ARG_KEY], key, key_size) != key_size)
+	// Key
+	key_size = EAGetKeySize (tc->ci->ea);
+	if (hex2bin (argv[ARG_KEY], tc->ci->master_key, key_size) != key_size)
 	{
 		ti->error = "truecrypt: Invalid key";
 		goto err;
 	}
-
-	// Scheduled key
-	tc->ks = kmalloc (EAGetKeyScheduleSize (tc->ea), GFP_KERNEL);
-	if (tc->ks == NULL)
+	
+	// EA init
+	trace (2, "EAInit (%d, %p, %p)\n", tc->ci->ea, tc->ci->master_key, tc->ci->ks);
+	if (EAInit (tc->ci->ea, tc->ci->master_key, tc->ci->ks) == ERR_CIPHER_INIT_FAILURE)
 	{
-		ti->error = "truecrypt: Cannot allocate scheduled key buffer";
-		error = -ENOMEM;
+		ti->error = "truecrypt: Encryption algorithm initialization failed";
 		goto err;
 	}
 
-	trace (2, "EAInit (%d, %p, %p)\n", tc->ea, key, tc->ks);
-	EAInit (tc->ea, key, tc->ks);
-	kfree (key);
-	key = NULL;
-
-	// IV
-	if (hex2bin (argv[ARG_IV], tc->iv, sizeof (tc->iv)) != sizeof (tc->iv))
+	// Key2 / IV
+	if (hex2bin (argv[ARG_IV], tc->ci->iv, sizeof (tc->ci->iv)) != sizeof (tc->ci->iv))
 	{
 		ti->error = "truecrypt: Invalid IV";
+		goto err;
+	}
+
+	// Mode init	
+	if (!EAInitMode (tc->ci))
+	{
+		ti->error = "truecrypt: Mode of operation initialization failed";
 		goto err;
 	}
 
@@ -249,18 +268,25 @@ static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 	}
 	strcpy (tc->volume_path, argv[ARG_VOL]);
 
+	// Hidden volume
+	if (tc->start > 1)
+	{
+		tc->ci->hiddenVolume = TRUE;
+		tc->ci->hiddenVolumeOffset = tc->start * SECTOR_SIZE;
+	}
+
 	ti->private = tc;
+
+	wipe_args (argc, argv);
 	return 0;
 
 err:
 	trace (3, "truecrypt_ctr: error\n");
 
-	if (key)
-		kfree(key);
 	if (tc)
 	{
-		if (tc->ks)
-			kfree (tc->ks);
+		if (tc->ci)
+			crypto_close (tc->ci);
 		if (tc->volume_path)
 			kfree (tc->volume_path);
 		if (tc->bio_ctx_pool)
@@ -270,6 +296,7 @@ err:
 		kfree (tc);
 	}
 
+	wipe_args (argc, argv);
 	return error;
 }
 
@@ -280,11 +307,11 @@ static void truecrypt_dtr (struct dm_target *ti)
 
 	trace (3, "truecrypt_dtr (%p)\n", ti);
 
-	dm_put_device(ti, tc->dev);
-
 	mempool_destroy (tc->bio_ctx_pool);
-	kfree(tc->ks);
+	mempool_destroy (tc->pg_pool);
+	crypto_close (tc->ci);
 	kfree(tc->volume_path);
+	dm_put_device(ti, tc->dev);
 	kfree(tc);
 }
 
@@ -328,7 +355,7 @@ static void work_process (void *data)
 		char *data = bvec_kmap_irq (bv, &flags);
 
 		trace (2, "DecryptSectors (%Ld, %d)\n", sec_no, secs);
-		DecryptSectors ((unsigned __int32 *)data, sec_no, secs, tc->ks, tc->iv, tc->ea);
+		DecryptSectors ((unsigned __int32 *)data, sec_no, secs, tc->ci);
 
 		sec_no += secs;
 
@@ -510,7 +537,7 @@ static int truecrypt_map (struct dm_target *ti, struct bio *bio, union map_info 
 
 			trace (2, "EncryptSectors (%Ld, %d)\n", sec_no, secs);
 
-			EncryptSectors ((unsigned __int32 *)copy, sec_no, secs, tc->ks, tc->iv, tc->ea);
+			EncryptSectors ((unsigned __int32 *)copy, sec_no, secs, tc->ci);
 			sec_no += secs;
 
 			flush_dcache_page (cbv->bv_page);
@@ -542,8 +569,9 @@ static int truecrypt_status (struct dm_target *ti, status_type_t type, char *res
 		{
 			char name[32];
 			format_dev_t (name, tc->dev->bdev->bd_dev);
-			snprintf (result, maxlen, "%d 0 0 %s " SECTOR_FORMAT " " SECTOR_FORMAT " " SECTOR_FORMAT " %Ld %Ld %d %s",
-				tc->ea,
+			snprintf (result, maxlen, "%d %d 0 0 %s " SECTOR_FORMAT " " SECTOR_FORMAT " " SECTOR_FORMAT " %Ld %Ld %d %s",
+				tc->ci->ea,
+				tc->ci->mode,
 				name,
 				tc->start,
 				tc->read_only_start,
