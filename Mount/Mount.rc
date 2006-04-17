@@ -42,22 +42,22 @@ FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     CONTROL         "Mount volumes as read-only",IDC_PREF_MOUNT_READONLY,
                     "Button",BS_AUTOCHECKBOX | BS_MULTILINE | WS_TABSTOP,9,
-                    10,138,16
+                    10,137,16
     CONTROL         "Mount volumes as removable media",
                     IDC_PREF_MOUNT_REMOVABLE,"Button",BS_AUTOCHECKBOX | 
-                    BS_MULTILINE | WS_TABSTOP,149,10,158,16
+                    BS_MULTILINE | WS_TABSTOP,149,10,157,16
     CONTROL         "Enabled",IDC_PREF_BKG_TASK_ENABLE,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,9,42,52,10
+                    BS_AUTOCHECKBOX | WS_TABSTOP,9,42,127,10
     CONTROL         "Exit when there are no mounted volumes",
                     IDC_CLOSE_BKG_TASK_WHEN_NOVOL,"Button",BS_AUTOCHECKBOX | 
                     WS_TABSTOP,149,42,153,10
     CONTROL         "Start TrueCrypt",IDC_PREF_LOGON_START,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,10,76,122,10
+                    BS_AUTOCHECKBOX | WS_TABSTOP,10,76,133,10
     CONTROL         "Mount all device-hosted TrueCrypt volumes",
                     IDC_PREF_LOGON_MOUNT_DEVICES,"Button",BS_AUTOCHECKBOX | 
                     WS_TABSTOP,149,71,154,10
     CONTROL         "Mount favorite volumes",IDC_PREF_LOGON_MOUNT_FAVORITES,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,149,82,114,10
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,149,82,154,10
     CONTROL         "User logs off",IDC_PREF_DISMOUNT_LOGOFF,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,76,109,101,11
     CONTROL         "Screen saver is launched",IDC_PREF_DISMOUNT_SCREENSAVER,
@@ -72,16 +72,16 @@ BEGIN
                     ES_AUTOHSCROLL | ES_NUMBER,WS_EX_RIGHT
     CONTROL         "Force auto-dismount even if volume contains open files or directories",
                     IDC_PREF_FORCE_AUTO_DISMOUNT,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,10,145,236,10
+                    WS_TABSTOP,10,145,294,10
     CONTROL         "Open Explorer window for successfully mounted volume",
                     IDC_PREF_OPEN_EXPLORER,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,10,175,251,11
+                    WS_TABSTOP,10,175,294,11
     CONTROL         "Close all Explorer windows of volume being dismounted",
                     IDC_PREF_CLOSE_DISMOUNTED_WINDOWS,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,10,187,251,10
+                    BS_AUTOCHECKBOX | WS_TABSTOP,10,187,294,10
     CONTROL         "Preserve timestamps of file containers and keyfiles",
                     IDC_PRESERVE_TIMESTAMPS,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,10,199,251,10
+                    WS_TABSTOP,10,199,294,10
     CONTROL         "Cache passwords in driver memory",
                     IDC_PREF_CACHE_PASSWORDS,"Button",BS_AUTOCHECKBOX | 
                     WS_TABSTOP,10,228,146,11
@@ -151,8 +151,7 @@ BEGIN
     RTEXT           "Password:",IDT_PASSWORD,12,16,72,8
     RTEXT           "Password:",IDT_NEW_PASSWORD,8,77,76,8
     RTEXT           "Confirm Password:",IDT_CONFIRM_PASSWORD,9,93,75,8
-    RTEXT           "PKCS-5 PRF Algorithm",IDT_PKCS5_PRF,9,137,74,10,
-                    SS_CENTERIMAGE
+    RTEXT           "PKCS-5 PRF",IDT_PKCS5_PRF,9,137,74,10,SS_CENTERIMAGE
     GROUPBOX        "Current",IDT_CURRENT,6,3,230,58
     GROUPBOX        "New",IDT_NEW,6,63,230,93
 END
@@ -201,14 +200,14 @@ CAPTION "Enter TrueCrypt Volume Password"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     EDITTEXT        IDC_PASSWORD,48,8,153,14,ES_PASSWORD | ES_AUTOHSCROLL
-    CONTROL         "Cache passwords and keyfiles in memory",IDC_CACHE,
+    CONTROL         "Cache passwords and keyfil&es in memory",IDC_CACHE,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,52,27,153,10
-    CONTROL         "Display password",IDC_SHOW_PASSWORD,"Button",
+    CONTROL         "&Display password",IDC_SHOW_PASSWORD,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,52,40,83,10
-    CONTROL         "Use keyfiles",IDC_KEYFILES_ENABLE,"Button",
+    CONTROL         "U&se keyfiles",IDC_KEYFILES_ENABLE,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,52,52,82,11
-    PUSHBUTTON      "Keyfiles..",IDC_KEY_FILES,137,49,64,14
-    PUSHBUTTON      "Mount Options...",IDC_MOUNT_OPTIONS,208,49,64,14
+    PUSHBUTTON      "&Keyfiles...",IDC_KEY_FILES,137,49,64,14
+    PUSHBUTTON      "Mount Opti&ons...",IDC_MOUNT_OPTIONS,208,49,64,14
     DEFPUSHBUTTON   "OK",IDOK,208,8,64,14
     PUSHBUTTON      "Cancel",IDCANCEL,208,25,64,14
     RTEXT           "Password:",IDT_PASSWORD,0,10,46,19
@@ -367,8 +366,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 4,1,0,0
- PRODUCTVERSION 4,1,0,0
+ FILEVERSION 4,2,0,0
+ PRODUCTVERSION 4,2,0,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -385,13 +384,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt"
-            VALUE "FileVersion", "4.1"
+            VALUE "FileVersion", "4.2"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "4.1"
-            VALUE "SpecialBuild", "2005-11-25"
+            VALUE "ProductVersion", "4.2"
+            VALUE "SpecialBuild", "2006-04-17"
         END
     END
     BLOCK "VarFileInfo"
@@ -512,13 +511,16 @@ BEGIN
     POPUP "Hel&p"
     BEGIN
         MENUITEM "User's Guide",                IDM_HELP
+        MENUITEM "Online Help",                 IDM_ONLINE_HELP
+        MENUITEM "Beginner's Tutorial",         IDM_ONLINE_TUTORIAL
         MENUITEM "Frequently Asked Questions",  IDM_FAQ
-        MENUITEM "Version History",             IDM_VERSION_HISTORY
-        MENUITEM "Legal Notices",               IDM_LICENSE
         MENUITEM SEPARATOR
         MENUITEM "TrueCrypt Website",           IDM_WEBSITE
         MENUITEM "Downloads",                   IDM_TC_DOWNLOADS
         MENUITEM "News",                        IDM_NEWS
+        MENUITEM SEPARATOR
+        MENUITEM "Version History",             IDM_VERSION_HISTORY
+        MENUITEM "Legal Notices",               IDM_LICENSE
         MENUITEM SEPARATOR
         MENUITEM "Report a Bug...",             IDM_BUGREPORT
         MENUITEM "Forums",                      IDM_FORUMS

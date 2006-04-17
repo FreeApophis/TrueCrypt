@@ -1,5 +1,5 @@
 /* 
-Copyright (c) 2004-2005 TrueCrypt Foundation. All rights reserved. 
+Copyright (c) 2004-2006 TrueCrypt Foundation. All rights reserved. 
 
 Covered by TrueCrypt License 2.0 the full text of which is contained in the file
 License.txt included in TrueCrypt binary and source code distribution archives. 
@@ -124,7 +124,7 @@ char *XmlNodeText (char *xmlNode, char *xmlText, int xmlTextSize)
 		return NULL;
 
 	t = strchr (t, '>') + 1;
-	if (t == NULL) return NULL;
+	if (t == (char *)1) return NULL;
 
 	e = strchr (e, '<');
 	if (e == NULL) return NULL;

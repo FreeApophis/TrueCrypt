@@ -2,7 +2,7 @@
    the source code of Encryption for the Masses 2.02a, which is Copyright (c)
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
    Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
@@ -55,6 +55,9 @@ typedef struct EXTENSION
 	UCHAR PartitionType;		/* Partition info */
 
 	KEVENT keVolumeEvent;		/* Event structure used when setting up a device */
+
+	BOOL bSystemVolume;			/* System volume is hidden from user and supports system files (paging, hibernation). */
+	BOOL bPersistentVolume;		/* Persistent volume is hidden from user. */
 
 	BOOL bReadOnly;				/* Is this device read-only ? */
 	BOOL bRemovable;			/* Is this device removable media ? */
@@ -119,7 +122,7 @@ NTSTATUS MountManagerMount (MOUNT_STRUCT *mount);
 NTSTATUS MountManagerUnmount (int nDosDriveNo);
 NTSTATUS MountDevice (PDEVICE_OBJECT deviceObject, MOUNT_STRUCT *mount);
 NTSTATUS UnmountDevice (PDEVICE_OBJECT deviceObject, BOOL ignoreOpenFiles);
-NTSTATUS UnmountAllDevices (PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles);
+NTSTATUS UnmountAllDevices (PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles, BOOL unmountSystem, BOOL unmountPersistent);
 NTSTATUS SymbolicLinkToTarget (PWSTR symlinkName, PWSTR targetName, USHORT maxTargetNameLength);
 void DriverMutexWait ();
 void DriverMutexRelease ();

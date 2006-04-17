@@ -41,6 +41,8 @@ typedef struct
 	BOOL Removable;
 	BOOL ProtectHiddenVolume;
 	BOOL PreserveTimestamp;
+	BOOL SystemVolume;
+	BOOL PersistentVolume;
 	Password ProtectedHidVolPassword;	/* Password of hidden volume to protect against overwriting */
 } MountOptions;
 

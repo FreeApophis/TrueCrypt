@@ -1,5 +1,5 @@
 #define VERSION_NUM1	1
-#define VERSION_NUM2	1
+#define VERSION_NUM2	2
 #define VERSION_NUM3	0
 
 #define ARG_EA			0

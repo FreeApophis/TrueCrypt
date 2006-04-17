@@ -1,5 +1,5 @@
 /* 
-Copyright (c) 2004-2005 TrueCrypt Foundation. All rights reserved. 
+Copyright (c) 2004-2006 TrueCrypt Foundation. All rights reserved. 
 
 Covered by TrueCrypt License 2.0 the full text of which is contained in the file
 License.txt included in TrueCrypt binary and source code distribution archives. 
@@ -527,8 +527,8 @@ static int truecrypt_map (struct dm_target *ti, struct bio *bio, union map_info 
 			cbv->bv_offset = 0;
 			cbv->bv_len = bv->bv_len;
 
-			data = bvec_kmap_irq (bv, &flags);
 			copy = bvec_kmap_irq (cbv, &copyFlags);
+			data = bvec_kmap_irq (bv, &flags);
 
 			memcpy (copy, data, bv->bv_len);
 

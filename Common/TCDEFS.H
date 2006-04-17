@@ -2,16 +2,16 @@
    the source code of Encryption for the Masses 2.02a, which is Copyright (c)
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
    Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
 
 // Version displayed to user 
-#define VERSION_STRING                  "4.1"
+#define VERSION_STRING                  "4.2"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x0410
+#define VERSION_NUM						0x0420
 
 // Version number written to volume header during format,
 // specifies the minimum program version required to mount the volume
@@ -23,11 +23,11 @@
 #define TC_MAX_PATH						260	/* Includes the null terminator */
 #define SECTOR_SIZE                     512	/* Filesystem sector size */
 
-#define BYTES_PER_KB                    1024I64
-#define BYTES_PER_MB                    1048576I64
-#define BYTES_PER_GB                    1073741824I64
-#define BYTES_PER_TB                    1099511627776I64
-#define BYTES_PER_PB                    1125899906842624I64
+#define BYTES_PER_KB                    1024LL
+#define BYTES_PER_MB                    1048576LL
+#define BYTES_PER_GB                    1073741824LL
+#define BYTES_PER_TB                    1099511627776LL
+#define BYTES_PER_PB                    1125899906842624LL
 
 /* GUI/driver errors */
 
@@ -65,8 +65,8 @@
 
 #define MIN_VOLUME_SIZE                 19456
 #define MIN_HIDDEN_VOLUME_HOST_SIZE     ( MIN_VOLUME_SIZE * 2 + HIDDEN_VOL_HEADER_OFFSET + HEADER_SIZE )
-#define MAX_VOLUME_SIZE                 0x7fffFFFFffffFFFFI64
-#define MAX_FAT_VOLUME_SIZE				0xFFFFFFFE00I64		// Should be possible to increase up to 0x1FFFFFFFC00I64 (untested)
+#define MAX_VOLUME_SIZE                 0x7fffFFFFffffFFFFLL
+#define MAX_FAT_VOLUME_SIZE				0xFFFFFFFE00LL		// Should be possible to increase up to 0x1FFFFFFFC00LL (untested)
 #define MAX_HIDDEN_VOLUME_HOST_SIZE     MAX_FAT_VOLUME_SIZE
 #define MAX_HIDDEN_VOLUME_SIZE          ( MAX_HIDDEN_VOLUME_HOST_SIZE - HIDDEN_VOL_HEADER_OFFSET - HEADER_SIZE )
 
@@ -175,7 +175,7 @@ typedef unsigned __int32 LRESULT;
 /* #pragma warning( default : 4514 ) this warning remains disabled */
 
 /* This is needed to fix a bug with VC 5, the TCHAR macro _ttoi64 maps
-   incorrectly to atoi64 when it should be _atoi64 */
+   incorrectly to atoLL when it should be _atoi64 */
 #define atoi64 _atoi64
 
 #endif				/* _WIN32 */
@@ -184,7 +184,6 @@ typedef unsigned __int32 LRESULT;
 
 #ifdef _WIN32
 
-typedef UINT (_stdcall * diskio_f) (int, void *, UINT);
 #pragma hdrstop
 
 #endif

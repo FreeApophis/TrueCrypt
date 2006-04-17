@@ -2,7 +2,7 @@
    the source code of Encryption for the Masses 2.02a, which is Copyright (c)
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
    Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
@@ -222,7 +222,6 @@ extern HWND hDiskKey;
 extern HWND hHeaderKey;
 #endif
 
-#ifdef _WIN32
 
 // VolumeWriteHeader:
 // Creates volume header in memory
@@ -244,19 +243,23 @@ VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 		return ERR_OUTOFMEMORY;
 
 	memset (header, 0, SECTOR_SIZE);
+
+#ifdef _WIN32
 	VirtualLock (&keyInfo, sizeof (keyInfo));
 	VirtualLock (&dk, sizeof (dk));
+#endif
 
 	/* Encryption setup */
 
 	// If necessary, generate the master key and the secondary key (LRW mode)
 	if(masterKey == 0)
 	{
-		RandgetBytes (keyInfo.key, DISKKEY_SIZE, TRUE);
+		if (!RandgetBytes (keyInfo.key, DISK_IV_SIZE + EAGetKeySize (ea), TRUE))
+			return ERR_CIPHER_INIT_WEAK_KEY;
 
 		// Verify that the secondary key is not weak
 		if (DetectWeakSecondaryKey (keyInfo.key, CipherGetBlockSize (EAGetFirstCipher (ea))))
-			return ERR_CIPHER_INIT_WEAK_KEY; 
+			return ERR_CIPHER_INIT_WEAK_KEY;
 	}
 	else
 		memcpy (keyInfo.key, masterKey, DISKKEY_SIZE);
@@ -272,8 +275,22 @@ VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 	// Mode of operation
 	cryptoInfo->mode = mode;
 
-	// Salt for header key derivation 
-	RandgetBytes (keyInfo.key_salt, PKCS5_SALT_SIZE, !bWipeMode);
+	// Salt for header key derivation
+#ifdef _WIN32
+	if (!RandgetBytes (keyInfo.key_salt, PKCS5_SALT_SIZE, !bWipeMode))
+		return ERR_CIPHER_INIT_WEAK_KEY; 
+#else
+	if (!bWipeMode)
+	{
+		if (!RandgetBytes (keyInfo.key_salt, PKCS5_SALT_SIZE, FALSE))
+			return ERR_CIPHER_INIT_WEAK_KEY; 
+	}
+	else
+	{
+		if (!RandpeekBytes (keyInfo.key_salt, PKCS5_SALT_SIZE))
+			return ERR_CIPHER_INIT_WEAK_KEY; 
+	}
+#endif	
 
 	// PKCS5 is used to derive the header key and the secondary header key (LRW mode) from the password
 	switch (pkcs5)
@@ -304,7 +321,7 @@ VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 	mputBytes (p, keyInfo.key_salt, PKCS5_SALT_SIZE);	
 
 	// Magic
-	mputLong (p, 'TRUE');
+	mputLong (p, 0x54525545);
 
 	// Header version
 	mputWord (p, VOLUME_HEADER_VERSION);
@@ -318,6 +335,7 @@ VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 
 	// Time
 	{
+#ifdef _WIN32
 		SYSTEMTIME st;
 		FILETIME ft;
 
@@ -340,6 +358,24 @@ VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 		SystemTimeToFileTime (&st, &ft);
 		mputLong (p, ft.dwHighDateTime);
 		mputLong (p, ft.dwLowDateTime);
+
+#else
+		struct timeval tv;
+		unsigned __int64 ct, wt;
+		gettimeofday (&tv, NULL);
+
+		// Unix time => Windows file time
+		wt = ((unsigned __int64)tv.tv_sec + 134774LL * 24 * 3600) * 1000LL * 1000 * 10;
+
+		if (volumeCreationTime == 0)
+			ct = wt;
+		else
+			ct = volumeCreationTime;
+
+		mputInt64 (p, ct);
+		mputInt64 (p, wt);
+#endif
+
 	}
 
 	// Hidden volume size
@@ -373,6 +409,7 @@ VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 	retVal = EAInit (cryptoInfo->ea, keyInfo.key + DISK_IV_SIZE, cryptoInfo->ks);
 	if (retVal != 0)
 		return retVal;
+	memcpy (cryptoInfo->master_key, keyInfo.key + DISK_IV_SIZE, sizeof (keyInfo.key) - DISK_IV_SIZE);
 
 	// The secondary key (LRW mode)
 	memcpy (cryptoInfo->iv, keyInfo.key, DISK_IV_SIZE);
@@ -438,19 +475,4 @@ VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 	return 0;
 }
 
-#endif				/* WIN32 */
-
 #endif				/* !NT4_DRIVER */
-
-
-BOOL DetectWeakSecondaryKey (unsigned char *key, int len)
-{
-	int i;
-
-	for (i = 0; i < len; i++)
-	{
-		if (key[i] != 0)
-			return FALSE;
-	}
-	return TRUE;
-}

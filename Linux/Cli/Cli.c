@@ -1,5 +1,5 @@
 /* 
-Copyright (c) 2004-2005 TrueCrypt Foundation. All rights reserved. 
+Copyright (c) 2004-2006 TrueCrypt Foundation. All rights reserved. 
 
 Covered by TrueCrypt License 2.0 the full text of which is contained in the file
 License.txt included in TrueCrypt binary and source code distribution archives. 
@@ -13,10 +13,13 @@ License.txt included in TrueCrypt binary and source code distribution archives.
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <strings.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
@@ -24,6 +27,10 @@ License.txt included in TrueCrypt binary and source code distribution archives.
 
 #include "Tcdefs.h"
 #include "Keyfiles.h"
+#include "Fat.h"
+#include "Format.h"
+#include "Progress.h"
+#include "Random.h"
 #include "Volumes.h"
 #include "Tests.h"
 #include "Dm-target.h"
@@ -60,14 +67,16 @@ typedef struct
 static MountListEntry MountList[MAX_VOLUMES];
 static BOOL MountListValid = FALSE;
 
+static BOOL DisplayKeys = FALSE;
 static BOOL DisplayPassword = FALSE;
+static BOOL DisplayProgress = TRUE;
+static BOOL UserMount = FALSE;
 static char *Filesystem = NULL;
 static char *MountOpts = NULL;
 static int PasswordEntryTries = 3;
 static Password CmdPassword;
 static Password CmdPassword2;
 static BOOL CmdPasswordValid = FALSE;
-
 static BOOL CmdPassword2Valid = FALSE;
 static int UseDeviceNumber = -1;
 static BOOL ProtectHidden = FALSE;
@@ -80,7 +89,19 @@ static struct termios TerminalAttributes;
 static Password password;
 static KeyFile *FirstKeyFile;
 static KeyFile *FirstProtVolKeyFile;
+static KeyFile *FirstNewKeyFile;
 
+static uid_t RealUserId;
+static gid_t RealGroupId;
+
+static unsigned __int64 VolumeSize;
+static unsigned int ClusterSize = 0;
+static int EA;
+static int EAMode;
+static int HashAlgorithm;
+static char *Filesystem;
+static int VolumeType = -1;
+static BOOL Quick;
 
 static void SecurityCleanup ()
 {
@@ -107,6 +128,48 @@ static void OnSignal (int signal)
 static void OnExit ()
 {
 	SecurityCleanup ();
+}
+
+
+BOOL CheckAdminPrivileges ()
+{
+	char *env;
+
+	if (getuid () != 0 && geteuid () != 0)
+	{
+		error ("Administrator (root) privileges required\n");
+		return FALSE;
+	}
+
+	if (getuid () != 0)
+	{
+		// Impersonate root to support executing of commands like mount
+		setuid (0);
+
+		// Allow execution of system binaries only
+		setenv ("PATH", "/usr/sbin:/sbin:/usr/bin:/bin", 1);
+	}
+
+	return TRUE;
+}
+
+
+void DropEffectiveUserId ()
+{
+	setuid (getuid ());
+}
+
+
+BOOL LockMemory ()
+{
+	// Lock process memory
+	if (mlockall (MCL_FUTURE) != 0)
+	{
+		perror ("Cannot prevent memory swapping: mlockall");
+		return FALSE;
+	}
+
+	return TRUE;
 }
 
 
@@ -496,16 +559,110 @@ static BOOL DeleteLoopDevice (int loopDeviceNo)
 }
 
 
-static BOOL OpenVolume (char *volumePath, Password *password, PCRYPTO_INFO *cryptoInfo, uint64_t *startSector, uint64_t *totalSectors, time_t *modTime, time_t *acTime)
+static int AskSelection (int defaultChoice, int min, int max)
+{
+	int c;
+	char s[3];
+
+	while (1)
+	{
+		printf ("Select [%d]: ", defaultChoice);
+
+		if (fgets (s, sizeof (s), stdin) && sscanf (s, "%d", &c) == 1)
+		{
+			if (c < min || c > max)
+				continue;
+
+			puts ("");
+			return c;
+		}
+
+		puts ("");
+		return defaultChoice;
+	}
+}
+
+
+static char *AskString (char *prompt, char *buf, int maxSize)
+{
+	printf ("%s: ", prompt);
+
+	if (fgets (buf, maxSize, stdin))
+	{
+		char *lf = strchr (buf, '\n');
+		if (lf)
+			lf[0] = 0;
+
+		return buf;
+	}
+
+	return NULL;
+}
+
+
+static void AskPassword (char *prompt, char *volumePath, Password *password)
+{
+	struct termios noEcho;
+
+	if (tcgetattr (0, &TerminalAttributes) == 0)
+	{
+		noEcho = TerminalAttributes;
+
+		if (!DisplayPassword)
+		{
+			noEcho.c_lflag &= ~ECHO;
+			if (tcsetattr (0, TCSANOW, &noEcho) != 0)
+				error ("Failed to turn terminal echo off\n");
+		}
+
+		printf (prompt, volumePath);
+	}
+
+	if (fgets ((char *)password->Text, sizeof (password->Text), stdin))
+	{
+		char *newl = strchr ((char *)password->Text, '\n');
+		if (newl) newl[0] = 0;
+
+		password->Length = strlen ((char *)password->Text);
+	}
+	else
+		password->Length = 0;
+
+	if (IsTerminal && !DisplayPassword)
+	{
+		tcsetattr (0, TCSANOW, &TerminalAttributes);
+		puts ("");
+	}
+}
+
+
+static char *AskVolumePath (char *volumePath, char *prompt)
+{
+	static char path[MAX_PATH];
+
+	// Volume path
+	while (!volumePath || !volumePath[0])
+	{
+		volumePath = AskString (prompt, path, sizeof (path));
+	}
+
+	return volumePath;
+}
+
+
+static BOOL OpenVolume (char *volumePath, char *prompt, char *promptArg, BOOL secondaryPassword, PCRYPTO_INFO *cryptoInfo, uint64_t *startSector, uint64_t *totalSectors, time_t *modTime, time_t *acTime)
 {
 	char header[SECTOR_SIZE];
 	uint64_t r;
 	FILE *f = NULL;
 	struct stat volumeStat;
+	int tries = PasswordEntryTries;
+	char msg[128];
+	BOOL ret = FALSE;
 
 	if (stat (volumePath, &volumeStat) != 0)
 	{
-		perror ("Cannot open volume");
+		perror ("Cannot read volume's modification and access time");
 		volumeStat.st_ctime = 0;
 		goto err;
 	}
@@ -517,58 +674,94 @@ static BOOL OpenVolume (char *volumePath, Password *password, PCRYPTO_INFO *cryp
 		goto err;
 	}
 
-	// Normal header
-	if (fread (header, 1, SECTOR_SIZE, f) != SECTOR_SIZE)
+	do
 	{
-		perror ("Cannot read volume header");
-		goto err;
-	}
+		Password *pw = &password;
 
-	fseek (f, 0, SEEK_END);
-	*totalSectors = ftello (f) / SECTOR_SIZE - 1;
+		if (!secondaryPassword && !CmdPasswordValid || (secondaryPassword && !CmdPassword2Valid))
+			AskPassword (prompt, promptArg, &password);
+		else
+			pw = secondaryPassword ? &CmdPassword2 : &CmdPassword;
 
-	*startSector = 1;
-	r = VolumeReadHeader (header, password, cryptoInfo);
+		if ((!secondaryPassword
+				&& FirstKeyFile
+				&& !KeyFilesApply (pw, FirstKeyFile, !UpdateTime))
+			|| (secondaryPassword 
+				&& FirstProtVolKeyFile
+				&& !KeyFilesApply (pw, FirstProtVolKeyFile, !UpdateTime)))
+		{
+			error ("Error while processing keyfiles\n");
+			goto err;
+		}
 
-	if (r == ERR_PASSWORD_WRONG)
-	{
-		// Hidden header
-		if (fseek (f, -HIDDEN_VOL_HEADER_OFFSET, SEEK_END) == -1
-			|| fread (header, 1, SECTOR_SIZE, f) != SECTOR_SIZE)
+		// Normal header
+		fseek (f, 0, SEEK_SET);
+		if (fread (header, 1, SECTOR_SIZE, f) != SECTOR_SIZE)
 		{
 			perror ("Cannot read volume header");
 			goto err;
 		}
 
-		r = VolumeReadHeader (header, password, cryptoInfo);
-
-		if (r == ERR_PASSWORD_WRONG)
+		if (fseek (f, 0, SEEK_END) == -1)
 		{
-			if (IsTerminal)
-				puts ("Incorrect password or not a TrueCrypt volume");
-			else
-				error ("Incorrect password or not a TrueCrypt volume\n");
-
+			perror ("Cannot determine volume size");
 			goto err;
 		}
 
-		*startSector = (ftello (f) 
-			+ SECTOR_SIZE * 2 
-			- (*cryptoInfo)->hiddenVolumeSize 
-			- HIDDEN_VOL_HEADER_OFFSET) / SECTOR_SIZE;
+		r = VolumeReadHeader (header, pw, cryptoInfo);
 
-		*totalSectors = (*cryptoInfo)->hiddenVolumeSize / SECTOR_SIZE;
-	}
+		if (r == 0)
+		{
+			*totalSectors = ftello (f) / SECTOR_SIZE - 1;
+			*startSector = 1;
+			ret = TRUE;
+			break;
+		}
 
-	// Report errors
-	if (r != 0 && r != ERR_PASSWORD_WRONG)
-	{
-		char msg[128];
+		if (r == ERR_PASSWORD_WRONG)
+		{
+			// Hidden header
+			if (fseek (f, -HIDDEN_VOL_HEADER_OFFSET, SEEK_END) == -1
+				|| fread (header, 1, SECTOR_SIZE, f) != SECTOR_SIZE)
+			{
+				perror ("Cannot read volume header");
+				goto err;
+			}
 
+			r = VolumeReadHeader (header, pw, cryptoInfo);
+
+			if (r == 0)
+			{
+				*startSector = (ftello (f) 
+					+ SECTOR_SIZE * 2 
+					- (*cryptoInfo)->hiddenVolumeSize 
+					- HIDDEN_VOL_HEADER_OFFSET) / SECTOR_SIZE;
+
+				*totalSectors = (*cryptoInfo)->hiddenVolumeSize / SECTOR_SIZE;
+				ret = TRUE;
+				break;
+			}
+			
+			if (r == ERR_PASSWORD_WRONG)
+			{
+				if (IsTerminal)
+				{
+					puts ("Incorrect password or not a TrueCrypt volume.");
+					continue;
+				}
+				else
+				{
+					error ("Incorrect password or not a TrueCrypt volume.\n");
+					goto err;
+				}
+			}
+		}
+
+		// Report errors
 		switch (r)
 		{
 		case ERR_NEW_VERSION_REQUIRED:
-			strcpy (msg, "A newer version of TrueCrypt is required to open this volume"); 
+			strcpy (msg, "A newer version of TrueCrypt is required to open this volume."); 
 			break;
 
 		default:
@@ -582,7 +775,11 @@ static BOOL OpenVolume (char *volumePath, Password *password, PCRYPTO_INFO *cryp
 			error ("%s\n", msg);
 
 		goto err;
-	}
+
+	} while (IsTerminal
+		&& --tries > 0
+		&& ((!secondaryPassword && !CmdPasswordValid)
+			|| (secondaryPassword && !CmdPassword2Valid)));
 
 	fclose (f);
 
@@ -591,7 +788,8 @@ static BOOL OpenVolume (char *volumePath, Password *password, PCRYPTO_INFO *cryp
 
 	*modTime = volumeStat.st_mtime;
 	*acTime = volumeStat.st_atime;
-	return TRUE;
+
+	return ret;
 
 err:
 	*cryptoInfo = NULL;
@@ -602,44 +800,8 @@ err:
 	if (volumeStat.st_ctime != 0 && !UpdateTime)
 		RestoreFileTime (volumePath, volumeStat.st_mtime, volumeStat.st_atime);
 
+	*totalSectors = 0;
 	return FALSE;
-}
-
-
-static void GetPassword (char *prompt, char *volumePath, Password *password)
-{
-	struct termios noEcho;
-
-	if (tcgetattr (0, &TerminalAttributes) == 0)
-	{
-		IsTerminal = TRUE;
-		noEcho = TerminalAttributes;
-
-		if (!DisplayPassword)
-		{
-			noEcho.c_lflag &= ~ECHO;
-			if (tcsetattr (0, TCSANOW, &noEcho) != 0)
-				error ("Failed to turn terminal echo off\n");
-		}
-
-		printf (prompt, volumePath);
-	}
-
-	if (fgets (password->Text, sizeof (password->Text), stdin))
-	{
-		char *newl = strchr (password->Text, '\n');
-		if (newl) newl[0] = 0;
-
-		password->Length = strlen (password->Text);
-	}
-	else
-		password->Length = 0;
-
-	if (IsTerminal && !DisplayPassword)
-	{
-		tcsetattr (0, TCSANOW, &TerminalAttributes);
-		puts ("");
-	}
 }
 
 
@@ -680,42 +842,29 @@ static BOOL MountVolume (char *volumePath, char *mountPoint)
 	int i;
 	int tries = PasswordEntryTries;
 
+#if DEBUG
 	if (!AutoTestAlgorithms ())
 	{
 		error ("Self-tests of algorithms FAILED!\n");
 		return FALSE;
 	}
+#endif
 
 	if (IsVolumeMounted (volumePath))
 	{
-		error ("Volume already mounted\n");
+		error ("Volume already mapped\n");
 		return FALSE;
 	}
 
-	do
-	{
-		Password *pw = &password;
-
-		if (!CmdPasswordValid)
-			GetPassword ("Enter password for '%s': ", volumePath, &password);
-		else
-			pw = &CmdPassword;
-
-		if (FirstKeyFile && !KeyFilesApply (pw, FirstKeyFile, !UpdateTime))
-		{
-			error ("Error while processing keyfiles\n");
-			goto err;
-		}
-
-		if (OpenVolume (volumePath, pw, &ci, &startSector, &totalSectors, &modTime, &acTime))
-			break;
-		else
-			totalSectors = 0;
-
-	} while (!CmdPasswordValid && IsTerminal && --tries > 0);
+	if (!OpenVolume (volumePath, "Enter password for '%s': ", volumePath, FALSE,
+		&ci, &startSector, &totalSectors, &modTime, &acTime))
+		goto err;
 
 	if (totalSectors == 0)
+	{
+		error ("Illegal volume size (0 bytes).\n");
 		goto err;
+	}
 
 	// Hidden volume protection
 	if (ProtectHidden)
@@ -723,30 +872,12 @@ static BOOL MountVolume (char *volumePath, char *mountPoint)
 		PCRYPTO_INFO ciH = NULL;
 		uint64_t startSectorH, totalSectorsH;
 
-		tries = PasswordEntryTries;
-		do
+		if (OpenVolume (volumePath, "Enter hidden volume password: ", "", TRUE,
+			&ciH, &startSectorH, &totalSectorsH, &modTime, &acTime))
 		{
-			Password *pw = &password;
-
-			if (!CmdPassword2Valid)
-				GetPassword ("Enter hidden volume password: ", "", &password);
-			else
-				pw = &CmdPassword2;
-
-			if (FirstProtVolKeyFile && !KeyFilesApply (pw, FirstProtVolKeyFile, !UpdateTime))
-			{
-				error ("Error while processing keyfiles\n");
-				goto err;
-			}
-
-			if (OpenVolume (volumePath, pw, &ciH, &startSectorH, &totalSectorsH, &modTime, &acTime))
-			{
-				readOnlyStartSector = startSectorH;
-				readOnlySectors = startSectorH + totalSectorsH;
-				break;
-			}
-
-		} while (!CmdPassword2Valid && IsTerminal && --tries > 0);
+			readOnlyStartSector = startSectorH;
+			readOnlySectors = startSectorH + totalSectorsH;
+		}
 		
 		if (ciH)
 			crypto_close (ciH);
@@ -896,6 +1027,14 @@ static BOOL MountVolume (char *volumePath, char *mountPoint)
 			strncat (opts, MountOpts, sizeof (opts) - 6);
 		}
 
+		if (UserMount)
+		{
+			// Set default uid and gid
+			char s[64];
+			sprintf (s, ",uid=%d,gid=%d", RealUserId, RealGroupId);
+			strcat (opts, s);
+		}
+
 		if (!Execute (FALSE, "mount", fstype, opts, mapDevice, mountPoint, NULL))
 		{
 			error ("Mount failed\n");
@@ -924,11 +1063,917 @@ err:
 }
 
 
+int RandGetBytesAvailable ()
+{
+	int n = -1;
+	FILE *f = fopen ("/proc/sys/kernel/random/entropy_avail", "r");
+	
+	if (f == NULL)
+		return -1;
+
+	if (fscanf (f, "%d", &n) == 1)
+		n /= 8;
+
+	fclose (f);
+	return n;
+}
+
+
+void RandBytesFillRequired (int randReq)
+{
+	int n;
+
+	if (RandGetBytesAvailable () < randReq)
+	{
+		printf ("There is not enough entropy available in the kernel random pool. Please move\n"
+			"the mouse randomly and/or press random keys. Both the mouse and keyboard must\n"
+			"be physically connected to the computer where TrueCrypt is running. Disk\n"
+			"activity (read/write) can also be used to fill the kernel random pool.\n\n");
+
+		while ((n = RandGetBytesAvailable()) < randReq)
+		{
+			if (n < 0)
+			{
+				printf ("WARNING: Number of random bytes available could not be determined.\n"
+					"If the volume creation does not start, try moving the mouse or pressing keys\n"
+					"to increase the random pool entropy.\n");
+				break;
+			}
+
+			printf ("\rRandom bytes available: %d%%", n * 100 / (randReq));
+			fflush (stdout);
+			usleep (200 * 1000);
+		}
+
+		if (n > 0)
+			printf ("\rRandom bytes available: 100%%\n\n");
+	}
+}
+
+
+BOOL RandpeekBytes (unsigned char *buf , int len)
+{
+	int f = open ("/dev/urandom", 0);
+
+	if (f == -1)
+	{
+		perror ("Cannot open /dev/urandom");
+		return FALSE;
+	}
+
+	if (read (f, buf, len) != len)
+	{
+		perror ("Read from /dev/urandom failed");
+		return FALSE;
+	}
+
+	close (f);
+	return TRUE;
+}
+
+
+BOOL RandgetBytes (unsigned char *buf , int len, BOOL forceSlowPoll)
+{
+	char m[128];
+	int f = open ("/dev/random", 0);
+	int r;
+
+	if (f == -1)
+	{
+		perror ("Cannot open /dev/random");
+		return FALSE;
+	}
+
+	while ((r = read (f, buf++, 1)) == 1 && --len);
+
+	if (r == -1)
+	{
+		perror ("Read from /dev/random failed");
+		close (f);
+		return FALSE;
+	}
+
+	if (len > 0)
+	{
+		perror ("Cannot read enough bytes from /dev/random");
+		close (f);
+		return FALSE;
+	}
+
+	close (f);
+	return TRUE;
+}
+
+
+void HexDump (unsigned __int8 *data, unsigned int length)
+{
+	while (length--)
+		printf ("%02x", (unsigned int) *data++);
+}
+
+
+double GetTime ()
+{
+	struct timeval tv;
+	gettimeofday (&tv, NULL);
+
+	return (double)tv.tv_sec + (double)tv.tv_usec / 1000000;
+}
+
+
+static __int64 TotalSectors, StartSector;
+static double StartTime;
+static double LastUpdateTime;
+
+
+void InitProgressBar (__int64 totalSectors)
+{
+	LastUpdateTime = 0;
+	StartTime = GetTime ();
+	TotalSectors = totalSectors;
+}
+
+
+BOOL UpdateProgressBar (__int64 sector)
+{
+	unsigned __int64 s = sector - StartSector;
+	double t = GetTime ();
+	double elapsed = t - StartTime;
+	unsigned __int64 bytesDone = (s + 1) * SECTOR_SIZE;
+	unsigned __int64 bytesPerSec = bytesDone / (1 + elapsed);
+	int timeRemain = (int)((TotalSectors  - s) / ((s + 1)/(elapsed + 1) + 1));
+
+	if (DisplayProgress && IsTerminal && t - LastUpdateTime > 0.2)
+	{
+		printf ("\rDone: %.2f MB  Speed: %.2f MB/s  Left: %d:%02d:%02d  "
+			, (double)bytesDone / 1024 / 1024
+			, (double)bytesPerSec / 1024 / 1024
+			, timeRemain / 3600
+			, (timeRemain % 3600) / 60
+			, (timeRemain % 3600) % 60);
+
+		fflush (stdout);
+		LastUpdateTime = t;
+	}
+}
+
+
+static BOOL ParseSize (char *string, uint64_t *size)
+{
+	if (sscanf (string, "%lld", size) == 1)
+	{
+		if (strchr (string, 'k') || strchr (string, 'K'))
+			*size *= 1024;
+		else if (strchr (string, 'M'))
+			*size *= 1024 * 1024;
+		else if (strchr (string, 'G'))
+			*size *= 1024 * 1024 * 1024;
+
+		*size &= ~0x1FF;
+
+		return TRUE;
+	}
+	return FALSE;
+}
+
+
+static BOOL CreateVolume (char *hostPath)
+{
+	PCRYPTO_INFO ci;
+	char header[HEADER_SIZE];
+	char path[MAX_PATH];
+	char str[128];
+	FILE *f;
+	fatparams ft;
+	Password *pw = &password;
+	unsigned __int64 startSector, totalSectors, hostSize;
+	BOOL hiddenVolume;
+	int randReq;
+	int i, r = 0;
+
+	DropEffectiveUserId ();
+
+	// Volume type
+	switch (VolumeType)
+	{
+	case VOLUME_TYPE_NORMAL:
+		hiddenVolume = FALSE;
+		break;
+
+	case VOLUME_TYPE_HIDDEN:
+		hiddenVolume = TRUE;
+		Quick = TRUE;
+		break;
+
+	default:
+		puts ("Volume type:\n 1) Normal\n 2) Hidden");
+		hiddenVolume = AskSelection (1, 1, 2) == 2;
+		break;
+	}
+
+	// Host file or device
+	hostPath = AskVolumePath (hostPath, hiddenVolume ? "Enter volume path" : "Enter file or device name for new volume");
+
+	if (hiddenVolume)
+	{
+		if (!IsFile (hostPath) && !IsBlockDevice (hostPath))
+		{
+			error ("File or device %s does not exist. Hidden volume cannot be created.\n", hostPath);
+			return FALSE;
+		}
+		f = fopen (hostPath, "r+b");
+	}
+	else if (IsFile (hostPath))
+	{
+		error ("File %s already exists.\n", hostPath);
+		return FALSE;
+	}
+	else
+	{
+		f = fopen (hostPath, "wb");
+	}
+
+	if (!f)
+	{
+		perror ("Cannot open file or device");
+		return FALSE;
+	}
+
+	EAMode = LRW;
+
+	// Filesystem
+	if (!Filesystem)
+	{
+		puts ("Filesystem:\n 1) FAT\n 2) None");
+		Filesystem = AskSelection (1, 1, 2) == 1 ? "FAT" : "None";
+	}
+
+	// Host file/device size
+	if (fseek (f, 0, SEEK_END) == -1 || (hostSize = ftello (f)) == (unsigned __int64)-1)
+	{
+		perror ("Cannot determine host file/device size");
+		goto err;
+	}
+
+	// Volume size
+	if (IsBlockDevice (hostPath) && !hiddenVolume)
+	{
+		if (VolumeSize != 0)
+		{
+			error ("Volume size cannot be changed for device-hosted volumes.\n");
+			goto err;
+		}
+
+		VolumeSize = hostSize;
+	}
+	else if (VolumeSize == 0)
+	{
+		while (!AskString ("Enter volume size (bytes - size/sizeK/sizeM/sizeG)", str, sizeof (str))
+			|| !ParseSize (str, &VolumeSize)
+			|| VolumeSize == 0);
+		puts ("");
+	}
+
+	if (hiddenVolume && VolumeSize > hostSize - MIN_VOLUME_SIZE )
+	{
+		error ("Outer volume too small for the size specified.\n");
+		goto err;
+	}
+
+	if (strcasecmp ("FAT", Filesystem) == 0)
+	{
+		if (VolumeSize < MIN_VOLUME_SIZE || VolumeSize > MAX_FAT_VOLUME_SIZE)
+		{
+			error ("Specified volume size cannot be used with FAT filesystem.\n");
+			goto err;
+		}
+	}
+
+	// Hash algorithm
+	if (HashAlgorithm == 0)
+	{
+		puts ("Hash algorithm:");
+
+		for (i = 1; i <= LAST_PRF_ID; i++)
+			printf ("%2d) %s\n", i, HashGetName (i));
+
+		HashAlgorithm = AskSelection (1, 1, LAST_PRF_ID);
+	}
+
+	// Encryption algorithm
+	if (EA == 0)
+	{
+		int max = 0;
+ea:
+		puts ("Encryption algorithm:");
+
+		for (i = EAGetFirst (); i != 0; i = EAGetNext (i))
+		{
+			if (EAGetFirstMode (i) == LRW)
+			{
+				printf ("%2d) %s\n", i, EAGetName (str, i));
+				max = i;
+			}
+		}
+
+		EA = AskSelection (1, EAGetFirst (), max);
+
+		if (CipherGetBlockSize (EAGetFirstCipher (EA)) == 8
+			&& VolumeSize > WARN_VOL_SIZE_BLOCK64)
+		{
+			char s[3];
+
+			AskString ("WARNING: You have selected a 64-bit block cipher. Due to security reasons,\n"
+				"for this volume size, it is strongly recommended to select a 128-bit block cipher\n"
+				"(for example, AES, Serpent, or Twofish) instead.\n\n"
+				"Continue? [y/N]", s, sizeof (s));
+			puts ("");
+
+			if (strcmp (s, "y") && strcmp (s, "Y"))
+				goto ea;
+		}
+	}
+
+	randReq = EAGetKeySize (EA) * 2 + DISK_IV_SIZE * 2 + PKCS5_SALT_SIZE;
+
+	// Password
+	if (!CmdPasswordValid)
+	{
+		while (1)
+		{
+			AskPassword ("Enter password for new volume '%s': ", hostPath, &password);
+			if (!DisplayPassword)
+			{
+				Password pv;
+				AskPassword ("Re-enter password%s", ": ", &pv);
+				if (password.Length != pv.Length || memcmp (password.Text, pv.Text, pv.Length))
+				{
+					puts ("Passwords do not match.\n");
+					continue;
+				}
+			}
+			break;
+		}
+		puts ("");
+	}
+	else
+		pw = &CmdPassword;
+
+	if (FirstKeyFile && !KeyFilesApply (pw, FirstKeyFile, !UpdateTime))
+	{
+		error ("Error while processing keyfiles\n");
+		goto err;
+	}
+
+	RandBytesFillRequired (randReq);
+
+	// Create volume header
+	r = VolumeWriteHeader (header,
+		EA,
+		EAMode,
+		pw,
+		HashAlgorithm,
+		0,
+		0,
+		&ci,
+		hiddenVolume ? VolumeSize : 0,
+		FALSE);
+	
+	if (r == ERR_CIPHER_INIT_WEAK_KEY)
+	{
+		error ("A weak or a potentially weak key has been generated. Please try again.\n");
+		goto err;
+	}
+
+	if (r != 0)
+	{
+		error ("Volume header creation failed.\n");
+		goto err;
+	}
+
+	totalSectors = VolumeSize / SECTOR_SIZE;
+	ci->hiddenVolumeOffset = hostSize - VolumeSize - HIDDEN_VOL_HEADER_OFFSET;
+	startSector = !hiddenVolume ? 1 : (ci->hiddenVolumeOffset / SECTOR_SIZE);
+
+	if (DisplayKeys)
+	{
+		printf ("Master Key: ");
+		HexDump (ci->master_key, EAGetKeySize (ci->ea));
+		printf ("\nSecondary Key: ");
+		HexDump (ci->iv, sizeof (ci->iv));
+		puts ("\n");
+	}
+
+	// Write header
+	if (hiddenVolume)
+	{
+		if (fseek (f, -HIDDEN_VOL_HEADER_OFFSET, SEEK_END) == -1)
+		{
+			perror ("Cannot seek to hidden volume header location");
+			goto err;
+		}
+	}
+	else
+	{
+		if (fseek (f, 0, SEEK_SET) == -1)
+		{
+			perror ("Cannot seek to volume header location");
+			goto err;
+		}
+	}
+
+	if (fwrite (header, 1, HEADER_SIZE, f) != HEADER_SIZE)
+	{
+		perror ("Cannot write volume header");
+		goto err;
+	}
+
+	InitProgressBar (totalSectors - 1);
+	StartSector = startSector;
+
+	if (Quick && !hiddenVolume && IsFile (hostPath))
+		Quick = FALSE;
+
+	if (strcasecmp ("FAT", Filesystem) == 0)
+	{
+		if (hiddenVolume)
+		{
+			if (fseeko (f, startSector * SECTOR_SIZE, SEEK_SET) == -1)
+			{
+				perror ("Cannot seek to hidden volume data area");
+				goto err;
+			}
+		}
+
+		ft.num_sectors = (unsigned int) totalSectors - 1;
+		ft.cluster_size = ClusterSize;
+		memcpy (ft.volume_name, "NO NAME    ", 11);
+		GetFatParams (&ft); 
+		r = FormatFat (startSector, &ft, f, ci, Quick);
+	}
+	else if (!hiddenVolume)
+	{
+		r = FormatNoFs (startSector, totalSectors - 1, f, ci, Quick);
+	}
+
+	if (r == ERR_OS_ERROR)
+	{
+		perror ("Volume creation failed");
+		goto err;
+	}
+
+	if (DisplayProgress && IsTerminal)
+		puts ("\nVolume created.");
+
+	crypto_close (ci);
+	fclose (f);
+	return TRUE;
+
+err:
+	fclose (f);
+	return FALSE;
+}
+
+
+static BOOL ChangePassword (char *volumePath)
+{
+	char header[HEADER_SIZE];
+	char path[MAX_PATH];
+	Password *pw = &password;
+	PCRYPTO_INFO ci = NULL, ci2 = NULL;
+	uint64_t startSector, totalSectors;
+	time_t modTime = 0, acTime;
+	int wipePass, ret = TRUE;
+	int fd, r;
+	FILE *f;
+
+	// Volume path
+	volumePath = AskVolumePath (volumePath, "Enter volume path");
+
+	// Open volume
+	if (!OpenVolume (volumePath, "Enter current password for '%s': ", volumePath, FALSE,
+			&ci, &startSector, &totalSectors, &modTime, &acTime))
+		return FALSE;
+
+	// New password and/or keyfile(s)
+	if (!CmdPassword2Valid)
+	{
+		while (1)
+		{
+			AskPassword ("Enter new password for '%s': ", volumePath, &password);
+			if (!DisplayPassword)
+			{
+				Password pv;
+				AskPassword ("Re-enter new password%s", ": ", &pv);
+				if (password.Length != pv.Length || memcmp (password.Text, pv.Text, pv.Length))
+				{
+					puts ("Passwords do not match.\n");
+					continue;
+				}
+			}
+			break;
+		}
+
+		puts ("");
+	}
+	else
+		pw = &CmdPassword2;
+
+	if (FirstNewKeyFile && !KeyFilesApply (pw, FirstNewKeyFile, !UpdateTime))
+	{
+		error ("Error while processing new keyfiles\n");
+		return FALSE;
+	}
+
+	fd = open (volumePath, O_RDWR | O_SYNC);
+	if (fd == -1)
+	{
+		perror ("Cannot open file or device");
+		return FALSE;
+	}
+	f = fdopen (fd, "r+b");
+
+	// Write a new volume header
+	for (wipePass = 0; wipePass < DISK_WIPE_PASSES; wipePass++)
+	{
+		BOOL wipeMode = wipePass < DISK_WIPE_PASSES - 1;
+
+		if (!wipeMode)
+		{
+			if (Verbose) puts ("\n");
+			RandBytesFillRequired (PKCS5_SALT_SIZE);
+		}
+
+		r = VolumeWriteHeader (header,
+			ci->ea,
+			ci->mode,
+			pw,
+			HashAlgorithm == 0 ? ci->pkcs5 : HashAlgorithm,
+			(char *)ci->master_key,
+			ci->volume_creation_time,
+			&ci2,
+			ci->hiddenVolumeSize,
+			wipeMode);
+
+		if (r == ERR_CIPHER_INIT_WEAK_KEY)
+		{
+			ret = FALSE;
+			error ("A weak or a potentially weak key has been generated. Please try again.\n");
+			goto err;
+		}
+
+		if (r != 0)
+		{
+			error ("Volume header creation failed.\n");
+			ret = FALSE;
+			goto err;
+		}
+
+		crypto_close (ci2);
+		ci2 = NULL;
+
+		if (ci->hiddenVolumeSize)
+		{
+			if (fseek (f, -HIDDEN_VOL_HEADER_OFFSET, SEEK_END) == -1)
+			{
+				perror ("Cannot seek to hidden volume header location");
+				ret = FALSE;
+				goto err;
+			}
+		}
+		else
+		{
+			if (fseek (f, 0, SEEK_SET) == -1)
+			{
+				perror ("Cannot seek to volume header location");
+				ret = FALSE;
+				goto err;
+			}
+		}
+
+		if (Verbose)
+		{
+			printf ("\rWriting header (pass %d)", wipePass);
+			fflush (stdout);
+		}
+
+		if (fwrite (header, 1, HEADER_SIZE, f) != HEADER_SIZE)
+		{
+			perror ("Cannot write volume header");
+			ret = FALSE;
+			goto err;
+		}
+
+		fflush (f);
+		fdatasync (fd);
+	}
+
+	printf ("%sPassword and/or keyfile(s) changed.\n", Verbose ? "\n" : "");
+
+err:
+	crypto_close (ci);
+	close (fd);
+
+	if (!UpdateTime && modTime != 0)
+		RestoreFileTime (volumePath, modTime, acTime);
+
+	return ret;
+}
+
+
+static BOOL BackupVolumeHeaders (char *backupFile, char *volumePath)
+{
+	char path[MAX_PATH];
+	char header[HEADER_SIZE * 2];
+	FILE *f = NULL, *fb = NULL;
+	struct stat volumeStat;
+	int ret = FALSE;
+
+	DropEffectiveUserId ();
+
+	// Volume path
+	volumePath = AskVolumePath (volumePath, "Enter volume path");
+	
+	if (strcmp (backupFile, volumePath) == 0)
+	{
+		error ("Volume path identical to backup file\n");
+		goto err;
+	}
+
+	volumeStat.st_mtime = 0;
+	if (IsFile (volumePath) && stat (volumePath, &volumeStat) != 0)
+	{
+		perror ("Cannot read volume's modification and access time");
+		volumeStat.st_mtime = 0;
+		ret = FALSE;
+		goto err;
+	}
+
+	// Volume
+	f = fopen (volumePath, "rb");
+	if (!f)
+	{
+		perror ("Cannot open volume");
+		goto err;
+	}
+
+	if (fread (header, 1, HEADER_SIZE, f) != HEADER_SIZE)
+	{
+		perror ("Cannot read volume header");
+		goto err;
+	}
+	
+	if (fseek (f, -HIDDEN_VOL_HEADER_OFFSET, SEEK_END) == -1)
+	{
+		perror ("Cannot seek to hidden volume header location");
+		goto err;
+	}
+
+	if (fread (header + HEADER_SIZE, 1, HEADER_SIZE, f) != HEADER_SIZE)
+	{
+		perror ("Cannot read hidden volume header");
+		goto err;
+	}
+
+	// Backup file
+	fb = fopen (backupFile, "wb");
+	if (!fb)
+	{
+		perror ("Cannot open backup file");
+		goto err;
+	}
+
+	if (fwrite (header, 1, HEADER_SIZE * 2, fb) != HEADER_SIZE * 2)
+	{
+		perror ("Cannot write backup file");
+		goto err;
+	}
+
+	ret = TRUE;
+
+err:
+	if (f)
+		fclose (f);
+	if (f)
+		fclose (fb);
+
+	if (!UpdateTime && volumeStat.st_mtime != 0)
+		RestoreFileTime (volumePath, volumeStat.st_mtime, volumeStat.st_atime);
+
+	return ret;
+}
+
+
+static BOOL RestoreVolumeHeader (char *backupFile, char *volumePath)
+{
+	char path[MAX_PATH];
+	char header[HEADER_SIZE];
+	FILE *f = NULL, *fb = NULL;
+	struct stat volumeStat;
+	int ret = FALSE;
+	BOOL hiddenVolume;
+
+	DropEffectiveUserId ();
+
+	// Backup file
+	fb = fopen (backupFile, "rb");
+	if (!fb)
+	{
+		perror ("Cannot open backup file");
+		goto err;
+	}
+
+	// Volume path
+	volumePath = AskVolumePath (volumePath, "Enter volume path");
+
+	if (strcmp (backupFile, volumePath) == 0)
+	{
+		error ("Volume path identical to backup file\n");
+		goto err;
+	}
+
+	// Volume type
+	switch (VolumeType)
+	{
+	case VOLUME_TYPE_NORMAL:
+		hiddenVolume = FALSE;
+		break;
+
+	case VOLUME_TYPE_HIDDEN:
+		hiddenVolume = TRUE;
+		Quick = TRUE;
+		break;
+
+	default:
+		puts ("Restore headear of:\n 1) Normal/Outer Volume\n 2) Hidden Volume");
+		hiddenVolume = AskSelection (1, 1, 2) == 2;
+		break;
+	}
+
+	volumeStat.st_mtime = 0;
+	if (IsFile (volumePath) && stat (volumePath, &volumeStat) != 0)
+	{
+		perror ("Cannot read volume's modification and access time");
+		volumeStat.st_mtime = 0;
+		goto err;
+	}
+
+	f = fopen (volumePath, "r+b");
+	if (!f)
+	{
+		perror ("Cannot open volume");
+		goto err;
+	}
+
+	if (hiddenVolume)
+	{
+
+		if (fseek (fb, HEADER_SIZE, SEEK_SET) == -1)
+		{
+			perror ("Cannot seek to hidden volume header location in backup file");
+			goto err;
+		}
+
+		if (fseek (f, -HIDDEN_VOL_HEADER_OFFSET, SEEK_END) == -1)
+		{
+			perror ("Cannot seek to hidden volume header location");
+			goto err;
+		}
+	}
+
+	if (fread (header, 1, HEADER_SIZE, fb) != HEADER_SIZE)
+	{
+		perror ("Cannot read backup file");
+		goto err;
+	}
+
+	if (fwrite (header, 1, HEADER_SIZE, f) != HEADER_SIZE)
+	{
+		perror ("Cannot write volume header");
+		goto err;
+	}
+
+	ret = TRUE;
+
+err:
+	if (f)
+		fclose (f);
+	if (f)
+		fclose (fb);
+
+	if (!UpdateTime && volumeStat.st_mtime != 0)
+		RestoreFileTime (volumePath, volumeStat.st_mtime, volumeStat.st_atime);
+
+	return ret;
+}
+
+
+static BOOL CreateKeyfile (char *path)
+{
+	uint8_t keyFile[MAX_PASSWORD];
+	FILE *f;
+
+	DropEffectiveUserId ();
+
+	RandBytesFillRequired (sizeof (keyFile));
+	if (!RandgetBytes (keyFile, sizeof (keyFile), FALSE))
+		return FALSE;
+
+	f = fopen (path, "wb");
+	if (!f)
+	{
+		perror ("Cannot open file");
+		return FALSE;
+	}
+
+	if (fwrite (keyFile, 1, sizeof (keyFile), f) != sizeof (keyFile))
+	{
+		perror ("Cannot write file");
+		fclose (f);
+		return FALSE;
+	}
+
+	fclose (f);
+	puts ("Keyfile created.");
+	return TRUE;
+}
+
+
+static time_t WindowsFileTime2UnixTime (uint64_t wTime)
+{
+	return (time_t) (wTime / 1000LL / 1000 / 10 - 134774LL * 24 * 3600);
+}
+
+
+static BOOL DumpVolumeProperties (char *volumePath)
+{
+	uint64_t startSector, totalSectors;
+	time_t modTime = 0, acTime;
+	PCRYPTO_INFO ci = NULL;
+	BOOL ret = FALSE;
+	char eaName[256], timeBuf[256], timeBuf2[256];
+	int keySize;
+	time_t volCTime, headerMTime;
+
+	volumePath = AskVolumePath (volumePath, "Enter volume path");
+
+	if (!OpenVolume (volumePath, "Enter password for '%s': ", volumePath, FALSE,
+		&ci, &startSector, &totalSectors, &modTime, &acTime))
+		goto err;
+
+	EAGetName (eaName, ci->ea);
+
+	keySize = EAGetKeySize (ci->ea);	
+	if (strcmp (eaName, "Triple DES") == 0)
+		keySize -= 3; // Compensate for parity bytes
+
+	volCTime = WindowsFileTime2UnixTime (ci->volume_creation_time);
+	headerMTime = WindowsFileTime2UnixTime (ci->header_creation_time);
+
+	printf ("%sVolume properties:\n"
+		" Location: %s\n"
+		" Size: %lld bytes\n"
+		" Type: %s\n"
+		" Encryption algorithm: %s\n"
+		" Key size: %d bits\n"
+		" Block size: %d bits\n"
+		" Mode of operation: %s\n"
+		" PKCS-5 PRF: %s\n"
+		" PKCS-5 iteration count: %d\n"
+		" Volume created: %s"
+		" Header modified: %s"
+		,
+		CmdPasswordValid ? "" : "\n",
+		volumePath,
+		totalSectors * SECTOR_SIZE,
+		ci->hiddenVolumeSize == 0 ? "Normal" : "Hidden",
+		eaName,
+		keySize * 8,
+		CipherGetBlockSize (EAGetFirstCipher(ci->ea)) * 8,
+		EAGetModeName (ci->ea, ci->mode, TRUE),
+		get_pkcs5_prf_name (ci->pkcs5),
+		ci->noIterations,
+		ctime_r (&volCTime, timeBuf),
+		ctime_r (&headerMTime, timeBuf2)
+		);
+
+	ret = TRUE;
+err:
+	if (ci != NULL)
+		crypto_close (ci);
+
+	if (!UpdateTime && modTime != 0)
+		RestoreFileTime (volumePath, modTime, acTime);
+
+	return ret;
+}
+
+
 static void DumpVersion (FILE *f)
 {
 	fprintf (f, 
 "truecrypt %s\n\n"
-"Copyright (C) 2004-2005 TrueCrypt Foundation. All Rights Reserved.\n\
+"Copyright (C) 2004-2006 TrueCrypt Foundation. All Rights Reserved.\n\
 Copyright (C) 1998-2000 Paul Le Roux. All Rights Reserved.\n\
 Copyright (C) 2004 TrueCrypt Team. All Rights Reserved.\n\
 Copyright (C) 1999-2005 Dr. Brian Gladman. All Rights Reserved.\n\
@@ -942,28 +1987,48 @@ static void DumpUsage (FILE *f)
 {
 	fprintf (f,
 "Usage: truecrypt [OPTIONS] VOLUME_PATH [MOUNT_DIRECTORY]\n"
+"   or: truecrypt [OPTIONS] -c | --create | -C | --change [VOLUME_PATH]\n"
 "   or: truecrypt [OPTIONS] -d | --dismount | -l | --list [MAPPED_VOLUME]\n"
+"   or: truecrypt [OPTIONS] --backup-headers | --restore-header FILE [VOLUME]\n"
+"   or: truecrypt [OPTIONS] --properties [VOLUME_PATH]\n"
+"   or: truecrypt --keyfile-create FILE\n"
 "   or: truecrypt -h | --help | --test | -V | --version\n"
 "\nCommands:\n"
 " VOLUME_PATH                         Map volume\n"
 " VOLUME_PATH MOUNT_DIRECTORY         Map and mount volume\n"
+"     --backup-headers FILE [VOLUME]  Backup headers of VOLUME to FILE\n"
+" -c, --create [VOLUME_PATH]          Create a new volume\n"
+" -C, --change [VOLUME_PATH]          Change password/keyfile(s)\n"
 " -d, --dismount [MAPPED_VOLUME]      Dismount and unmap volume\n"
-" -h, --help                          Display help\n"
+" -h, --help                          Display detailed help\n"
+"     --keyfile-create FILE           Create a new keyfile\n"
 " -l, --list [MAPPED_VOLUME]          List mapped volumes\n"
+"     --properties [VOLUME_PATH]      Display properties of volume\n"
+"     --restore-headers FILE [VOLUME] Restore header of VOLUME from FILE\n"
 "     --test                          Test algorithms\n"
 " -V, --version                       Display version information\n"
 "\nOptions:\n"
-"     --device-number NUMBER          Map volume as device number\n"
+"     --cluster SIZE                  Cluster size\n"
+"     --display-keys                  Display encryption keys\n"
 "     --display-password              Display password while typing\n"
+"     --disable-progress              Disable progress display\n"
+"     --encryption EA                 Encryption algorithm\n"
 "     --filesystem TYPE               Filesystem type to mount\n"
+"     --hash HASH                     Hash algorithm\n"
 " -k, --keyfile FILE|DIR              Keyfile for volume\n"
+"     --keyfile-add FILE|DIR          New keyfile for volume\n"
 " -K, --keyfile-protected FILE|DIR    Keyfile for protected volume\n"
+" -M, --mount-options OPTIONS         Mount options\n"
+" -N, --device-number NUMBER          Map volume as device number\n"
 " -p, --password PASSWORD             Password for volume\n"
 "     --password-tries NUMBER         Password entry tries\n"
 " -P, --protect-hidden                Protect hidden volume\n"
+"     --quick                         Use quick format\n"
 "     --update-time                   Do not preserve timestamps\n"
 " -r, --read-only                     Map/Mount read-only\n"
-"     --mount-options OPTIONS         Mount options\n"
+"     --size SIZE                     Volume size\n"
+"     --type TYPE                     Volume type\n"
+" -u, --user-mount                    Set default user and group ID on mount\n"
 " -v, --verbose                       Verbose output\n"
 "\n MAPPED_VOLUME = DEVICE_NUMBER | DEVICE_NAME | MOUNT_POINT | VOLUME_PATH\n"
 "For a detailed help use --help or see truecrypt(1) man page.\n"
@@ -979,7 +2044,11 @@ static void DumpHelp ()
 "written to it is transparently encrypted.\n"
 "\n"
 "Usage: truecrypt [OPTIONS] VOLUME_PATH [MOUNT_DIRECTORY]\n"
+"   or: truecrypt [OPTIONS] -c | --create | -C | --change [VOLUME_PATH]\n"
 "   or: truecrypt [OPTIONS] -d | --dismount | -l | --list [MAPPED_VOLUME]\n"
+"   or: truecrypt [OPTIONS] --backup-headers | --restore-header FILE [VOLUME]\n"
+"   or: truecrypt [OPTIONS] --properties [VOLUME_PATH]\n"
+"   or: truecrypt --keyfile-create FILE\n"
 "   or: truecrypt -h | --help | --test | -V | --version\n"
 "\n"
 "Options:\n"
@@ -987,19 +2056,72 @@ static void DumpHelp ()
 "VOLUME_PATH [MOUNT_DIRECTORY]\n"
 " Open a TrueCrypt volume specified by VOLUME_PATH and map it as a block device\n"
 " /dev/mapper/truecryptN. N is the first available device number if not\n"
-" otherwise specified with --device-number. The filesystem of the mapped volume\n"
-" is mounted at MOUNT_DIRECTORY if specified.\n"
+" otherwise specified with -N. To map a hidden volume, specify its password\n"
+" and/or keyfiles (the outer volume cannot be mapped at the same time).\n"
+" Filesystem of the mapped volume is mounted at MOUNT_DIRECTORY if specified.\n"
+" See also options --display-password, --filesystem, -k, -M, -p, -P,\n"
+" --password-tries, -r, -u, --update-time.\n"
+"\n"
+"--backup-headers BACKUP_FILE [VOLUME_PATH]\n"
+" Backup headers of a volume specified by VOLUME_PATH to a file BACKUP_FILE.\n"
+" Volume path is requested from user if not specified on command line. Both\n"
+" normal/outer and hidden volume headers are stored in the backup file even\n"
+" if there is no hidden volume within the volume (to preserve plausible\n"
+" deniability). When restoring the volume header, it is possible to select\n"
+" which header is to be restored. Note that this command drops effective user\n"
+" ID. See also --restore-header.\n"
+"\n"
+"-c, --create [VOLUME_PATH]\n"
+" Create a new volume. Most options are requested from user if not specified\n"
+" on command line. Hidden volume can be created only in an existing file or\n"
+" device. Size of the hidden volume should not exceed the free space of the\n"
+" filesystem on the outer volume. Hidden volume protection (see option -P)\n"
+" should be used to update the outer volume contents after the hidden volume\n"
+" is created. Note that this command drops effective user ID.\n"
+" See also options --cluster, --disable-progress, --display-keys,\n"
+" --encryption, -k, --filesystem, --hash, -p, --quick, --size, --type. Note\n"
+" that passing some of the options may affect plausible deniability. See option\n"
+" -p for more information.\n"
+"\n"
+"-C, --change [VOLUME_PATH]\n"
+" Change a password and/or keyfile(s) of a volume. Volume path and passwords are\n"
+" requested from user if not specified on command line. PKCS-5 PRF HMAC hash\n"
+" algorithm can be changed with option --hash. See also options -k,\n"
+" --keyfile-add, -p, -v.\n"
 "\n"
 "-d, --dismount [MAPPED_VOLUME]\n"
 " Dismount and unmap mapped volumes. If MAPPED_VOLUME is not specified, all\n"
 " volumes are dismounted and unmapped. See below for a description of\n"
 " MAPPED_VOLUME.\n"
 "\n"
+"-h, --help\n"
+" Display help information.\n"
+"\n"
 "-l, --list [MAPPED_VOLUME]\n"
 " Display a list of mapped volumes. If MAPPED_VOLUME is not specified, all\n"
 " volumes are listed. By default, the list contains only volume path and mapped\n"
 " device name pairs. A more detailed list can be enabled by verbose output\n"
 " option (-v). See below for a description of MAPPED_VOLUME.\n"
+"\n"
+"--keyfile-create FILE\n"
+" Create a new keyfile using the random number generator. FILE argument specifies\n"
+" the output file. Note that this command drops effective user ID.\n"
+"\n"
+"--properties [VOLUME_PATH]\n"
+" Display properties of a volume specified by VOLUME_PATH.\n"
+"\n"
+"--restore-header BACKUP_FILE [VOLUME_PATH]\n"
+" Restore header of a volume specified by VOLUME_PATH from a file BACKUP_FILE.\n"
+" Volume path is requested from user if not specified on command line.\n"
+" Type of the restored volume header (normal/hidden) is requested from user if\n"
+" not specified with --type. Note that this command drops effective user ID.\n"
+" See also --backup-headers.\n"
+"\n"
+"--test\n"
+" Test all internal algorithms used in the process of encryption and decryption.\n"
+"\n"
+"-V, --version\n"
+" Display version information.\n"
 "\n"
 "MAPPED_VOLUME\n"
 " Specifies a mapped or mounted volume. One of the following forms can be used:\n\n"
@@ -1008,33 +2130,54 @@ static void DumpHelp ()
 " 3) Device number of the mapped volume.\n\n"
 " 4) Device name of the mapped volume.\n\n"
 "\n"
-"--device-number N\n"
-" Use device number N when mapping a volume as a block device\n"
-" /dev/mapper/truecryptN. Default is the first available device.\n"
+"--cluster SIZE\n"
+" Use specified cluster size when creating a new volume. SIZE defines the number\n"
+" of sectors per cluster.\n"
+"\n"
+"--disable-progress\n"
+" Disable display of progress information during creation of a new volume.\n"
+"\n"
+"--display-keys\n"
+" Display encryption keys generated during creation of a new volume.\n"
 "\n"
 "--display-password\n"
 " Display password characters while typing.\n"
 "\n"
+"--encryption EA\n"
+" Use specified encryption algorithm when creating a new volume.\n"
+"\n"
 "--filesystem TYPE\n"
 " Filesystem type to mount. The TYPE argument is passed to mount(8) command\n"
-" with option -t. Default type is 'auto'.\n"
+" with option -t. Default type is 'auto'. When creating a new volume, this\n"
+" option specifies the filesystem to be created on the new volume.\n"
 "\n"
-"-h, --help\n"
-" Display help information.\n"
+"--hash HASH\n"
+" Use specified hash algorithm when creating a new volume or changing password\n"
+" and/or keyfiles.\n"
 "\n"
 "-k, --keyfile FILE | DIRECTORY\n"
-" Use specified keyfile to open a volume to be mapped. When a directory is\n"
-" specified, all files inside it will be used (non-recursively). Additional\n"
-" keyfiles can be specified with multiple -k options. See also option -K.\n"
+" Use specified keyfile to open a volume to be mapped (or when changing password\n"
+" and/or keyfiles). When a directory is specified, all files inside it will be\n"
+" used (non-recursively). Additional keyfiles can be specified with multiple -k\n"
+" options. See also option -K.\n"
 "\n"
 "-K, --keyfile-protected FILE | DIRECTORY\n"
 " Use specified keyfile to open a hidden volume to be protected. See also\n"
 " options -k and -P.\n"
 "\n"
-"--mount-options OPTIONS\n"
+"--keyfile-add FILE | DIRECTORY\n"
+" Add specified keyfile to a volume when changing its password and/or keyfiles.\n"
+" This option must be also used to keep all previous keyfiles asigned to a\n"
+" volume. See EXAMPLES for more information.\n"
+"\n"
+"-M, --mount-options OPTIONS\n"
 " Filesystem mount options. The OPTIONS argument is passed to mount(8)\n"
 " command with option -o.\n"
-" \n"
+"\n"
+"-N, --device-number N\n"
+" Use device number N when mapping a volume as a block device\n"
+" /dev/mapper/truecryptN. Default is the first available device.\n"
+"\n"
 "-p, --password PASSWORD\n"
 " Use specified password to open a volume. Additional passwords can be\n"
 " specified with multiple -p options. An empty password can also be specified\n"
@@ -1050,20 +2193,37 @@ static void DumpHelp ()
 " Write-protect a hidden volume when mapping an outer volume. Before mapping the\n"
 " outer volume, the user will be prompted for a password to open the hidden\n"
 " volume. The size and position of the hidden volume is then determined and the\n"
-" outer volume is mounted with all sectors belonging to the hidden volume\n"
+" outer volume is mapped with all sectors belonging to the hidden volume\n"
 " protected against write operations. When a write to the protected area is\n"
 " prevented, the whole volume is switched to read-only mode. Verbose list command\n"
 " (-vl) can be used to query the state of the hidden volume protection. Warning\n"
 " message is displayed when a volume switched to read-only is being dismounted.\n"
 " See also option -r.\n"
-" \n"
+"\n"
+"--quick\n"
+" Use quick format when creating a new volume. This option can be used only\n"
+" when creating a device-hosted volume. Quick format is always used when\n"
+" creating a hidden volume.\n"
+"\n"
 "-r, --read-only\n"
-" Map and/or mount a volume as read-only. Write operations to the volume may not\n"
+" Map and mount a volume as read-only. Write operations to the volume may not\n"
 " fail immediately due to the write buffering performed by the system, but the\n"
 " physical write will still be prevented.\n"
-" \n"
-"--test\n"
-" Test all internal algorithms used in the process of encryption and decryption.\n"
+"\n"
+"--size SIZE\n"
+" Use specified size when creating a new volume. SIZE is defined as number of\n"
+" bytes or, when a size suffix K/M/G is used, Kilobytes/Megabytes/Gigabytes.\n"
+" Note that size must be a multiple of 512 bytes.\n"
+"\n"
+"--type TYPE\n"
+" Use specified volume type when creating a new volume or restoring a volume\n"
+" header. TYPE can be 'normal' or 'hidden'.\n"
+"\n"
+"-u, --user-mount\n"
+" Set default user and group ID of the filesystem being mounted to the user and\n"
+" group ID of the parent process. Some filesystems (like FAT) do not support\n"
+" user permissions and, therefore, it is necessary to supply a default user and\n"
+" group ID to the system when mounting such filesystems.\n"
 "\n"
 "--update-time\n"
 " Do not preserve access and modification timestamps of volume containers and\n"
@@ -1074,13 +2234,15 @@ static void DumpHelp ()
 " Enable verbose output. Multiple -v options can be specified to increase the\n"
 " level of verbosity.\n"
 "\n"
-"-V, --version\n"
-" Display version information.\n"
-"\n"
 "Examples:\n"
 "\n"
 "truecrypt /root/volume.tc /mnt/tc\n"
-" Map a volume /root/volume.tc and mount its filesystem at /mnt/tc.\n"
+" Map a volume /root/volume.tc and mount its filesystem at directory /mnt/tc.\n"
+"\n"
+"truecrypt -u /dev/hda2 /mnt/tc\n"
+" Map a volume /dev/hda2 (first ATA disk, primary partition 2) and mount its\n"
+" filesystem at /mnt/tc. Default user-id is set, which is useful when mounting\n"
+" a filesystem like FAT under a non-admin user account.\n"
 "\n"
 "truecrypt -d\n"
 " Dismount and unmap all mapped volumes.\n"
@@ -1094,7 +2256,7 @@ static void DumpHelp ()
 "truecrypt -vl\n"
 " Display a detailed list of all mapped volumes.\n"
 " \n"
-"truecrypt --device-number=1 /dev/hdc1 && mkfs /dev/mapper/truecrypt1\n"
+"truecrypt -N 1 /dev/hdc1 && mkfs /dev/mapper/truecrypt1\n"
 " Map a volume /dev/hdc1 and create a new filesystem on it.\n"
 "\n"
 "truecrypt -P /dev/hdc1 /mnt/tc\n"
@@ -1105,12 +2267,33 @@ static void DumpHelp ()
 " The outer volume is opened with keyfiles ./key1 and ./key2 and the\n"
 " hidden volume with ./key_hidden. Passwords for both volumes are empty.\n"
 "\n"
+"truecrypt -c\n"
+" Create a new volume."
+"\n"
+"truecrypt -k keyfile --size 10M --encryption AES --hash SHA-1 -c vol.tc\n"
+" Create a new volume. Options which are not specified on command line are\n"
+" requested from the user.\n"
+"\n"
+"truecrypt --type normal -c volume.tc && truecrypt --type hidden -c volume.tc\n"
+" Create a new volume and then create a hidden volume inside it."
+"\n"
+"truecrypt --keyfile-add keyfile -C volume.tc\n"
+" Change password and add a new keyfile to volume.\n"
+"\n"
+"truecrypt -k keyfile -C volume.tc\n"
+" Change password and remove a keyfile from volume.\n"
+"\n"
+"truecrypt -k keyfile --keyfile-add keyfile -C volume.tc\n"
+" Change password and keep previous keyfile.\n"
+"\n"
+
 "Report bugs at <http://www.truecrypt.org/bugs>.\n"
 	);
 }
 
 static BOOL DumpMountList (int devNo)
 {
+	BOOL found = FALSE;
 	int i;
 
 	if (!CheckKernelModuleVersion (FALSE))
@@ -1119,12 +2302,20 @@ static BOOL DumpMountList (int devNo)
 	if (!GetMountList ())
 		return FALSE;
 
+	if (devNo == -1 && MountList[0].DeviceNumber == -1)
+	{
+		error ("No volumes mounted\n");
+		return FALSE;
+	}
+
 	for (i = 0; MountList[i].DeviceNumber != -1; i++)
 	{
 		MountListEntry *e = &MountList[i];
 
 		if (devNo != -1 && e->DeviceNumber != devNo)
 			continue;
+
+		found = TRUE;
 
 		if (Verbose == 0)
 		{
@@ -1156,6 +2347,12 @@ static BOOL DumpMountList (int devNo)
 					(e->Flags & FLAG_HIDDEN_VOLUME_PROTECTION) ? "Yes" : "No" )
 				);
 		}
+	}
+
+	if (!found)
+	{
+		error (TC_MAP_DEV "%d not mapped\n", devNo);
+		return FALSE;
 	}
 
 	return TRUE;
@@ -1299,7 +2496,7 @@ static BOOL DismountVolume (int devNo)
 
 	if (!found)
 	{
-		error (TC_MAP_DEV "%d not mounted\n", devNo);
+		error (TC_MAP_DEV "%d not mapped\n", devNo);
 		return FALSE;
 	}
 
@@ -1357,49 +2554,6 @@ BOOL ToDeviceNumber (char *text, int *deviceNumber)
 }
 
 
-BOOL CheckAdminPrivileges ()
-{
-	char path[MAX_PATH];
-	char *env;
-
-	if (getuid () != 0 && geteuid () != 0)
-	{
-		error ("Administrator (root) privileges required\n");
-		return FALSE;
-	}
-
-	if (getuid () != 0)
-	{
-		// Impersonate root to support executing of commands like mount
-		setuid (0);
-
-		env = getenv ("PATH");
-		
-		snprintf (path, sizeof (path),
-			"%s%s/sbin:/usr/sbin:/bin",
-			env ? env : "",
-			env ? ":" : "");
-
-		setenv ("PATH", path, 1);
-	}
-
-	return TRUE;
-}
-
-
-BOOL LockMemory ()
-{
-	// Lock process memory
-	if (mlockall (MCL_FUTURE) != 0)
-	{
-		perror ("Cannot prevent memory swapping: mlockall");
-		return FALSE;
-	}
-
-	return TRUE;
-}
-
-
 int main (int argc, char **argv)
 {
 	char *volumePath = NULL;
@@ -1410,21 +2564,37 @@ int main (int argc, char **argv)
 	FILE *f;
 
 	struct option longOptions[] = {
-		{"device-number", required_argument, 0, 0},
+		{"backup-headers", required_argument, 0, 0},
+		{"cluster", required_argument, 0, 0},
+		{"change", optional_argument, 0, 'C'},
+		{"create", optional_argument, 0, 'c'},
+		{"device-number", required_argument, 0, 'N'},
 		{"dismount", optional_argument, 0, 'd'},
+		{"disable-progress", 0, 0, 0},
+		{"display-keys", 0, 0, 0},
 		{"display-password", 0, 0, 0},
+		{"encryption", required_argument, 0, 0},
 		{"keyfile", required_argument, 0, 'k'},
+		{"keyfile-add", required_argument, 0, 0},
 		{"keyfile-protected", required_argument, 0, 'K'},
 		{"filesystem", required_argument, 0, 0},
-		{"list", 0, 0, 'l'},
+		{"keyfile-create", required_argument, 0, 0},
+		{"list", optional_argument, 0, 'l'},
+		{"hash", required_argument, 0, 0},
 		{"help", 0, 0, 'h'},
-		{"mount-options", required_argument, 0, 0},
+		{"mount-options", required_argument, 0, 'M'},
 		{"password", required_argument, 0, 'l'},
 		{"password-tries", required_argument, 0, 0},
+		{"properties", optional_argument, 0, 0},
 		{"protect-hidden", 0, 0, 'P'},
+		{"quick", 0, 0, 0},
 		{"read-only", 0, 0, 'r'},
+		{"restore-header", required_argument, 0, 0},
+		{"size", required_argument, 0, 0},
 		{"test", 0, 0, 0},
+		{"type", required_argument, 0, 0},
 		{"update-time", 0, 0, 0},
+		{"user-mount", 0, 0, 'u'},
 		{"verbose", 0, 0, 'v'},
 		{"version", 0, 0, 'V'},
 		{0, 0, 0, 0}
@@ -1450,12 +2620,47 @@ int main (int argc, char **argv)
 	signal (SIGPIPE, OnSignal);
 	signal (SIGTERM, OnSignal);
 
+	LockMemory ();
 	atexit (OnExit);
 
-	while ((o = getopt_long (argc, argv, "dhk:K:lp:PrvV", longOptions, &optIndex)) != -1)
+	RealUserId = getuid ();
+	RealGroupId = getgid ();
+
+	if (tcgetattr (0, &TerminalAttributes) == 0)
+		IsTerminal = TRUE;
+
+	while ((o = getopt_long (argc, argv, "c::C::d::hk:K:l::M:N:p:PruvV", longOptions, &optIndex)) != -1)
 	{
 		switch (o)
 		{
+		case 'c':
+			{
+				char *hostPath = NULL;
+				if (optind < argc)
+				{
+					hostPath = argv[optind++];
+
+					if (optind < argc)
+						goto usage;
+				}
+
+				return CreateVolume (hostPath) ? 0 : 1;
+			}
+
+		case 'C':
+			{
+				char *hostPath = NULL;
+				if (optind < argc)
+				{
+					hostPath = argv[optind++];
+
+					if (optind < argc)
+						goto usage;
+				}
+
+				return ChangePassword (hostPath) ? 0 : 1;
+			}
+
 		case 'd':
 			// Dismount
 			{
@@ -1518,19 +2723,27 @@ int main (int argc, char **argv)
 			}
 			break;
 
+		case 'M':
+			MountOpts = optarg;
+			break;
+			
+		case 'N':
+			if (sscanf (optarg, "%d", &UseDeviceNumber) == 1 && UseDeviceNumber >= 0)
+				break;
+			goto usage;
 
 		case 'p':
 			// Password
 			if (!CmdPasswordValid)
 			{
-				strncpy (CmdPassword.Text, optarg, sizeof (CmdPassword.Text));
-				CmdPassword.Length = strlen (CmdPassword.Text);
+				strncpy ((char *)CmdPassword.Text, optarg, sizeof (CmdPassword.Text));
+				CmdPassword.Length = strlen ((char *)CmdPassword.Text);
 				CmdPasswordValid = TRUE;
 			}
 			else if (!CmdPassword2Valid)
 			{
-				strncpy (CmdPassword2.Text, optarg, sizeof (CmdPassword2.Text));
-				CmdPassword2.Length = strlen (CmdPassword2.Text);
+				strncpy ((char *)CmdPassword2.Text, optarg, sizeof (CmdPassword2.Text));
+				CmdPassword2.Length = strlen ((char *)CmdPassword2.Text);
 				CmdPassword2Valid = TRUE;
 			}
 			break;
@@ -1542,6 +2755,10 @@ int main (int argc, char **argv)
 
 		case 'r':
 			ReadOnly = TRUE;
+			break;
+			
+		case 'u':
+			UserMount = TRUE;
 			break;
 
 		case 'v':
@@ -1559,19 +2776,57 @@ int main (int argc, char **argv)
 			return 0;
 
 		case 0:
+			if (strcmp ("backup-headers", longOptions[optIndex].name) == 0)
+			{
+				char *volumePath = NULL;
+
+				if (optind < argc)
+					volumePath = argv[optind++];
+
+				if (optind < argc)
+					goto usage;
+
+				if (BackupVolumeHeaders (optarg, volumePath))
+				{
+					printf ("Backup of volume headers succeeded.\n");
+					return 0;
+				}
+
+				return 1;
+			}
+
+			if (strcmp ("cluster", longOptions[optIndex].name) == 0)
+			{
+				if (sscanf (optarg, "%d", &ClusterSize) != 1)
+					goto usage;
+				break;
+			}
+
+			if (strcmp ("display-keys", longOptions[optIndex].name) == 0)
+			{
+				DisplayKeys = TRUE;
+				break;
+			}
+
 			if (strcmp ("display-password", longOptions[optIndex].name) == 0)
 			{
 				DisplayPassword = TRUE;
 				break;
 			}
 
-			if (strcmp ("device-number", longOptions[optIndex].name) == 0)
+			if (strcmp ("disable-progress", longOptions[optIndex].name) == 0)
 			{
-				if (sscanf (optarg, "%d", &UseDeviceNumber) == 1
-					&& UseDeviceNumber >= 0)
-					break;
-				else
+				DisplayProgress = FALSE;
+				break;
+			}
+
+			if (strcmp ("encryption", longOptions[optIndex].name) == 0)
+			{
+				EA = EAGetByName (optarg);
+
+				if (EA == 0)
 					goto usage;
+				break;
 			}
 
 			if (strcmp ("filesystem", longOptions[optIndex].name) == 0)
@@ -1580,9 +2835,57 @@ int main (int argc, char **argv)
 				break;
 			}
 
-			if (strcmp ("mount-options", longOptions[optIndex].name) == 0)
+			if (strcmp ("hash", longOptions[optIndex].name) == 0)
 			{
-				MountOpts = optarg;
+				HashAlgorithm = 0;
+				for (i = 1; i <= LAST_PRF_ID; i++)
+				{
+					if (strcasecmp (optarg, HashGetName (i)) == 0)
+					{
+						HashAlgorithm = i;
+						break;
+					}
+				}
+
+				if (HashAlgorithm == 0)
+					goto usage;
+
+				break;
+			}
+
+			if (strcmp ("keyfile-add", longOptions[optIndex].name) == 0)
+			{
+				KeyFile *kf = malloc (sizeof (KeyFile));
+				if (!kf)
+				{
+					perror ("malloc");
+					return 1;
+				}
+				strncpy (kf->FileName, optarg, sizeof (kf->FileName));
+				FirstNewKeyFile = KeyFileAdd (FirstNewKeyFile, kf);
+				break;
+			}
+			
+			if (strcmp ("keyfile-create", longOptions[optIndex].name) == 0)
+			{
+				return CreateKeyfile (optarg) ? 0 : 1;
+			}
+
+			if (strcmp ("quick", longOptions[optIndex].name) == 0)
+			{
+				Quick = TRUE;
+				break;
+			}
+
+			if (strcmp ("type", longOptions[optIndex].name) == 0)
+			{
+				if (strcasecmp (optarg, "normal") == 0)
+					VolumeType = VOLUME_TYPE_NORMAL;
+				else if (strcasecmp (optarg, "hidden") == 0)
+					VolumeType = VOLUME_TYPE_HIDDEN;
+				else
+					goto usage;
+
 				break;
 			}
 
@@ -1593,7 +2896,47 @@ int main (int argc, char **argv)
 				else
 					goto usage;
 			}
-			
+
+			if (strcmp ("properties", longOptions[optIndex].name) == 0)
+			{
+				char *volumePath = NULL;
+
+				if (optind < argc)
+					volumePath = argv[optind++];
+
+				if (optind < argc)
+					goto usage;
+
+				return DumpVolumeProperties (volumePath) ? 0 : 1;
+			}
+
+
+			if (strcmp ("restore-header", longOptions[optIndex].name) == 0)
+			{
+				char *volumePath = NULL;
+
+				if (optind < argc)
+					volumePath = argv[optind++];
+
+				if (optind < argc)
+					goto usage;
+
+				if (RestoreVolumeHeader (optarg, volumePath))
+				{
+					printf ("Restore of volume header succeeded.\n");
+					return 0;
+				}
+
+				return 1;
+			}
+
+			if (strcmp ("size", longOptions[optIndex].name) == 0)
+			{
+				if (!ParseSize (optarg, &VolumeSize))
+					goto usage;
+				break;
+			}
+
 			if (strcmp ("test", longOptions[optIndex].name) == 0)
 			{
 				if (AutoTestAlgorithms ())
@@ -1633,8 +2976,6 @@ int main (int argc, char **argv)
 	if (!CheckAdminPrivileges ())
 		return 1;
 
-	LockMemory ();
-
 	// Relative path => absolute
 	if (volumePath[0] != '/')
 	{
@@ -1647,7 +2988,7 @@ int main (int argc, char **argv)
 	return MountVolume (volumePath, mountPoint) == FALSE;
 
 usage:
-	DumpUsage (stderr);
+	DumpUsage (stdout);
 
 	return 1;
 }

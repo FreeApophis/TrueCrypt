@@ -153,6 +153,8 @@
 #define IDM_CHANGE_HEADER_KEY_DERIV_ALGO 40042
 #define IDM_KEYFILE_GENERATOR           40043
 #define IDM_SET_DEFAULT_KEYFILES        40044
+#define IDM_ONLINE_TUTORIAL             40045
+#define IDM_ONLINE_HELP                 40046
 
 // Next default values for new objects
 // 
@@ -160,7 +162,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        110
-#define _APS_NEXT_COMMAND_VALUE         40045
+#define _APS_NEXT_COMMAND_VALUE         40047
 #define _APS_NEXT_CONTROL_VALUE         1097
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

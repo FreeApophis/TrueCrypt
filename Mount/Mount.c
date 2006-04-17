@@ -2,7 +2,7 @@
    the source code of Encryption for the Masses 2.02a, which is Copyright (c)
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
    Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
@@ -89,6 +89,12 @@ static BOOL CmdLineVolumeSpecified;
 void
 localcleanup (void)
 {
+	// Wipe command line
+	char *c = GetCommandLineA ();
+	wchar_t *wc = GetCommandLineW ();
+	burn(c, strlen (c));
+	burn(wc, wcslen (wc) * sizeof (wchar_t));
+
 	/* Cleanup common code resources */
 	cleanup ();
 }
@@ -957,6 +963,7 @@ PasswordDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 		{
 			szXPwd = (Password *) lParam;
 			LocalizeDialog (hwndDlg, "IDD_PASSWORD_DLG");
+			DragAcceptFiles (hwndDlg, TRUE);
 
 			if (strlen (PasswordDlgVolume) > 0)
 			{
@@ -1055,6 +1062,26 @@ PasswordDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			return 1;
 		}
 		return 0;
+
+	case WM_DROPFILES:
+		{
+			HDROP hdrop = (HDROP) wParam;
+			int i = 0, count = DragQueryFile (hdrop, -1, NULL, 0);
+
+			while (count-- > 0)
+			{
+				KeyFile *kf = malloc (sizeof (KeyFile));
+				DragQueryFile (hdrop, i++, kf->FileName, sizeof (kf->FileName));
+				FirstKeyFile = KeyFileAdd (FirstKeyFile, kf);
+				KeyFilesEnable = TRUE;
+			}
+
+			SetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE, KeyFilesEnable);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
+
+			DragFinish (hdrop);
+		}
+		return 1;
 	}
 
 	return 0;
@@ -1614,13 +1641,16 @@ VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 		}
 
 	case WM_COMMAND:
-
 		if (lw == IDOK)
 		{
 			EndDialog (hwndDlg, lw);
 			return 1;
 		}
 		return 0;
+
+	case WM_CLOSE:
+		EndDialog (hwndDlg, lw);
+		return 1;
 	}
 
 	return 0;
@@ -2064,6 +2094,9 @@ static BOOL Mount (HWND hwndDlg, int nDosDriveNo, char *szFileName)
 		mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, &VolumePassword, bCacheInDriver, bForceMount, &mountOptions, FALSE, TRUE);
 		NormalCursor ();
 
+		if (mounted > 0 && !KeyFilesEnable && !CheckPasswordCharEncoding (NULL, &VolumePassword))
+			Warning ("UNSUPPORTED_CHARS_IN_PWD_RECOM");
+
 		burn (&VolumePassword, sizeof (VolumePassword));
 		burn (&mountOptions.ProtectedHidVolPassword, sizeof (mountOptions.ProtectedHidVolPassword));
 
@@ -2089,10 +2122,6 @@ static BOOL Mount (HWND hwndDlg, int nDosDriveNo, char *szFileName)
 
 		if (mountOptions.ProtectHiddenVolume)
 			Info ("HIDVOL_PROT_WARN_AFTER_MOUNT");
-
-
-		if (!KeyFilesEnable && !CheckPasswordCharEncoding (NULL, &VolumePassword))
-			Warning ("UNSUPPORTED_CHARS_IN_PWD_RECOM");
 	}
 
 ret:
@@ -2958,6 +2987,17 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				}
 				else if (LOWORD (GetSelectedLong (GetDlgItem (hwndDlg, IDC_DRIVELIST))) == VFREE)
 				{
+					if (GetAsyncKeyState (VK_CONTROL) < 0)
+					{
+						if (IDCANCEL == DialogBoxParamW (hInst, 
+							MAKEINTRESOURCEW (IDD_MOUNT_OPTIONS), hwndDlg,
+							(DLGPROC) MountOptionsDlgProc, (LPARAM) &mountOptions))
+							return 1;
+
+						if (mountOptions.ProtectHiddenVolume && hidVolProtKeyFilesParam.EnableKeyFiles)
+							KeyFilesApply (&mountOptions.ProtectedHidVolPassword, hidVolProtKeyFilesParam.FirstKeyFile, bPreserveTimestamp);
+					}
+
 					if (CheckMountList ())
 						Mount (hwndDlg, 0, 0);
 				}
@@ -3313,6 +3353,10 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			tmp = strrchr (t, '\\');
 			if (tmp)
 			{
+				STARTUPINFO si;
+				PROCESS_INFORMATION pi;
+				ZeroMemory (&si, sizeof (si));
+
 				strcpy (++tmp, "TrueCrypt Format.exe");
 
 				if ((fhTemp = fopen(t, "r")) == NULL)
@@ -3320,7 +3364,15 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				else
 					fclose (fhTemp);
 
-				ShellExecute (NULL, "open", t, NULL, NULL, SW_SHOWNORMAL);
+				if (!CreateProcess (t, NULL, NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS, NULL, NULL, &si, &pi))
+				{
+					handleWin32Error (hwndDlg);
+				}
+				else
+				{
+					CloseHandle (pi.hProcess);
+					CloseHandle (pi.hThread);
+				}
 			}
 			return 1;
 		}
@@ -3391,6 +3443,22 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			char tmpstr [256];
 
 			sprintf (tmpstr, "http://www.truecrypt.org/applink.php?version=%s&dest=forum", VERSION_STRING);
+			ShellExecute (NULL, "open", (LPCTSTR) tmpstr, NULL, NULL, SW_SHOWNORMAL);
+			return 1;
+		}
+		else if (lw == IDM_ONLINE_TUTORIAL)
+		{
+			char tmpstr [256];
+
+			sprintf (tmpstr, "http://www.truecrypt.org/applink.php?version=%s&dest=tutorial", VERSION_STRING);
+			ShellExecute (NULL, "open", (LPCTSTR) tmpstr, NULL, NULL, SW_SHOWNORMAL);
+			return 1;
+		}
+		else if (lw == IDM_ONLINE_HELP)
+		{
+			char tmpstr [256];
+
+			sprintf (tmpstr, "http://www.truecrypt.org/applink.php?version=%s&dest=help", VERSION_STRING);
 			ShellExecute (NULL, "open", (LPCTSTR) tmpstr, NULL, NULL, SW_SHOWNORMAL);
 			return 1;
 		}
@@ -3801,6 +3869,12 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 
 						if (!_stricmp (szTmp, "ts") || !_stricmp (szTmp, "timestamp"))
 							mountOptions.PreserveTimestamp = FALSE;
+
+						if (!_stricmp (szTmp, "system"))
+							mountOptions.SystemVolume = TRUE;
+
+						if (!_stricmp (szTmp, "persistent"))
+							mountOptions.PersistentVolume = TRUE;
 					}
 				}
 				break;

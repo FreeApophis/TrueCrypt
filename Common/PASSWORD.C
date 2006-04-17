@@ -2,7 +2,7 @@
    the source code of Encryption for the Masses 2.02a, which is Copyright (c)
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
    Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
@@ -65,28 +65,42 @@ VerifyPasswordAndUpdate (HWND hwndDlg, HWND hButton, HWND hPassword,
 
 BOOL CheckPasswordCharEncoding (HWND hPassword, Password *ptrPw)
 {
-	char szTmp[MAX_PASSWORD + 1];
-	unsigned char *pw;
-	int i;
-	int len;
+	int i, len;
 	
 	if (hPassword == NULL)
 	{
+		unsigned char *pw;
 		len = ptrPw->Length;
 		pw = (unsigned char *) ptrPw->Text;
+
+		for (i = 0; i < len; i++)
+		{
+			if (pw[i] >= 0x7f || pw[i] < 0x20)	// A non-ASCII or non-printable character?
+				return FALSE;
+		}
 	}
 	else
 	{
+		wchar_t s[MAX_PASSWORD + 1];
 		len = GetWindowTextLength (hPassword);
-		GetWindowText (hPassword, szTmp, sizeof (szTmp));
-		pw = (unsigned char *) szTmp;
+
+		if (len > MAX_PASSWORD)
+			return FALSE; 
+
+		GetWindowTextW (hPassword, s, sizeof (s) / sizeof (wchar_t));
+
+		for (i = 0; i < len; i++)
+		{
+			if (s[i] >= 0x7f || s[i] < 0x20)	// A non-ASCII or non-printable character?
+				break;
+		}
+
+		burn (s, sizeof(s));
+
+		if (i < len)
+			return FALSE; 
 	}
 
-	for (i = 0; i < len; i++)
-	{
-		if (pw[i] >= 0x7f || pw[i] < 0x20)	// A non-ASCII or non-printable character?
-			return FALSE;
-	}
 	return TRUE;
 }
 
@@ -110,7 +124,6 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 	char buffer[HEADER_SIZE];
 	PCRYPTO_INFO cryptoInfo = NULL, ci = NULL;
 	void *dev = INVALID_HANDLE_VALUE;
-	diskio_f write, read;
 	DWORD dwError;
 	BOOL bDevice;
 	unsigned __int64 volSize = 0;
@@ -124,9 +137,6 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 	if (oldPassword->Length == 0 || newPassword->Length == 0) return -1;
 
 	CreateFullVolumePath (szDiskFile, lpszVolume, &bDevice);
-
-	write = (diskio_f) _lwrite;
-	read = (diskio_f) _lread;
 
 	if (bDevice == FALSE)
 	{
@@ -226,7 +236,7 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 			}
 		}
 
-		nStatus = (*read) ((HFILE) dev, buffer, sizeof (buffer));
+		nStatus = _lread ((HFILE) dev, buffer, sizeof (buffer));
 		if (nStatus != sizeof (buffer))
 		{
 			nStatus = ERR_VOL_SIZE_WRONG;
@@ -315,7 +325,7 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 			goto error;
 
 		// Write the new header 
-		nStatus = (*write) ((HFILE) dev, buffer, HEADER_SIZE);
+		nStatus = _lwrite ((HFILE) dev, buffer, HEADER_SIZE);
 		if (nStatus != HEADER_SIZE)
 		{
 			nStatus = ERR_VOL_WRITING;

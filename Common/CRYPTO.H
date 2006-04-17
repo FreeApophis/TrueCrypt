@@ -2,7 +2,7 @@
    the source code of Encryption for the Masses 2.02a, which is Copyright (c)
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
    Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
@@ -105,12 +105,24 @@ typedef struct
 	int Modes[3];			// Null terminated array of modes of operation
 } EncryptionAlgorithm;
 
+typedef struct
+{
+	int Id;					// Hash ID
+	char *Name;				// Name
+} Hash;
+
 // Maxium length of scheduled key
 #define AES_KS				(sizeof(aes_encrypt_ctx) + sizeof(aes_decrypt_ctx))
 #define SERPENT_KS			(140 * 4)
 #define MAX_EXPANDED_KEY	(AES_KS + SERPENT_KS + TWOFISH_KS)
 
 #define DISK_WIPE_PASSES	36	// (Gutmann)
+
+/* If a 64-bit block cipher is selected and the volume size is greater than WARN_VOL_SIZE_BLOCK64,
+warn and require a confirmation from the user. For n-bit blocks, this constant shall be << 8*2^(n/2);
+i.e. for 64-bit ciphers this constant shall be much less than the number of bytes in 2^32 blocks
+(birthday bound for 64-bit PRP). */
+#define WARN_VOL_SIZE_BLOCK64	1 * BYTES_PER_GB
 
 #include "Aes.h"
 #include "Blowfish.h"
@@ -205,6 +217,8 @@ void _cdecl DecryptSectors (unsigned __int32 *buf, unsigned __int64 secNo, unsig
 
 unsigned __int64 LRWSector2Index (unsigned __int64 sector, int blockSize, PCRYPTO_INFO ci);
 
-char *get_hash_algo_name (int hash_algo_id);
+char *HashGetName (int hash_algo_id);
+
+BOOL DetectWeakSecondaryKey (unsigned char *key, int len);
 
 #endif		/* CRYPTO_H */

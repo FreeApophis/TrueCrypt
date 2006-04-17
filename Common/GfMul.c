@@ -43,6 +43,8 @@
 
    - Added MSB-first mode.
 
+   - Added basic test algorithms.
+
    - Removed GCM.
 */
 
@@ -589,7 +591,7 @@ static void SetBit64 (unsigned int bit, unsigned __int8 *a)
 	a[(63 - bit) / 8] |= 0x80 >> ((63 - bit) % 8);
 }
 
-static void MirrorBits128 (unsigned __int8 *a)
+void MirrorBits128 (unsigned __int8 *a)
 {
 	unsigned __int8 t[128 / 8];
 	int i;

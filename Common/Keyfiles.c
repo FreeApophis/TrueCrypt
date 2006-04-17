@@ -1,5 +1,5 @@
 /* 
-Copyright (c) 2004-2005 TrueCrypt Foundation. All rights reserved. 
+Copyright (c) 2004-2006 TrueCrypt Foundation. All rights reserved. 
 
 Covered by TrueCrypt License 2.0 the full text of which is contained in the file
 License.txt included in TrueCrypt binary and source code distribution archives. 
@@ -422,16 +422,18 @@ BOOL WINAPI KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPara
 		if (lw == IDC_KEYADD)
 		{
 			KeyFile *kf = malloc (sizeof (KeyFile));
+			if (SelectMultipleFiles (hwndDlg, "SELECT_KEYFILE", kf->FileName, FALSE))
+			{
+				do
+				{
+					param->FirstKeyFile = KeyFileAdd (param->FirstKeyFile, kf);
+					LoadKeyList (hwndDlg, param->FirstKeyFile);
 
-			if (BrowseFiles (hwndDlg, "SELECT_KEYFILE", kf->FileName, FALSE, FALSE))
-			{
-				param->FirstKeyFile = KeyFileAdd (param->FirstKeyFile, kf);
-				LoadKeyList (hwndDlg, param->FirstKeyFile);
+					kf = malloc (sizeof (KeyFile));
+				} while (SelectMultipleFilesNext (kf->FileName));
 			}
-			else
-			{
-				free (kf);
-			}
+
+			free (kf);
 			return 1;
 		}
 

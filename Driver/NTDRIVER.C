@@ -2,7 +2,7 @@
    the source code of Encryption for the Masses 2.02a, which is Copyright (c)
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
    Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
@@ -45,6 +45,7 @@ DriverEntry (PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 	DriverObject->MajorFunction[IRP_MJ_CLEANUP] = TCDispatchQueueIRP;
 	DriverObject->MajorFunction[IRP_MJ_FLUSH_BUFFERS] = TCDispatchQueueIRP;
 	DriverObject->MajorFunction[IRP_MJ_SHUTDOWN] = TCDispatchQueueIRP;
+	DriverObject->MajorFunction[IRP_MJ_PNP] = TCDispatchQueueIRP;
 	DriverObject->MajorFunction[IRP_MJ_READ] = TCDispatchQueueIRP;
 	DriverObject->MajorFunction[IRP_MJ_WRITE] = TCDispatchQueueIRP;
 	DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = TCDispatchQueueIRP;
@@ -157,6 +158,7 @@ TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 			}
 			else if (Extension->bShuttingDown)
 			{
+				Dump ("Device %d shut down -> STATUS_IO_DEVICE_ERROR\n", Extension->nDosDriveNo);
 				if (DeviceObject->Vpb && DeviceObject->Vpb->Flags & VPB_MOUNTED)
 				{
 					Irp->IoStatus.Status = STATUS_NO_MEDIA_IN_DEVICE;
@@ -237,7 +239,7 @@ TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 			KeReleaseMutex (&Extension->KernelMutex, FALSE);
 #endif
 		if (Extension->bRootDevice)
-			UnmountAllDevices (DeviceObject, TRUE);
+			UnmountAllDevices (DeviceObject, TRUE, FALSE, TRUE);
 
 		return COMPLETE_IRP (DeviceObject, Irp, STATUS_SUCCESS, 0);
 
@@ -305,6 +307,19 @@ TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 #endif
 
 		return COMPLETE_IRP (DeviceObject, Irp, STATUS_DRIVER_INTERNAL_ERROR, 0);
+
+	case IRP_MJ_PNP:
+		if (irpSp->MinorFunction == IRP_MN_DEVICE_USAGE_NOTIFICATION)
+		{
+			if (!Extension->bRootDevice && Extension->bSystemVolume)
+			{
+				Dump ("IRP_MN_DEVICE_USAGE_NOTIFICATION OK\n");
+				return COMPLETE_IRP (DeviceObject, Irp, STATUS_SUCCESS, 0);
+			}
+
+			Dump ("IRP_MN_DEVICE_USAGE_NOTIFICATION UNSUCCESSFUL\n");
+			return COMPLETE_IRP (DeviceObject, Irp, STATUS_UNSUCCESSFUL, 0);
+		}
 	}
 
 #ifdef _DEBUG
@@ -815,6 +830,8 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 				PEXTENSION ListExtension = (PEXTENSION) ListDevice->DeviceExtension;
 				if (ListExtension->lMagicNumber == 0xabfeacde
 					&& ListExtension->bRootDevice == FALSE
+					&& !ListExtension->bSystemVolume
+					&& !ListExtension->bPersistentVolume
 					&& !ListExtension->bShuttingDown)
 				{
 					list->ulMountedDrives |= (1 << ListExtension->nDosDriveNo);
@@ -875,6 +892,8 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 					prop->headerCreationTime = ListExtension->cryptoInfo->header_creation_time;
 					prop->readOnly = ListExtension->bReadOnly;
 					prop->hiddenVolume = ListExtension->cryptoInfo->hiddenVolume;
+					prop->systemVolume = ListExtension->bSystemVolume;
+					prop->persistentVolume = ListExtension->bPersistentVolume;
 
 					if (ListExtension->cryptoInfo->bProtectHiddenVolume)
 						prop->hiddenVolProtection = ListExtension->cryptoInfo->bHiddenVolProtectionAction ? HIDVOL_PROT_STATUS_ACTION_TAKEN : HIDVOL_PROT_STATUS_ACTIVE;
@@ -965,7 +984,10 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 					unmount->nReturnCode = UnmountDevice (ListDevice, unmount->ignoreOpenFiles);
 					DriverMutexRelease ();
 					break;
-				}	
+				}
+
+				if (ListDevice == NULL)
+					break;
 			}
 
 			Irp->IoStatus.Information = sizeof (UNMOUNT_STRUCT);
@@ -983,7 +1005,7 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 		{
 			UNMOUNT_STRUCT *unmount = (UNMOUNT_STRUCT *) Irp->AssociatedIrp.SystemBuffer;
 
-			unmount->nReturnCode = UnmountAllDevices (DeviceObject, unmount->ignoreOpenFiles);
+			unmount->nReturnCode = UnmountAllDevices (DeviceObject, unmount->ignoreOpenFiles, FALSE, FALSE);
 
 			Irp->IoStatus.Information = sizeof (UNMOUNT_STRUCT);
 			Irp->IoStatus.Status = STATUS_SUCCESS;
@@ -1030,6 +1052,9 @@ TCStartThread (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, MOUNT_STRUCT *
 	}
 	else
 		process = NULL;
+
+	Extension->bSystemVolume = mount->bSystemVolume;
+	Extension->bPersistentVolume = mount->bPersistentVolume;
 
 	Extension->bThreadShouldQuit = FALSE;
 
@@ -1152,7 +1177,8 @@ TCThreadIRP (PVOID Context)
 	}
 	else
 	{
-		wcsncpy (pThreadBlock->wszMountVolume, pThreadBlock->mount->wszVolume,
+		pThreadBlock->wszMountVolume[0] = 0;
+		wcsncat (pThreadBlock->wszMountVolume, pThreadBlock->mount->wszVolume,
 			sizeof (pThreadBlock->wszMountVolume) / 2 - 1);
 		bDevice = TRUE;
 	}
@@ -1464,7 +1490,9 @@ TCDeleteDeviceObject (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension)
 			TCStopThread (DeviceObject, Extension);
 	}
 
-	DeviceObject = DeviceObject->NextDevice;
+	if (DeviceObject != NULL)
+		DeviceObject = DeviceObject->NextDevice;
+
 	IoDeleteDevice (OldDeviceObject);
 
 	Dump ("TCDeleteDeviceObject END\n");
@@ -1479,7 +1507,7 @@ TCUnloadDriver (PDRIVER_OBJECT DriverObject)
 
 	Dump ("TCUnloadDriver BEGIN\n");
 
-	UnmountAllDevices (DeviceObject, TRUE);
+	UnmountAllDevices (DeviceObject, TRUE, TRUE, TRUE);
 
 	/* Now walk the list of driver objects and get rid of them */
 	while (DeviceObject != (PDEVICE_OBJECT) NULL)
@@ -1821,6 +1849,8 @@ UnmountDevice (PDEVICE_OBJECT deviceObject, BOOL ignoreOpenFiles)
 	HANDLE volumeHandle;
 	PFILE_OBJECT volumeFileObject;
 
+	Dump ("UnmountDevice %d\n", extension->nDosDriveNo);
+
 	ntStatus = TCOpenFsVolume (extension, &volumeHandle, &volumeFileObject);
 	if (!NT_SUCCESS (ntStatus))
 	{
@@ -1828,24 +1858,32 @@ UnmountDevice (PDEVICE_OBJECT deviceObject, BOOL ignoreOpenFiles)
 		CreateDriveLink (extension->nDosDriveNo);
 
 		ntStatus = TCOpenFsVolume (extension, &volumeHandle, &volumeFileObject);
-
-		if (!NT_SUCCESS (ntStatus))
-			return ntStatus;
 	}
 
-	// Lock volume
-	ntStatus = TCFsctlCall (volumeFileObject, FSCTL_LOCK_VOLUME, 0, 0, 0, 0);
-	Dump ("FSCTL_LOCK_VOLUME returned %X\n", ntStatus);
-
-	if (!NT_SUCCESS (ntStatus) && !ignoreOpenFiles)
+	if (NT_SUCCESS (ntStatus))
 	{
-		TCCloseFsVolume (volumeHandle, volumeFileObject);
-		return ERR_FILES_OPEN;
-	}
+		// Lock volume
+		ntStatus = TCFsctlCall (volumeFileObject, FSCTL_LOCK_VOLUME, 0, 0, 0, 0);
+		Dump ("FSCTL_LOCK_VOLUME returned %X\n", ntStatus);
 
-	// Dismount volume
-	ntStatus = TCFsctlCall (volumeFileObject, FSCTL_DISMOUNT_VOLUME, 0, 0, 0, 0);
-	Dump ("FSCTL_DISMOUNT_VOLUME returned %X\n", ntStatus);
+		if (!NT_SUCCESS (ntStatus) && !ignoreOpenFiles)
+		{
+			TCCloseFsVolume (volumeHandle, volumeFileObject);
+			return ERR_FILES_OPEN;
+		}
+
+		// Dismount volume
+		ntStatus = TCFsctlCall (volumeFileObject, FSCTL_DISMOUNT_VOLUME, 0, 0, 0, 0);
+		Dump ("FSCTL_DISMOUNT_VOLUME returned %X\n", ntStatus);
+	}
+	else 
+	{
+		// Volume cannot be opened => force dismount if allowed
+		if (!ignoreOpenFiles)
+			return ERR_FILES_OPEN;
+		else
+			volumeHandle = NULL;
+	}
 
 	extension->bShuttingDown = TRUE;
 	if (deviceObject->Vpb && deviceObject->Vpb->Flags & VPB_MOUNTED)
@@ -1855,11 +1893,12 @@ UnmountDevice (PDEVICE_OBJECT deviceObject, BOOL ignoreOpenFiles)
 
 	if (extension->bMountManager)
 		MountManagerUnmount (extension->nDosDriveNo);
-	
+
 	// We always remove symbolic link as mount manager might fail to do so
 	RemoveDriveLink (extension->nDosDriveNo);
 
-	TCCloseFsVolume (volumeHandle, volumeFileObject);
+	if (volumeHandle != NULL)
+		TCCloseFsVolume (volumeHandle, volumeFileObject);
 
 	Dump ("Deleting DeviceObject with ref count %ld\n", deviceObject->ReferenceCount);
 	deviceObject->ReferenceCount = 0;
@@ -1868,7 +1907,7 @@ UnmountDevice (PDEVICE_OBJECT deviceObject, BOOL ignoreOpenFiles)
 }
 
 NTSTATUS
-UnmountAllDevices (PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles)
+UnmountAllDevices (PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles, BOOL unmountSystem, BOOL unmountPersistent)
 {
 	NTSTATUS status = 0;
 	PDEVICE_OBJECT ListDevice;
@@ -1882,11 +1921,28 @@ UnmountAllDevices (PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles)
 		ListDevice = ListDevice->NextDevice)
 	{
 		PEXTENSION ListExtension = (PEXTENSION) ListDevice->DeviceExtension;
-		if (ListExtension->bRootDevice == FALSE && !ListExtension->bShuttingDown)
+		if (ListExtension->bRootDevice == FALSE)
 		{
-			NTSTATUS ntStatus = UnmountDevice (ListDevice, ignoreOpenFiles);
-			status = ntStatus == 0 ? status : ntStatus;
+			if (!ListExtension->bShuttingDown
+				&& (unmountSystem || !ListExtension->bSystemVolume)
+				&& (unmountPersistent || !ListExtension->bPersistentVolume))
+			{
+				NTSTATUS ntStatus = UnmountDevice (ListDevice, ignoreOpenFiles);
+				status = ntStatus == 0 ? status : ntStatus;
+			}
+			else if (unmountPersistent
+				&& ListExtension->bSystemVolume
+				&& !ListExtension->bShuttingDown)
+			{
+				// If the driver is shutting down, set system volumes to reject
+				// all IO requests so that OS does not complain because of paging files
+				Dump ("System volume %d shutdown\n", ListExtension->nDosDriveNo);
+				ListExtension->bShuttingDown = TRUE;
+			}
 		}
+
+		if (ListDevice == NULL)
+			break;
 	}
 
 	DriverMutexRelease ();

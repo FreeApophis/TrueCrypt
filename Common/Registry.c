@@ -1,5 +1,5 @@
 /* 
-Copyright (c) 2004-2005 TrueCrypt Foundation. All rights reserved. 
+Copyright (c) 2004-2006 TrueCrypt Foundation. All rights reserved. 
 Copyright (c) 2004 TrueCrypt Team. All rights reserved. 
 
 Covered by TrueCrypt License 2.0 the full text of which is contained in the file

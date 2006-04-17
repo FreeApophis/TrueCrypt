@@ -2,7 +2,7 @@
    the source code of Encryption for the Masses 2.02a, which is Copyright (c)
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
    Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
@@ -59,16 +59,24 @@ static EncryptionAlgorithm EncryptionAlgorithms[] =
 	{ { SERPENT,				0 } , { LRW, CBC, 0 }		},
 	{ { TRIPLEDES,				0 } , { LRW, CBC, 0 }		},
 	{ { TWOFISH,				0 } , { LRW, CBC, 0 }		},
-	{ { BLOWFISH, AES,			0 } , { INNER_CBC, 0, 0 }	},
-	{ { SERPENT, BLOWFISH, AES,	0 } , { INNER_CBC, 0, 0 }	},
 	{ { TWOFISH, AES,			0 } , { LRW, OUTER_CBC, 0 }	},
 	{ { SERPENT, TWOFISH, AES,	0 } , { LRW, OUTER_CBC, 0 }	},
 	{ { AES, SERPENT,			0 } , { LRW, OUTER_CBC, 0 }	},
 	{ { AES, TWOFISH, SERPENT,	0 } , { LRW, OUTER_CBC, 0 }	},
 	{ { SERPENT, TWOFISH,		0 } , { LRW, OUTER_CBC, 0 }	},
+	{ { BLOWFISH, AES,			0 } , { INNER_CBC, 0, 0 }	},
+	{ { SERPENT, BLOWFISH, AES,	0 } , { INNER_CBC, 0, 0 }	},
 	{ { 0,						0 } , { 0, 0, 0 }			}	// Must be all-zero
 };
 
+// Hash algorithms
+static Hash Hashes[] =
+{
+	{ RIPEMD160, "RIPEMD-160" },
+	{ SHA1, "SHA-1" },
+	{ WHIRLPOOL, "Whirlpool" },
+	{ 0, 0 }
+};
 
 /* Return values: 0 = success, ERR_CIPHER_INIT_FAILURE (fatal), ERR_CIPHER_INIT_WEAK_KEY (non-fatal) */
 int CipherInit (int cipher, unsigned char *key, unsigned __int8 *ks)
@@ -135,6 +143,13 @@ int CipherInit (int cipher, unsigned char *key, unsigned __int8 *ks)
 			retVal = ERR_CIPHER_INIT_WEAK_KEY;		// Non-fatal error
 			break;
 		}
+
+		// Verify whether all three DES keys are mutually different
+		if (((*((__int64 *) key) ^ *((__int64 *) key+1)) & 0xFEFEFEFEFEFEFEFE) == 0
+		|| ((*((__int64 *) key+1) ^ *((__int64 *) key+2)) & 0xFEFEFEFEFEFEFEFE) == 0
+		|| ((*((__int64 *) key) ^ *((__int64 *) key+2)) & 0xFEFEFEFEFEFEFEFE) == 0)
+			retVal = ERR_CIPHER_INIT_WEAK_KEY;		// Non-fatal error
+
 		break;
 
 	case TWOFISH:
@@ -473,15 +488,31 @@ int EAGetPreviousCipher (int ea, int previousCipherId)
 }
 
 
-char *get_hash_algo_name (int hash_algo_id)
+Hash *HashGet (int id)
 {
-	switch (hash_algo_id)
-	{
-	case SHA1:		return "SHA-1";
-	case RIPEMD160:	return "RIPEMD-160";
-	case WHIRLPOOL:	return "Whirlpool";
-	default:		return "Unknown";
-	}
+	int i;
+	for (i = 0; Hashes[i].Id != 0; i++)
+		if (Hashes[i].Id == id)
+			return &Hashes[i];
+
+	return 0;
+}
+
+
+int HashGetIdByName (char *name)
+{
+	int i;
+	for (i = 0; Hashes[i].Id != 0; i++)
+		if (strcmp (Hashes[i].Name, name) == 0)
+			return Hashes[i].Id;
+
+	return 0;
+}
+
+
+char *HashGetName (int hashId)
+{
+	return HashGet (hashId) -> Name;
 }
 
 
@@ -489,7 +520,9 @@ PCRYPTO_INFO
 crypto_open ()
 {
 	/* Do the crt allocation */
-	PCRYPTO_INFO cryptoInfo = TCalloc (sizeof (CRYPTO_INFO));
+	PCRYPTO_INFO cryptoInfo = (PCRYPTO_INFO) TCalloc (sizeof (CRYPTO_INFO));
+	memset (cryptoInfo, 0, sizeof (CRYPTO_INFO));
+
 #ifndef DEVICE_DRIVER
 #ifdef _WIN32
 	VirtualLock (cryptoInfo, sizeof (CRYPTO_INFO));
@@ -525,7 +558,49 @@ crypto_close (PCRYPTO_INFO cryptoInfo)
 		TCfree (cryptoInfo);
 	}
 }
- 
+
+
+// Detect weak and potentially weak secondary LRW keys.
+// Remark: These tests reduce the key search space by approximately 0.001%
+BOOL DetectWeakSecondaryKey (unsigned char *key, int len)
+{
+#define LRW_MAX_SUCCESSIVE_IDENTICAL_BITS	24
+#define LRW_MIN_HAMMING_WEIGHT_16			39
+#define LRW_MIN_HAMMING_WEIGHT_8			15
+
+	int minWeight = (len == 16 ? LRW_MIN_HAMMING_WEIGHT_16 : LRW_MIN_HAMMING_WEIGHT_8);
+	int i, b, zero = 0, one = 0, zeroTotal = 0, oneTotal = 0;
+
+	for (i = 0; i < len; i++)
+	{
+		for (b = 7; b >= 0; b--)
+		{
+			if ((key[i] & (1 << b)) == 0)
+			{
+				zeroTotal++;
+				zero++;
+				one = 0;
+			}
+			else
+			{
+				oneTotal++;
+				one++;
+				zero = 0;
+			}
+
+			// Maximum number of consecutive identical bit values
+			if (one >= LRW_MAX_SUCCESSIVE_IDENTICAL_BITS || zero >= LRW_MAX_SUCCESSIVE_IDENTICAL_BITS)
+				return TRUE;
+		}
+	}
+
+	// Minimum and maximum Hamming weight
+	if (zeroTotal < minWeight || oneTotal < minWeight)
+		return TRUE;
+
+	return FALSE;
+}
+
 
 // Initializes IV and whitening values for sector encryption/decryption in CBC mode.
 // IMPORTANT: This function has been deprecated (legacy).

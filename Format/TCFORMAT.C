@@ -2,7 +2,7 @@
    the source code of Encryption for the Masses 2.02a, which is Copyright (c)
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
    Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
@@ -91,10 +91,10 @@ BOOL bHistory = FALSE;		/* Remember all the settings */
 
 BOOL bHistoryCmdLine = FALSE; /* History control is always disabled */
 
-int nPbar = 0;			/* Control ID of progress bar:- for format
-				   code */
+int nPbar = 0;			/* Control ID of progress bar:- for format code */
 
-volatile BOOL quickFormat = FALSE;
+volatile BOOL bSparseFileSwitch = FALSE;
+volatile BOOL quickFormat = FALSE;	/* WARNING: Meaning of this variable depends on bSparseFileSwitch. If bSparseFileSwitch is TRUE, this variable represents the sparse file flag. */
 volatile int fileSystem = 0;
 volatile int clusterSize = 0;
 
@@ -290,7 +290,7 @@ VerifySizeAndUpdate (HWND hwndDlg, BOOL bUpdate)
 	else
 	{
 		i = nMultiplier;
-		lTmp = atoi64 (szTmp);
+		lTmp = _atoi64 (szTmp);
 	}
 
 	if (bEnable)
@@ -437,7 +437,7 @@ formatThreadFunction (void *hwndDlg)
 					{
 						if (quickFormat && i > 1)
 						{ 
-							// Quickformat prevents overwriting of existing filesystems and
+							// Quickformat prevents overwriting existing filesystems and
 							// an eventual remount could corrupt the volume
 							MessageBoxW (hwndDlg, GetString ("ERR_MOUNTED_FILESYSTEMS"), lpszTitle, MB_ICONSTOP);
 							goto cancel;
@@ -470,6 +470,7 @@ formatThreadFunction (void *hwndDlg)
 				nVolumeEA,
 				hash_algo,
 				quickFormat,
+				bSparseFileSwitch,
 				fileSystem,
 				clusterSize,
 				summaryMsg,
@@ -557,6 +558,8 @@ formatThreadFunction (void *hwndDlg)
 
 			if (bHiddenVol)
 				bHiddenVolFinished = TRUE;
+			else if (bSparseFileSwitch && quickFormat)
+				Warning("SPARSE_FILE_SIZE_NOTE");
 		}
 		else
 		{
@@ -805,6 +808,55 @@ EnableDisableFileNext (HWND hComboBox, HWND hMainButton)
 		EnableWindow (hMainButton, TRUE);
 		SetFocus (hMainButton);
 	}
+}
+
+
+// Returns TRUE if the file is a sparse file. If it's not a sparse file or in case of any error, returns FALSE.
+BOOL IsSparseFile (HWND hwndDlg)
+{
+	HANDLE hFile;
+	BY_HANDLE_FILE_INFORMATION bhFileInfo;
+
+	FILETIME ftLastAccessTime;
+	BOOL bTimeStampValid = FALSE;
+
+	BOOL retCode = FALSE;
+
+	hFile = CreateFile (szFileName, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+
+	if (hFile == INVALID_HANDLE_VALUE)
+	{
+		MessageBoxW (hwndDlg, GetString ("CANT_ACCESS_VOL"), lpszTitle, ICON_HAND);
+		return FALSE;
+	}
+
+	if (bPreserveTimestamp)
+	{
+		/* Remember the container timestamp (used to reset file date and time of file-hosted
+		   containers to preserve plausible deniability of hidden volumes)  */
+		if (GetFileTime (hFile, NULL, &ftLastAccessTime, NULL) == 0)
+		{
+			bTimeStampValid = FALSE;
+			MessageBoxW (hwndDlg, GetString ("GETFILETIME_FAILED_IMPLANT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
+		}
+		else
+			bTimeStampValid = TRUE;
+	}
+
+	bhFileInfo.dwFileAttributes = 0;
+
+	GetFileInformationByHandle(hFile, &bhFileInfo);
+
+	retCode = bhFileInfo.dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE;
+
+	if (bTimeStampValid)
+	{
+		// Restore the container timestamp (to preserve plausible deniability). 
+		if (SetFileTime (hFile, NULL, &ftLastAccessTime, NULL) == 0)
+			MessageBoxW (hwndDlg, GetString ("SETFILETIME_FAILED_PREP_IMPLANT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
+	}
+	CloseHandle (hFile);
+	return retCode;
 }
 
 
@@ -1154,7 +1206,7 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				hash_algo = RandGetHashFunction();
 				for (hid = 1; hid <= LAST_PRF_ID; hid++)
 				{
-					AddComboPair (GetDlgItem (hwndDlg, IDC_COMBO_BOX_HASH_ALGO), get_hash_algo_name(hid), hid);
+					AddComboPair (GetDlgItem (hwndDlg, IDC_COMBO_BOX_HASH_ALGO), HashGetName(hid), hid);
 				}
 				SelectAlgo (GetDlgItem (hwndDlg, IDC_COMBO_BOX_HASH_ALGO), &hash_algo);
 
@@ -1338,7 +1390,43 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				else
 					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("FORMAT_TITLE"));
 
-				EnableWindow (GetDlgItem (hwndDlg, IDC_QUICKFORMAT), bDevice && (!bHiddenVol));
+				if (bDevice)
+				{
+					bSparseFileSwitch = FALSE;
+					SetWindowTextW (GetDlgItem (hwndDlg, IDC_QUICKFORMAT), GetString("IDC_QUICKFORMAT"));
+					EnableWindow (GetDlgItem (hwndDlg, IDC_QUICKFORMAT), !bHiddenVol);
+
+					if (bHiddenVol)
+						SetCheckBox (hwndDlg, IDC_QUICKFORMAT, !bHiddenVolHost);
+				}
+				else
+				{
+					char szRoot[TC_MAX_PATH];
+					DWORD fileSystemFlags = 0;
+
+					SetWindowTextW (GetDlgItem (hwndDlg, IDC_QUICKFORMAT), GetString("SPARSE_FILE"));
+
+					/* Check if the host file system supports sparse files */
+
+					GetVolumeInformation(MakeRootName (szRoot, szFileName), NULL, 0, NULL,
+						NULL, &fileSystemFlags, NULL, 0);
+
+					bSparseFileSwitch = fileSystemFlags & FILE_SUPPORTS_SPARSE_FILES;
+
+					if (bHiddenVol)
+						SetCheckBox (hwndDlg, IDC_QUICKFORMAT, FALSE);
+
+					if (bSparseFileSwitch) 
+					{
+						// File system supports sparse files
+						EnableWindow (GetDlgItem (hwndDlg, IDC_QUICKFORMAT), !bHiddenVol);
+					}
+					else
+					{
+						// File system supports sparse files
+						EnableWindow (GetDlgItem (hwndDlg, IDC_QUICKFORMAT), FALSE);
+					}
+				}
 
 				SendMessage (GetDlgItem (hwndDlg, IDC_SHOW_KEYS), BM_SETCHECK, showKeys ? BST_CHECKED : BST_UNCHECKED, 0);
 				SetWindowText (GetDlgItem (hwndDlg, IDC_RANDOM_BYTES), showKeys ? "" : "********************************");
@@ -1374,7 +1462,7 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				else
 				{
 					if (bHiddenVol)
-						SendMessage (GetDlgItem (hwndDlg, IDC_QUICKFORMAT), BM_SETCHECK, BST_CHECKED, 0);
+						SetCheckBox (hwndDlg, IDC_QUICKFORMAT, !bSparseFileSwitch);
 
 					AddComboPairW (GetDlgItem (hwndDlg, IDC_FILESYS), GetString ("NONE"), FILESYS_NONE);
 
@@ -1688,7 +1776,15 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		if (lw == IDC_QUICKFORMAT && IsButtonChecked (GetDlgItem (hCurPage, IDC_QUICKFORMAT)))
 		{
-			MessageBoxW (hwndDlg, GetString ("WARN_QUICK_FORMAT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
+			if (bSparseFileSwitch)
+			{
+				if (AskWarnNoYes("CONFIRM_SPARSE_FILE") == IDNO)
+					SetCheckBox (hwndDlg, IDC_QUICKFORMAT, FALSE); 
+			}
+			else
+			{
+				Warning("WARN_QUICK_FORMAT");
+			}
 			return 1;
 		}
 
@@ -1802,7 +1898,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	case WM_THREAD_ENDED:
 		if (!bHiddenVolHost)
 		{
-			EnableWindow (GetDlgItem (hCurPage, IDC_QUICKFORMAT), bDevice && (!bHiddenVol));
+			EnableWindow (GetDlgItem (hCurPage, IDC_QUICKFORMAT), (bDevice || bSparseFileSwitch) && (!bHiddenVol));
 			EnableWindow (GetDlgItem (hCurPage, IDC_FILESYS), TRUE);
 		}
 		EnableWindow (GetDlgItem (hCurPage, IDC_CLUSTERSIZE), TRUE);
@@ -1900,6 +1996,13 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						{
 							nCurPageNo = FILE_PAGE - 1;
 						}
+
+						if (IsSparseFile (hwndDlg))
+						{
+							// Hidden volumes must not be created within sparse file containers
+							Warning ("HIDDEN_HOST_SPARSE");
+							nCurPageNo = FILE_PAGE - 1;
+						}
 					}
 				}
 				else
@@ -1931,17 +2034,38 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 			else if (nCurPageNo == SIZE_PAGE)
 			{
+				char szRoot[TC_MAX_PATH];
+				char szFileSystemNameBuffer[256];
 				BOOL cancel = FALSE;
 
 				VerifySizeAndUpdate (hCurPage, TRUE);
 
-				/* Warn if a 64-bit block cipher is selected for a too large volume */
-				if (CipherGetBlockSize (EAGetFirstCipher (nVolumeEA)) == 8	// If a 64-bit block cipher is selected
-					&& nUIVolumeSize * nMultiplier >= 34359738368			// If the volume size over 32 GB (birthday paradox)
+				/* Warn and ask for confirmation if a 64-bit block cipher is selected for a too large volume. */
+				if (CipherGetBlockSize (EAGetFirstCipher (nVolumeEA)) == 8
+					&& nUIVolumeSize * nMultiplier > WARN_VOL_SIZE_BLOCK64
 					&& AskWarnNoYes ("WARN_VOL_SIZE_VS_BLOCK_SIZE") == IDNO)
 				{
 					cancel = TRUE;
 				}
+
+
+				if (!bDevice)
+				{
+					/* Verify that volume would not be too large for the host file system */
+					GetVolumeInformation(MakeRootName (szRoot, szFileName), NULL, 0, NULL,
+						NULL, NULL, szFileSystemNameBuffer, sizeof(szFileSystemNameBuffer));
+
+					if (!strncmp (szFileSystemNameBuffer, "FAT32", 5))
+					{
+						// The host file system is FAT32
+						if (nUIVolumeSize * nMultiplier >= 4 * BYTES_PER_GB)
+						{
+							Error ("VOLUME_TOO_LARGE_FOR_FAT32");
+							cancel = TRUE;
+						}
+					}
+				}
+
 				if (cancel)
 					nCurPageNo--;
 				else if (!(bHiddenVolDirect && bHiddenVolHost))
@@ -2086,7 +2210,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					quickFormat = FALSE;
 				}
 				else if (bHiddenVol)
-					quickFormat = TRUE;
+					quickFormat = !bSparseFileSwitch;
 				else
 					quickFormat = IsButtonChecked (GetDlgItem (hCurPage, IDC_QUICKFORMAT));
 
@@ -2485,6 +2609,7 @@ efsf_error:
 int MountHiddenVolHost (HWND hwndDlg, char *volumePath, int *driveNo, Password *password)
 {
 	MountOptions mountOptions;
+	ZeroMemory (&mountOptions, sizeof (mountOptions));
 
 	*driveNo = GetLastAvailableDrive ();
 

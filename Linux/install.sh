@@ -36,9 +36,10 @@ then
 	fi
 fi
 
-modprobe dm-mod >&- 2>&-
+lsmod | grep -q ^dm_mod
+[ $? -ne 0 ] && modprobe dm-mod >&- 2>&- && sleep 1
 
-if ! dmsetup targets >&- 2>&-
+if ! dmsetup targets >&-
 then
 	error "TrueCrypt requires device mapper tools (dmsetup) 1.00.08 or later."
 	exit 1
@@ -88,22 +89,22 @@ echo
 echo -n "Install binaries to [$BIN_DIR]: "
 read A
 [ "$A" ] && BIN_DIR=$A
-[ ! -d $BIN_DIR ] && error "$BIN_DIR does not exist" && exit 1
+[ ! -d "$BIN_DIR" ] && error "$BIN_DIR does not exist" && exit 1
 
 echo -n "Install man page to [$MAN_DIR]: "
 read A
 [ "$A" ] && MAN_DIR=$A
-[ ! -d $MAN_DIR/man1 ] && error "$MAN_DIR/man1 does not exist" && exit 1
+[ ! -d "$MAN_DIR/man1" ] && error "$MAN_DIR/man1 does not exist" && exit 1
 MAN_DIR=$MAN_DIR/man1
 
 echo -n "Allow non-admin users to run TrueCrypt [y/N]: "
 read A
-[ "$A" = "y" ] && BIN_PERM=4755
+[ "$A" = "y" -o "$A" = "Y" ] && BIN_PERM=4755
 
 echo -n "Installing kernel module... "
 # make "KERNEL_SRC=$KERNEL_SRC" install >/dev/null
-mkdir $MOD_DIR 2>&-  # some distributions omit extra directory
-cp Kernel/truecrypt.ko $MOD_DIR && chmod 600 $MOD_DIR/truecrypt.ko && depmod -a
+mkdir "$MOD_DIR" 2>&-  # some distributions omit extra directory
+cp Kernel/truecrypt.ko "$MOD_DIR" && chmod 600 $MOD_DIR/truecrypt.ko && depmod -a
 [ $? -ne 0 ] && error "Failed to install kernel module" && exit 1
 echo Done.
 

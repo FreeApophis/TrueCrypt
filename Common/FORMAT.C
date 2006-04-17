@@ -2,7 +2,7 @@
    the source code of Encryption for the Masses 2.02a, which is Copyright (c)
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
    Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
@@ -13,12 +13,14 @@
 #include "Fat.h"
 #include "Format.h"
 #include "Volumes.h"
-#include "Progress.h"
+#include "Common.h"
+
+#ifdef _WIN32
 #include "Apidrvr.h"
 #include "Dlgcode.h"
 #include "Language.h"
+#include "Progress.h"
 #include "Resource.h"
-#include "Common.h"
 #include "Random.h"
 
 int
@@ -31,6 +33,7 @@ FormatVolume (char *lpszFilename,
 	      int ea,
 	      int pkcs5,
 		  BOOL quickFormat,
+		  BOOL sparseFileSwitch,
 		  int fileSystem,
 		  int clusterSize,
 		  wchar_t *summaryMsg,
@@ -42,7 +45,6 @@ FormatVolume (char *lpszFilename,
 	PCRYPTO_INFO cryptoInfo;
 	HANDLE dev = INVALID_HANDLE_VALUE;
 	DWORD dwError, dwThen, dwNow;
-	diskio_f write;
 	char header[SECTOR_SIZE];
 	unsigned __int64 num_sectors, startSector;
 	fatparams ft;
@@ -77,8 +79,6 @@ FormatVolume (char *lpszFilename,
 		return nStatus;
 	}
 
-	write = (diskio_f) _lwrite;
-
 	if (bDevice)
 	{
 		dev = CreateFile (lpszFilename, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
@@ -105,12 +105,31 @@ FormatVolume (char *lpszFilename,
 			hiddenVol ? (FILE_SHARE_READ | FILE_SHARE_WRITE) : 0,
 			NULL, hiddenVol ? OPEN_EXISTING : CREATE_ALWAYS, 0, NULL);
 
+		if (dev == INVALID_HANDLE_VALUE)
+		{
+			handleWin32Error (hwndDlg);
+			nStatus = ERR_OS_ERROR; 
+			goto error;
+		}
+
 		if (!hiddenVol)
 		{
-			// Preallocate the file
 			LARGE_INTEGER volumeSize;
-			volumeSize.QuadPart = size;
+			volumeSize.QuadPart = size + HEADER_SIZE;
 
+			if (sparseFileSwitch && quickFormat)
+			{
+				// Create as sparse file container
+				DWORD tmp;
+				if (!DeviceIoControl (dev, FSCTL_SET_SPARSE, NULL, 0, NULL, 0, &tmp, NULL))
+				{
+					handleWin32Error (hwndDlg);
+					nStatus = ERR_OS_ERROR; 
+					goto error;
+				}
+			}
+
+			// Preallocate the file
 			if (!SetFilePointerEx (dev, volumeSize, NULL, FILE_BEGIN)
 				|| !SetEndOfFile (dev)
 				|| SetFilePointer (dev, 0, NULL, FILE_BEGIN) != 0)
@@ -120,13 +139,6 @@ FormatVolume (char *lpszFilename,
 				goto error;
 			}
 		}
-	}
-
-	if (dev == INVALID_HANDLE_VALUE)
-	{
-		handleWin32Error (hwndDlg);
-		nStatus = ERR_OS_ERROR; 
-		goto error;
 	}
 
 	if (hiddenVol && !bDevice && bPreserveTimestamp)
@@ -170,7 +182,7 @@ FormatVolume (char *lpszFilename,
 	}
 
 	// Write the volume header
-	if ((*write) ((HFILE) dev, header, HEADER_SIZE) == HFILE_ERROR)
+	if (_lwrite ((HFILE) dev, header, HEADER_SIZE) == HFILE_ERROR)
 		return ERR_OS_ERROR;
 
 
@@ -201,7 +213,7 @@ FormatVolume (char *lpszFilename,
 	{
 	case FILESYS_NONE:
 	case FILESYS_NTFS: // NTFS volume is just prepared for quick format performed by system
-		nStatus = FormatNoFs (startSector, num_sectors, (HFILE) dev, cryptoInfo, write, quickFormat);
+		nStatus = FormatNoFs (startSector, num_sectors, dev, cryptoInfo, quickFormat);
 		break;
 
 	case FILESYS_FAT:
@@ -218,7 +230,7 @@ FormatVolume (char *lpszFilename,
 		GetFatParams (&ft); 
 		*realClusterSize = ft.cluster_size * SECTOR_SIZE;
 
-		nStatus = FormatFat (startSector, &ft, (HFILE) dev, cryptoInfo, write, quickFormat);
+		nStatus = FormatFat (startSector, &ft, (void *) dev, cryptoInfo, quickFormat);
 		break;
 	}
 
@@ -277,6 +289,7 @@ error:
 				// NTFS format is performed by system so we first need to mount the volume
 				int driveNo = GetLastAvailableDrive ();
 				MountOptions mountOptions;
+				ZeroMemory (&mountOptions, sizeof (mountOptions));
 				
 				if (driveNo == -1)
 				{
@@ -329,16 +342,19 @@ error:
 	return nStatus;
 }
 
+#endif
 
-int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, HFILE dev, PCRYPTO_INFO cryptoInfo, diskio_f write, BOOL quickFormat)
+int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, PCRYPTO_INFO cryptoInfo, BOOL quickFormat)
 {
 	int write_buf_cnt = 0;
 	char sector[SECTOR_SIZE], *write_buf;
 	unsigned __int64 nSecNo = startSector;
-	LARGE_INTEGER startOffset;
-	LARGE_INTEGER newOffset;
 	int retVal;
 	char temporaryKey[DISKKEY_SIZE];
+
+#ifdef _WIN32
+	LARGE_INTEGER startOffset;
+	LARGE_INTEGER newOffset;
 
 	// Seek to start sector
 	startOffset.QuadPart = startSector * SECTOR_SIZE;
@@ -347,8 +363,9 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, HFILE dev, PC
 	{
 		return ERR_VOL_SEEKING;
 	}
+#endif
 
-	write_buf = TCalloc (WRITE_BUF_SIZE);
+	write_buf = (char *) TCalloc (WRITE_BUF_SIZE);
 	memset (sector, 0, sizeof (sector));
 
 	/* Fill the rest of the data area with random data */
@@ -360,8 +377,8 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, HFILE dev, PC
 		deniability of hidden volumes (and also reduces the amount of predictable plaintext
 		within the volume). */
 
-		RandgetBytes (temporaryKey, DISKKEY_SIZE, FALSE);				// Temporary master key
-		RandgetBytes (cryptoInfo->iv, sizeof cryptoInfo->iv, FALSE);	// Secondary key (LRW mode)
+		RandgetBytes (temporaryKey, EAGetKeySize (cryptoInfo->ea), FALSE);	// Temporary master key
+		RandgetBytes (cryptoInfo->iv, sizeof cryptoInfo->iv, FALSE);		// Secondary key (LRW mode)
 
 		retVal = EAInit (cryptoInfo->ea, temporaryKey, cryptoInfo->ks);
 		if (retVal != 0)
@@ -381,19 +398,25 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, HFILE dev, PC
 			here since LRW mode is designed to hide patterns. Furthermore, patterns in plaintext
 			do occur commonly on media in the "real world", so it might actually be a fatal
 			mistake to try to avoid them completely. */
-#if RNG_POOL_SIZE < SECTOR_SIZE
+#if defined(RNG_POOL_SIZE) && RNG_POOL_SIZE < SECTOR_SIZE
 			RandpeekBytes (sector, RNG_POOL_SIZE);
 			RandpeekBytes (sector + RNG_POOL_SIZE, SECTOR_SIZE - RNG_POOL_SIZE);
 #else
-			RandpeekBytes (sector, SECTOR_SIZE);
+			if ((nSecNo & 0xff) == 0)
+				RandpeekBytes (sector, SECTOR_SIZE);
 #endif
 
 			// Encrypt the random plaintext and write it to the disk
 			if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo,
-				cryptoInfo, write) == FALSE)
+				cryptoInfo) == FALSE)
 				goto fail;
 		}
-		if (write_buf_cnt != 0 && (*write) (dev, write_buf, write_buf_cnt) == HFILE_ERROR)
+		if (write_buf_cnt != 0 && 
+#ifdef _WIN32
+			_lwrite ((HFILE)dev, write_buf, write_buf_cnt) == HFILE_ERROR)
+#else
+			fwrite (write_buf, 1, write_buf_cnt, (FILE *)dev) != (size_t)write_buf_cnt)
+#endif
 			goto fail;
 	}
 	else
@@ -412,6 +435,7 @@ fail:
 	return ERR_OS_ERROR;
 }
 
+#ifdef _WIN32
 
 volatile BOOLEAN FormatExResult;
 
@@ -448,13 +472,14 @@ BOOL FormatNtfs (int driveNo, int clusterSize)
 	return FormatExResult;
 }
 
+#endif
+
 BOOL
-WriteSector (HFILE dev, char *sector,
+WriteSector (void *dev, char *sector,
 	     char *write_buf, int *write_buf_cnt,
-	     __int64 *nSecNo, PCRYPTO_INFO cryptoInfo,
-	     diskio_f write)
+	     __int64 *nSecNo, PCRYPTO_INFO cryptoInfo)
 {
-	static DWORD updateTime = 0;
+	static __int32 updateTime = 0;
 
 	EncryptSectors ((unsigned __int32 *) sector,
 		(*nSecNo)++, 1, cryptoInfo);
@@ -464,12 +489,18 @@ WriteSector (HFILE dev, char *sector,
 
 	if (*write_buf_cnt == WRITE_BUF_SIZE)
 	{
-		if ((*write) (dev, write_buf, WRITE_BUF_SIZE) == HFILE_ERROR)
+		if (
+#ifdef _WIN32
+			_lwrite ((HFILE)dev, write_buf, WRITE_BUF_SIZE) == HFILE_ERROR)
+#else
+			fwrite (write_buf, 1, WRITE_BUF_SIZE, (FILE *)dev) != WRITE_BUF_SIZE)
+#endif
 			return FALSE;
 		else
 			*write_buf_cnt = 0;
 	}
 	
+#ifdef _WIN32
 	if (GetTickCount () - updateTime > 25)
 	{
 		if (UpdateProgressBar (*nSecNo))
@@ -477,6 +508,9 @@ WriteSector (HFILE dev, char *sector,
 
 		updateTime = GetTickCount ();
 	}
+#else
+	UpdateProgressBar (*nSecNo);
+#endif
 
 	return TRUE;
 

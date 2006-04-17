@@ -37,7 +37,7 @@ BEGIN
                     NOT WS_TABSTOP
     DEFPUSHBUTTON   "OK",IDOK,121,178,50,14
     LTEXT           "",IDC_HOMEPAGE,18,87,147,12,SS_NOTIFY
-    LTEXT           "Copyright © 2004-2005 TrueCrypt Foundation",IDC_STATIC,
+    LTEXT           "Copyright © 2004-2006 TrueCrypt Foundation",IDC_STATIC,
                     18,71,207,8
     LTEXT           "",IDC_FORUMS,192,87,62,8,SS_NOTIFY | NOT WS_VISIBLE
     CONTROL         50,IDC_ABOUT_IMG,"Static",SS_BITMAP,0,0,293,49,
@@ -92,9 +92,9 @@ BEGIN
                     IDT_HIDDEN_PROT_PASSWD,15,76,91,17
     EDITTEXT        IDC_PASSWORD_PROT_HIDVOL,112,77,151,14,ES_PASSWORD | 
                     ES_AUTOHSCROLL
-    CONTROL         "Display password",IDC_SHOW_PASSWORD_MO,"Button",
+    CONTROL         "&Display password",IDC_SHOW_PASSWORD_MO,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,112,96,90,10
-    CONTROL         "Use keyfiles",IDC_KEYFILES_ENABLE_HIDVOL_PROT,"Button",
+    CONTROL         "U&se keyfiles",IDC_KEYFILES_ENABLE_HIDVOL_PROT,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,112,109,90,10
     PUSHBUTTON      "&Keyfiles...",IDC_KEYFILES_HIDVOL_PROT,203,98,60,14
     DEFPUSHBUTTON   "OK",IDOK,211,7,60,14
@@ -119,15 +119,15 @@ BEGIN
     PUSHBUTTON      "Remove",IDC_KEYREMOVE,139,132,62,14
     PUSHBUTTON      "Remove All",IDC_KEYREMOVEALL,205,132,62,14
     CONTROL         "Use keyfiles",IDC_KEYFILES_ENABLE,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,7,201,63,10
+                    BS_AUTOCHECKBOX | WS_TABSTOP,7,201,195,10
     PUSHBUTTON      "Generate Random Keyfile...",IDC_GENERATE_KEYFILE,210,
                     198,123,14
     LTEXT           "",IDT_KEYFILES_NOTE,10,160,318,29,0,WS_EX_TRANSPARENT
     LTEXT           "WARNING: If you lose a keyfile or if its first 1024 kilobytes are corrupted, it will be impossible to mount volumes that use the keyfile!",
                     IDT_KEYFILE_WARNING,275,44,58,85,0,WS_EX_TRANSPARENT
-    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,2,152,335,1,
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,2,152,339,1,
                     WS_EX_STATICEDGE
-    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,2,190,335,1,
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,2,190,339,1,
                     WS_EX_STATICEDGE
 END
 
@@ -190,7 +190,7 @@ BEGIN
     EDITTEXT        IDC_LRW_KEY,8,93,159,14,ES_AUTOHSCROLL
     EDITTEXT        IDC_LRW_BLOCK_INDEX,8,118,159,14,ES_AUTOHSCROLL
     CONTROL         "LRW mode",IDC_LRW_MODE_ENABLED,"Button",BS_AUTOCHECKBOX | 
-                    WS_TABSTOP,197,94,118,10
+                    WS_TABSTOP,221,13,95,10
     EDITTEXT        IDC_PLAINTEXT,8,151,159,14,ES_AUTOHSCROLL
     COMBOBOX        IDC_PLAINTEXT_SIZE,245,151,36,30,CBS_DROPDOWNLIST | 
                     WS_DISABLED | WS_VSCROLL | WS_TABSTOP
@@ -214,12 +214,14 @@ BEGIN
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,257,324,1,
                     WS_EX_STATICEDGE
     LTEXT           "bits",IDT_PLAINTEXT_SIZE_UNIT,285,153,22,8
-    LTEXT           "Note: When testing Triple DES, the key must be a 192-bit value consisting of three concatenated 64-bit DES keys, where the last 8 bits of each of these keys are parity bits. For more information, see FIPS PUB 46-3.",
+    LTEXT           "Note: When testing Triple DES, the key must be a 192-bit value consisting of three concatenated 64-bit DES keys, where the least significant bit in each byte is a parity bit. For more information, see FIPS PUB 46-3.",
                     IDT_TEST_VECTORS_NOTE,15,214,293,25,0,WS_EX_TRANSPARENT
     GROUPBOX        "LRW mode",IDT_LRW_MODE,1,75,323,65
     LTEXT           "Secondary key (hexadecimal)",IDT_LRW_KEY,8,84,159,8
     LTEXT           "Block index (hexadecimal)",IDT_LRW_BLOCK_INDEX,8,109,
                     159,8
+    CONTROL         "Least significant bit first",IDC_LRW_INDEX_LSB,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,175,121,143,10
 END
 
 IDD_LEGAL_NOTICES_DLG DIALOGEX 0, 0, 372, 221

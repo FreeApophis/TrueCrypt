@@ -2,7 +2,7 @@
    the source code of Encryption for the Masses 2.02a, which is Copyright (c)
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2005 TrueCrypt Foundation and
+   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
    Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
@@ -89,6 +89,8 @@ typedef struct
 	Password VolumePassword;			/* User password */
 	BOOL bCache;						/* Cache passwords in driver */
 	int nDosDriveNo;					/* Drive number to mount */
+	BOOL bSystemVolume;					/* Volume is used by system and hidden from user */
+	BOOL bPersistentVolume;				/* Volume is hidden from user */
 	BOOL bMountReadOnly;				/* Mount volume in read-only mode */
 	BOOL bMountRemovable;				/* Mount volume as removable media */
 	BOOL bExclusiveAccess;				/* Open host file/device in exclusive access mode */
@@ -128,6 +130,8 @@ typedef struct
 	int pkcs5Iterations;
 	BOOL hiddenVolume;
 	BOOL readOnly;
+	BOOL systemVolume;
+	BOOL persistentVolume;
 	unsigned __int64 volumeCreationTime;
 	unsigned __int64 headerCreationTime;
 	unsigned __int64 totalBytesRead;

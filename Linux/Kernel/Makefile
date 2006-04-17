@@ -53,12 +53,16 @@ obj-m := truecrypt.o
 USER_OBJS_F := ../.user-objs
 KERNEL_OBJS_F := ../.kernel-objs
 
-truecrypt: objclean
+truecrypt: objclean platform
 	@$(MAKE) TC_BASE=$(PWD)/../.. -C $(KERNEL_SRC) SUBDIRS=$(PWD) M=$(PWD) modules 
 
-$(TC_BASE)/Linux/Common/.platform: $(TC_BASE)/Linux/Common/Platform.c
-	@$(CC) -o $(TC_BASE)/Linux/Common/platform $<
-	@$(TC_BASE)/Linux/Common/platform >$(TC_BASE)/Linux/Common/.platform
+CMN := ../../Linux/Common
+
+platform: $(CMN)/.platform
+
+$(CMN)/.platform: $(CMN)/Platform.c
+	@$(CC) -o $(CMN)/platform $<
+	@$(CMN)/platform >$(CMN)/.platform
 
 objclean:
 	@if [ -f $(USER_OBJS_F) ]; then rm -f $(OBJS) $(USER_OBJS_F); fi

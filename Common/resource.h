@@ -94,6 +94,7 @@
 #define IDC_DISPLAY_POOL_CONTENTS       5072
 #define IDC_LRW_MODE                    5073
 #define IDC_LRW_MODE_ENABLED            5074
+#define IDC_LRW_INDEX_LSB               5075
 
 // Next default values for new objects
 // 
@@ -102,7 +103,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        517
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         5075
+#define _APS_NEXT_CONTROL_VALUE         5076
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -117,11 +117,13 @@ des_cblock (*key);
  * Many thanks to smb@ulysses.att.com (Steven Bellovin) for the reference
  * (and actual cblock values).
  */
-#define NUM_WEAK_KEY	16
+#define NUM_WEAK_KEY	18
 static des_cblock weak_keys[NUM_WEAK_KEY]={
 	/* weak keys */
 	{0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01},
 	{0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE},
+	{0x1F,0x1F,0x1F,0x1F,0x0E,0x0E,0x0E,0x0E},
+	{0xE0,0xE0,0xE0,0xE0,0xF1,0xF1,0xF1,0xF1},
 	{0x1F,0x1F,0x1F,0x1F,0x1F,0x1F,0x1F,0x1F},
 	{0xE0,0xE0,0xE0,0xE0,0xE0,0xE0,0xE0,0xE0},
 	/* semi-weak keys */
@@ -140,19 +142,23 @@ static des_cblock weak_keys[NUM_WEAK_KEY]={
 
 int des_is_weak_key(key)
 des_cblock (*key);
-	{
+{
 	int i;
 
 	for (i=0; i<NUM_WEAK_KEY; i++)
+	{
 		/* Added == 0 to comparision, I obviously don't run
 		 * this section very often :-(, thanks to
 		 * engineering@MorningStar.Com for the fix
 		 * eay 93/06/29
 		 * Another problem, I was comparing only the first 4
-		 * bytes, 97/03/18 */
-		if (memcmp(weak_keys[i],key,sizeof(des_cblock)) == 0) return(1);
-	return(0);
+		 * bytes, 97/03/18
+		 * Parity bits are ignored, TF 2006-04-12 */
+		if (((*((__int64 *) weak_keys[i]) ^ *((__int64 *) key)) & 0xFEFEFEFEFEFEFEFE) == 0)
+			return(1);
 	}
+	return(0);
+}
 
 /* NOW DEFINED IN des_local.h
  * See ecb_encrypt.c for a pseudo description of these macros. 
