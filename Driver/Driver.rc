@@ -27,8 +27,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 4,2,0,0
- PRODUCTVERSION 4,2,0,0
+ FILEVERSION 4,2,1,0
+ PRODUCTVERSION 4,2,1,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -45,13 +45,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Driver"
-            VALUE "FileVersion", "4.2"
+            VALUE "FileVersion", "4.2a"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "truecrypt.sys"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "4.2"
-            VALUE "SpecialBuild", "2006-04-17"
+            VALUE "ProductVersion", "4.2a"
+            VALUE "SpecialBuild", "2006-07-03"
         END
     END
     BLOCK "VarFileInfo"

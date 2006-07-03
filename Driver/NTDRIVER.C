@@ -3,7 +3,7 @@
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
    contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
 
@@ -810,7 +810,8 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 #endif
 
 	case MOUNT_LIST:
-		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (MOUNT_LIST_STRUCT))
+		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (MOUNT_LIST_STRUCT)
+			|| !DeviceObject || !DeviceObject->DriverObject)
 		{
 			Irp->IoStatus.Status = STATUS_INVALID_PARAMETER;
 			Irp->IoStatus.Information = 0;
@@ -857,7 +858,8 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 		break;
 
 	case VOLUME_PROPERTIES:
-		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (VOLUME_PROPERTIES_STRUCT))
+		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (VOLUME_PROPERTIES_STRUCT)
+			|| !DeviceObject || !DeviceObject->DriverObject)
 		{
 			Irp->IoStatus.Status = STATUS_INVALID_PARAMETER;
 			Irp->IoStatus.Information = 0;
@@ -958,7 +960,8 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 		break;
 
 	case UNMOUNT:
-		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (UNMOUNT_STRUCT))
+		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (UNMOUNT_STRUCT)
+			|| !DeviceObject || !DeviceObject->DriverObject)
 		{
 			Irp->IoStatus.Status = STATUS_INVALID_PARAMETER;
 			Irp->IoStatus.Information = 0;
@@ -1913,6 +1916,9 @@ UnmountAllDevices (PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles, BOOL unmou
 	PDEVICE_OBJECT ListDevice;
 
 	Dump ("Unmounting all volumes\n");
+
+	if (!DeviceObject || !DeviceObject->DriverObject)
+		return STATUS_INVALID_PARAMETER;
 
 	DriverMutexWait ();
 

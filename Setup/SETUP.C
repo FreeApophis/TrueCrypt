@@ -3,7 +3,7 @@
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
    contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
 
@@ -195,10 +195,7 @@ DoFilesInstall (HWND hwndDlg, char *szDestDir, BOOL bUninstallSupport)
 			strcpy (szDir, szDestDir);
 		else if (*szFiles[i] == 'D')
 		{
-			if (!Is64BitOs ())
-				GetSystemDirectory (szDir, sizeof (szDir));
-			else
-				GetWindowsDirectory (szDir, sizeof (szDir));
+			GetSystemDirectory (szDir, sizeof (szDir));
 
 			x = strlen (szDestDir);
 			if (szDestDir[x - 1] == '\\')
@@ -209,7 +206,7 @@ DoFilesInstall (HWND hwndDlg, char *szDestDir, BOOL bUninstallSupport)
 			if (bSlash == FALSE)
 				strcat (szDir, "\\");
 
-			strcat (szDir, !Is64BitOs () ? "Drivers" : "SysWOW64\\Drivers");
+			strcat (szDir, "Drivers" );
 		}
 		else if (*szFiles[i] == 'W')
 			GetWindowsDirectory (szDir, sizeof (szDir));
@@ -348,7 +345,7 @@ DoRegInstall (HWND hwndDlg, char *szDestDir, BOOL bInstallType, BOOL bUninstallS
 				    0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hkey, &dw) != ERROR_SUCCESS)
 			goto error;
 
-		sprintf (szTmp, "TrueCrypt Volume", szDir);
+		strcpy (szTmp, "TrueCrypt Volume");
 		if (RegSetValueEx (hkey, "", 0, REG_SZ, (BYTE *) szTmp, strlen (szTmp) + 1) != ERROR_SUCCESS)
 			goto error;
 
@@ -756,7 +753,7 @@ DoDriverInstall (HWND hwndDlg)
 	StatusMessage (hwndDlg, "INSTALLING_DRIVER");
 
 	hService = CreateService (hManager, "truecrypt", "truecrypt",
-				  SERVICE_ALL_ACCESS, SERVICE_KERNEL_DRIVER, SERVICE_AUTO_START, SERVICE_ERROR_NORMAL,
+				  SERVICE_ALL_ACCESS, SERVICE_KERNEL_DRIVER, SERVICE_SYSTEM_START, SERVICE_ERROR_NORMAL,
 				  szDir, NULL, NULL, NULL, NULL, NULL
 		);
 	if (hService == NULL)
@@ -1412,5 +1409,6 @@ WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine,
 	}
 
 	/* Terminate */
+	cleanup ();
 	return 0;
 }

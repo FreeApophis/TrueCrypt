@@ -3,17 +3,18 @@
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
    contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
 
 #include "Tcdefs.h"
 
+#include "Common.h"
 #include "Crypto.h"
 #include "Fat.h"
 #include "Format.h"
+#include "Random.h"
 #include "Volumes.h"
-#include "Common.h"
 
 #ifdef _WIN32
 #include "Apidrvr.h"
@@ -21,7 +22,6 @@
 #include "Language.h"
 #include "Progress.h"
 #include "Resource.h"
-#include "Random.h"
 
 int
 FormatVolume (char *lpszFilename,
@@ -377,8 +377,12 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, P
 		deniability of hidden volumes (and also reduces the amount of predictable plaintext
 		within the volume). */
 
-		RandgetBytes (temporaryKey, EAGetKeySize (cryptoInfo->ea), FALSE);	// Temporary master key
-		RandgetBytes (cryptoInfo->iv, sizeof cryptoInfo->iv, FALSE);		// Secondary key (LRW mode)
+		// Temporary master key
+		if (!RandgetBytes (temporaryKey, EAGetKeySize (cryptoInfo->ea), FALSE))
+			goto fail;
+		// Secondary key (LRW mode)
+		if (!RandgetBytes (cryptoInfo->iv, sizeof cryptoInfo->iv, FALSE))
+			goto fail;
 
 		retVal = EAInit (cryptoInfo->ea, temporaryKey, cryptoInfo->ks);
 		if (retVal != 0)
@@ -398,14 +402,23 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, P
 			here since LRW mode is designed to hide patterns. Furthermore, patterns in plaintext
 			do occur commonly on media in the "real world", so it might actually be a fatal
 			mistake to try to avoid them completely. */
-#if defined(RNG_POOL_SIZE) && RNG_POOL_SIZE < SECTOR_SIZE
-			RandpeekBytes (sector, RNG_POOL_SIZE);
-			RandpeekBytes (sector + RNG_POOL_SIZE, SECTOR_SIZE - RNG_POOL_SIZE);
-#else
-			if ((nSecNo & 0xff) == 0)
-				RandpeekBytes (sector, SECTOR_SIZE);
+
+#if RNG_POOL_SIZE > SECTOR_SIZE
+#error RNG_POOL_SIZE > SECTOR_SIZE
 #endif
 
+#ifdef _WIN32
+			if (!RandpeekBytes (sector, RNG_POOL_SIZE)
+				|| !RandpeekBytes (sector + RNG_POOL_SIZE, SECTOR_SIZE - RNG_POOL_SIZE))
+				goto fail;
+#else
+			if ((nSecNo & 0x3fff) == 0)
+			{
+				if (!RandgetBytes (sector, RNG_POOL_SIZE, FALSE)
+					|| !RandgetBytes (sector + RNG_POOL_SIZE, SECTOR_SIZE - RNG_POOL_SIZE, FALSE))
+					goto fail;
+			}
+#endif
 			// Encrypt the random plaintext and write it to the disk
 			if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo,
 				cryptoInfo) == FALSE)

@@ -3,7 +3,7 @@
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
    contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
 
@@ -24,6 +24,7 @@
 
 #define FILE_DEFAULT_KEYFILES		"Default Keyfiles.xml"
 
+extern char *LastDialogId;
 extern char szHelpFile[TC_MAX_PATH];
 extern char szHelpFile2[TC_MAX_PATH];
 extern HFONT hFixedDigitFont;
@@ -35,11 +36,13 @@ extern HFONT hUserUnderlineFont;
 extern HFONT hUserBoldFont;
 extern HWND MainDlg;
 extern BOOL Silent;
+extern BOOL bHistory;
 extern BOOL bPreserveTimestamp;
 extern wchar_t *lpszTitle;
 extern int nCurrentOS;
 extern int CurrentOSMajor;
 extern int CurrentOSMinor;
+extern BOOL RemoteSession;
 extern HANDLE hDriver;
 extern HINSTANCE hInst;
 
@@ -157,6 +160,7 @@ BOOL GetMountList (MOUNT_LIST_STRUCT *list);
 int GetDriverRefCount ();
 void GetSizeString (unsigned __int64 size, wchar_t *str);
 char *LoadFile (char *fileName, DWORD *size);
+char *GetAppPath (char *path, int maxSize);
 char *GetConfigPath (char *fileName);
 void OpenPageHelp (HWND hwndDlg, int nPage);
 int Info (char *stringId);
@@ -185,3 +189,4 @@ BOOL CALLBACK FindTCWindowEnum (HWND hwnd, LPARAM lParam);
 BYTE *MapResource (char *resourceType, int resourceId, PDWORD size);
 BOOL SelectMultipleFiles (HWND hwndDlg, char *stringId, char *lpszFileName, BOOL keepHistory);
 BOOL SelectMultipleFilesNext (char *lpszFileName);
+void OpenOnlineHelp ();

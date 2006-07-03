@@ -1,8 +1,10 @@
 #!/bin/sh 
 # TrueCrypt install script
 
-BIN_DIR=/usr/local/bin
-MAN_DIR=/usr/local/man
+BIN_DIR=/usr/bin
+MAN_DIR=/usr/share/man
+SHARE_DIR=/usr/share/truecrypt
+SHARE_DIR_DEF=$SHARE_DIR
 MOD_DIR=/lib/modules/$(uname -r)/extra
 BIN_PERM=755
 
@@ -58,6 +60,11 @@ then
 	fi
 fi
 
+if [ $(losetup 2>&1 | wc -l) -lt 2 ]
+then
+	echo "Warning: losetup command not found - mounting of containers may fail."
+fi
+
 rmmod truecrypt >&- 2>&-
 if grep -q "^truecrypt " /proc/modules
 then
@@ -97,6 +104,12 @@ read A
 [ ! -d "$MAN_DIR/man1" ] && error "$MAN_DIR/man1 does not exist" && exit 1
 MAN_DIR=$MAN_DIR/man1
 
+echo -n "Install user guide and kernel module to [$SHARE_DIR]: "
+read A
+[ "$A" ] && SHARE_DIR=$A
+mkdir -p "$SHARE_DIR/doc" 2>&- || exit 1
+
+
 echo -n "Allow non-admin users to run TrueCrypt [y/N]: "
 read A
 [ "$A" = "y" -o "$A" = "Y" ] && BIN_PERM=4755
@@ -113,9 +126,24 @@ cp Cli/truecrypt "$BIN_DIR" && chown root:root "$BIN_DIR/truecrypt" && chmod $BI
 [ $? -ne 0 ] && error "Failed to install truecrypt" && exit 1
 echo Done.
 
-echo -n "Installing truecrypt man page to $MAN_DIR... "
+echo -n "Installing man page to $MAN_DIR... "
 cp Cli/Man/truecrypt.1 "$MAN_DIR" && chown root:root "$MAN_DIR/truecrypt.1" && chmod 644 "$MAN_DIR/truecrypt.1"
 [ $? -ne 0 ] && error "Failed to install truecrypt man page" && exit 1
 echo Done.
+
+echo -n "Installing user guide to $SHARE_DIR/doc... "
+cp ../License.txt "$SHARE_DIR/doc" && cp "../Release/Setup Files/TrueCrypt User Guide.pdf" "$SHARE_DIR/doc/TrueCrypt-User-Guide.pdf" 
+[ $? -ne 0 ] && error "Failed to install truecrypt user guide" && exit 1
+chmod 644 "$SHARE_DIR/doc/License.txt" "$SHARE_DIR/doc/TrueCrypt-User-Guide.pdf"
+echo Done.
+
+if [ "$SHARE_DIR" = "$SHARE_DIR_DEF" ]
+then
+	echo -n "Installing backup kernel module to $SHARE_DIR/kernel... "
+	mkdir -p "$SHARE_DIR/kernel" 2>&-
+	M=$SHARE_DIR/kernel/truecrypt-$(uname -r | cut -d- -f1 | cut -d. -f1-3).ko
+	cp Kernel/truecrypt.ko "$M" || exit 1
+	echo Done.
+fi
 
 exit 0

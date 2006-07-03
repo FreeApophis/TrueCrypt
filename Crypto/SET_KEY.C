@@ -154,7 +154,7 @@ des_cblock (*key);
 		 * Another problem, I was comparing only the first 4
 		 * bytes, 97/03/18
 		 * Parity bits are ignored, TF 2006-04-12 */
-		if (((*((__int64 *) weak_keys[i]) ^ *((__int64 *) key)) & 0xFEFEFEFEFEFEFEFE) == 0)
+		if (((*((__int64 *) weak_keys[i]) ^ *((__int64 *) key)) & 0xFEFEFEFEFEFEFEFEULL) == 0)
 			return(1);
 	}
 	return(0);

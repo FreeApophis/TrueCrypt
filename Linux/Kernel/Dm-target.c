@@ -1,19 +1,21 @@
 /* 
 Copyright (c) 2004-2006 TrueCrypt Foundation. All rights reserved. 
 
-Covered by TrueCrypt License 2.0 the full text of which is contained in the file
+Covered by TrueCrypt License 2.1 the full text of which is contained in the file
 License.txt included in TrueCrypt binary and source code distribution archives. 
 */
 
 #include <linux/bio.h>
+#include <linux/blkdev.h>
 #include <linux/ctype.h>
+#include <linux/device-mapper.h>
 #include <linux/init.h>
+#include <linux/kdev_t.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/version.h>
 #include <linux/workqueue.h>
-
-#include "dm.h"
+#include <dm.h>
 
 #include "Tcdefs.h"
 #include "Crypto.h"
@@ -33,6 +35,10 @@ int trace_level = 0;
 
 #define MIN_POOL_SIZE 16
 
+#ifndef __GFP_NOMEMALLOC
+#define __GFP_NOMEMALLOC 0
+#endif
+
 struct target_ctx
 {
 	struct dm_dev *dev;
@@ -40,10 +46,10 @@ struct target_ctx
 	char *volume_path;
 	mempool_t *bio_ctx_pool;
 	mempool_t *pg_pool;
-	sector_t read_only_start;
-	sector_t read_only_end;
-	u64 mtime;
-	u64 atime;
+	unsigned long long read_only_start;
+	unsigned long long read_only_end;
+	unsigned long long mtime;
+	unsigned long long atime;
 	int flags;
 	PCRYPTO_INFO ci;
 };
@@ -61,8 +67,8 @@ struct bio_ctx
 static struct workqueue_struct *work_queue = NULL;
 static kmem_cache_t *bio_ctx_cache = NULL;
 
-#define READ_ONLY(tc) (tc->flags & FLAG_READ_ONLY)
-#define HID_VOL_PROT(tc) (tc->flags & FLAG_HIDDEN_VOLUME_PROTECTION)
+#define READ_ONLY(tc) (tc->flags & TC_READ_ONLY)
+#define HID_VOL_PROT(tc) (tc->flags & TC_HIDDEN_VOLUME_PROTECTION)
 
 
 static int hex2bin (char *hex_string, u8 *byte_buf, int max_length)
@@ -70,8 +76,6 @@ static int hex2bin (char *hex_string, u8 *byte_buf, int max_length)
 	int i = 0, n;
 	char s[3];
 	s[2] = 0;
-
-	trace (3, "hex2bin (%p, %p, %d)\n", hex_string, byte_buf, max_length);
 
 	while (i < max_length
 		&& (s[0] = *hex_string++) 
@@ -85,7 +89,11 @@ static int hex2bin (char *hex_string, u8 *byte_buf, int max_length)
 	return i;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,12)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,14)
+static void *mempool_alloc_pg (gfp_t gfp_mask, void *pool_data)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,12)
 static void *mempool_alloc_pg (unsigned int gfp_mask, void *pool_data)
 #else
 static void *mempool_alloc_pg (int gfp_mask, void *pool_data)
@@ -95,11 +103,30 @@ static void *mempool_alloc_pg (int gfp_mask, void *pool_data)
 	return alloc_page (gfp_mask);
 }
 
-
 static void mempool_free_pg (void *element, void *pool_data)
 {
 	trace (3, "mempool_free_pg (%p, %p)\n", element, pool_data);
 	__free_page (element);
+}
+
+#endif // LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+
+
+static void *malloc_wait (mempool_t *pool, int direction)
+{
+	void *p;
+	trace (3, "malloc_wait\n");
+
+	while (1)
+	{
+		p = mempool_alloc (pool, GFP_NOIO | __GFP_NOMEMALLOC);
+
+		if (p)
+			return p;
+
+		trace (3, "blk_congestion_wait\n");
+		blk_congestion_wait (direction, HZ / 50);
+	}
 }
 
 
@@ -119,10 +146,11 @@ static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 	struct target_ctx *tc;
 	int key_size;
 	int error = -EINVAL;
+	unsigned long long sector;
 
 	trace (3, "truecrypt_ctr (%p, %d, %p)\n", ti, argc, argv);
 
-	if (argc != LAST_ARG + 1)
+	if (argc != TC_LAST_ARG + 1)
 	{
 		ti->error = "truecrypt: Usage: <start_sector> <sector_count> truecrypt <EA> <mode> <key> <key2/IV> <host_device> <sector_offset> <read_only_start> <read_only_end> <mtime> <atime> <flags> <volume_path>";
 		return -EINVAL;
@@ -145,7 +173,12 @@ static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 		goto err;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,17)
+	tc->bio_ctx_pool = mempool_create_slab_pool (MIN_POOL_SIZE, bio_ctx_cache);
+#else
 	tc->bio_ctx_pool = mempool_create (MIN_POOL_SIZE, mempool_alloc_slab, mempool_free_slab, bio_ctx_cache);
+#endif
+
 	if (!tc->bio_ctx_pool)
 	{
 		ti->error = "truecrypt: Cannot create bio context memory pool";
@@ -153,7 +186,11 @@ static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 		goto err;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,17)
+	tc->pg_pool = mempool_create_page_pool (MIN_POOL_SIZE, 0);
+#else
 	tc->pg_pool = mempool_create (MIN_POOL_SIZE, mempool_alloc_pg, mempool_free_pg, NULL);
+#endif
 	if (!tc->pg_pool)
 	{
 		ti->error = "truecrypt: Cannot create page memory pool";
@@ -161,13 +198,14 @@ static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 		goto err;
 	}
 
-	if (sscanf (argv[ARG_SEC], SECTOR_FORMAT, &tc->start) != 1)
+	if (sscanf (argv[TC_ARG_SEC], "%llu", &sector) != 1)
 	{
 		ti->error = "truecrypt: Invalid device sector";
 		goto err;
 	}
+	tc->start = sector;
 
-	if (dm_get_device (ti, argv[ARG_DEV], tc->start, ti->len, dm_table_get_mode (ti->table), &tc->dev))
+	if (dm_get_device (ti, argv[TC_ARG_DEV], tc->start, ti->len, dm_table_get_mode (ti->table), &tc->dev))
 	{
 		ti->error = "truecrypt: Device lookup failed";
 		goto err;
@@ -175,7 +213,7 @@ static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 
 	// Encryption algorithm
 	tc->ci->ea = 0;
-	if (sscanf (argv[ARG_EA], "%d", &tc->ci->ea) != 1
+	if (sscanf (argv[TC_ARG_EA], "%d", &tc->ci->ea) != 1
 		|| tc->ci->ea < EAGetFirst ()
 		|| tc->ci->ea > EAGetCount ())
 	{
@@ -185,7 +223,7 @@ static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 
 	// Mode of operation
 	tc->ci->mode = 0;
-	if (sscanf (argv[ARG_MODE], "%d", &tc->ci->mode) != 1
+	if (sscanf (argv[TC_ARG_MODE], "%d", &tc->ci->mode) != 1
 		|| tc->ci->mode < 1
 		|| tc->ci->mode >= INVALID_MODE)
 	{
@@ -195,7 +233,7 @@ static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 
 	// Key
 	key_size = EAGetKeySize (tc->ci->ea);
-	if (hex2bin (argv[ARG_KEY], tc->ci->master_key, key_size) != key_size)
+	if (hex2bin (argv[TC_ARG_KEY], tc->ci->master_key, key_size) != key_size)
 	{
 		ti->error = "truecrypt: Invalid key";
 		goto err;
@@ -210,7 +248,7 @@ static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 	}
 
 	// Key2 / IV
-	if (hex2bin (argv[ARG_IV], tc->ci->iv, sizeof (tc->ci->iv)) != sizeof (tc->ci->iv))
+	if (hex2bin (argv[TC_ARG_IV], tc->ci->iv, sizeof (tc->ci->iv)) != sizeof (tc->ci->iv))
 	{
 		ti->error = "truecrypt: Invalid IV";
 		goto err;
@@ -224,49 +262,49 @@ static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 	}
 
 	// Read-only start sector
-	if (sscanf (argv[ARG_RO_START], SECTOR_FORMAT, &tc->read_only_start) != 1)
+	if (sscanf (argv[TC_ARG_RO_START], "%llu", &tc->read_only_start) != 1)
 	{
 		ti->error = "truecrypt: Invalid read-only start sector";
 		goto err;
 	}
 
 	// Read-only end sector
-	if (sscanf (argv[ARG_RO_END], SECTOR_FORMAT, &tc->read_only_end) != 1)
+	if (sscanf (argv[TC_ARG_RO_END], "%llu", &tc->read_only_end) != 1)
 	{
 		ti->error = "truecrypt: Invalid read-only end sector";
 		goto err;
 	}
 
 	// Modification time
-	if (sscanf (argv[ARG_MTIME], "%Ld", &tc->mtime) != 1)
+	if (sscanf (argv[TC_ARG_MTIME], "%llu", &tc->mtime) != 1)
 	{
 		ti->error = "truecrypt: Invalid modification time";
 		goto err;
 	}
 
 	// Access time
-	if (sscanf (argv[ARG_ATIME], "%Ld", &tc->atime) != 1)
+	if (sscanf (argv[TC_ARG_ATIME], "%llu", &tc->atime) != 1)
 	{
 		ti->error = "truecrypt: Invalid access time";
 		goto err;
 	}
 
 	// Flags
-	if (sscanf (argv[ARG_FLAGS], "%d", &tc->flags) != 1)
+	if (sscanf (argv[TC_ARG_FLAGS], "%d", &tc->flags) != 1)
 	{
 		ti->error = "truecrypt: Invalid flags";
 		goto err;
 	}
 
 	// Volume path
-	tc->volume_path = kmalloc (strlen (argv[ARG_VOL]) + 1, GFP_KERNEL);
+	tc->volume_path = kmalloc (strlen (argv[TC_ARG_VOL]) + 1, GFP_KERNEL);
 	if (tc->volume_path == NULL)
 	{
 		ti->error = "truecrypt: Cannot allocate volume path buffer";
 		error = -ENOMEM;
 		goto err;
 	}
-	strcpy (tc->volume_path, argv[ARG_VOL]);
+	strcpy (tc->volume_path, argv[TC_ARG_VOL]);
 
 	// Hidden volume
 	if (tc->start > 1)
@@ -281,8 +319,6 @@ static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 	return 0;
 
 err:
-	trace (3, "truecrypt_ctr: error\n");
-
 	if (tc)
 	{
 		if (tc->ci)
@@ -317,7 +353,7 @@ static void truecrypt_dtr (struct dm_target *ti)
 
 
 // Checks if two regions overlap (borders are parts of regions)
-static int RegionsOverlap (sector_t start1, sector_t end1, sector_t start2, sector_t end2)
+static int RegionsOverlap (u64 start1, u64 end1, u64 start2, u64 end2)
 {
 	return (start1 < start2) ? (end1 >= start2) : (start1 <= end2);
 }
@@ -332,21 +368,21 @@ static void dereference_bio_ctx (struct bio_ctx *bc)
 		return;
 
 	bio_endio (bc->orig_bio, bc->orig_bio->bi_size, bc->error);
-	trace (3, "dereference_bio_ctx: mempool_free (%p)\n", bc);
+	trace (3, "deref: mempool_free (%p)\n", bc);
 	mempool_free (bc, tc->bio_ctx_pool);
 }
 
 
-static void work_process (void *data)
+static void work_process (void *qdata)
 {
-	struct bio_ctx *bc = (struct bio_ctx *) data;
+	struct bio_ctx *bc = (struct bio_ctx *) qdata;
 	struct target_ctx *tc = (struct target_ctx *) bc->target->private;
 	struct bio_vec *bv;
-	sector_t sec_no = bc->crypto_sector;
+	u64 sec_no = bc->crypto_sector;
 	int seg_no;
 	unsigned long flags;
 
-	trace (3, "work_process (%p)\n", data);
+	trace (3, "work_process (%p)\n", qdata);
 
 	// Decrypt queued data
 	bio_for_each_segment (bv, bc->orig_bio, seg_no)
@@ -354,13 +390,16 @@ static void work_process (void *data)
 		unsigned int secs = bv->bv_len / SECTOR_SIZE;
 		char *data = bvec_kmap_irq (bv, &flags);
 
-		trace (2, "DecryptSectors (%Ld, %d)\n", sec_no, secs);
+		trace (2, "DecryptSectors (%llu, %d)\n", (unsigned long long) sec_no, secs);
 		DecryptSectors ((unsigned __int32 *)data, sec_no, secs, tc->ci);
 
 		sec_no += secs;
 
 		flush_dcache_page (bv->bv_page);
 		bvec_kunmap_irq (data, &flags);
+
+		if (seg_no + 1 < bc->orig_bio->bi_vcnt)
+			cond_resched ();
 	}
 
 	dereference_bio_ctx (bc);
@@ -375,8 +414,8 @@ static int truecrypt_endio (struct bio *bio, unsigned int bytes_done, int error)
 	int seg_no;
 	
 	trace (3, "truecrypt_endio (%p, %d, %d)\n", bio, bytes_done, error);
-	trace (1, "end: sc=" SECTOR_FORMAT " fl=%ld rw=%ld sz=%d ix=%hd vc=%hd dn=%d er=%d\n",
-		bio->bi_sector, bio->bi_flags, bio->bi_rw, bio->bi_size, bio->bi_idx, bio->bi_vcnt, bytes_done, error);
+	trace (1, "end: sc=%llu fl=%ld rw=%ld sz=%d ix=%hd vc=%hd dn=%d er=%d\n",
+		(unsigned long long) bio->bi_sector, bio->bi_flags, bio->bi_rw, bio->bi_size, bio->bi_idx, bio->bi_vcnt, bytes_done, error);
 
 	if (error != 0)
 		bc->error = error;
@@ -401,7 +440,7 @@ static int truecrypt_endio (struct bio *bio, unsigned int bytes_done, int error)
 	// Free pages allocated for encryption
 	bio_for_each_segment (bv, bio, seg_no)
 	{
-		trace (3, "mempool_free (%p, %p)\n", bv->bv_page, tc->pg_pool);
+		trace (3, "endio: mempool_free (%p)\n", bv->bv_page);
 		mempool_free (bv->bv_page, tc->pg_pool);  
 	}
 
@@ -420,8 +459,8 @@ static int truecrypt_map (struct dm_target *ti, struct bio *bio, union map_info 
 	int seg_no;
 
 	trace (3, "truecrypt_map (%p, %p, %p)\n", ti, bio, map_context);
-	trace (1, "map: sc=" SECTOR_FORMAT " fl=%ld rw=%ld sz=%d ix=%hd vc=%hd\n",
-		bio->bi_sector, bio->bi_flags, bio->bi_rw, bio->bi_size, bio->bi_idx, bio->bi_vcnt);
+	trace (1, "map: sc=%llu fl=%ld rw=%ld sz=%d ix=%hd vc=%hd\n",
+		(unsigned long long) bio->bi_sector, bio->bi_flags, bio->bi_rw, bio->bi_size, bio->bi_idx, bio->bi_vcnt);
 
 	// Write protection
 	if (bio_data_dir (bio) == WRITE && READ_ONLY (tc))
@@ -432,20 +471,20 @@ static int truecrypt_map (struct dm_target *ti, struct bio *bio, union map_info 
 	{
 		if (bv->bv_len & (SECTOR_SIZE - 1))
 		{
-			error ("unsupported segment size %d (%ld %d %hd %hd)\n",
+			error ("unsupported bio segment size %d (%ld %d %hd %hd)\n",
 				bv->bv_len, bio->bi_rw, bio->bi_size, bio->bi_idx, bio->bi_vcnt);
 			return -EINVAL;
 		}
 	}
 
 	// Bio context
-	bc = mempool_alloc (tc->bio_ctx_pool, GFP_NOIO);
+	bc = malloc_wait (tc->bio_ctx_pool, bio_data_dir (bio));
 	if (!bc)
 	{
 		error ("bio context allocation failed\n");
 		return -ENOMEM;
 	}
-	trace (3, "truecrypt_map: mempool_alloc bc: %p\n", bc);
+	trace (3, "mempool_alloc bc: %p\n", bc);
 
 	atomic_set (&bc->ref_count, 1);
 	bc->orig_bio = bio;
@@ -455,13 +494,10 @@ static int truecrypt_map (struct dm_target *ti, struct bio *bio, union map_info 
 
 	// New bio for encrypted device
 	trace (3, "bio_alloc (%hd)\n", bio_segments (bio));
-	bion = bio_alloc (GFP_NOIO, bio_segments (bio));
-	if (!bion) 
+	while (!(bion = bio_alloc (GFP_NOIO | __GFP_NOMEMALLOC, bio_segments (bio))))
 	{
-		error ("bio allocation failed\n");
-		bc->error = -ENOMEM;
-		dereference_bio_ctx (bc);
-		return 0;
+		trace (3, "blk_congestion_wait\n");
+		blk_congestion_wait (bio_data_dir (bio), HZ / 50);
 	}
 
 	bion->bi_bdev = tc->dev->bdev;
@@ -482,10 +518,12 @@ static int truecrypt_map (struct dm_target *ti, struct bio *bio, union map_info 
 	}
 	else
 	{
+		u64 sec_no = bc->crypto_sector;
+		int seg_no;
+
 		// Encrypt data to be written
 		unsigned long flags, copyFlags;
 		char *data, *copy;
-		long long sec_no = bc->crypto_sector;
 
 		memset (bion->bi_io_vec, 0, sizeof (struct bio_vec) * bion->bi_vcnt);
 
@@ -498,19 +536,12 @@ static int truecrypt_map (struct dm_target *ti, struct bio *bio, union map_info 
 			if (!READ_ONLY (tc) && HID_VOL_PROT (tc)
 				&& RegionsOverlap (sec_no, sec_no + secs - 1, tc->read_only_start, tc->read_only_end))
 			{
-				tc->flags |= FLAG_READ_ONLY | FLAG_PROTECTION_ACTIVATED;
+				tc->flags |= TC_READ_ONLY | TC_PROTECTION_ACTIVATED;
 			}
 
-			if (!READ_ONLY (tc))
+			if (READ_ONLY (tc))
 			{
-				cbv->bv_page = mempool_alloc (tc->pg_pool, GFP_NOIO);
-				if (cbv->bv_page == NULL)
-					error ("page allocation failed during write\n");
-			}
-
-			if (READ_ONLY (tc) || cbv->bv_page == NULL)
-			{
-				// Write not permitted or no memory
+				// Write not permitted
 				bio_for_each_segment (cbv, bion, seg_no)
 				{
 					if (cbv->bv_page != NULL)
@@ -522,7 +553,9 @@ static int truecrypt_map (struct dm_target *ti, struct bio *bio, union map_info 
 				dereference_bio_ctx (bc);
 				return 0;
 			}
-			trace (3, "truecrypt_map: mempool_alloc pg: %p\n", cbv->bv_page);
+
+			cbv->bv_page = malloc_wait (tc->pg_pool, bio_data_dir (bion));
+			trace (3, "mempool_alloc cbv: %p\n", bc);
 
 			cbv->bv_offset = 0;
 			cbv->bv_len = bv->bv_len;
@@ -532,22 +565,24 @@ static int truecrypt_map (struct dm_target *ti, struct bio *bio, union map_info 
 
 			memcpy (copy, data, bv->bv_len);
 
-			flush_dcache_page (bv->bv_page);
-			bvec_kunmap_irq (data, &flags);
+			trace (2, "EncryptSectors (%llu, %d)\n", (unsigned long long) sec_no, secs);
 
-			trace (2, "EncryptSectors (%Ld, %d)\n", sec_no, secs);
-
-			EncryptSectors ((unsigned __int32 *)copy, sec_no, secs, tc->ci);
+			EncryptSectors ((unsigned __int32 *) copy, sec_no, secs, tc->ci);
 			sec_no += secs;
 
-			flush_dcache_page (cbv->bv_page);
+			bvec_kunmap_irq (data, &flags);
 			bvec_kunmap_irq (copy, &copyFlags);
+			flush_dcache_page (bv->bv_page);
+			flush_dcache_page (cbv->bv_page);
+
+			if (seg_no + 1 < bio->bi_vcnt)
+				cond_resched();
 		}
 	}
 
 	atomic_inc (&bc->ref_count);
 
-	trace (3, "generic_make_request (rw=%ld sc=" SECTOR_FORMAT ")\n", bion->bi_rw, bion->bi_sector);
+	trace (3, "generic_make_request (rw=%ld sc=%llu)\n", bion->bi_rw, (unsigned long long) bion->bi_sector);
 	generic_make_request (bion);
 
 	dereference_bio_ctx (bc);
@@ -569,11 +604,11 @@ static int truecrypt_status (struct dm_target *ti, status_type_t type, char *res
 		{
 			char name[32];
 			format_dev_t (name, tc->dev->bdev->bd_dev);
-			snprintf (result, maxlen, "%d %d 0 0 %s " SECTOR_FORMAT " " SECTOR_FORMAT " " SECTOR_FORMAT " %Ld %Ld %d %s",
+			snprintf (result, maxlen, "%d %d 0 0 %s %llu %llu %llu %llu %llu %d %s",
 				tc->ci->ea,
 				tc->ci->mode,
 				name,
-				tc->start,
+				(unsigned long long) tc->start,
 				tc->read_only_start,
 				tc->read_only_end,
 				tc->mtime,
@@ -590,7 +625,7 @@ static int truecrypt_status (struct dm_target *ti, status_type_t type, char *res
 
 static struct target_type truecrypt_target = {
 	.name   = "truecrypt",
-	.version= {VERSION_NUM1, VERSION_NUM2, VERSION_NUM3},
+	.version= {TC_VERSION_NUM1, TC_VERSION_NUM2, TC_VERSION_NUM3},
 	.module = THIS_MODULE,
 	.ctr    = truecrypt_ctr,
 	.dtr    = truecrypt_dtr,
@@ -614,7 +649,7 @@ int __init dm_truecrypt_init(void)
 
 	if (!work_queue)
 	{
-		DMERR ("truecrypt: create_workqueue creation failed");
+		DMERR ("truecrypt: create_workqueue failed");
 		goto err;
 	}
 

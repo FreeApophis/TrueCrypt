@@ -114,13 +114,13 @@ BEGIN
                     WS_BORDER | WS_TABSTOP,7,8,259,118
     DEFPUSHBUTTON   "OK",IDOK,275,8,59,14
     PUSHBUTTON      "Cancel",IDCANCEL,275,25,59,14
-    PUSHBUTTON      "Add File...",IDC_KEYADD,7,132,62,14
-    PUSHBUTTON      "Add Path...",IDC_ADD_KEYFILE_PATH,73,132,62,14
-    PUSHBUTTON      "Remove",IDC_KEYREMOVE,139,132,62,14
-    PUSHBUTTON      "Remove All",IDC_KEYREMOVEALL,205,132,62,14
-    CONTROL         "Use keyfiles",IDC_KEYFILES_ENABLE,"Button",
+    PUSHBUTTON      "Add &File...",IDC_KEYADD,7,132,62,14
+    PUSHBUTTON      "Add &Path...",IDC_ADD_KEYFILE_PATH,73,132,62,14
+    PUSHBUTTON      "&Remove",IDC_KEYREMOVE,139,132,62,14
+    PUSHBUTTON      "Remove &All",IDC_KEYREMOVEALL,205,132,62,14
+    CONTROL         "U&se keyfiles",IDC_KEYFILES_ENABLE,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,7,201,195,10
-    PUSHBUTTON      "Generate Random Keyfile...",IDC_GENERATE_KEYFILE,210,
+    PUSHBUTTON      "&Generate Random Keyfile...",IDC_GENERATE_KEYFILE,210,
                     198,123,14
     LTEXT           "",IDT_KEYFILES_NOTE,10,160,318,29,0,WS_EX_TRANSPARENT
     LTEXT           "WARNING: If you lose a keyfile or if its first 1024 kilobytes are corrupted, it will be impossible to mount volumes that use the keyfile!",
@@ -233,7 +233,6 @@ BEGIN
     EDITTEXT        IDC_LEGAL_NOTICES,5,6,361,188,ES_MULTILINE | ES_READONLY | 
                     WS_VSCROLL | NOT WS_TABSTOP
     DEFPUSHBUTTON   "OK",IDOK,160,200,50,14
-    LTEXT           "",IDC_STATIC,60,73,90,8
 END
 
 IDD_KEYFILE_GENERATOR DIALOGEX 0, 0, 299, 258

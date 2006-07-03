@@ -1,9 +1,9 @@
-# TrueCrypt Linux Makefile
+# TrueCrypt Linux CLI Makefile
 
 TC_COMMON := ../../Common
 TC_CRYPTO := ../../Crypto
 
-CC := gcc
+CC ?= gcc
 
 ifneq ($(MAKECMDGOALS),clean)
 -include ../Common/.platform
@@ -19,9 +19,11 @@ CFLAGS += -D_cdecl="" -DBOOL=int -DTRUE=1 -DFALSE=0 -DMAX_PATH=260
 CFLAGS += $(TYPES)
 
 ifndef DEBUG
+# Do not enable strict aliasing
 CFLAGS += -O2 -fno-strict-aliasing
 else
 CFLAGS += -ggdb
+NO_STRIP := 1
 endif
 
 KERNEL_OBJS_F := ../.kernel-objs
@@ -53,6 +55,7 @@ OBJS += $(TC_COMMON)/Fat.o
 OBJS += $(TC_COMMON)/Format.o
 OBJS += $(TC_COMMON)/Keyfiles.o
 OBJS += $(TC_COMMON)/Pkcs5.o
+OBJS += $(TC_COMMON)/Random.o
 OBJS += $(TC_COMMON)/Volumes.o
 OBJS += $(TC_COMMON)/Tests.o
 OBJS += Cli.o 
@@ -73,7 +76,7 @@ all: objclean truecrypt
 truecrypt: $(OBJS)
 	@echo Linking $@
 	@$(CC) -o $@ $(OBJS)
-ifndef DEBUG
+ifndef NO_STRIP
 	@strip $@
 endif
 

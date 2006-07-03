@@ -3,7 +3,7 @@
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
    contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
 
@@ -36,7 +36,6 @@ char szFileName[TC_MAX_PATH+1];		/* Volume to mount */
 char szDriveLetter[3];				/* Drive Letter to mount */
 char commandLineDrive = 0;
 BOOL bCacheInDriver = FALSE;		/* Cache any passwords we see */
-BOOL bHistory = FALSE;				/* Don't save history */
 BOOL bHistoryCmdLine = FALSE;		/* History control is always disabled */
 BOOL bCloseDismountedWindows=TRUE;	/* Close all open explorer windows of dismounted volume */
 BOOL bWipeCacheOnExit = FALSE;		/* Wipe password from chace on exit */
@@ -104,7 +103,7 @@ RefreshMainDlg (HWND hwndDlg)
 {
 	int drive = (char) (HIWORD (GetSelectedLong (GetDlgItem (hwndDlg, IDC_DRIVELIST))));
 
-	MoveEditToCombo (GetDlgItem (hwndDlg, IDC_VOLUME));
+	MoveEditToCombo (GetDlgItem (hwndDlg, IDC_VOLUME), bHistory);
 	LoadDriveLetters (GetDlgItem (hwndDlg, IDC_DRIVELIST), drive);
 	EnableDisableButtons (hwndDlg);
 }
@@ -112,7 +111,7 @@ RefreshMainDlg (HWND hwndDlg)
 void
 EndMainDlg (HWND hwndDlg)
 {
-	MoveEditToCombo (GetDlgItem (hwndDlg, IDC_VOLUME));
+	MoveEditToCombo (GetDlgItem (hwndDlg, IDC_VOLUME), bHistory);
 	
 	if (UsePreferences) 
 		SaveSettings (hwndDlg);
@@ -121,6 +120,12 @@ EndMainDlg (HWND hwndDlg)
 	{
 		DWORD dwResult;
 		DeviceIoControl (hDriver, WIPE_CACHE, NULL, 0, NULL, 0, &dwResult, NULL);
+	}
+
+	if (!bHistory)
+	{
+		SetWindowText (GetDlgItem (hwndDlg, IDC_VOLUME), "");
+		ClearCombo (GetDlgItem (hwndDlg, IDC_VOLUME));
 	}
 
 	if (TaskBarIconMutex != NULL)
@@ -304,7 +309,11 @@ LoadSettings (HWND hwndDlg)
 
 	// History
 	if (bHistoryCmdLine != TRUE)
+	{
 		LoadCombo (GetDlgItem (hwndDlg, IDC_VOLUME));
+		if (CmdLineVolumeSpecified)
+			SetWindowText (GetDlgItem (hwndDlg, IDC_VOLUME), szFileName);
+	}
 }
 
 void
@@ -1722,7 +1731,7 @@ TravellerDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 		{
 			char volName[MAX_PATH] = { 0 };
 
-			if (BrowseFiles (hwndDlg, "OPEN_TITLE", volName, FALSE, FALSE))
+			if (BrowseFiles (hwndDlg, "OPEN_TITLE", volName, bHistory, FALSE))
 				SetDlgItemText (hwndDlg, IDC_VOLUME_NAME, strchr (volName, '\\') + 1);
 
 			return 1;
@@ -2152,6 +2161,9 @@ static BOOL Dismount (HWND hwndDlg, int nDosDriveNo)
 		if (bBeep)
 			MessageBeep (-1);
 		RefreshMainDlg (hwndDlg);
+
+		if (nCurrentOS == WIN_2000 && RemoteSession && !IsAdmin ())
+			LoadDriveLetters (GetDlgItem (hwndDlg, IDC_DRIVELIST), 0);
 	}
 
 	NormalCursor ();
@@ -2217,6 +2229,10 @@ retry:
 	BroadcastDeviceChange (DBT_DEVICEREMOVECOMPLETE, 0, prevMountedDrives & ~mountList.ulMountedDrives);
 
 	RefreshMainDlg (hwndDlg);
+
+	if (nCurrentOS == WIN_2000 && RemoteSession && !IsAdmin ())
+		LoadDriveLetters (GetDlgItem (hwndDlg, IDC_DRIVELIST), 0);
+
 	NormalCursor();
 
 	if (unmount.nReturnCode != 0)
@@ -2436,7 +2452,7 @@ static void SelectContainer (HWND hwndDlg)
 	if (BrowseFiles (hwndDlg, "OPEN_VOL_TITLE", szFileName, bHistory, FALSE) == FALSE)
 		return;
 
-	AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), szFileName);
+	AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), szFileName, bHistory);
 	EnableDisableButtons (hwndDlg);
 	SetFocus (GetDlgItem (hwndDlg, IDC_DRIVELIST));
 }
@@ -2447,7 +2463,7 @@ static void SelectPartition (HWND hwndDlg)
 		(DLGPROC) RawDevicesDlgProc, (LPARAM) & szFileName[0]);
 	if (nResult == IDOK)
 	{
-		AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), szFileName);
+		AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), szFileName, bHistory);
 		EnableDisableButtons (hwndDlg);
 		SetFocus (GetDlgItem (hwndDlg, IDC_DRIVELIST));
 	}
@@ -2648,8 +2664,9 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				}
 				else if (bExplore)
 					OpenVolumeExplorerWindow (szDriveLetter[0] - 'A');
-
-
+				else if (szFileName[0] != 0 && IsMountedVolume (szFileName))
+					Warning ("ALREADY_MOUNTED");
+					
 				if (!Quit)
 					RefreshMainDlg(hwndDlg);
 			}
@@ -2669,9 +2686,12 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 				defaultKeyFilesParam.EnableKeyFiles = FALSE;
 
-				LoadSettings (hwndDlg);
-				LoadDefaultKeyFilesParam ();
-				RestoreDefaultKeyFilesParam ();
+				if (!Quit)
+				{
+					LoadSettings (hwndDlg);
+					LoadDefaultKeyFilesParam ();
+					RestoreDefaultKeyFilesParam ();
+				}
 			}
 
 			// Dismount
@@ -3456,10 +3476,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		}
 		else if (lw == IDM_ONLINE_HELP)
 		{
-			char tmpstr [256];
-
-			sprintf (tmpstr, "http://www.truecrypt.org/applink.php?version=%s&dest=help", VERSION_STRING);
-			ShellExecute (NULL, "open", (LPCTSTR) tmpstr, NULL, NULL, SW_SHOWNORMAL);
+			OpenOnlineHelp ();
 			return 1;
 		}
 		else if (lw == IDM_FAQ)
@@ -3621,9 +3638,12 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			
 			ArrowWaitCursor ();
 
-			BroadcastDeviceChange (DBT_DEVICEREMOVECOMPLETE, 0, ~driveMap);
-			Sleep (100);
-			BroadcastDeviceChange (DBT_DEVICEARRIVAL, 0, driveMap);
+			if (!(nCurrentOS == WIN_2000 && RemoteSession))
+			{
+				BroadcastDeviceChange (DBT_DEVICEREMOVECOMPLETE, 0, ~driveMap);
+				Sleep (100);
+				BroadcastDeviceChange (DBT_DEVICEARRIVAL, 0, driveMap);
+			}
 
 			LoadDriveLetters (GetDlgItem (hwndDlg, IDC_DRIVELIST), 0);
 
@@ -3666,7 +3686,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		if (lw == IDC_VOLUME && hw == CBN_SELCHANGE)
 		{
 			UpdateComboOrder (GetDlgItem (hwndDlg, IDC_VOLUME));
-			MoveEditToCombo ((HWND) lParam);
+			MoveEditToCombo ((HWND) lParam, bHistory);
 			PostMessage (hwndDlg, WM_APP + APP_MESSAGE_ENABLE_DISABLE, 0, 0);
 			return 1;
 		}
@@ -3685,7 +3705,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			DragQueryFile (hdrop, 0, szFileName, sizeof szFileName);
 			DragFinish (hdrop);
 
-			AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), szFileName);
+			AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), szFileName, bHistory);
 			EnableDisableButtons (hwndDlg);
 			SetFocus (GetDlgItem (hwndDlg, IDC_DRIVELIST));
 		}
@@ -3706,7 +3726,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			if (memcmp (&cd->dwData, WM_COPY_SET_VOLUME_NAME, 4) == 0)
 			{
 				if (cd->cbData > 0)
-					AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), (char *)cd->lpData);
+					AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), (char *)cd->lpData, bHistory);
 
 				EnableDisableButtons (hwndDlg);
 				SetFocus (GetDlgItem (hwndDlg, IDC_DRIVELIST));
@@ -3842,7 +3862,7 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 				commandLineDrive = *szDriveLetter = (char) toupper (*szDriveLetter);
 				break;
 
-							case 'h':
+			case 'h':
 				{
 					char szTmp[8];
 					bHistory = bHistoryCmdLine = TRUE;
@@ -3891,7 +3911,7 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 								      nNoCommandLineArgs, szFileName, sizeof (szFileName)))
 				{
 					RelativePath2Absolute (szFileName);
-					AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), szFileName);
+					AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), szFileName, bHistory);
 					CmdLineVolumeSpecified = TRUE;
 				}
 				break;
@@ -3941,7 +3961,7 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 
 					if (nNoCommandLineArgs == 1)
 						CmdLineVolumeSpecified = TRUE;
-					AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), szFileName);
+					AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), szFileName, bHistory);
 				}
 			}
 		}

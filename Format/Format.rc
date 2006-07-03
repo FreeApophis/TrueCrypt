@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 4,2,0,0
- PRODUCTVERSION 4,2,0,0
+ FILEVERSION 4,2,1,0
+ PRODUCTVERSION 4,2,1,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -37,7 +37,7 @@ VS_VERSION_INFO VERSIONINFO
  FILEFLAGS 0x20L
 #endif
  FILEOS 0x4L
- FILETYPE 0x0L
+ FILETYPE 0x1L
  FILESUBTYPE 0x0L
 BEGIN
     BLOCK "StringFileInfo"
@@ -46,13 +46,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Format"
-            VALUE "FileVersion", "4.2"
+            VALUE "FileVersion", "4.2a"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt Format.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "4.2"
-            VALUE "SpecialBuild", "2006-04-17"
+            VALUE "ProductVersion", "4.2a"
+            VALUE "SpecialBuild", "2006-07-03"
         END
     END
     BLOCK "VarFileInfo"
@@ -113,12 +113,12 @@ FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     EDITTEXT        IDC_PASSWORD,53,2,163,14,ES_PASSWORD | ES_AUTOHSCROLL
     EDITTEXT        IDC_VERIFY,53,18,163,14,ES_PASSWORD | ES_AUTOHSCROLL
-    CONTROL         "Display password",IDC_SHOW_PASSWORD,"Button",
+    CONTROL         "&Display password",IDC_SHOW_PASSWORD,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,53,33,95,11,
                     WS_EX_TRANSPARENT
-    CONTROL         "Use keyfiles",IDC_KEYFILES_ENABLE,"Button",
+    CONTROL         "U&se keyfiles",IDC_KEYFILES_ENABLE,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,53,43,95,11
-    PUSHBUTTON      "Keyfiles..",IDC_KEY_FILES,152,35,64,14,WS_DISABLED
+    PUSHBUTTON      "&Keyfiles..",IDC_KEY_FILES,152,35,64,14,WS_DISABLED
     RTEXT           "Password:",IDT_PASSWORD,1,5,50,8
     RTEXT           "&Confirm:",IDT_CONFIRM,1,22,50,8
     LTEXT           "",IDC_BOX_HELP,0,58,223,95
@@ -249,12 +249,12 @@ FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     EDITTEXT        IDC_PASSWORD_DIRECT,50,11,149,14,ES_PASSWORD | 
                     ES_AUTOHSCROLL
-    CONTROL         "Display password",IDC_SHOW_PASSWORD_HIDVOL_HOST,"Button",
+    CONTROL         "&Display password",IDC_SHOW_PASSWORD_HIDVOL_HOST,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,50,27,79,11,
                     WS_EX_TRANSPARENT
-    CONTROL         "Use keyfiles",IDC_KEYFILES_ENABLE,"Button",
+    CONTROL         "U&se keyfiles",IDC_KEYFILES_ENABLE,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,50,38,82,11
-    PUSHBUTTON      "Keyfiles..",IDC_KEY_FILES,135,29,64,14,WS_DISABLED
+    PUSHBUTTON      "&Keyfiles..",IDC_KEY_FILES,135,29,64,14,WS_DISABLED
     LTEXT           "",IDC_BOX_HELP,0,57,214,96
     RTEXT           "Password:",IDT_PASSWORD,0,15,48,8
 END

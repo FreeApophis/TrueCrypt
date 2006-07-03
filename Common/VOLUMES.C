@@ -3,7 +3,7 @@
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
    contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
 
@@ -276,21 +276,8 @@ VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 	cryptoInfo->mode = mode;
 
 	// Salt for header key derivation
-#ifdef _WIN32
 	if (!RandgetBytes (keyInfo.key_salt, PKCS5_SALT_SIZE, !bWipeMode))
 		return ERR_CIPHER_INIT_WEAK_KEY; 
-#else
-	if (!bWipeMode)
-	{
-		if (!RandgetBytes (keyInfo.key_salt, PKCS5_SALT_SIZE, FALSE))
-			return ERR_CIPHER_INIT_WEAK_KEY; 
-	}
-	else
-	{
-		if (!RandpeekBytes (keyInfo.key_salt, PKCS5_SALT_SIZE))
-			return ERR_CIPHER_INIT_WEAK_KEY; 
-	}
-#endif	
 
 	// PKCS5 is used to derive the header key and the secondary header key (LRW mode) from the password
 	switch (pkcs5)

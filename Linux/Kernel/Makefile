@@ -18,6 +18,8 @@ EXTRA_CFLAGS += -w
 else
 EXTRA_CFLAGS += -Wno-strict-prototypes
 endif
+# Do not enable strict aliasing
+EXTRA_CFLAGS += -fno-strict-aliasing
 EXTRA_CFLAGS += $(TYPES)
 EXTRA_CFLAGS += -D_cdecl="" -DBOOL=int -DTRUE=1 -DFALSE=0
 EXTRA_CFLAGS += -DLINUX_DRIVER

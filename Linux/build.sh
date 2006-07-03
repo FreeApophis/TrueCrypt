@@ -1,7 +1,7 @@
 #!/bin/sh 
 # TrueCrypt build script
 
-KERNEL_SRC=/usr/src/linux-$(uname -r)
+TMP=.build.sh.tmp
 
 umask 022
 
@@ -19,7 +19,7 @@ check_kernel_version ()
 	VER=$VER.$(grep '^PATCHLEVEL *=' "$M" | head -n 1 | tr -d ' ' | cut -d'=' -f2)
 	VER=$VER.$(grep '^SUBLEVEL *=' "$M" | head -n 1 | tr -d ' ' | cut -d'=' -f2)
 
-	[ $VER = $( uname -r | tr -- - . | cut -d. -f1-3) ] && return 0
+	[ $VER = $(uname -r | cut -d- -f1 | cut -d. -f1-3) ] && return 0
 	return 1
 }
 
@@ -38,8 +38,13 @@ case "$(uname -r)" in
 esac
 [ "$V" ] && error "TrueCrypt requires Linux kernel 2.6.5 or later" && exit 1
 
-[ ! -d "$KERNEL_SRC" ] && KERNEL_SRC=/usr/src/linux
-if [ ! -d "$KERNEL_SRC" ] || ! check_kernel_version "$KERNEL_SRC"
+KERNEL_SRC=/usr/src/linux-source-$(uname -r)
+check_kernel_version "$KERNEL_SRC" || KERNEL_SRC=/usr/src/linux-source-$(uname -r | cut -d'-' -f1)
+check_kernel_version "$KERNEL_SRC" || KERNEL_SRC=/usr/src/linux-$(uname -r)
+check_kernel_version "$KERNEL_SRC" || KERNEL_SRC=/usr/src/linux-$(uname -r | cut -d'-' -f1)
+check_kernel_version "$KERNEL_SRC" || KERNEL_SRC=/usr/src/linux
+
+if ! check_kernel_version "$KERNEL_SRC"
 then
 	echo -n "Linux kernel ($(uname -r)) source directory [$KERNEL_SRC]: "
 	read A
@@ -50,6 +55,12 @@ fi
 if ! check_kernel_version "$KERNEL_SRC"
 then
 	error "Kernel source version in $KERNEL_SRC is not $(uname -r)"
+	exit 1
+fi
+
+if [ ! -f "$KERNEL_SRC/drivers/md/dm.h" ]
+then
+	error "Kernel source code is incomplete - drivers/md/dm.h not found."
 	exit 1
 fi
 
@@ -70,7 +81,7 @@ then
 				cp /boot/config-$(uname -r) $KERNEL_SRC/.config || exit 1
 			fi
 			
-			make -C $KERNEL_SRC oldconfig >/dev/null || exit 1
+			make -C $KERNEL_SRC oldconfig </dev/zero >/dev/null || exit 1
 			echo Done.
 		fi
 	fi
@@ -87,7 +98,12 @@ then
 	if grep -q modules_prepare $KERNEL_SRC/Makefile
 	then
 		echo -n "Preparing kernel build system in $KERNEL_SRC... "
-		make -C $KERNEL_SRC modules_prepare >/dev/null || exit 1
+		if ! make -C $KERNEL_SRC modules_prepare >/dev/null 2>$TMP
+		then
+			cat $TMP; rm $TMP
+			exit 1
+		fi
+		rm $TMP
 		echo Done.
 	else
 		error "Kernel build system not ready. You should run make -C $KERNEL_SRC modules"
@@ -95,13 +111,19 @@ then
 	fi
 fi
 
-if [ ! -f "$KERNEL_SRC/drivers/md/dm.h" ]
-then
-	error "Kernel source code is incomplete - header file dm.h not found."
-	exit 1
-fi
+grep -qi 'CONFIG_BLK_DEV_DM=[YM]' $KERNEL_SRC/.config || echo "Warning: kernel device mapper support (CONFIG_BLK_DEV_DM) is disabled in $KERNEL_SRC"
 
-grep -qi 'CONFIG_BLK_DEV_DM=N' $KERNEL_SRC/.config && echo "Warning: kernel device mapper support (CONFIG_BLK_DEV_DM) is disabled in $KERNEL_SRC" && sleep 5
+if [ ! -f "$KERNEL_SRC/Module.symvers" ] && grep -qi 'CONFIG_MODVERSIONS=Y' $KERNEL_SRC/.config 
+then
+		echo -n "Building internal kernel modules (may take a long time)... "
+		if ! make -C $KERNEL_SRC modules >/dev/null 2>$TMP
+		then
+			cat $TMP; rm $TMP
+			exit 1
+		fi
+		rm $TMP
+		echo Done.
+fi
 
 
 # Build

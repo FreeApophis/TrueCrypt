@@ -1,5 +1,5 @@
 
-TrueCrypt 4.2 Source Code Distribution
+TrueCrypt 4.2a Source Code Distribution
 Released by TrueCrypt Foundation
 
 

@@ -25,13 +25,6 @@
 #define MK_TABLE
 #define ONE_STEP
 
-static char *alg_name[] = { "twofish", "twofish.c", "twofish" };
-
-static char **cipher_name()
-{
-    return alg_name;
-}
-
 //u4byte  k_len;
 //u4byte  l_key[40];
 //u4byte  s_key[4];
@@ -227,7 +220,7 @@ u1byte  sb[4][256];
 #define q42(x)  q(1,q(0,q(0, q(0, x) ^ extract_byte(key[3],2)) ^ extract_byte(key[2],2)) ^ extract_byte(key[1],2)) ^ extract_byte(key[0],2)
 #define q43(x)  q(1,q(1,q(0, q(1, x) ^ extract_byte(key[3],3)) ^ extract_byte(key[2],3)) ^ extract_byte(key[1],3)) ^ extract_byte(key[0],3)
 
-static gen_mk_tab(TwofishInstance *instance, u4byte key[])
+static void gen_mk_tab(TwofishInstance *instance, u4byte key[])
 {   u4byte  i;
     u1byte  by;
 

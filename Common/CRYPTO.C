@@ -3,7 +3,7 @@
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
    contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
 
@@ -81,7 +81,7 @@ static Hash Hashes[] =
 /* Return values: 0 = success, ERR_CIPHER_INIT_FAILURE (fatal), ERR_CIPHER_INIT_WEAK_KEY (non-fatal) */
 int CipherInit (int cipher, unsigned char *key, unsigned __int8 *ks)
 {
-	int retVal = 0;
+	int retVal = ERR_SUCCESS;
 
 	switch (cipher)
 	{
@@ -145,9 +145,9 @@ int CipherInit (int cipher, unsigned char *key, unsigned __int8 *ks)
 		}
 
 		// Verify whether all three DES keys are mutually different
-		if (((*((__int64 *) key) ^ *((__int64 *) key+1)) & 0xFEFEFEFEFEFEFEFE) == 0
-		|| ((*((__int64 *) key+1) ^ *((__int64 *) key+2)) & 0xFEFEFEFEFEFEFEFE) == 0
-		|| ((*((__int64 *) key) ^ *((__int64 *) key+2)) & 0xFEFEFEFEFEFEFEFE) == 0)
+		if (((*((__int64 *) key) ^ *((__int64 *) key+1)) & 0xFEFEFEFEFEFEFEFEULL) == 0
+		|| ((*((__int64 *) key+1) ^ *((__int64 *) key+2)) & 0xFEFEFEFEFEFEFEFEULL) == 0
+		|| ((*((__int64 *) key) ^ *((__int64 *) key+2)) & 0xFEFEFEFEFEFEFEFEULL) == 0)
 			retVal = ERR_CIPHER_INIT_WEAK_KEY;		// Non-fatal error
 
 		break;
@@ -254,7 +254,10 @@ int EAGetNext (int previousEA)
 // Return values: 0 = success, ERR_CIPHER_INIT_FAILURE (fatal), ERR_CIPHER_INIT_WEAK_KEY (non-fatal)
 int EAInit (int ea, unsigned char *key, unsigned __int8 *ks)
 {
-	int c, retVal = 0;
+	int c, retVal = ERR_SUCCESS;
+
+	if (ea == 0)
+		return ERR_CIPHER_INIT_FAILURE;
 
 	for (c = EAGetFirstCipher (ea); c != 0; c = EAGetNextCipher (ea, c))
 	{
@@ -301,7 +304,7 @@ int EAInitMode (PCRYPTO_INFO ci)
 char *EAGetName (char *buf, int ea)
 {
 	int i = EAGetLastCipher(ea);
-	strcpy (buf, CipherGetName (i));
+	strcpy (buf, (i != 0) ? CipherGetName (i) : "?");
 
 	while (i = EAGetPreviousCipher(ea, i))
 	{

@@ -3,7 +3,7 @@
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
    contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
 
@@ -776,6 +776,11 @@ TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 		Extension->TotalBytesWritten += irpSp->Parameters.Read.Length;
 
 		CurrentAddress = (PUCHAR) MmGetSystemAddressForMdlSafe (Irp->MdlAddress, HighPagePriority);
+		if (CurrentAddress == NULL)
+		{
+			TCfree (tmpBuffer);
+			return COMPLETE_IRP (DeviceObject, Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
+		}
 
 		if (Extension->cryptoInfo->hiddenVolume)
 		{

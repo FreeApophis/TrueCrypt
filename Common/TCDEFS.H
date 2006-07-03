@@ -3,15 +3,15 @@
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
    contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
 
 // Version displayed to user 
-#define VERSION_STRING                  "4.2"
+#define VERSION_STRING                  "4.2a"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x0420
+#define VERSION_NUM						0x042a
 
 // Version number written to volume header during format,
 // specifies the minimum program version required to mount the volume
@@ -20,7 +20,6 @@
 // Volume header version
 #define VOLUME_HEADER_VERSION			0x0002 
 
-#define TC_MAX_PATH						260	/* Includes the null terminator */
 #define SECTOR_SIZE                     512	/* Filesystem sector size */
 
 #define BYTES_PER_KB                    1024LL
@@ -31,6 +30,7 @@
 
 /* GUI/driver errors */
 
+#define ERR_SUCCESS                     0
 #define ERR_OS_ERROR                    1
 #define ERR_OUTOFMEMORY                 2
 #define ERR_PASSWORD_WRONG              3
@@ -186,4 +186,10 @@ typedef unsigned __int32 LRESULT;
 
 #pragma hdrstop
 
+#endif
+
+#ifdef MAX_PATH
+#define TC_MAX_PATH						MAX_PATH
+#else
+#define TC_MAX_PATH						260	/* Includes the null terminator */
 #endif

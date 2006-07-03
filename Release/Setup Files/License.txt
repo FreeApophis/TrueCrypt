@@ -1,45 +1,84 @@
-TrueCrypt License Version 2.0
+TrueCrypt Collective License Version 1.0
 
 
-I. Definitions 
+The TrueCrypt Collective License consists of several distinct licenses, which
+are contained in this document (separated by lines consisting of underscores)
+and which are, in this section, referred to as component licenses. Each of the
+component licenses applies only to (portions of) the source code file(s) in
+which the component license is contained or in which it is explicitly
+referenced, and to compiled or otherwise processed forms of such source code.
+None of the component licenses applies to this product as a whole, even when it
+uses the phrase "this product" or any other equivalent term/phrase. Unless
+otherwise stated, graphics and files that are not part of the source code are
+covered solely by the TrueCrypt License.
+Note: The TrueCrypt License is one of the component licenses of which the
+TrueCrypt Collective License consists.
 
-1. "This product" means the parts of the computer software, including, but not
-limited to, source code, texts, graphics, and any accompanying files, released
-under and covered by this version of this License. 
+Anyone who uses and/or reproduces and/or modifies and/or (re)distributes any
+part(s) of work made available under this version of the TrueCrypt Collective
+License, is, by such action(s), accepting in full the responsibilities and
+obligations contained in the component licenses that apply to the corresponding
+part(s) of such work.
 
-2. "You" (or "your") means an individual or a legal entity (e.g., a non-profit
-organization, commercial organization, government agency, etc.) exercising 
-permissions granted by this License. 
+If any term of this license is found to be invalid or unenforceable under
+applicable law, it shall not affect the validity or enforceability of any other
+terms of this license that are found to be valid and enforceable under
+applicable law.
+
+____________________________________________________________
+
+TrueCrypt License Version 2.1
+
+
+I. Definitions
+
+1. "This Product" means the work (including, but not limited to, source code,
+graphics, texts, and accompanying files) made available under and covered by
+this version of this License, as indicated by a copyright notice attached to or
+included in the work.
+
+2. "You" (or "Your") means an individual or a legal entity (e.g., a non-profit
+organization, commercial organization, government agency, etc.) exercising
+rights under this License.
+
+3. "Modification" means any alteration of This Product, including, but not
+limited to, addition to or deletion from the substance or structure of This
+Product, and translation into another language.
+
+4. "Your Product" means This Product modified by You, any work You derive from
+(or base on) This Product, any work in which You include This Product, or any
+respective part(s) thereof.
 
 
 
-II. Terms and Conditions for Copying, Distribution, and Use
+II. Terms and Conditions for Use, Reproduction, and Distribution
 
-1. You may copy and/or distribute this product without any restrictions,
-provided that the product is not modified and that it is not repackaged (for
-terms and conditions for copying and distribution of modified or repackaged
-versions of this product, see Section III.)
+1. You may copy and/or distribute This Product, provided that You do not modify
+any part of This Product (for terms and conditions for reproduction and
+distribution of modified versions of This Product, see Section III) and
+provided that You ensure that all the legal notices and documents (containing,
+e.g., the text of this License, references to this License, etc.) included with
+This Product are included with every copy of This Product that you make and
+distribute.
 
-2. You may use this product freely (see also Section III.) on single or
-multiple computers/systems for non-commercial and/or commercial uses.
+2. You may use This Product freely (see also Section III) on any number of
+computers/systems for non-commercial and/or commercial purposes.
 
 
 
 III. Terms and Conditions for Modification and Derivation of New Products
 
-1. You may modify this product (this also covers implementation of new
-features/functionalities, translation into another language, and porting to
-another platform), derive new works from this product, include/use this product
-or its portion in (or as part of) your product, and you may copy and distribute
-such modifications, derivative or aggregated works as your product, provided
-that the following conditions are met (for exceptions, see Sections III.2.
-and III.3.):
+1. You may modify This Product (thus forming Your Product), derive new works
+from This Product or portions thereof (thus forming Your Product), include This
+Product or portions thereof in another product (thus forming Your Product), and
+You may copy and/or distribute Your Product, only if the following conditions
+are met (for exceptions, see Sections III.2 and III.3):
 
-    a. Your product or the modified version must not be called TrueCrypt and
-    its name must not contain the name TrueCrypt (for example, the following
-    names are not allowed: TrueCrypt+, TrueCrypt Professional, etc.) nor any of
-    its variations that can be easily confused with the name TrueCrypt (e.g.,
-    Truecrypt, True-Crypt, True Crypt, TrueKrypt, TruCrypt, etc.)
+    a. The name of Your Product (or of Your modified version of This Product)
+    must not contain the name TrueCrypt (for example, the following names are
+    not allowed: TrueCrypt, TrueCrypt+, TrueCrypt Professional, iTrueCrypt,
+    etc.) nor any of its variations that can be easily confused with the name
+    TrueCrypt (e.g., True-Crypt, True Crypt, TrueKrypt, TruCrypt, etc.)
 
     Note: TrueCrypt is a trademark of the TrueCrypt Foundation. The goal is not
     to monetize the name or the product, but to protect the reputation of
@@ -48,158 +87,145 @@ and III.3.):
     name. Even though TrueCrypt is a trademark, TrueCrypt is and will remain
     open-source and free software.
 
-    b. The following phrases must be removed from the "About" dialog (the
-    credits), from this License (Section VI.), and from any other accompanying
-    materials:
+    b. The following phrases must be removed from Your Product:
     "A TrueCrypt Foundation Release"
     "Released by TrueCrypt Foundation"
     "This is a TrueCrypt Foundation release."
 
-    c. Phrase "Based on TrueCrypt" must be displayed by your product (if
-    technically feasible) or by the modified version and contained in its 
-    documentation. Alternatively, if this product or its portion you included
-    in your product comprise only a minor portion of your product, phrase 
-    "Portions of this product are based in part on TrueCrypt" may be used
-    instead.
+    c. Phrase "Based on TrueCrypt, freely available at
+    http://www.truecrypt.org/" must be displayed by Your Product (if
+    technically feasible) and contained in its documentation. Alternatively, if
+    This Product or its portion You included in Your Product comprises only a
+    minor portion of Your Product, phrase "Portions of this product are based
+    in part on TrueCrypt, freely available at http://www.truecrypt.org/" may be
+    displayed instead. In each of the cases mentioned above in this paragraph,
+    "http://www.truecrypt.org/" must be a hyperlink (if technically feasible)
+    pointing to http://www.truecrypt.org/ and you may freely choose the
+    location within the user interface (if there is any) of Your Product (e.g.,
+    an "About" window, etc.) and the way in which Your Product will display the
+    respective phrase.
 
-    d. Complete source code of your product or of the modified version must be
-    freely and publicly available. If the source code is not included with
-    every copy of your product/modifications, there must be a well-publicized
-    means of obtaining the source code, preferably, downloading via the
-    Internet without charge. The source code must not be deliberately 
-    obfuscated, and it must not be in an intermediate form (e.g., the output of
-    a preprocessor). Source code means the preferred form in which a programmer
-    would usually modify the program. 
+    d. The complete source code of Your Product must be freely and publicly
+    available (for exceptions, see Section III.3) at least until you cease to
+    distribute Your Product. To meet this condition, it is sufficient that You
+    merely include the source code with every copy of Your Product that you
+    make and distribute; it is also sufficient that You merely include
+    information (valid and correct at least until you cease to distribute Your
+    Product) about where the source code can be freely obtained (e.g., an
+    Internet URL, etc.) with every copy of Your Product that you make and
+    distribute. The source code must not be deliberately obfuscated, and it
+    must not be in an intermediate form (e.g., the output of a preprocessor).
+    Source code means the preferred form in which a programmer would usually
+    modify the program.
 
-    e. The license and distribution terms of no part of this product may be
-    changed (i.e., no part of this product can be put under another license),
-    except as expressly permitted or required by this License. The legal 
-    notices contained in the source code files must be retained. It must be 
-    clearly declared that this product or its parts are distributed under the
-    TrueCrypt License (contained herein), and it must be clearly and visibly 
-    stated in the distribution where the text of the TrueCrypt License can be 
-    found (you may amend the references to the file 'License.txt' in the source
-    code accordingly). The text of the TrueCrypt License must accompany (be
-    distributed along with) your product/modifications. (Any of the Component
-    Legal Notices contained below in this file may be omitted if the component
-    to which it pertains is not used. If no cryptographic components of this
-    product are used, Section IV.3. may be omitted as well.)
+    e. You must not change the license and distribution terms of This Product
+    (i.e., no part of This Product may be put under another license), except as
+    expressly permitted or required by this License. You must keep intact all
+    the legal notices contained in the source code files. You must include the
+    following items with every copy of Your Product that you make and
+    distribute: a clear and conspicuous notice stating that Your Product or
+    portion(s) thereof is/are distributed under this version of the TrueCrypt
+    License, a verbatim copy of this version of the TrueCrypt License (as
+    contained herein), a clear and conspicuous notice containing information
+    about where the included copy of the License can be found, and an
+    appropriate copyright notice.
 
-
-2. You are not obligated to comply with Sections III.1.a., III.1.b., III.1.c.,
-and III.1.d. if at least one of the following conditions is met:
-
-    a. You include this product in its entirety and without any modifications
-    in an operating system distribution (i.e., you include binaries obtained by
-    compiling the unmodified source code of this product and/or you include the
-    unmodified contents of the source code distribution archive and/or of the
-    binary distribution archive).
-
-    b. You include this product in its entirety (the contents of either the
-    source code distribution archive and/or of the binary distribution archive)
-    and without any modifications as non-integral part of your product (i.e.,
-    the main functionality of your product will not be affected if such
-    non-integral part is removed) and phrase "This product utilizes TrueCrypt"
-    or "This product includes TrueCrypt" is displayed by your product (if
-    technically feasible) and contained in its documentation.
+    f. You must not use the name of This Product, names of its authors, or the
+    names of the legal entities (or informal groups) of which the authors
+    were/are members/employees, to endorse or promote Your Product without
+    specific prior written permission from the authors of This Product.
 
 
-3. You are not obligated to comply with Section III.1.d. if at least one of the
-following conditions is met:
+2. You are not obligated to comply with Sections III.1.a, III.1.b, III.1.c,
+III.1.d, and III.1.f, if all conditions specified in one of the two following
+paragraphs are met:
 
-    a. Your product/modifications (as defined in Section III.1.) are not
-    distributed (i.e., your product/modifications are available only to you).
+    a. Your Product is an operating system distribution, or other aggregate
+    software distribution (such as a cover CD-ROM of a magazine) containing
+    products from different sources, in which You include either This Product
+    without any modifications or file(s) which You obtain by compiling the
+    unmodified source code of This Product.
 
-    b. Your product/modifications (as defined in Section III.1.) are
-    distributed and used only internally within the organization and only by
-    members/employees of the organization for which you created the
-    product/modifications and of which you were a member/employee when you
-    created the product/modifications. (Here the word "organization" means
-    a non-commercial or commercial organization, or a government agency.)
+    b. You include This Product in its entirety and without any modifications
+    (You may omit the source code of This Product) as non-integral part of Your
+    Product (i.e., none of the main functionalities of Your Product will be
+    affected if such non-integral part is removed) and phrase "This product
+    utilizes TrueCrypt, freely available at http://www.truecrypt.org/" or
+    phrase "This product includes TrueCrypt, freely available at
+    http://www.truecrypt.org/" is displayed by Your Product (if technically
+    feasible) and contained in its documentation. In each of the cases
+    mentioned above in this paragraph, "http://www.truecrypt.org/" must be a
+    hyperlink (if technically feasible) pointing to http://www.truecrypt.org/
+    and you may freely choose the location within the user interface (if there
+    is any) of Your Product (e.g., an "About" window, etc.) and the way in
+    which Your Product will display the respective phrase.
+
+
+3. You are not obligated to comply with Section III.1.d if Your Product is not
+distributed (i.e., Your Product is available only to You).
 
 
 
 IV. Disclaimer of Warranties and Liabilities
 
-1. AS THIS PRODUCT IS FREE, THERE IS NO WARRANTY FOR THE PRODUCT, TO THE EXTENT
-PERMITTED BY APPLICABLE LAW. UNLESS OTHERWISE STATED, THE PRODUCT IS PROVIDED 
-"AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, 
-BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE
-PROGRAM IS WITH YOU. SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF
-ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
-   
+1. THERE IS NO WARRANTY FOR THE PRODUCT, TO THE EXTENT PERMITTED BY APPLICABLE
+LAW. UNLESS OTHERWISE STATED, THE PRODUCT IS PROVIDED "AS IS" WITHOUT WARRANTY
+OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE
+ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU.
+SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY
+SERVICING, REPAIR OR CORRECTION.
+
 2. IN NO EVENT, UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING, WILL
-ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR DISTRIBUTE THE 
-PROGRAM AS PERMITTED HEREIN, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY 
-GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR
-INABILITY TO USE THE PROGRAM, INCLUDING, BUT NOT LIMITED TO, LOSS OF DATA OR
-DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A
-FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS, EVEN IF SUCH HOLDER
-OR OTHER PARTY HAD PREVIOUSLY BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
-     
-3. THIS PRODUCT INCORPORATES CRYPTOGRAPHIC ALGORITHMS THAT MAY BE REGULATED OR
-ILLEGAL IN SOME COUNTRIES. IT IS SOLELY YOUR RESPONSIBILITY TO VERIFY THAT IT
-IS LEGAL TO IMPORT AND/OR EXPORT AND/OR USE THIS PRODUCT IN COUNTRIES WHERE YOU
-INTEND TO USE THIS PRODUCT AND/OR TO WHICH YOU INTEND TO IMPORT IT AND/OR FROM
-WHICH YOU INTEND TO EXPORT IT.
+ANY COPYRIGHT HOLDER, OR (CO)AUTHOR OF THIS PRODUCT, OR ANY OTHER PARTY WHO MAY
+MODIFY AND/OR DISTRIBUTE THE PROGRAM AS PERMITTED HEREIN, BE LIABLE TO YOU OR
+ANY OTHER PARTY FOR DAMAGES, INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL OR
+CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE THE PROGRAM,
+INCLUDING, BUT NOT LIMITED TO, LOSS OF DATA OR DATA BEING RENDERED INACCURATE
+OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A FAILURE OF THE PROGRAM TO
+OPERATE WITH ANY OTHER PROGRAMS, EVEN IF SUCH HOLDER OR OTHER PARTY HAD
+PREVIOUSLY BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+3. THIS PRODUCT INCORPORATES IMPLEMENTATIONS OF CRYPTOGRAPHIC ALGORITHMS THAT
+MAY BE REGULATED (E.G., SUBJECT TO EXPORT/IMPORT CONTROL REGULATIONS) OR
+ILLEGAL IN SOME COUNTRIES. YOU EXPRESSLY ACKNOWLEDGE AND AGREE THAT IT IS
+SOLELY YOUR RESPONSIBILITY TO VERIFY THAT IT IS LEGAL TO IMPORT AND/OR EXPORT
+AND/OR USE THIS PRODUCT (OR PARTS THEREOF) IN COUNTRIES WHERE YOU INTEND TO USE
+IT AND/OR TO WHICH YOU INTEND TO IMPORT IT AND/OR FROM WHICH YOU INTEND TO
+EXPORT IT, AND THAT IT IS SOLELY YOUR RESPONSIBILITY TO COMPLY WITH ANY SUCH
+REGULATIONS/RESTRICTIONS.
 
 
 
-V. General Terms 
+V. Trademarks
 
-1. Where applicable, the component licenses contained in parts of the source
-code and quoted below herein (Section "Component Legal Notices") might take
-precedence over the TrueCrypt License. 
+This License does not grant permission to use trademarks associated with (or
+applying to) This Product, except for fair use as defined by applicable law and
+except for use expressly permitted or required by this License.
 
-2. This product is provided under the terms of this license (agreement). Any
-use, reproduction, distribution, or modification of this product or any of its
-parts constitutes recipient's acceptance of this agreement.
+TrueCrypt and the TrueCrypt logos are trademarks of the TrueCrypt Foundation.
+Note: The goal is not to monetize the name or the product, but to protect the
+reputation of TrueCrypt. TrueCrypt is and will remain open-source and free
+software.
 
-3. You may not modify, copy, distribute, or sublicense this product except as
+
+
+VI. General Terms
+
+1. You may not modify, copy, distribute, or sublicense This Product except as
 expressly provided under this License. Any attempt otherwise to modify, copy,
-distribute, or sublicense this product automatically terminates your rights
-under this License. 
+distribute, or sublicense This Product automatically terminates Your rights
+under this License.
 
-4. If any of the license terms is found to be too broad in scope, and/or
-declared invalid by any court or legal process, you agree that all other terms
-shall not be so affected, and shall remain valid and enforceable.
+2. Anyone who uses and/or reproduces and/or modifies and/or (re)distributes
+This Product, or any part(s) thereof, is, by such action(s), accepting in full
+the responsibilities and obligations contained in this License.
 
+3. If any term of this License is found to be invalid or unenforceable under
+applicable law, You agree that it shall not affect the validity or
+enforceability of any other terms of this License that are found to be valid
+and enforceable under applicable law.
 
-
-VI. Copyright and Trademark Information
-
-TrueCrypt is a trademark of the TrueCrypt Foundation. The goal is not to
-monetize the name or the product, but to protect the reputation of TrueCrypt,
-and to prevent support issues and other kinds of issues that might arise from
-the existence of similar products with the same or similar name. Even though
-TrueCrypt is a trademark, TrueCrypt is and will remain open-source and free
-software. All other trademarks are the sole property of their respective
-owners.
-
-Portions of this software are:
-Copyright (c) TrueCrypt Foundation. All Rights Reserved.
-Copyright (c) Paul Le Roux. All Rights Reserved.
-Copyright (c) TrueCrypt Team. All Rights Reserved.
-Copyright (c) Eric Young. All Rights Reserved.
-Copyright (c) Dr. Brian Gladman, Worcester, UK. All Rights Reserved.
-Copyright (c) Markus Friedl. All Rights Reserved.
-
-For more information, please see the legal notices attached to parts of the
-source code.
-
-Graphics (logos, icons, etc.) are Copyright (c) TrueCrypt Foundation
-
-
-
-COMPONENT LEGAL NOTICES
-
-Each of the following component licenses applies only to (portions of) the
-source code file(s) in which the component license is contained or in which it
-is explicitly referenced, and to compiled or otherwise processed forms of such
-source code. In other words, none of the following licenses applies to this
-product as a whole, even when it uses the term "this product" or any other
-equivalent term.
 ____________________________________________________________
 
 License agreement for Encryption for the Masses.
@@ -209,7 +235,7 @@ Copyright (C) 1998-2000 Paul Le Roux. All Rights Reserved.
 This product can be copied and distributed free of charge, including
 source code.
 
-You may modify this product and source code, and distribute such modifications, 
+You may modify this product and source code, and distribute such modifications,
 and you may derive new works based on this product, provided that:
 
 1. Any product which is simply derived from this product cannot be
@@ -217,13 +243,13 @@ called E4M, or Encryption for the Masses.
 
 2. If you use any of the source code in your product, and your product
 is distributed with source code, you must include this notice with
-those portions of this source code that you use. 
+those portions of this source code that you use.
 
-Or, 
+Or,
 
 If your product is distributed in binary form only, you must display
 on any packaging, and marketing materials which reference
-your product, a notice which states: 
+your product, a notice which states:
 
 "This product uses components written by Paul Le Roux <pleroux@swprofessionals.com>"
 
@@ -236,16 +262,16 @@ distribute the product or its derivative works.
 
 These actions are prohibited by law if you do not accept this License.
 
-5. If any of these license terms is found to be to broad in scope, and  
+5. If any of these license terms is found to be to broad in scope, and
 declared invalid by any court or legal process, you agree that all other
 terms shall not be so affected, and shall remain valid and enforceable.
 
-6. THIS PROGRAM IS DISTRIBUTED FREE OF CHARGE, THEREFORE THERE IS NO WARRANTY 
-FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW. UNLESS OTHERWISE 
-STATED THE PROGRAM IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER 
+6. THIS PROGRAM IS DISTRIBUTED FREE OF CHARGE, THEREFORE THERE IS NO WARRANTY
+FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW. UNLESS OTHERWISE
+STATED THE PROGRAM IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER
 EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE 
-QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU. SHOULD THE PROGRAM PROVE 
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE
+QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU. SHOULD THE PROGRAM PROVE
 DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
 
 7. IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
@@ -255,7 +281,7 @@ INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING
 OUT OF THE USE OR INABILITY TO USE THE PROGRAM, INCLUDING BUT NOT LIMITED
 TO LOSS OF DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY
 YOU OR THIRD PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER
-PROGRAMS, EVEN IF SUCH HOLDER OR OTHER PARTY HAD PREVIOUSLY BEEN ADVISED 
+PROGRAMS, EVEN IF SUCH HOLDER OR OTHER PARTY HAD PREVIOUSLY BEEN ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGES.
 ____________________________________________________________
 
@@ -294,7 +320,7 @@ are met:
     Eric Young (eay@cryptsoft.com)"
    The word 'cryptographic' can be left out if the rouines from the library
    being used are not cryptographic related :-).
-4. If you include any Windows specific code (or a derivative thereof) from 
+4. If you include any Windows specific code (or a derivative thereof) from
    the apps directory (application code) you must include an acknowledgement:
    "This product includes software written by Tim Hudson (tjh@cryptsoft.com)"
 
@@ -344,22 +370,22 @@ in respect of its properties, including, but not limited to, correctness
 and/or fitness for purpose.
 ____________________________________________________________
 
-This is an independent implementation of the encryption algorithm:  
-                                                                    
-        Twofish by Bruce Schneier and colleagues                    
-                                                                    
-which is a candidate algorithm in the Advanced Encryption Standard  
-programme of the US National Institute of Standards and Technology. 
-                                                                    
-Copyright in this implementation is held by Dr B R Gladman but I    
+This is an independent implementation of the encryption algorithm:
+
+        Twofish by Bruce Schneier and colleagues
+
+which is a candidate algorithm in the Advanced Encryption Standard
+programme of the US National Institute of Standards and Technology.
+
+Copyright in this implementation is held by Dr B R Gladman but I
 hereby give permission for its free direct or derivative use subject
-to acknowledgment of its origin and compliance with any conditions  
-that the originators of the algorithm place on its exploitation.    
-                                                                    
-My thanks to Doug Whiting and Niels Ferguson for comments that led  
-to improvements in this implementation.                             
-                                                                    
-Dr Brian Gladman (gladman@seven77.demon.co.uk) 14th January 1999    
+to acknowledgment of its origin and compliance with any conditions
+that the originators of the algorithm place on its exploitation.
+
+My thanks to Doug Whiting and Niels Ferguson for comments that led
+to improvements in this implementation.
+
+Dr Brian Gladman (gladman@seven77.demon.co.uk) 14th January 1999
 ____________________________________________________________
 
 Copyright (c) 2001 Markus Friedl.  All rights reserved.

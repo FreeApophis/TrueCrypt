@@ -151,7 +151,7 @@ BEGIN
     RTEXT           "Password:",IDT_PASSWORD,12,16,72,8
     RTEXT           "Password:",IDT_NEW_PASSWORD,8,77,76,8
     RTEXT           "Confirm Password:",IDT_CONFIRM_PASSWORD,9,93,75,8
-    RTEXT           "PKCS-5 PRF",IDT_PKCS5_PRF,9,137,74,10,SS_CENTERIMAGE
+    RTEXT           "PKCS-5 PRF:",IDT_PKCS5_PRF,9,137,74,10,SS_CENTERIMAGE
     GROUPBOX        "Current",IDT_CURRENT,6,3,230,58
     GROUPBOX        "New",IDT_NEW,6,63,230,93
 END
@@ -366,8 +366,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 4,2,0,0
- PRODUCTVERSION 4,2,0,0
+ FILEVERSION 4,2,1,0
+ PRODUCTVERSION 4,2,1,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -384,13 +384,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt"
-            VALUE "FileVersion", "4.2"
+            VALUE "FileVersion", "4.2a"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "4.2"
-            VALUE "SpecialBuild", "2006-04-17"
+            VALUE "ProductVersion", "4.2a"
+            VALUE "SpecialBuild", "2006-07-03"
         END
     END
     BLOCK "VarFileInfo"

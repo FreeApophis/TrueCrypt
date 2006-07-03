@@ -3,7 +3,7 @@
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
    contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
 
@@ -17,12 +17,18 @@
 #define SIZEOF_MRU_LIST 20
 
 void
-AddComboItem (HWND hComboBox, char *lpszFileName)
+AddComboItem (HWND hComboBox, char *lpszFileName, BOOL saveHistory)
 {
 	LPARAM nIndex;
 
-	nIndex = SendMessage (hComboBox, CB_FINDSTRINGEXACT, (WPARAM) - 1,
-			      (LPARAM) & lpszFileName[0]);
+	if (!saveHistory)
+	{
+		SendMessage (hComboBox, CB_RESETCONTENT, 0, 0);
+		SetWindowText (hComboBox, lpszFileName);
+		return;
+	}
+
+	nIndex = SendMessage (hComboBox, CB_FINDSTRINGEXACT, (WPARAM) - 1, (LPARAM) & lpszFileName[0]);
 
 	if (nIndex == CB_ERR && *lpszFileName)
 	{
@@ -43,10 +49,17 @@ AddComboItem (HWND hComboBox, char *lpszFileName)
 
 
 LPARAM
-MoveEditToCombo (HWND hComboBox)
+MoveEditToCombo (HWND hComboBox, BOOL saveHistory)
 {
-	char szTmp[256] =
-	{0};
+	char szTmp[TC_MAX_PATH] = {0};
+
+	if (!saveHistory)
+	{
+		GetWindowText (hComboBox, szTmp, sizeof (szTmp));
+		SendMessage (hComboBox, CB_RESETCONTENT, 0, 0);
+		SetWindowText (hComboBox, szTmp);
+		return 0;
+	}
 
 	GetWindowText (hComboBox, szTmp, sizeof (szTmp));
 
@@ -135,7 +148,7 @@ LoadCombo (HWND hComboBox)
 	while (xml = XmlFindElement (xml, "volume"))
 	{
 		XmlNodeText (xml, volume, sizeof (volume));
-		AddComboItem (hComboBox, volume);
+		AddComboItem (hComboBox, volume, TRUE);
 		xml++;
 	}
 

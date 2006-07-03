@@ -1,4 +1,4 @@
-This archive contains TrueCrypt 4.2 setup and documentation.
+This archive contains TrueCrypt 4.2a setup and documentation.
 
 
 If you have never used TrueCrypt before, we recommend that you read the 

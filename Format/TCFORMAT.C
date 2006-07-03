@@ -3,7 +3,7 @@
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
    contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
 
@@ -56,6 +56,7 @@ enum wizard_pages
 	FORMAT_FINISHED_PAGE
 };
 
+static char PageDebugId[128];
 HWND hCurPage = NULL;		/* Handle to current wizard page */
 int nCurPageNo = -1;		/* The current wizard page */
 int nVolumeEA = 1;			/* Default encryption algorithm */
@@ -86,8 +87,6 @@ HWND hHeaderKey = NULL;		/* Text box showing hex dump of header key */
 Password volumePassword;			/* Users password */
 char szVerify[MAX_PASSWORD + 1];	/* Tmp password buffer */
 char szRawPassword[MAX_PASSWORD + 1];	/* Password before keyfile was applied to it */
-
-BOOL bHistory = FALSE;		/* Remember all the settings */
 
 BOOL bHistoryCmdLine = FALSE; /* History control is always disabled */
 
@@ -158,7 +157,7 @@ EndMainDlg (HWND hwndDlg)
 		if (IsWindow(GetDlgItem(hCurPage, IDC_NO_HISTORY)))
 			bHistory = !IsButtonChecked (GetDlgItem (hCurPage, IDC_NO_HISTORY));
 
-		MoveEditToCombo (GetDlgItem (hCurPage, IDC_COMBO_BOX));
+		MoveEditToCombo (GetDlgItem (hCurPage, IDC_COMBO_BOX), bHistory);
 		SaveSettings (hCurPage);
 	}
 	else 
@@ -581,11 +580,17 @@ formatThreadFunction (void *hwndDlg)
 		PostMessage (hwndDlg, WM_FORMAT_FINISHED, 0, 0);
 		bThreadRunning = FALSE;
 
+		strcpy (PageDebugId, "FORMAT_FINISHED");
+		LastDialogId = PageDebugId;
+
 		NormalCursor ();
 		_endthread ();
 	}
 
 cancel:
+
+	strcpy (PageDebugId, "FORMAT_CANCELED");
+	LastDialogId = PageDebugId;
 
 	SetTimer (hwndDlg, 0xff, RANDOM_SHOW_TIMER, NULL);
 
@@ -798,7 +803,7 @@ void
 EnableDisableFileNext (HWND hComboBox, HWND hMainButton)
 {
 	LPARAM nIndex = SendMessage (hComboBox, CB_GETCURSEL, 0, 0);
-	if (nIndex == CB_ERR)
+	if (bHistory && nIndex == CB_ERR)
 	{
 		EnableWindow (hMainButton, FALSE);
 		SetFocus (hComboBox);
@@ -1072,6 +1077,9 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	case WM_INITDIALOG:
 		LocalizeDialog (hwndDlg, "IDD_MKFS_DLG");
 
+		sprintf (PageDebugId, "FORMAT_PAGE_%d", nCurPageNo);
+		LastDialogId = PageDebugId;
+
 		switch (nCurPageNo)
 		{
 		case INTRO_PAGE:
@@ -1144,7 +1152,7 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
 
-				AddComboItem (GetDlgItem (hwndDlg, IDC_COMBO_BOX), szFileName);
+				AddComboItem (GetDlgItem (hwndDlg, IDC_COMBO_BOX), szFileName, bHistory);
 
 				EnableDisableFileNext (GetDlgItem (hwndDlg, IDC_COMBO_BOX),
 				GetDlgItem (GetParent (hwndDlg), IDC_NEXT));
@@ -1183,7 +1191,6 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				char buf[100];
 
 				// Encryption algorithms
-
 				SendMessage (GetDlgItem (hwndDlg, IDC_COMBO_BOX), CB_RESETCONTENT, 0, 0);
 
 				if (bHiddenVol)
@@ -1597,7 +1604,7 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		{
 			LPARAM nIndex;
 
-			nIndex = MoveEditToCombo ((HWND) lParam);
+			nIndex = MoveEditToCombo ((HWND) lParam, bHistory);
 			nIndex = UpdateComboOrder (GetDlgItem (hwndDlg, IDC_COMBO_BOX));
 
 			if (nIndex != CB_ERR)
@@ -1739,7 +1746,7 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			if (BrowseFiles (hwndDlg, "OPEN_TITLE", szFileName, bHistory, FALSE) == FALSE)
 				return 1;
 
-			AddComboItem (GetDlgItem (hwndDlg, IDC_COMBO_BOX), szFileName);
+			AddComboItem (GetDlgItem (hwndDlg, IDC_COMBO_BOX), szFileName, bHistory);
 
 			EnableDisableFileNext (GetDlgItem (hwndDlg, IDC_COMBO_BOX),
 				GetDlgItem (GetParent (hwndDlg), IDC_NEXT));
@@ -1759,7 +1766,7 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 			if (nResult == IDOK)
 			{
-				AddComboItem (GetDlgItem (hwndDlg, IDC_COMBO_BOX), szFileName);
+				AddComboItem (GetDlgItem (hwndDlg, IDC_COMBO_BOX), szFileName, bHistory);
 
 				EnableDisableFileNext (GetDlgItem (hwndDlg, IDC_COMBO_BOX),
 				GetDlgItem (GetParent (hwndDlg), IDC_NEXT));
@@ -1969,7 +1976,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			{
 				GetWindowText (GetDlgItem (hCurPage, IDC_COMBO_BOX), szFileName, sizeof (szFileName));
 				CreateFullVolumePath (szDiskFile, szFileName, &bDevice);
-				MoveEditToCombo (GetDlgItem (hCurPage, IDC_COMBO_BOX));
+				MoveEditToCombo (GetDlgItem (hCurPage, IDC_COMBO_BOX), bHistory);
 
 				bHistory = !IsButtonChecked (GetDlgItem (hCurPage, IDC_NO_HISTORY));
 
@@ -2063,6 +2070,18 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 							Error ("VOLUME_TOO_LARGE_FOR_FAT32");
 							cancel = TRUE;
 						}
+					}
+				}
+
+				if (bHiddenVol && !bHiddenVolHost)	// If it's a hidden volume
+				{
+					/* Ask for confirmation if the hidden volume is too large for the user to be
+					able to write much more data to the outer volume. */
+
+					if (((double) nUIVolumeSize / (nMaximumHiddenVolSize / nMultiplier)) > 0.85)	// 85%
+					{
+						if (AskWarnNoYes ("FREE_SPACE_FOR_WRITING_TO_OUTER_VOLUME") == IDNO)
+							cancel = TRUE;
 					}
 				}
 
@@ -2238,6 +2257,9 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						MessageBoxW (hwndDlg, GetString ("CLUSTER_TOO_SMALL"), lpszTitle, MB_ICONWARNING);
 				}
 				
+				strcpy (PageDebugId, "FORMAT_IN_PROGRESS");
+				LastDialogId = PageDebugId;
+
 				_beginthread (formatThreadFunction, 4096, hwndDlg);
 				return 1;
 			}
@@ -2315,7 +2337,7 @@ ovf_end:
 			{
 				GetWindowText (GetDlgItem (hCurPage, IDC_COMBO_BOX), szFileName, sizeof (szFileName));
 				CreateFullVolumePath (szDiskFile, szFileName, &bDevice);
-				MoveEditToCombo (GetDlgItem (hCurPage, IDC_COMBO_BOX));
+				MoveEditToCombo (GetDlgItem (hCurPage, IDC_COMBO_BOX), bHistory);
 				SaveSettings (hCurPage);
 
 				if (!bHiddenVol)
@@ -2423,6 +2445,9 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 			int nArgPos;
 			int x;
 
+			if (lpszCommandLineArgs[i] == NULL)
+				continue;
+
 			as.args = args;
 			as.arg_cnt = sizeof(args)/ sizeof(args[0]);
 			
@@ -2526,8 +2551,8 @@ int DetermineMaxHiddenVolSize (HWND hwndDlg)
 	else
 		nMultiplier = BYTES_PER_MB;
 
-	nUIVolumeSize = nMaximumHiddenVolSize / nMultiplier;	// Set the initial value for the hidden volume size input field to the max
-	nVolumeSize = nUIVolumeSize * nMultiplier;				// Chop off possible remainder
+	nUIVolumeSize = 0;								// Set the initial value for the hidden volume size input field to the max
+	nVolumeSize = nUIVolumeSize * nMultiplier;		// Chop off possible remainder
 
 	return 1;
 }

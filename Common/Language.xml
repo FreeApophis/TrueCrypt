@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <TrueCrypt>
-	<localization prog-version="4.2">
+	<localization prog-version="4.2a">
 		<!-- Languages -->
 		<language langid="en" name="English" en-name="English" version="0.0.0" translators="" />
 		<!-- Fonts -->
@@ -17,16 +17,16 @@
 		<control lang="en" key="IDC_HIDVOL_WIZ_MODE_DIRECT">Create a hi&amp;dden volume within an existing TrueCrypt volume</control>
 		<control lang="en" key="IDC_HIDVOL_WIZ_MODE_FULL">Create a TrueCrypt volume and then a hidden volume within it</control>
 		<control lang="en" key="IDC_KB">&amp;KB</control>
-		<control lang="en" key="IDC_KEYFILES_ENABLE">Use keyfiles</control>
-		<control lang="en" key="IDC_KEY_FILES">Keyfiles..</control>
+		<control lang="en" key="IDC_KEYFILES_ENABLE">U&amp;se keyfiles</control>
+		<control lang="en" key="IDC_KEY_FILES">&amp;Keyfiles..</control>
 		<control lang="en" key="IDC_MB">&amp;MB</control>
 		<control lang="en" key="IDC_NO_HISTORY">Never &amp;save history</control>
 		<control lang="en" key="IDC_OPEN_OUTER_VOLUME">Open Outer Volume</control>
 		<control lang="en" key="IDC_QUICKFORMAT">Quick Format</control>
 		<control lang="en" key="IDC_SELECT_DEVICE">Select D&amp;evice...</control>
 		<control lang="en" key="IDC_SELECT_FILE">Select &amp;File...</control>
-		<control lang="en" key="IDC_SHOW_PASSWORD">Display password</control>
-		<control lang="en" key="IDC_SHOW_PASSWORD_HIDVOL_HOST">Display password</control>
+		<control lang="en" key="IDC_SHOW_PASSWORD">&amp;Display password</control>
+		<control lang="en" key="IDC_SHOW_PASSWORD_HIDVOL_HOST">&amp;Display password</control>
 		<control lang="en" key="IDC_STD_VOL">Create a standard TrueCrypt volume</control>
 		<control lang="en" key="IDC_WIZ_BENCHMARK">&amp;Benchmark</control>
 		<control lang="en" key="IDD_MKFS_DLG">TrueCrypt Volume Creation Wizard</control>
@@ -170,7 +170,7 @@
 		<control lang="en" key="IDT_MOUNT_SETTINGS">Mount Settings</control>
 		<control lang="en" key="IDT_NEW">New</control>
 		<control lang="en" key="IDT_NEW_PASSWORD">Password:</control>
-		<control lang="en" key="IDT_PKCS5_PRF">PKCS-5 PRF</control>
+		<control lang="en" key="IDT_PKCS5_PRF">PKCS-5 PRF:</control>
 		<control lang="en" key="IDT_PW_CACHE_OPTIONS">Password Cache</control>
 		<control lang="en" key="IDT_TASKBAR_ICON">TrueCrypt Background Task</control>
 		<control lang="en" key="IDT_TRAVELLER_MOUNT">TrueCrypt volume to mount (relative to traveller disk root):</control>
@@ -179,19 +179,19 @@
 		<control lang="en" key="IDT_VOLUME">Volume</control>
 		<control lang="en" key="IDT_WINDOWS_RELATED_SETTING">Windows</control>
 		<control lang="en" key="IDCLOSE">Close</control>
-		<control lang="en" key="IDC_ADD_KEYFILE_PATH">Add Path...</control>
+		<control lang="en" key="IDC_ADD_KEYFILE_PATH">Add &amp;Path...</control>
 		<control lang="en" key="IDC_AUTO">&amp;Auto-Test All</control>
 		<control lang="en" key="IDC_DECRYPT">&amp;Decrypt</control>
 		<control lang="en" key="IDC_DISPLAY_POOL_CONTENTS">Display pool content</control>
 		<control lang="en" key="IDC_ENCRYPT">&amp;Encrypt</control>
 		<control lang="en" key="IDC_GENERATE_AND_SAVE_KEYFILE">Generate and Save Keyfile...</control>
-		<control lang="en" key="IDC_GENERATE_KEYFILE">Generate Random Keyfile...</control>
+		<control lang="en" key="IDC_GENERATE_KEYFILE">&amp;Generate Random Keyfile...</control>
 		<control lang="en" key="IDC_GET_LANG_PACKS">Download language pack</control>
-		<control lang="en" key="IDC_KEYADD">Add File...</control>
+		<control lang="en" key="IDC_KEYADD">Add &amp;File...</control>
 		<control lang="en" key="IDC_KEYFILES_ENABLE_HIDVOL_PROT">U&amp;se keyfiles</control>
 		<control lang="en" key="IDC_KEYFILES_HIDVOL_PROT">&amp;Keyfiles...</control>
-		<control lang="en" key="IDC_KEYREMOVE">Remove</control>
-		<control lang="en" key="IDC_KEYREMOVEALL">Remove All</control>
+		<control lang="en" key="IDC_KEYREMOVE">&amp;Remove</control>
+		<control lang="en" key="IDC_KEYREMOVEALL">Remove &amp;All</control>
 		<control lang="en" key="IDC_LRW_INDEX_LSB">Least significant bit first</control>
 		<control lang="en" key="IDC_LRW_MODE_ENABLED">LRW mode</control>
 		<control lang="en" key="IDC_MOUNT_REMOVABLE">Mount volume as removable &amp;medium</control>
@@ -314,7 +314,8 @@
 		<string lang="en" key="ERR_MOUNTED_FILESYSTEMS">There may be mounted filesystems located on the device to be formatted.\nPlease either disable quick format or remove all partitions on the device\nto enable safe formatting of the device.</string>
 		<string lang="en" key="ERR_CIPHER_INIT_FAILURE">Error: Cipher initialization failure.</string>
 		<string lang="en" key="ERR_CIPHER_INIT_WEAK_KEY">Error: A weak or a potentially weak key has been detected.\nThe key will be discarded. Please try again.</string>
-		<string lang="en" key="EXCEPTION_REPORT">A critical error has occured and TrueCrypt must be terminated. If this is caused by a bug in TrueCrypt, we would like to fix it. To help us, you can send an error report containing the following items:\n\n- Program version\n- TrueCrypt component name\n- Error category\n- Error address\n\nIf you select 'Yes' the following URL will be opened in your Internet browser and the error report will be submitted.\n\n%hs\n\nDo you want to submit the error report?</string>
+		<string lang="en" key="EXCEPTION_REPORT">A critical error has occured and TrueCrypt must be terminated. If this is caused by a bug in TrueCrypt, we would like to fix it. To help us, you can send an error report containing the following items:\n\n- Program version\n- Operating system version\n- TrueCrypt component name\n- TrueCrypt dialog identifier\n- Error category\n- Error address\n- TrueCrypt call stack\n\nIf you select 'Yes' the following URL will be opened in your Internet browser and the error report will be submitted.\n\n%hs\n\nDo you want to submit the error report?</string>
+		<string lang="en" key="EXCEPTION_REPORT_EXT">A critical error has occured in your system which caused that TrueCrypt must be terminated.\n\nNote that this error has not been caused by TrueCrypt (so the TrueCrypt developers cannot fix it). Please, check your system for possible problems (e.g., system configuration, network connection, failing hardware components).</string>
 		<string lang="en" key="EXCEPTION_REPORT_TITLE">TrueCrypt Critical Error</string>
 		<string lang="en" key="EXIT">Exit</string>
 		<string lang="en" key="EXT_PARTITION">Please create a logical drive for this extended partition, and then try again.</string>
@@ -339,8 +340,7 @@
 		<string lang="en" key="GETFILETIME_FAILED_IMPLANT">WARNING: Could not get container timestamp!\n\nIf you do not reset the timestamp using an external tool, we recommend that\nyou do not create a hidden volume within this container.</string>
 		<string lang="en" key="GETFILETIME_FAILED_PW">WARNING: Could not get container timestamp!\n\nIf there is a hidden volume within this container, the plausible deniability of the hidden volume\nmight be affected after changing or attempting to change the password.</string>
 		<string lang="en" key="GETFILETIME_FAILED_KEYFILE">WARNING: Could not get keyfile timestamp! Cannot preserve last access date/time.\n\nIt will be possible to tell that this file has been accessed.</string>
-		<string lang="en" key="HELP_ERROR">Document not found!</string>
-		<string lang="en" key="HELP_READER_ERROR">Adobe Reader (or a compatible tool) is necessary\nto view or print the TrueCrypt User's Guide.\n\nAdobe Reader (freeware) can be downloaded at:\nwww.adobe.com</string>
+		<string lang="en" key="HELP_READER_ERROR">Adobe Reader (or a compatible tool) is necessary to view or print the TrueCrypt User's Guide. Adobe Reader (freeware) can be downloaded at: www.adobe.com\n\nDo you want to view the online documentation instead?</string>
 		<string lang="en" key="HIDDEN_VOL_WIZARD_MODE_HELP">Inexperienced users should select the first option. If you select the second option, it will be assumed that you have already created a TrueCrypt volume that is suitable to host the hidden volume.</string>
 		<string lang="en" key="HIDDEN_VOL_WIZARD_MODE_TITLE">Wizard Mode</string>
 		<string lang="en" key="HIDVOL_FORMAT_FINISHED_HELP">The hidden TrueCrypt volume has been successfully created and is ready for use. If all the instructions have been followed, the hidden volume will be undetectable even when the outer volume is mounted.\n\nWARNING: If you do not protect the hidden volume (for information on how to do so, refer to TrueCrypt User's Guide), do not write to the outer volume. Otherwise, you may overwrite and damage the hidden volume!\n\nTo create another TrueCrypt volume, click Next.</string>
@@ -386,7 +386,7 @@
 		<string lang="en" key="OVERWRITEPROMPT">WARNING: The file '%hs' already exists!\n\nNote that TrueCrypt will NOT encrypt the file, but it will delete it.\nAre you sure you want to delete the file and replace it with a new TrueCrypt container?</string>
 		<string lang="en" key="OVERWRITEPROMPT_DEVICE">CAUTION: All data currently stored on the\n%s '%hs' %hs will be lost!\n\nAre you sure you want to proceed with format?</string>
 		<string lang="en" key="PASSWORD">Password</string>
-		<string lang="en" key="PASSWORD_CHANGED">Password and/or keyfile(s) successfully changed.</string>
+		<string lang="en" key="PASSWORD_CHANGED">Password and/or keyfile(s) successfully changed.\n\nIMPORTANT: Please make sure you have read the section 'Changing Passwords and Keyfiles' in the chapter 'Security Precautions' in the TrueCrypt User Guide.</string>
 		<string lang="en" key="KEYFILE_CHANGED">Keyfile(s) successfully added/removed.</string>
 		<string lang="en" key="PKCS5_PRF_CHANGED">Header key derivation algorithm successfully set.</string>
 		<string lang="en" key="PASSWORD_HELP">It is very important that you choose a good password. You should avoid choosing one that contains only a single word that can be found in a dictionary (or a combination of 2, 3, or 4 such words). It should not contain any names or dates of birth. It should not be easy to guess. A good password is a random combination of upper and lower case letters, numbers, and special characters, such as @ ^ = $ * + etc.\n\nWe recommend choosing a password consisting of more than 20 characters (the longer, the better). The maximum password length is 64 characters.</string>
@@ -532,8 +532,8 @@
 		<string lang="en" key="SETUP_ADMIN">To successfully install/uninstall TrueCrypt you must have Administrator rights, do you want to continue?</string>
 		<string lang="en" key="INSTALL_FAILED">The installation has failed!</string>
 		<string lang="en" key="UNINSTALL_FAILED">The uninstall has failed!</string>
-		<string lang="en" key="INSTALL_OK">TrueCrypt has been successfuly installed.</string>
-		<string lang="en" key="UNINSTALL_OK">TrueCrypt has been successfuly uninstalled.</string>
+		<string lang="en" key="INSTALL_OK">TrueCrypt has been successfully installed.</string>
+		<string lang="en" key="UNINSTALL_OK">TrueCrypt has been successfully uninstalled.</string>
 		<string lang="en" key="REMOVING_REG">Removing possible TrueCrypt registry entries</string>
 		<string lang="en" key="REMOVING_DEPRECATED_REG">Removing any deprecated TrueCrypt registry entries</string>
 		<string lang="en" key="ADDING_REG">Adding registry entry</string>
@@ -594,6 +594,7 @@
 		<string lang="en" key="LARGE_IDE_WARNING_XP">WARNING: It appears that you have not applied any Service Pack to your Windows installation.\nYou should not write to IDE disks larger than 128 GB under Windows XP to which you did not apply\nService Pack 1 or later! If you do, data on the disk (no matter if it is a TrueCrypt volume or not) may\nget corrupted. Note that this is a limitation of Windows, not a bug in TrueCrypt.</string>
 		<string lang="en" key="LARGE_IDE_WARNING_2K">WARNING: It appears that you have not applied Service Pack 3 or later to your Windows installation.\nYou should not write to IDE disks larger than 128 GB under Windows 2000 to which you did not apply\nService Pack 3 or later! If you do, data on the disk (no matter if it is a TrueCrypt volume or not) may\nget corrupted. Note that this is a limitation of Windows, not a bug in TrueCrypt.\n\nNote: You may also need to enable the 48-bit LBA support in the registry; for more information, see\nhttp://support.microsoft.com/kb/305098/EN-US</string>
 		<string lang="en" key="VOLUME_TOO_LARGE_FOR_FAT32">Error: Files larger than 4 GB cannot be stored on FAT32 file system. Therefore, file-hosted TrueCrypt volumes (containers) stored on FAT32 file system cannot be larger than 4 GB.\n\nIf you need a larger volume, create it on NTFS file system or, instead of creating a file-hosted volume, encrypt a partition.</string>
+		<string lang="en" key="FREE_SPACE_FOR_WRITING_TO_OUTER_VOLUME">WARNING: If you want to be able to add more data/files to the outer volume in future, you should consider choosing a smaller size for the hidden volume.\n\nAre you sure you want to continue with the size you specified?</string>
 		<string lang="en" key="NO_VOLUME_SELECTED">No volume selected.\n\nClick 'Select Device' or 'Select File' to select a TrueCrypt volume.</string>
 		<string lang="en" key="CONFIRM_SAVE_DEFAULT_KEYFILES">Are you sure you want to save the selected keyfiles/paths as default?\n\nWARNING: If default keyfiles are set and enabled, volumes that are not\nusing these keyfiles will be impossible to mount. Keep in mind to uncheck\nthe 'Use keyfiles' checkbox whenever mounting such volumes.</string>
 		<string lang="en" key="HK_AUTOMOUNT_DEVICES">Auto-Mount Devices</string>

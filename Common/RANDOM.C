@@ -3,23 +3,26 @@
    1998-99 Paul Le Roux and which is covered by the 'License Agreement for
    Encryption for the Masses'. Modifications and additions to that source code
    contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.0
+   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
    the full text of which is contained in the file License.txt included in
    TrueCrypt binary and source code distribution archives.  */
 
+#include <stdlib.h>
+#include <stdio.h>
+#include <fcntl.h>
 #include "Tcdefs.h"
-
-#include <tlhelp32.h>
-
 #include "Crc.h"
 #include "Random.h"
 #include "Apidrvr.h"
-#include "Dlgcode.h"
 
+unsigned __int8 buffer[RNG_POOL_SIZE];
 unsigned char *pRandPool = NULL;
+static BOOL bRandDidInit = FALSE;
 int nRandIndex = 0, randPoolReadIndex = 0;
-
-int hashFunction = DEFAULT_HASH_ALGORITHM;
+int HashFunction = DEFAULT_HASH_ALGORITHM;
+BOOL bDidSlowPoll = FALSE;	/* We do the slow poll only once */
+BOOL volatile bFastPollEnabled = TRUE;	/* Used to reduce CPU load when performing benchmarks */
+BOOL volatile bRandmixEnabled = TRUE;	/* Used to reduce CPU load when performing benchmarks */
 
 /* Macro to add a single byte to the pool */
 #define RandaddByte(x) {\
@@ -30,17 +33,20 @@ int hashFunction = DEFAULT_HASH_ALGORITHM;
 	}
 
 /* Macro to add four bytes to the pool */
-#define RandaddInt32(x) _RandaddInt32((unsigned __int32)x);
+#define RandaddInt32(x) RandAddInt((unsigned __int32)x);
 
-#pragma warning( disable : 4710 ) /* inline func. not expanded warning */
-
-_inline void _RandaddInt32(unsigned __int32 x)
+void RandAddInt (unsigned __int32 x)
 {
 	RandaddByte(x); 
 	RandaddByte((x >> 8)); 
 	RandaddByte((x >> 16));
 	RandaddByte((x >> 24));
 }
+
+#ifdef _WIN32
+
+#include <tlhelp32.h>
+#include "Dlgcode.h"
 
 HHOOK hMouse = NULL;		/* Mouse hook for the random number generator */
 HHOOK hKeyboard = NULL;		/* Keyboard hook for the random number generator */
@@ -49,28 +55,24 @@ HHOOK hKeyboard = NULL;		/* Keyboard hook for the random number generator */
    the system in in the background */
 CRITICAL_SECTION critRandProt;	/* The critical section */
 BOOL volatile bThreadTerminate = FALSE;	/* This variable is shared among thread's so its made volatile */
-BOOL bDidSlowPoll = FALSE;	/* We do the slow poll only once */
-BOOL volatile bFastPollEnabled = TRUE;	/* Used to reduce CPU load when performing benchmarks */
-BOOL volatile bRandmixEnabled = TRUE;	/* Used to reduce CPU load when performing benchmarks */
 
-/* Network library handle for the slowPollWinNT function */
+/* Network library handle for the SlowPoll function */
 HANDLE hNetAPI32 = NULL;
 
 // CryptoAPI
 HCRYPTPROV hCryptProv;
-unsigned __int8 buffer[RNG_POOL_SIZE];
 
-BOOL bRandDidInit = FALSE;
+#endif // _WIN32
 
 /* Init the random number generator, setup the hooks, and start the thread */
 int
 Randinit ()
 {
-	HANDLE threadID;
-
 	if(bRandDidInit) return 0;
 
+#ifdef _WIN32
 	InitializeCriticalSection (&critRandProt);
+#endif
 
 	bRandDidInit = TRUE;
 
@@ -80,6 +82,7 @@ Randinit ()
 	else
 		memset (pRandPool, 0, RANDOMPOOL_ALLOCSIZE);
 
+#ifdef _WIN32
 	VirtualLock (pRandPool, RANDOMPOOL_ALLOCSIZE);
 
 	hKeyboard = SetWindowsHookEx (WH_KEYBOARD, (HOOKPROC)&KeyboardProc, NULL, GetCurrentThreadId ());
@@ -98,9 +101,9 @@ Randinit ()
 		hCryptProv = 0;
 	}
 
-	threadID = (HANDLE) _beginthread (ThreadSafeThreadFunction, 8192, NULL);
-	if (threadID == (HANDLE) - 1)
+	if (_beginthread (ThreadSafeThreadFunction, 8192, NULL) == -1)
 		goto error;
+#endif
 
 	return 0;
 
@@ -117,6 +120,7 @@ Randfree ()
 	if (bRandDidInit == FALSE)
 		return;
 
+#ifdef _WIN32
 	EnterCriticalSection (&critRandProt);
 
 	if (hMouse != 0)
@@ -140,13 +144,6 @@ Randfree ()
 		LeaveCriticalSection (&critRandProt);
 	}
 
-	if (pRandPool != NULL)
-	{
-		burn (pRandPool, RANDOMPOOL_ALLOCSIZE);
-		TCfree (pRandPool);
-		pRandPool = NULL;
-	}
-
 	if (hNetAPI32 != 0)
 	{
 		FreeLibrary (hNetAPI32);
@@ -161,24 +158,35 @@ Randfree ()
 
 	hMouse = NULL;
 	hKeyboard = NULL;
-	nRandIndex = 0;
 	bThreadTerminate = FALSE;
 	DeleteCriticalSection (&critRandProt);
+
+#endif // _WIN32
+
+	if (pRandPool != NULL)
+	{
+		burn (pRandPool, RANDOMPOOL_ALLOCSIZE);
+		TCfree (pRandPool);
+		pRandPool = NULL;
+	}
+
+	nRandIndex = 0;
 	bRandDidInit = FALSE;
 }
 
+
 void RandSetHashFunction (int hash_algo_id)
 {
-	hashFunction = hash_algo_id;
+	HashFunction = hash_algo_id;
 }
 
 int RandGetHashFunction (void)
 {
-	return hashFunction;
+	return HashFunction;
 }
 
 /* The random pool mixing function */
-void
+BOOL
 Randmix ()
 {
 	if (bRandmixEnabled)
@@ -189,7 +197,7 @@ Randmix ()
 		sha1_ctx		sctx;
 		int poolIndex, digestIndex, digestSize;
 
-		switch (hashFunction)
+		switch (HashFunction)
 		{
 		case SHA1:
 			digestSize = SHA1_DIGESTSIZE;
@@ -202,12 +210,15 @@ Randmix ()
 		case WHIRLPOOL:
 			digestSize = WHIRLPOOL_DIGESTSIZE;
 			break;
+
+		default:
+			return FALSE;
 		}
 
 		for (poolIndex = 0; poolIndex < RNG_POOL_SIZE; poolIndex += digestSize)		
 		{
 			/* Compute the message digest of the entire pool using the selected hash function. */
-			switch (hashFunction)
+			switch (HashFunction)
 			{
 			case SHA1:
 				sha1_begin (&sctx);
@@ -237,7 +248,7 @@ Randmix ()
 
 		/* Prevent leaks */
 		memset (hashOutputBuffer, 0, MAX_DIGESTSIZE);	
-		switch (hashFunction)
+		switch (HashFunction)
 		{
 		case SHA1:
 			memset (&sctx, 0, sizeof(sctx));		
@@ -252,6 +263,7 @@ Randmix ()
 			break;
 		}
 	}
+	return TRUE;
 }
 
 /* Add a buffer to the pool */
@@ -265,6 +277,7 @@ RandaddBuf (void *buf, int len)
 	}
 }
 
+#ifdef _WIN32
 BOOL
 RandpeekBytes (unsigned char *buf, int len)
 {
@@ -280,28 +293,43 @@ RandpeekBytes (unsigned char *buf, int len)
 
 	return TRUE;
 }
+#endif
+
 
 /* Get len random bytes from the pool (max. RNG_POOL_SIZE bytes per a single call) */
 BOOL
 RandgetBytes (unsigned char *buf, int len, BOOL forceSlowPoll)
 {
 	int i;
+	BOOL ret = TRUE;
 
+	if (HashFunction == 0)
+		return FALSE;
+
+#ifdef _WIN32
 	EnterCriticalSection (&critRandProt);
+#endif
 
 	if (bDidSlowPoll == FALSE || forceSlowPoll)
 	{
-		bDidSlowPoll = TRUE;
-		SlowPollWinNT ();
+		if (!SlowPoll ())
+			ret = FALSE;
+		else
+			bDidSlowPoll = TRUE;
 	}
 
-	FastPoll ();
+	if (!FastPoll ())
+		ret = FALSE;
 
 	/* There's never more than RNG_POOL_SIZE worth of randomess */
 	if (len > RNG_POOL_SIZE)
 	{
+#ifdef _WIN32
 		Error ("ERR_NOT_ENOUGH_RANDOM_DATA");	
 		len = RNG_POOL_SIZE;
+#else
+		return FALSE;
+#endif
 	}
 
 	// Requested number of bytes is copied from pool to output buffer,
@@ -319,7 +347,8 @@ RandgetBytes (unsigned char *buf, int len, BOOL forceSlowPoll)
 	}
 
 	// Mix the pool
-	FastPoll ();
+	if (!FastPoll ())
+		ret = FALSE;
 
 	// XOR the current pool content into the output buffer to prevent pool state leaks
 	for (i = 0; i < len; i++)
@@ -328,13 +357,19 @@ RandgetBytes (unsigned char *buf, int len, BOOL forceSlowPoll)
 		if (randPoolReadIndex == RNG_POOL_SIZE) randPoolReadIndex = 0;
 	}
 
+#ifdef _WIN32
 	LeaveCriticalSection (&critRandProt);
-	return TRUE;
+#endif
+	return ret;
 }
 
+#ifdef _WIN32
 /* Capture the mouse, and as long as the event is not the same as the last
    two events, add the crc of the event, and the crc of the time difference
-   between this event and the last + the current time to the pool */
+   between this event and the last + the current time to the pool.
+   The role of CRC-32 is merely to perform diffusion. Note that the output
+   of CRC-32 is subsequently processed using a cryptographically secure hash
+   algorithm. */
 LRESULT CALLBACK
 MouseProc (int nCode, WPARAM wParam, LPARAM lParam)
 {
@@ -385,7 +420,9 @@ MouseProc (int nCode, WPARAM wParam, LPARAM lParam)
 
 /* Capture the keyboard, as long as the event is not the same as the last two
    events, add the crc of the event to the pool along with the crc of the time
-   difference between this event and the last */
+   difference between this event and the last. The role of CRC-32 is merely to
+   perform diffusion. Note that the output of CRC-32 is subsequently processed
+   using a cryptographically secure hash algorithm.  */
 LRESULT CALLBACK
 KeyboardProc (int nCode, WPARAM wParam, LPARAM lParam)
 {
@@ -430,7 +467,8 @@ KeyboardProc (int nCode, WPARAM wParam, LPARAM lParam)
 		RandaddInt32 ((unsigned __int32) (crc32int(&lParam) + timeCrc));
 		LeaveCriticalSection (&critRandProt);
 	}
-	return 0;
+
+	return CallNextHookEx (hMouse, nCode, wParam, lParam);
 }
 
 /* This is the thread function which will poll the system for randomness */
@@ -475,18 +513,21 @@ NETSTATISTICSGET pNetStatisticsGet = NULL;
 NETAPIBUFFERSIZE pNetApiBufferSize = NULL;
 NETAPIBUFFERFREE pNetApiBufferFree = NULL;
 
+#endif	// _WIN32
+
 /* This is the slowpoll function which gathers up network/hard drive
    performance data for the random pool */
-void
-SlowPollWinNT (void)
+BOOL SlowPoll (void)
 {
+	int i;
+#ifdef _WIN32
 	static int isWorkstation = -1;
 	static int cbPerfData = 0x10000;
 	HANDLE hDevice;
 	LPBYTE lpBuffer;
 	DWORD dwSize, status;
 	LPWSTR lpszLanW, lpszLanS;
-	int i, nDrive;
+	int nDrive;
 
 	/* Find out whether this is an NT server or workstation if necessary */
 	if (isWorkstation == -1)
@@ -594,14 +635,35 @@ SlowPollWinNT (void)
 			RandaddBuf (buffer, sizeof (buffer));
 	}
 
+#else	// _WIN32
+
+	// Read all bytes available in /dev/random up to buffer size
+	int f = open ("/dev/random", O_RDONLY | O_NONBLOCK);
+	if (f == -1)
+	{
+		perror ("Cannot open /dev/random");
+		return FALSE;
+	}
+
+	i = read (f, buffer, sizeof (buffer));
+	RandaddBuf (buffer, i);
+	close (f);
+
+	FastPoll ();
+
+#endif	 // #else _WIN32
+
+	burn(buffer, sizeof (buffer));
 	Randmix();
+	return TRUE;
 }
 
 
 /* This is the fastpoll function which gathers up info by calling various api's */
-void
-FastPoll (void)
+BOOL FastPoll (void)
 {
+	int nOriginalRandIndex = nRandIndex;
+#ifdef _WIN32
 	static BOOL addedFixedItems = FALSE;
 	FILETIME creationTime, exitTime, kernelTime, userTime;
 	DWORD minimumWorkingSetSize, maximumWorkingSetSize;
@@ -609,7 +671,6 @@ FastPoll (void)
 	MEMORYSTATUS memoryStatus;
 	HANDLE handle;
 	POINT point;
-	int nOriginalRandIndex = nRandIndex;
 
 	/* Get various basic pieces of system information */
 	RandaddInt32 (GetActiveWindow ());	/* Handle of active window */
@@ -704,6 +765,30 @@ FastPoll (void)
 	if (hCryptProv && CryptGenRandom(hCryptProv, sizeof (buffer), buffer)) 
 		RandaddBuf (buffer, sizeof (buffer));
 
+#else	// _WIN32
+
+	// /dev/urandom
+
+	int f = open ("/dev/urandom", 0);
+
+	if (f == -1)
+	{
+		perror ("Cannot open /dev/urandom");
+		return FALSE;
+	}
+
+	if (read (f, buffer, sizeof (buffer)) != sizeof (buffer))
+	{
+		perror ("Read from /dev/urandom failed");
+		close (f);
+		return FALSE;
+	}
+
+	close (f);
+	RandaddBuf (buffer, sizeof (buffer));
+
+#endif	// #else _WIN32
+
 	/* Apply the pool mixing function */
 	Randmix();
 
@@ -714,4 +799,7 @@ FastPoll (void)
 	   would be written only to a particular 4-byte area, whenever moving the mouse
 	   uninterruptedly). */
 	nRandIndex = nOriginalRandIndex;
+
+	return TRUE;
 }
+
