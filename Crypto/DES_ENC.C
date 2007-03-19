@@ -58,10 +58,8 @@
 
 /* Adapted for TrueCrypt by the TrueCrypt Foundation */
 
-#pragma warning( disable : 4131 )
-
 #include "Des_locl.h"
-#include "Endian.h"
+#include "Common/Endian.h"
 
 void des_encrypt(data, ks, enc)
 DES_LONG *data;

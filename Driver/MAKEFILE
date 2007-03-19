@@ -2,18 +2,20 @@
 # TrueCrypt Windows driver Makefile
 #
 
-# Change this path point to your DDK installation
-DDK = C:\SDK\WINDDK\3790.1830
+# Windows Driver Development Kit base path
+DDK = C:\WINDDK\3790.1830
+
+!IFDEF WINDDK_3790_1830
+DDK = $(WINDDK_3790_1830)
+!ENDIF
 
 BASENAME = truecrypt
 OS = wxp
 ARCH = i386
 MACHINE = IX86
-PFLAGS = -Zel -Gi- -QIfdiv- -QIf -YXTcdefs.h
 DEFS = -D_X86_ -Di386
 CC = $(DDK)\bin\x86\cl.exe
 LD = $(DDK)\bin\x86\link.exe
-OBJECTS = 
 
 !IFDEF AMD64
 
@@ -21,24 +23,19 @@ BASENAME = truecrypt-x64
 OS = wnet
 ARCH = amd64
 MACHINE = AMD64
-PFLAGS =
 DEFS = -DAMD64 -D_AMD64_
 CC = $(DDK)\bin\win64\x86\amd64\cl.exe
 LD = $(DDK)\bin\win64\x86\amd64\link.exe
-PATH = $(PATH);$(DDK)\bin\win64\x86\amd64;$(DDK)\bin\x86
-OBJECTS = Aescrypt.obj Aeskey.obj Aestab.obj Bf_ecb.obj Bf_enc.obj Bf_skey.obj \
-C_ecb.obj C_enc.obj C_skey.obj Des.obj Des_enc.obj Ecb3_enc.obj Rmd160.obj \
-Serpent.obj Set_key.obj Sha1.obj Twofish.obj Whirlpool.obj
  
 !ENDIF
 
 
-CFLAGS = -nologo $(CFLAGS) $(PFLAGS) \
+CFLAGS = -nologo $(CFLAGS) \
 -EHs-c- -Zp8 -GS -Gy -cbstring -Gz -Gm- \
 -GR- -GF -W3 -Wp64 -FI$(DDK)\inc\$(OS)\warning.h \
 -I$(DDK)\inc\$(OS) -I$(DDK)\inc\ddk\$(OS) \
 -I$(DDK)\inc\ddk\wdm\$(OS) -I$(DDK)\inc\crt \
--I..\..\Common -I..\..\Crypto
+-I..\..\Common -I..\..\Crypto -I..\..
 
 DEFS = $(DEFS) -DNT4_DRIVER -DSTD_CALL -DCONDITION_HANDLING=1 \
 -DNT_UP=1 -DNT_INST=0 -DWIN32=100 -D_NT1X_=100 \
@@ -52,8 +49,11 @@ LINK_OPTS = -nologo -machine:$(MACHINE) \
 -MERGE:.rdata=.text -MAP:$(BASENAME).map -driver -align:0x20 \
 -subsystem:native -base:0x10000 -entry:DriverEntry
 
-OBJECTS = $(OBJECTS) Ntdriver.obj Ntvol.obj Ntrawdv.obj Ntfiledv.obj \
-Volumes.obj Crypto.obj Endian.obj Crc.obj GfMul.obj Pkcs5.obj Cache.obj \
+OBJECTS = Aescrypt.obj Aeskey.obj Aestab.obj Bf_ecb.obj Bf_enc.obj Bf_skey.obj \
+C_ecb.obj C_enc.obj C_skey.obj Des.obj Des_enc.obj Ecb3_enc.obj Rmd160.obj \
+Serpent.obj Set_key.obj Sha1.obj Twofish.obj Whirlpool.obj \
+Ntdriver.obj Ntvol.obj \
+Cache.obj Crc.obj Crypto.obj Endian.obj GfMul.obj Pkcs5.obj Volumes.obj \
 Tests.obj Driver.res
 
 LIBS = $(DDK)\lib\$(OS)\$(ARCH)\ntoskrnl.lib \
@@ -66,7 +66,6 @@ $(DDK)\lib\$(OS)\$(ARCH)\bufferoverflowK.lib
 # Release
 DEFS = $(DEFS) -DNO_DISK_ACCESS -DNDEBUG 
 CFLAGS = $(CFLAGS) -Gs- -Oxs -Oy -w34244 -w34267 -w34189 -FAcs
-CRYPTOLIB = ..\..\Crypto\Release\Crypto.lib
 COPYRELEASE = copy $(BASENAME).sys "..\..\Release\Setup files"
 
 !ELSE
@@ -75,20 +74,15 @@ COPYRELEASE = copy $(BASENAME).sys "..\..\Release\Setup files"
 CFLAGS = $(CFLAGS) -Gs -Z7 -Od -Oi -Oy- 
 DEFS = $(DEFS) -DDBG=1 -D_DEBUG -DDEBUG -DRDRDBG -DSRVDBG -DDBG_MESSAGES=1
 LINK_OPTS = -debug $(LINK_OPTS)
-CRYPTOLIB = ..\..\Crypto\Debug\Crypto.lib
 COPYRELEASE =
 
-!ENDIF
-
-!IFNDEF AMD64
-LIBS = $(LIBS) $(CRYPTOLIB)
 !ENDIF
 
 CFLAGS = $(CFLAGS) $(DEFS)
 
 
 all: $(BASENAME).sys
-
+	
 {..}.c{}.obj :
 	@$(CC) -c $(CFLAGS) $<
 
@@ -99,8 +93,11 @@ all: $(BASENAME).sys
 	@$(CC) -c $(CFLAGS) $<
 		
 {..}.rc{}.res :
-	rc -r -fo Driver.res $< 
+	@echo Driver.rc
+	@rc -r -fo Driver.res $< 
 
 $(BASENAME).sys : $(OBJECTS) $(LIBS)
-	$(LD) $(LINK_OPTS) $(OBJECTS) $(LIBS) -out:$(BASENAME).sys
-	$(COPYRELEASE)
+	@echo Linking...
+	@echo $(BASENAME).sys
+	@$(LD) $(LINK_OPTS) $(OBJECTS) $(LIBS) -out:$(BASENAME).sys
+	@$(COPYRELEASE)

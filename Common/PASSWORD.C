@@ -1,11 +1,12 @@
-/* Legal Notice: The source code contained in this file has been derived from
-   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
-   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
-   Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
-   the full text of which is contained in the file License.txt included in
-   TrueCrypt binary and source code distribution archives.  */
+/*
+ Legal Notice: The source code contained in this file has been derived from
+ the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+ Paul Le Roux and which is covered by the 'License Agreement for Encryption
+ for the Masses'. Modifications and additions to that source code contained
+ in this file are Copyright (c) TrueCrypt Foundation and are covered by the
+ TrueCrypt License 2.2 the full text of which is contained in the file
+ License.txt included in TrueCrypt binary and source code distribution
+ packages. */
 
 #include "Tcdefs.h"
 
@@ -18,7 +19,7 @@
 #include "Dlgcode.h"
 #include "Language.h"
 #include "Pkcs5.h"
-#include "Endian.h"
+#include "Common/Endian.h"
 #include "Resource.h"
 #include "Random.h"
 
@@ -118,7 +119,7 @@ BOOL CheckPasswordLength (HWND hwndDlg, HWND hwndItem)
 int
 ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int pkcs5, HWND hwndDlg)
 {
-	int nDosLinkCreated = 0, nStatus;
+	int nDosLinkCreated = 1, nStatus = ERR_OS_ERROR;
 	char szDiskFile[TC_MAX_PATH], szCFDevice[TC_MAX_PATH];
 	char szDosDevice[TC_MAX_PATH];
 	char buffer[HEADER_SIZE];
@@ -133,8 +134,10 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 	FILETIME ftLastWriteTime;
 	FILETIME ftLastAccessTime;
 	BOOL bTimeStampValid = FALSE;
-	
+
 	if (oldPassword->Length == 0 || newPassword->Length == 0) return -1;
+
+	WaitCursor ();
 
 	CreateFullVolumePath (szDiskFile, lpszVolume, &bDevice);
 
@@ -145,10 +148,9 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 	else
 	{
 		nDosLinkCreated = FakeDosNameForDevice (szDiskFile, szDosDevice, szCFDevice, FALSE);
+		
 		if (nDosLinkCreated != 0)
-		{
-			return nDosLinkCreated;
-		}
+			goto error;
 	}
 
 	dev = CreateFile (szCFDevice, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
@@ -159,7 +161,7 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 
 		if (dev == INVALID_HANDLE_VALUE)
 		{
-			return ERR_OS_ERROR;
+			goto error;
 		}
 		else
 		{
@@ -167,8 +169,7 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 			DWORD dwResult;
 			BOOL bResult;
 
-			bResult = DeviceIoControl (dev, IOCTL_DISK_GET_PARTITION_INFO, NULL, 0,
-				&diskInfo, sizeof (diskInfo), &dwResult, NULL);
+			bResult = GetPartitionInfo (lpszVolume, &diskInfo);
 
 			if (bResult)
 			{
@@ -182,10 +183,7 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 					&driveInfo, sizeof (driveInfo), &dwResult, NULL);
 
 				if (!bResult)
-				{
-					CloseHandle (dev);
-					return ERR_OS_ERROR;
-				}
+					goto error;
 
 				volSize = driveInfo.Cylinders.QuadPart * driveInfo.BytesPerSector *
 					driveInfo.SectorsPerTrack * driveInfo.TracksPerCylinder;
@@ -193,19 +191,17 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 
 			if (volSize == 0)
 			{
-				CloseHandle (dev);
-				return ERR_VOL_SIZE_WRONG;
+				nStatus = ERR_VOL_SIZE_WRONG;
+				goto error;
 			}
 		}
 	}
 
 	if (dev == INVALID_HANDLE_VALUE) 
-		return ERR_OS_ERROR;
-
-	WaitCursor ();
+		goto error;
 
 	if (Randinit ())
-		return -1;
+		goto error;
 
 	if (!bDevice && bPreserveTimestamp)
 	{
@@ -338,12 +334,12 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 	nStatus = 0;
 
 error:
+	dwError = GetLastError ();
+
 	burn (buffer, sizeof (buffer));
 
 	if (cryptoInfo != NULL)
 		crypto_close (cryptoInfo);
-
-	dwError = GetLastError ();
 
 	if (bTimeStampValid)
 	{
@@ -352,23 +348,25 @@ error:
 			MessageBoxW (hwndDlg, GetString ("SETFILETIME_FAILED_PW"), L"TrueCrypt", MB_OK | MB_ICONEXCLAMATION);
 	}
 
-	CloseHandle ((HANDLE) dev);
+	if (dev != INVALID_HANDLE_VALUE)
+		CloseHandle ((HANDLE) dev);
 
-	if (bDevice && nDosLinkCreated != 0)
-	{
-		int x = RemoveFakeDosName (szDiskFile, szDosDevice);
-		if (x != 0)
-		{
-			dwError = GetLastError ();
-			nStatus = x;
-		}
-	}
+	if (nDosLinkCreated == 0)
+		RemoveFakeDosName (szDiskFile, szDosDevice);
+
+	NormalCursor ();
+	Randfree ();
 
 	SetLastError (dwError);
 
-	NormalCursor ();
+	if (nStatus == ERR_OS_ERROR && dwError == ERROR_ACCESS_DENIED
+		&& bDevice
+		&& !UacElevated
+		&& IsUacSupported ())
+		return nStatus;
 
-	Randfree ();
+	if (nStatus != 0)
+		handleError (hwndDlg, nStatus);
 
 	return nStatus;
 }

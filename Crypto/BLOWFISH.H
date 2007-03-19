@@ -83,11 +83,11 @@ typedef struct bf_key_st
 
 #ifndef NOPROTO
  
-void _cdecl BF_set_key(BF_KEY *key, int len, unsigned char *data);
-void _cdecl BF_ecb_encrypt(unsigned char *in,unsigned char *out,BF_KEY *key, int enc);
-void _cdecl BF_ecb_le_encrypt(unsigned char *in, unsigned char *out, BF_KEY *ks, int encrypt);
-void _cdecl BF_encrypt(BF_LONG *data,BF_KEY *key);
-void _cdecl BF_decrypt(BF_LONG *data,BF_KEY *key);
+void BF_set_key(BF_KEY *key, int len, unsigned char *data);
+void BF_ecb_encrypt(unsigned char *in,unsigned char *out,BF_KEY *key, int enc);
+void BF_ecb_le_encrypt(unsigned char *in, unsigned char *out, BF_KEY *ks, int encrypt);
+void BF_encrypt(BF_LONG *data,BF_KEY *key);
+void BF_decrypt(BF_LONG *data,BF_KEY *key);
 void BF_cbc_encrypt(unsigned char *in, unsigned char *out, long length,
 	BF_KEY *ks, unsigned char *iv, int enc);
 void BF_cfb64_encrypt(unsigned char *in, unsigned char *out, long length,
@@ -100,8 +100,8 @@ char *BF_options(void);
 
 void BF_set_key();
 void BF_ecb_encrypt();
-void _cdecl BF_encrypt();
-void _cdecl BF_decrypt();
+void BF_encrypt();
+void BF_decrypt();
 void BF_cbc_encrypt();
 void BF_cfb64_encrypt();
 void BF_ofb64_encrypt();

@@ -57,8 +57,6 @@
  */
 
 
-#pragma warning( disable : 4131 )
-
 
 #include "Blowfish.h"
 #include "Bf_locl.h"

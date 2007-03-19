@@ -2,6 +2,7 @@
 // Microsoft Visual C++ generated include file.
 // Used by Setup.rc
 //
+#define IDR_COMREG                      10
 #define IDD_INSTALL                     101
 #define IDD_UNINSTALL                   102
 #define IDI_SETUP                       103
@@ -16,12 +17,10 @@
 #define IDC_SYSTEM_RESTORE              1007
 #define IDC_DESKTOP_ICON                1008
 #define IDC_ALL_USERS                   1009
-#define IDT_LICENSE                     1010
-#define IDT_INSTALL_OPTIONS             1011
-#define IDT_INSTALL_DIR                 1012
-#define IDT_UNINSTALL_INFO              1013
-#define IDC_UNINSTALL                   1014
-#define IDC_INSTALL                     1015
+#define IDT_INSTALL_DIR                 1010
+#define IDC_UNINSTALL                   1011
+#define IDC_INSTALL                     1012
+#define IDT_INSTALL_OPTIONS             1013
 
 // Next default values for new objects
 // 
@@ -30,7 +29,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        105
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1016
+#define _APS_NEXT_CONTROL_VALUE         1014
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

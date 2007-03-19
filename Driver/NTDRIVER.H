@@ -1,11 +1,12 @@
-/* Legal Notice: The source code contained in this file has been derived from
-   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
-   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
-   Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
-   the full text of which is contained in the file License.txt included in
-   TrueCrypt binary and source code distribution archives.  */
+/*
+ Legal Notice: The source code contained in this file has been derived from
+ the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+ Paul Le Roux and which is covered by the 'License Agreement for Encryption
+ for the Masses'. Modifications and additions to that source code contained
+ in this file are Copyright (c) TrueCrypt Foundation and are covered by the
+ TrueCrypt License 2.2 the full text of which is contained in the file
+ License.txt included in TrueCrypt binary and source code distribution
+ packages. */
 
 /* This structure is used to start new threads */
 typedef struct _THREAD_BLOCK_
@@ -37,10 +38,6 @@ typedef struct EXTENSION
 	LIST_ENTRY ListEntry;		/* IRP listentry */
 	KSEMAPHORE RequestSemaphore;	/* IRP list request  Semaphore */
 
-#ifdef USE_KERNEL_MUTEX
-	KMUTEX KernelMutex;			/* Sync. mutex for entire thread */
-#endif
-
 	HANDLE hDeviceFile;			/* Device handle for this device */
 	PFILE_OBJECT pfoDeviceFile;	/* Device fileobject for this device */
 	PDEVICE_OBJECT pFsdDevice;	/* lower level device handle */
@@ -53,6 +50,8 @@ typedef struct EXTENSION
 	ULONG SectorsPerTrack;		/* Partition info */
 	ULONG BytesPerSector;		/* Partition info */
 	UCHAR PartitionType;		/* Partition info */
+	
+	int HostBytesPerSector;
 
 	KEVENT keVolumeEvent;		/* Event structure used when setting up a device */
 
@@ -78,6 +77,8 @@ typedef struct EXTENSION
 
 } EXTENSION, *PEXTENSION;
 
+extern ULONG OsMajorVersion;
+
 /* Helper macro returning x seconds in units of 100 nanoseconds */
 #define WAIT_SECONDS(x) ((x)*10000000)
 
@@ -87,10 +88,6 @@ typedef struct EXTENSION
 #define Dump DbgPrint
 #else
 #define Dump
-#endif
-
-#ifdef USE_KERNEL_MUTEX
-#pragma message ("Compiling " __FILE__ " with USE_KERNEL_MUTEX on")
 #endif
 
 #define FSCTL_LOCK_VOLUME               CTL_CODE(FILE_DEVICE_FILE_SYSTEM,  6, METHOD_BUFFERED, FILE_ANY_ACCESS)

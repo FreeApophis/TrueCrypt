@@ -67,11 +67,7 @@
 #include "Bf_locl.h"
 #include "Bf_pi.h"
 
-#pragma intrinsic(memcpy)
-
-#pragma warning( disable : 4131 )
-
-void _cdecl BF_set_key(key,len,data)
+void BF_set_key(key,len,data)
 BF_KEY *key;
 int len;
 unsigned char *data;

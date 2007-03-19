@@ -1,8 +1,9 @@
-/* 
-Copyright (c) 2004-2006 TrueCrypt Foundation. All rights reserved. 
+/*
+ Copyright (c) TrueCrypt Foundation. All rights reserved.
 
-Covered by TrueCrypt License 2.1 the full text of which is contained in the file
-License.txt included in TrueCrypt binary and source code distribution archives. 
+ Covered by the TrueCrypt License 2.2 the full text of which is contained
+ in the file License.txt included in TrueCrypt binary and source code
+ distribution packages.
 */
 
 #include <windows.h>
@@ -145,15 +146,19 @@ void UnregisterAllHotkeys (HWND hwndDlg, TCHOTKEY hotkeys[])
 }
 
 
-void RegisterAllHotkeys (HWND hwndDlg, TCHOTKEY hotkeys[])
+BOOL RegisterAllHotkeys (HWND hwndDlg, TCHOTKEY hotkeys[])
 {
+	BOOL result = TRUE;
 	int i;
 
 	for (i = 0; i < NBR_HOTKEYS; i++)
 	{
-		if (hotkeys[i].vKeyCode != 0)
-			RegisterHotKey (hwndDlg, i, hotkeys[i].vKeyModifiers, hotkeys[i].vKeyCode);
+		if (hotkeys[i].vKeyCode != 0
+		&& !RegisterHotKey (hwndDlg, i, hotkeys[i].vKeyModifiers, hotkeys[i].vKeyCode))
+			result = FALSE;
 	}
+
+	return result;
 }
 
 
@@ -184,6 +189,10 @@ static void DisplayHotkeyList (HWND hwndDlg)
 
 		case HK_DISMOUNT_ALL:	
 			item.pszText = GetString ("HK_DISMOUNT_ALL");
+			break;
+
+		case HK_WIPE_CACHE:	
+			item.pszText = GetString ("HK_WIPE_CACHE");
 			break;
 
 		case HK_FORCE_DISMOUNT_ALL_AND_WIPE:	
@@ -253,18 +262,24 @@ static void DisplayHotkeyList (HWND hwndDlg)
 BOOL WINAPI HotkeysDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	HWND hList = GetDlgItem (hwndDlg, IDC_HOTKEY_LIST);
+	HWND hwndMainDlg = hwndDlg;
 	WORD lw = LOWORD (wParam);
 	WORD hw = HIWORD (wParam);
 	static BOOL bKeyScanOn;
 	static BOOL bTPlaySoundOnHotkeyMountDismount;
-	static BOOL bTDisplayMsgBoxOnHotkeyDismount; 
+	static BOOL bTDisplayMsgBoxOnHotkeyDismount;
+
+	while (GetParent (hwndMainDlg) != NULL)
+	{
+		hwndMainDlg = GetParent (hwndMainDlg);
+	}
 
 	switch (msg)
 	{
 	case WM_INITDIALOG:
 		{
 			LVCOLUMNW col;
-			
+
 			bKeyScanOn = FALSE;
 			nSelectedHotkeyId = -1;
 			currentVKeyCode = 0;
@@ -472,9 +487,9 @@ BOOL WINAPI HotkeysDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 
 		if (lw == IDOK)
 		{
-			UnregisterAllHotkeys (GetParent (hwndDlg), Hotkeys);
+			UnregisterAllHotkeys (hwndMainDlg, Hotkeys);
 			memcpy (Hotkeys, tmpHotkeys, sizeof(Hotkeys));
-			RegisterAllHotkeys (GetParent (hwndDlg), Hotkeys);
+			RegisterAllHotkeys (hwndMainDlg, Hotkeys);
 			KillTimer (hwndDlg, 0xfe);
 			bPlaySoundOnHotkeyMountDismount = bTPlaySoundOnHotkeyMountDismount;
 			bDisplayMsgBoxOnHotkeyDismount = bTDisplayMsgBoxOnHotkeyDismount;

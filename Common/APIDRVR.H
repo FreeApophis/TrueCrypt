@@ -1,11 +1,12 @@
-/* Legal Notice: The source code contained in this file has been derived from
-   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
-   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
-   Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
-   the full text of which is contained in the file License.txt included in
-   TrueCrypt binary and source code distribution archives.  */
+/*
+ Legal Notice: The source code contained in this file has been derived from
+ the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+ Paul Le Roux and which is covered by the 'License Agreement for Encryption
+ for the Masses'. Modifications and additions to that source code contained
+ in this file are Copyright (c) TrueCrypt Foundation and are covered by the
+ TrueCrypt License 2.2 the full text of which is contained in the file
+ License.txt included in TrueCrypt binary and source code distribution
+ packages. */
 
 /* DeviceIoControl values.
 
@@ -70,6 +71,8 @@ etc... */
 #define VOLUME_PROPERTIES	466992	/* Get mounted volume properties */
 #define RESOLVE_SYMLINK		466996	/* Resolve symbolic link to target */
 #define DEVICE_REFCOUNT		467000	/* Return reference count of root device object */
+#define DISK_GET_PARTITION_INFO		467004
+#define DISK_GET_GEOMETRY			467008
 #define UNMOUNT_ALL			475112	/* Unmount all volumes */
 
 #define TC_FIRST_PRIVATE	MOUNT	/* First private control code */
@@ -89,6 +92,7 @@ typedef struct
 	Password VolumePassword;			/* User password */
 	BOOL bCache;						/* Cache passwords in driver */
 	int nDosDriveNo;					/* Drive number to mount */
+	int BytesPerSector;
 	BOOL bSystemVolume;					/* Volume is used by system and hidden from user */
 	BOOL bPersistentVolume;				/* Volume is hidden from user */
 	BOOL bMountReadOnly;				/* Mount volume in read-only mode */
@@ -144,6 +148,20 @@ typedef struct
 	WCHAR symLinkName[TC_MAX_PATH];
 	WCHAR targetName[TC_MAX_PATH];
 } RESOLVE_SYMLINK_STRUCT;
+
+typedef struct
+{
+	WCHAR deviceName[TC_MAX_PATH];
+	PARTITION_INFORMATION partInfo;
+}
+DISK_PARTITION_INFO_STRUCT;
+
+typedef struct
+{
+	WCHAR deviceName[TC_MAX_PATH];
+	DISK_GEOMETRY diskGeometry;
+}
+DISK_GEOMETRY_STRUCT;
 
 typedef struct
 {

@@ -1,11 +1,12 @@
-/* Legal Notice: The source code contained in this file has been derived from
-   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
-   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
-   Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
-   the full text of which is contained in the file License.txt included in
-   TrueCrypt binary and source code distribution archives.  */
+/*
+ Legal Notice: The source code contained in this file has been derived from
+ the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+ Paul Le Roux and which is covered by the 'License Agreement for Encryption
+ for the Masses'. Modifications and additions to that source code contained
+ in this file are Copyright (c) TrueCrypt Foundation and are covered by the
+ TrueCrypt License 2.2 the full text of which is contained in the file
+ License.txt included in TrueCrypt binary and source code distribution
+ packages. */
 
 /* Update the following when adding a new cipher or EA:
 
@@ -24,12 +25,6 @@
 
 #ifndef CRYPTO_H
 #define CRYPTO_H
-
-// User text input limits
-#define MIN_PASSWORD			1		// Minimum password length
-#define MAX_PASSWORD			64		// Maximum password length
-
-#define PASSWORD_LEN_WARNING	12		// Display a warning when a password is shorter than this
 
 // Header key derivation
 #define PKCS5_SALT_SIZE			64
@@ -103,6 +98,7 @@ typedef struct
 {
 	int Ciphers[4];			// Null terminated array of ciphers used by encryption algorithm
 	int Modes[3];			// Null terminated array of modes of operation
+	int FormatEnabled;
 } EncryptionAlgorithm;
 
 typedef struct
@@ -116,13 +112,7 @@ typedef struct
 #define SERPENT_KS			(140 * 4)
 #define MAX_EXPANDED_KEY	(AES_KS + SERPENT_KS + TWOFISH_KS)
 
-#define DISK_WIPE_PASSES	36	// (Gutmann)
-
-/* If a 64-bit block cipher is selected and the volume size is greater than WARN_VOL_SIZE_BLOCK64,
-warn and require a confirmation from the user. For n-bit blocks, this constant shall be << 8*2^(n/2);
-i.e. for 64-bit ciphers this constant shall be much less than the number of bytes in 2^32 blocks
-(birthday bound for 64-bit PRP). */
-#define WARN_VOL_SIZE_BLOCK64	1 * BYTES_PER_GB
+#define DISK_WIPE_PASSES	36	// "Gutmann"
 
 #include "Aes.h"
 #include "Blowfish.h"
@@ -138,6 +128,7 @@ i.e. for 64-bit ciphers this constant shall be much less than the number of byte
 #endif
 
 #include "GfMul.h"
+#include "Password.h"
 
 typedef struct keyInfo_t
 {
@@ -205,6 +196,7 @@ int EAGetFirstCipher (int ea);
 int EAGetLastCipher (int ea);
 int EAGetNextCipher (int ea, int previousCipherId);
 int EAGetPreviousCipher (int ea, int previousCipherId);
+int EAIsFormatEnabled (int ea);
 
 void EncryptBuffer (unsigned __int32 *buf, unsigned __int64 len, PCRYPTO_INFO cryptoInfo);
 void DecryptBuffer (unsigned __int32 *buf, unsigned __int64 len, PCRYPTO_INFO cryptoInfo);
@@ -212,8 +204,8 @@ void EncryptBufferLRW128 (unsigned __int8 *plainText, unsigned int length, unsig
 void DecryptBufferLRW128 (unsigned __int8 *plainText, int length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo);
 void EncryptBufferLRW64 (unsigned __int8 *plainText, unsigned int length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo);
 void DecryptBufferLRW64 (unsigned __int8 *plainText, int length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo);
-void _cdecl EncryptSectors (unsigned __int32 *buf, unsigned __int64 secNo, unsigned __int64 noSectors, PCRYPTO_INFO cryptoInfo);
-void _cdecl DecryptSectors (unsigned __int32 *buf, unsigned __int64 secNo, unsigned __int64 noSectors, PCRYPTO_INFO cryptoInfo);
+void EncryptSectors (unsigned __int32 *buf, unsigned __int64 secNo, unsigned __int64 noSectors, PCRYPTO_INFO cryptoInfo);
+void DecryptSectors (unsigned __int32 *buf, unsigned __int64 secNo, unsigned __int64 noSectors, PCRYPTO_INFO cryptoInfo);
 
 unsigned __int64 LRWSector2Index (unsigned __int64 sector, int blockSize, PCRYPTO_INFO ci);
 

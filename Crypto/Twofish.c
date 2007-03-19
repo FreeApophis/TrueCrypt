@@ -18,7 +18,7 @@
 /* Adapted for TrueCrypt by the TrueCrypt Foundation */
 
 #include "Twofish.h"
-#include "Endian.h"
+#include "Common/Endian.h"
 
 #define Q_TABLES
 #define M_TABLE

@@ -1,6 +1,6 @@
 /*
  ---------------------------------------------------------------------------
- Copyright (c) 2003, Dr Brian Gladman, Worcester, UK.   All rights reserved.
+ Copyright (c) 1998-2006, Brian Gladman, Worcester, UK. All rights reserved.
 
  LICENSE TERMS
 
@@ -27,7 +27,7 @@
  in respect of its properties, including, but not limited to, correctness
  and/or fitness for purpose.
  ---------------------------------------------------------------------------
- Issue 01/08/2005
+ Issue 09/09/2006
 
  This file contains the code for declaring the tables needed to implement
  AES. The file aesopt.h is assumed to be included before this header file.
@@ -78,9 +78,14 @@
 #define t_use(m,n) t_##m##n
 
 #if defined(FIXED_TABLES)
-#define CONST const
+#  if defined( __MSDOS__ ) || defined( __WIN16__ )
+/*   make tables far data to avoid using too much DGROUP space (PG) */
+#    define CONST const far
+#  else
+#    define CONST const
+#  endif
 #else
-#define CONST
+#  define CONST
 #endif
 
 #if defined(DO_TABLES)
@@ -100,13 +105,19 @@ extern "C"
 {
 #endif
 
+#if defined( __WATCOMC__ ) && ( __WATCOMC__ >= 1100 )
+#  define XP_DIR __cdecl
+#else
+#  define XP_DIR
+#endif
+
 #if defined(DO_TABLES) && defined(FIXED_TABLES)
-#define d_1(t,n,b,e)       ALIGN CONST t n[256]    =   b(e)
-#define d_4(t,n,b,e,f,g,h) ALIGN CONST t n[4][256] = { b(e), b(f), b(g), b(h) }
+#define d_1(t,n,b,e)       ALIGN CONST XP_DIR t n[256]    =   b(e)
+#define d_4(t,n,b,e,f,g,h) ALIGN CONST XP_DIR t n[4][256] = { b(e), b(f), b(g), b(h) }
 EXTERN ALIGN CONST uint_32t t_dec(r,c)[RC_LENGTH] = rc_data(w0);
 #else
-#define d_1(t,n,b,e)       EXTERN ALIGN CONST t n[256]
-#define d_4(t,n,b,e,f,g,h) EXTERN ALIGN CONST t n[4][256]
+#define d_1(t,n,b,e)       EXTERN ALIGN CONST XP_DIR t n[256]
+#define d_4(t,n,b,e,f,g,h) EXTERN ALIGN CONST XP_DIR t n[4][256]
 EXTERN ALIGN CONST uint_32t t_dec(r,c)[RC_LENGTH];
 #endif
 

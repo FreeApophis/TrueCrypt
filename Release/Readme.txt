@@ -1,4 +1,4 @@
-This archive contains TrueCrypt 4.2a setup and documentation.
+This archive contains TrueCrypt 4.3 setup and documentation.
 
 
 If you have never used TrueCrypt before, we recommend that you read the 
@@ -58,8 +58,8 @@ Before using TrueCrypt, we recommend that you read the TrueCrypt User Guide,
 which can be found in the 'Setup Files' folder. To view or print it, you 
 need Adobe Reader, which is freely available at http://www.adobe.com. Note 
 that the program documentation is also automatically copied to the folder to 
-which TrueCrypt is installed, and will be accessible via the Start menu and 
-the TrueCrypt user interface (press F1 or select Help -> User's Guide).
+which TrueCrypt is installed, and will be accessible via the TrueCrypt user
+interface (press F1 or select Help -> User's Guide).
 
 
 
@@ -67,7 +67,7 @@ REQUIREMENTS
 ============
 
 - Any of the following operating systems:
-  Windows XP, Windows 2000, Windows Server 2003
+  Windows Vista, Windows Windows XP, Windows 2000, Windows Server 2003
 
 - Free disk space: approximately 2 MB (this does not apply if you run
   TrueCrypt in 'traveller' mode).
@@ -105,14 +105,15 @@ http://www.truecrypt.org/faq.php
 LICENSING INFORMATION
 =====================
 
-Before installing/running/using TrueCrypt (e.g. running 'TrueCrypt.exe', 
-'TrueCrypt Setup.exe' or 'TrueCrypt Format.exe'), you must agree to the 
-license contained in the file 'License.txt' in the 'Setup Files' folder.
+By installing and/or running and/or using and/or distributing and/or
+modifying any part of this product you accept in full the responsibilities  
+and obligations contained in the license whose text may be found in the file
+'License.txt' in the 'Setup Files' folder.
 
 
 
 FURTHER INFORMATION
 ===================
 
-For further information, please visit http://www.truecrypt.org
+For further information, please visit http://www.truecrypt.org/
 

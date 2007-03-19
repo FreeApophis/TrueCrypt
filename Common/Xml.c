@@ -1,8 +1,9 @@
-/* 
-Copyright (c) 2004-2006 TrueCrypt Foundation. All rights reserved. 
+/*
+ Copyright (c) TrueCrypt Foundation. All rights reserved.
 
-Covered by TrueCrypt License 2.1 the full text of which is contained in the file
-License.txt included in TrueCrypt binary and source code distribution archives. 
+ Covered by the TrueCrypt License 2.2 the full text of which is contained
+ in the file License.txt included in TrueCrypt binary and source code
+ distribution packages.
 */
 
 #include <windows.h>
@@ -60,7 +61,7 @@ char *XmlFindElementByAttributeValue (char *xml, char *nodeName, char *attrName,
 
 	while (xml = XmlFindElement (xml, nodeName))
 	{
-		XmlAttribute (xml, attrName, attr, sizeof (attr));
+		XmlGetAttributeText (xml, attrName, attr, sizeof (attr));
 		if (strcmp (attr, attrValue) == 0)
 			return xml;
 
@@ -71,7 +72,7 @@ char *XmlFindElementByAttributeValue (char *xml, char *nodeName, char *attrName,
 }
 
 
-char *XmlAttribute (char *xmlNode, char *xmlAttrName, char *xmlAttrValue, int xmlAttrValueSize)
+char *XmlGetAttributeText (char *xmlNode, char *xmlAttrName, char *xmlAttrValue, int xmlAttrValueSize)
 {
 	char *t = xmlNode;
 	char *e = xmlNode;
@@ -112,7 +113,7 @@ char *XmlAttribute (char *xmlNode, char *xmlAttrName, char *xmlAttrValue, int xm
 }
 
 
-char *XmlNodeText (char *xmlNode, char *xmlText, int xmlTextSize)
+char *XmlGetNodeText (char *xmlNode, char *xmlText, int xmlTextSize)
 {
 	char *t = xmlNode;
 	char *e = xmlNode + 1;
@@ -157,6 +158,52 @@ char *XmlNodeText (char *xmlNode, char *xmlText, int xmlTextSize)
 	xmlText[j] = 0;
 
 	return t;
+}
+
+
+char *XmlQuoteText (char *textSrc, char *textDst, int textDstMaxSize)
+{
+	char *textDstLast = textDst + textDstMaxSize - 1;
+
+	if (textDstMaxSize == 0)
+		return NULL;
+
+	while (*textSrc != 0 && textDst <= textDstLast) 
+	{
+		char c = *textSrc++;
+		switch (c)
+		{
+		case '&':
+			if (textDst + 6 > textDstLast)
+				return NULL;
+			strcpy (textDst, "&amp;");
+			textDst += 5;
+			continue;
+
+		case '>':
+			if (textDst + 5 > textDstLast)
+				return NULL;
+			strcpy (textDst, "&gt;");
+			textDst += 4;
+			continue;
+
+		case '<':
+			if (textDst + 5 > textDstLast)
+				return NULL;
+			strcpy (textDst, "&lt;");
+			textDst += 4;
+			continue;
+
+		default:
+			*textDst++ = c;
+		}
+	}
+
+	if (textDst > textDstLast)
+		return NULL;
+
+	*textDst = 0;
+	return textDst;
 }
 
 

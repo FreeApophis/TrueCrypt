@@ -1,26 +1,30 @@
-/* Legal Notice: The source code contained in this file has been derived from
-   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
-   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
-   Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
-   the full text of which is contained in the file License.txt included in
-   TrueCrypt binary and source code distribution archives.  */
+/*
+ Legal Notice: The source code contained in this file has been derived from
+ the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+ Paul Le Roux and which is covered by the 'License Agreement for Encryption
+ for the Masses'. Modifications and additions to that source code contained
+ in this file are Copyright (c) TrueCrypt Foundation and are covered by the
+ TrueCrypt License 2.2 the full text of which is contained in the file
+ License.txt included in TrueCrypt binary and source code distribution
+ packages. */
+
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
 #include "Tcdefs.h"
 
 #include "Crypto.h"
+#include "Common/Endian.h"
 #include "Format.h"
 #include "Fat.h"
 #include "Progress.h"
 #include "Random.h"
 
-#include <time.h>
-
 void
 GetFatParams (fatparams * ft)
 {
-	int fatsecs;
+	unsigned int fatsecs;
 	if(ft->cluster_size == 0)	// 'Default' cluster size
 	{
 		if (ft->num_sectors * 512LL >= 256*BYTES_PER_GB)
@@ -102,14 +106,12 @@ PutBoot (fatparams * ft, unsigned char *boot)
 	boot[cnt++] = 0x90;
 	memcpy (boot + cnt, "MSDOS5.0", 8); /* system id */
 	cnt += 8;
-	memcpy (boot + cnt, &ft->sector_size, 2);	/* bytes per sector */
+	*(__int16 *)(boot + cnt) = LE16(ft->sector_size);	/* bytes per sector */
 	cnt += 2;
-	memcpy (boot + cnt, &ft->cluster_size, 1);	/* sectors per cluster */
-	cnt++;
-	memcpy (boot + cnt, &ft->reserved, 2);		/* reserved sectors */
+	boot[cnt++] = (__int8) ft->cluster_size;			/* sectors per cluster */
+	*(__int16 *)(boot + cnt) = LE16(ft->reserved);		/* reserved sectors */
 	cnt += 2;
-	memcpy (boot + cnt, &ft->fats, 1);			/* 2 fats */
-	cnt++;
+	boot[cnt++] = (__int8) ft->fats;					/* 2 fats */
 
 	if(ft->size_fat == 32)
 	{
@@ -118,14 +120,13 @@ PutBoot (fatparams * ft, unsigned char *boot)
 	}
 	else
 	{
-		memcpy (boot + cnt, &ft->dir_entries, 2);	/* 512 root entries */
+		*(__int16 *)(boot + cnt) = LE16(ft->dir_entries);	/* 512 root entries */
 		cnt += 2;
 	}
 
-	memcpy (boot + cnt, &ft->sectors, 2);			/* # sectors */
+	*(__int16 *)(boot + cnt) = LE16(ft->sectors);		/* # sectors */
 	cnt += 2;
-	memcpy (boot + cnt, &ft->media, 1);				/* media byte */
-	cnt++;
+	boot[cnt++] = (__int8) ft->media;					/* media byte */
 
 	if(ft->size_fat == 32)	
 	{
@@ -134,22 +135,22 @@ PutBoot (fatparams * ft, unsigned char *boot)
 	}
 	else 
 	{ 
-		memcpy (boot + cnt, &ft->fat_length, 2);	/* fat size */
+		*(__int16 *)(boot + cnt) = LE16(ft->fat_length);	/* fat size */
 		cnt += 2;
 	}
 
-	memcpy (boot + cnt, &ft->secs_track, 2);	/* # sectors per track */
+	*(__int16 *)(boot + cnt) = LE16(ft->secs_track);	/* # sectors per track */
 	cnt += 2;
-	memcpy (boot + cnt, &ft->heads, 2);			/* # heads */
+	*(__int16 *)(boot + cnt) = LE16(ft->heads);			/* # heads */
 	cnt += 2;
-	memcpy (boot + cnt, &ft->hidden, 4);		/* # hidden sectors */
+	*(__int32 *)(boot + cnt) = LE32(ft->hidden);		/* # hidden sectors */
 	cnt += 4;
-	memcpy (boot + cnt, &ft->total_sect, 4);	/* # huge sectors */
+	*(__int32 *)(boot + cnt) = LE32(ft->total_sect);	/* # huge sectors */
 	cnt += 4;
 
 	if(ft->size_fat == 32)
 	{
-		memcpy (boot + cnt, &ft->fat_length, 4); cnt += 4;	/* fat size 32 */
+		*(__int32 *)(boot + cnt) = LE32(ft->fat_length); cnt += 4;	/* fat size 32 */
 		boot[cnt++] = 0x00;	/* ExtFlags */
 		boot[cnt++] = 0x00;
 		boot[cnt++] = 0x00;	/* FSVer */
@@ -168,7 +169,7 @@ PutBoot (fatparams * ft, unsigned char *boot)
 	boot[cnt++] = 0x00;	/* drive number */   // FIXED 80 > 00
 	boot[cnt++] = 0x00;	/* reserved */
 	boot[cnt++] = 0x29;	/* boot sig */
-	memcpy (boot + cnt, &ft->create_time, 4);	/* vol id */
+	*(__int32 *)(boot + cnt) = LE32(ft->create_time);	/* vol id */
 	cnt += 4;
 	memcpy (boot + cnt, ft->volume_name, 11);	/* vol title */
 	cnt += 11;
@@ -186,6 +187,7 @@ PutBoot (fatparams * ft, unsigned char *boot)
 	boot[cnt++] = 0x55;
 	boot[cnt++] = 0xaa;	/* boot sig */
 }
+
 
 /* FAT32 FSInfo */
 PutFSInfo (unsigned char *sector)

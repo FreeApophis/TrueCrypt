@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 4,2,1,0
- PRODUCTVERSION 4,2,1,0
+ FILEVERSION 4,3,0,0
+ PRODUCTVERSION 4,3,0,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -46,13 +46,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Setup"
-            VALUE "FileVersion", "4.2a"
+            VALUE "FileVersion", "4.3"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt Setup.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "4.2a"
-            VALUE "SpecialBuild", "2006-07-03"
+            VALUE "ProductVersion", "4.3"
+            VALUE "SpecialBuild", "2007-03-19"
         END
     END
     BLOCK "VarFileInfo"
@@ -71,57 +71,50 @@ IDR_SETUP_RSRC_HEADER   HEADER                  "resource.h"
 
 /////////////////////////////////////////////////////////////////////////////
 //
+// REGISTRY
+//
+
+IDR_COMREG              REGISTRY                "ComSetup.rgs"
+
+/////////////////////////////////////////////////////////////////////////////
+//
 // Dialog
 //
 
 IDD_UNINSTALL DIALOGEX 0, 0, 349, 234
-STYLE DS_SETFONT | DS_SETFOREGROUND | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | 
-    WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
+STYLE DS_SETFONT | DS_SETFOREGROUND | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Uninstall TrueCrypt"
 CLASS "CustomDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    LTEXT           "Uninstall TrueCrypt fr&om:",IDT_UNINSTALL_DIR,8,10,166,
-                    8
+    LTEXT           "Uninstall TrueCrypt fr&om:",IDT_UNINSTALL_DIR,8,10,166,8
     EDITTEXT        IDC_DESTINATION,7,21,277,14,ES_AUTOHSCROLL
     PUSHBUTTON      "&Browse...",IDC_BROWSE,292,21,50,14
-    LISTBOX         IDC_FILES,7,44,335,128,LBS_NOINTEGRALHEIGHT | LBS_NOSEL | 
-                    WS_VSCROLL
+    LISTBOX         IDC_FILES,7,44,335,159,LBS_NOINTEGRALHEIGHT | LBS_NOSEL | WS_VSCROLL
     DEFPUSHBUTTON   "&Uninstall",IDC_UNINSTALL,236,213,50,14
     PUSHBUTTON      "Cancel",IDCANCEL,292,213,50,14
-    LTEXT           "All TrueCrypt files except '%WINDIR%\\TrueCrypt Setup.exe' will be removed. No TrueCrypt volume will be deleted. The registry entries at HKLM\\SYSTEM\\ControlSet001\\Enum\\Root\\LEGACY_TRUECRYPT cannot be removed as Windows does not allow their deletion.",
-                    IDT_UNINSTALL_INFO,9,179,333,29
 END
 
-IDD_INSTALL DIALOGEX 0, 0, 405, 265
-STYLE DS_SETFONT | DS_SETFOREGROUND | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | 
-    WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
+IDD_INSTALL DIALOGEX 0, 0, 393, 258
+STYLE DS_SETFONT | DS_SETFOREGROUND | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "TrueCrypt Setup"
 CLASS "CustomDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    EDITTEXT        IDC_DESTINATION,73,179,260,14,ES_AUTOHSCROLL
-    PUSHBUTTON      "&Browse...",IDC_BROWSE,337,179,50,14
-    CONTROL         "Install for all users",IDC_ALL_USERS,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,198,174,10
-    CONTROL         "Associate '.tc' file &extension with TrueCrypt",
-                    IDC_FILE_TYPE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,192,
-                    198,204,10
-    CONTROL         "Add TrueCrypt to &Start menu",IDC_PROG_GROUP,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,211,174,10
-    CONTROL         "Create System &Restore point",IDC_SYSTEM_RESTORE,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,192,211,204,10
-    CONTROL         "Add TrueCrypt icon to &desktop",IDC_DESKTOP_ICON,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,224,174,10
-    DEFPUSHBUTTON   "&Install",IDC_INSTALL,291,246,50,14
-    PUSHBUTTON      "Cancel",IDCANCEL,348,246,50,14
-    RTEXT           "Install &to:",IDT_INSTALL_DIR,10,182,62,8
-    LTEXT           "License Agreement:",IDT_LICENSE,9,7,179,8
-    EDITTEXT        IDC_LICENSE,7,18,392,88,ES_MULTILINE | ES_READONLY | 
-                    WS_VSCROLL | NOT WS_TABSTOP
-    GROUPBOX        "Installation Options",IDT_INSTALL_OPTIONS,7,167,392,73
-    LISTBOX         IDC_FILES,7,109,392,56,LBS_NOINTEGRALHEIGHT | 
-                    LBS_DISABLENOSCROLL | LBS_NOSEL | WS_VSCROLL
+    EDITTEXT        IDC_DESTINATION,74,172,242,13,ES_AUTOHSCROLL
+    PUSHBUTTON      "&Browse...",IDC_BROWSE,322,171,50,14
+    CONTROL         "Install for all users",IDC_ALL_USERS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,13,191,172,10
+    CONTROL         "Associate '.tc' file &extension with TrueCrypt",IDC_FILE_TYPE,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,187,197,198,10
+    CONTROL         "Add TrueCrypt to &Start menu",IDC_PROG_GROUP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,13,203,172,10
+    CONTROL         "Create System &Restore point",IDC_SYSTEM_RESTORE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,187,209,198,10
+    CONTROL         "Add TrueCrypt icon to &desktop",IDC_DESKTOP_ICON,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,13,215,172,11
+    DEFPUSHBUTTON   "&Install",IDC_INSTALL,279,238,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,336,238,50,14
+    RTEXT           "Install &to:",IDT_INSTALL_DIR,6,174,66,8
+    EDITTEXT        IDC_LICENSE,6,6,381,84,ES_MULTILINE | ES_READONLY | WS_VSCROLL | NOT WS_TABSTOP
+    LISTBOX         IDC_FILES,6,95,381,60,LBS_NOINTEGRALHEIGHT | LBS_DISABLENOSCROLL | LBS_NOSEL | WS_VSCROLL
+    GROUPBOX        "Installation Options",IDT_INSTALL_OPTIONS,6,158,381,74
 END
 
 
@@ -180,9 +173,9 @@ BEGIN
     IDD_INSTALL, DIALOG
     BEGIN
         LEFTMARGIN, 7
-        RIGHTMARGIN, 398
+        RIGHTMARGIN, 386
         TOPMARGIN, 7
-        BOTTOMMARGIN, 260
+        BOTTOMMARGIN, 253
     END
 END
 #endif    // APSTUDIO_INVOKED

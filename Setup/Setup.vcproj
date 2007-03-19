@@ -1,126 +1,193 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="7.10"
+	Version="8.00"
 	Name="Setup"
 	ProjectGUID="{DF5F654D-BD44-4E31-B92E-B68074DC37A8}"
-	Keyword="Win32Proj">
+	RootNamespace="Setup"
+	Keyword="Win32Proj"
+	>
 	<Platforms>
 		<Platform
-			Name="Win32"/>
+			Name="Win32"
+		/>
 	</Platforms>
+	<ToolFiles>
+	</ToolFiles>
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
 			OutputDirectory="Debug"
 			IntermediateDirectory="Debug"
 			ConfigurationType="1"
-			CharacterSet="2">
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			CharacterSet="2"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+			/>
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\Common;..\Crypto"
-				PreprocessorDefinitions="SETUP;WIN32;_DEBUG;_WINDOWS"
-				MinimalRebuild="TRUE"
+				AdditionalIncludeDirectories="..\Common;..\Crypto;..\"
+				PreprocessorDefinitions="SETUP;WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;_CRT_NON_CONFORMING_SWPRINTFS"
+				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
-				BufferSecurityCheck="TRUE"
+				BufferSecurityCheck="true"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
-				Detect64BitPortabilityProblems="FALSE"
+				Detect64BitPortabilityProblems="false"
 				DebugInformationFormat="4"
-				DisableSpecificWarnings="4311"/>
+				DisableSpecificWarnings="4311"
+			/>
 			<Tool
-				Name="VCCustomBuildTool"/>
+				Name="VCManagedResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCPreLinkEventTool"
+			/>
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalOptions="/NODEFAULTLIB:LIBCMTD"
 				AdditionalDependencies="msvcrtd.lib"
 				OutputFile="$(OutDir)/TrueCryptSetup.exe"
 				LinkIncremental="2"
-				GenerateDebugInformation="TRUE"
+				GenerateDebugInformation="true"
 				ProgramDatabaseFile="$(OutDir)/Setup.pdb"
 				SubSystem="2"
 				OptimizeForWindows98="1"
-				TargetMachine="1"/>
+				TargetMachine="1"
+			/>
 			<Tool
-				Name="VCMIDLTool"/>
+				Name="VCALinkTool"
+			/>
 			<Tool
-				Name="VCPostBuildEventTool"/>
+				Name="VCManifestTool"
+				AdditionalManifestFiles="Setup.manifest"
+			/>
 			<Tool
-				Name="VCPreBuildEventTool"/>
+				Name="VCXDCMakeTool"
+			/>
 			<Tool
-				Name="VCPreLinkEventTool"/>
+				Name="VCBscMakeTool"
+			/>
 			<Tool
-				Name="VCResourceCompilerTool"/>
+				Name="VCFxCopTool"
+			/>
 			<Tool
-				Name="VCWebServiceProxyGeneratorTool"/>
+				Name="VCAppVerifierTool"
+			/>
 			<Tool
-				Name="VCXMLDataGeneratorTool"/>
+				Name="VCWebDeploymentTool"
+			/>
 			<Tool
-				Name="VCWebDeploymentTool"/>
-			<Tool
-				Name="VCManagedWrapperGeneratorTool"/>
-			<Tool
-				Name="VCAuxiliaryManagedWrapperGeneratorTool"/>
+				Name="VCPostBuildEventTool"
+			/>
 		</Configuration>
 		<Configuration
 			Name="Release|Win32"
 			OutputDirectory="Release"
 			IntermediateDirectory="Release"
 			ConfigurationType="1"
-			CharacterSet="2">
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			CharacterSet="2"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+			/>
 			<Tool
 				Name="VCCLCompilerTool"
 				AdditionalOptions="/w34189"
-				AdditionalIncludeDirectories="..\Common;..\Crypto"
-				PreprocessorDefinitions="SETUP;WIN32;NDEBUG;_WINDOWS"
+				AdditionalIncludeDirectories="..\Common;..\Crypto;..\"
+				PreprocessorDefinitions="SETUP;WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;_CRT_NON_CONFORMING_SWPRINTFS"
 				RuntimeLibrary="0"
-				BufferSecurityCheck="TRUE"
+				BufferSecurityCheck="true"
 				UsePrecompiledHeader="0"
 				AssemblerOutput="2"
 				AssemblerListingLocation="$(IntDir)/"
 				WarningLevel="3"
-				Detect64BitPortabilityProblems="FALSE"
+				Detect64BitPortabilityProblems="false"
 				DebugInformationFormat="0"
-				DisableSpecificWarnings="4311"/>
+				DisableSpecificWarnings="4311"
+			/>
 			<Tool
-				Name="VCCustomBuildTool"/>
+				Name="VCManagedResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCPreLinkEventTool"
+			/>
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalOptions="/IGNORE:4089"
-				AdditionalDependencies="LIBCMT.LIB"
+				AdditionalDependencies="LIBCMT.LIB atls.lib"
 				OutputFile="$(OutDir)/TrueCryptSetup.exe"
 				LinkIncremental="1"
-				IgnoreAllDefaultLibraries="TRUE"
-				GenerateDebugInformation="FALSE"
-				GenerateMapFile="TRUE"
+				IgnoreAllDefaultLibraries="true"
+				GenerateDebugInformation="false"
+				GenerateMapFile="true"
 				SubSystem="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
 				OptimizeForWindows98="1"
-				TargetMachine="1"/>
+				TargetMachine="1"
+			/>
 			<Tool
-				Name="VCMIDLTool"/>
+				Name="VCALinkTool"
+			/>
+			<Tool
+				Name="VCManifestTool"
+				AdditionalManifestFiles="Setup.manifest"
+			/>
+			<Tool
+				Name="VCXDCMakeTool"
+			/>
+			<Tool
+				Name="VCBscMakeTool"
+			/>
+			<Tool
+				Name="VCFxCopTool"
+			/>
+			<Tool
+				Name="VCAppVerifierTool"
+			/>
+			<Tool
+				Name="VCWebDeploymentTool"
+			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				CommandLine="copy Release\TrueCryptSetup.exe &quot;..\Release\TrueCrypt Setup.exe&quot;"/>
-			<Tool
-				Name="VCPreBuildEventTool"/>
-			<Tool
-				Name="VCPreLinkEventTool"/>
-			<Tool
-				Name="VCResourceCompilerTool"/>
-			<Tool
-				Name="VCWebServiceProxyGeneratorTool"/>
-			<Tool
-				Name="VCXMLDataGeneratorTool"/>
-			<Tool
-				Name="VCWebDeploymentTool"/>
-			<Tool
-				Name="VCManagedWrapperGeneratorTool"/>
-			<Tool
-				Name="VCAuxiliaryManagedWrapperGeneratorTool"/>
+				CommandLine="copy Release\TrueCryptSetup.exe &quot;..\Release\TrueCrypt Setup.exe&quot;"
+			/>
 		</Configuration>
 	</Configurations>
 	<References>
@@ -129,98 +196,154 @@
 		<Filter
 			Name="Source Files"
 			Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx"
-			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}">
+			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
+			>
 			<File
-				RelativePath=".\Dir.c">
+				RelativePath=".\ComSetup.cpp"
+				>
 			</File>
 			<File
-				RelativePath=".\Setup.c">
+				RelativePath=".\ComSetup.rgs"
+				>
+			</File>
+			<File
+				RelativePath=".\Dir.c"
+				>
+			</File>
+			<File
+				RelativePath=".\Setup.c"
+				>
 			</File>
 			<Filter
 				Name="Common"
-				Filter="">
+				>
 				<File
-					RelativePath="..\Common\Dictionary.c">
+					RelativePath="..\Common\Dictionary.c"
+					>
 				</File>
 				<File
-					RelativePath="..\Common\Dlgcode.c">
+					RelativePath="..\Common\Dlgcode.c"
+					>
 				</File>
 				<File
-					RelativePath="..\Common\Language.c">
+					RelativePath="..\Common\Language.c"
+					>
 				</File>
 				<File
-					RelativePath="..\Common\Registry.c">
+					RelativePath="..\Common\Registry.c"
+					>
 				</File>
 				<File
-					RelativePath="..\Common\Xml.c">
+					RelativePath="..\Common\Xml.c"
+					>
 				</File>
 			</Filter>
 		</Filter>
 		<Filter
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
-			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}">
+			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
+			>
 			<File
-				RelativePath=".\Dir.h">
+				RelativePath="..\Common\Apidrvr.h"
+				>
 			</File>
 			<File
-				RelativePath="..\Common\Dlgcode.h">
+				RelativePath="..\Common\Combo.h"
+				>
 			</File>
 			<File
-				RelativePath="..\Common\Language.h">
+				RelativePath=".\ComSetup.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Resource.h">
+				RelativePath=".\Dir.h"
+				>
 			</File>
 			<File
-				RelativePath="..\Common\Resource.h">
+				RelativePath="..\Common\Dlgcode.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Setup.h">
+				RelativePath="..\Common\Language.h"
+				>
+			</File>
+			<File
+				RelativePath="..\Common\Registry.h"
+				>
+			</File>
+			<File
+				RelativePath=".\Resource.h"
+				>
+			</File>
+			<File
+				RelativePath="..\Common\Resource.h"
+				>
+			</File>
+			<File
+				RelativePath=".\Setup.h"
+				>
+			</File>
+			<File
+				RelativePath="..\Common\Tcdefs.h"
+				>
 			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx"
-			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}">
+			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
+			>
 			<File
-				RelativePath=".\setup.ico">
+				RelativePath=".\setup.ico"
+				>
 			</File>
 			<File
-				RelativePath=".\Setup.rc">
+				RelativePath=".\Setup.rc"
+				>
 			</File>
 			<Filter
 				Name="Common"
-				Filter="">
+				>
 				<File
-					RelativePath="..\Common\about.bmp">
+					RelativePath="..\Common\about.bmp"
+					>
 				</File>
 				<File
-					RelativePath="..\Common\Common.rc">
+					RelativePath="..\Common\Common.rc"
+					>
 					<FileConfiguration
 						Name="Debug|Win32"
-						ExcludedFromBuild="TRUE">
+						ExcludedFromBuild="true"
+						>
 						<Tool
-							Name="VCResourceCompilerTool"/>
+							Name="VCResourceCompilerTool"
+						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|Win32"
-						ExcludedFromBuild="TRUE">
+						ExcludedFromBuild="true"
+						>
 						<Tool
-							Name="VCResourceCompilerTool"/>
+							Name="VCResourceCompilerTool"
+						/>
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\Common\Language.xml">
+					RelativePath="..\Common\Language.xml"
+					>
 				</File>
 				<File
-					RelativePath="..\Release\Setup Files\License.txt">
+					RelativePath="..\Release\Setup Files\License.txt"
+					>
 				</File>
 				<File
-					RelativePath="..\Common\TrueCrypt.ico">
+					RelativePath="..\Common\TrueCrypt.ico"
+					>
 				</File>
 				<File
-					RelativePath="..\Common\TrueCrypt_Volume.ico">
+					RelativePath="..\Common\TrueCrypt_Volume.ico"
+					>
 				</File>
 			</Filter>
 		</Filter>

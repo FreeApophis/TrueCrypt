@@ -59,8 +59,6 @@
 #include "Cast.h"
 #include "Cast_lcl.h"
 
-#pragma warning( disable : 4131 )
-
 void CAST_encrypt(data,key)
 CAST_LONG *data;
 CAST_KEY *key;

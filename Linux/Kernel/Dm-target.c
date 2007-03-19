@@ -1,8 +1,9 @@
-/* 
-Copyright (c) 2004-2006 TrueCrypt Foundation. All rights reserved. 
+/*
+ Copyright (c) TrueCrypt Foundation. All rights reserved.
 
-Covered by TrueCrypt License 2.1 the full text of which is contained in the file
-License.txt included in TrueCrypt binary and source code distribution archives. 
+ Covered by the TrueCrypt License 2.2 the full text of which is contained
+ in the file License.txt included in TrueCrypt binary and source code
+ distribution packages.
 */
 
 #include <linux/bio.h>
@@ -48,6 +49,7 @@ struct target_ctx
 	mempool_t *pg_pool;
 	unsigned long long read_only_start;
 	unsigned long long read_only_end;
+	unsigned long long uid;
 	unsigned long long mtime;
 	unsigned long long atime;
 	int flags;
@@ -65,7 +67,12 @@ struct bio_ctx
 };
 
 static struct workqueue_struct *work_queue = NULL;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+static struct kmem_cache *bio_ctx_cache = NULL;
+#else
 static kmem_cache_t *bio_ctx_cache = NULL;
+#endif
 
 #define READ_ONLY(tc) (tc->flags & TC_READ_ONLY)
 #define HID_VOL_PROT(tc) (tc->flags & TC_HIDDEN_VOLUME_PROTECTION)
@@ -89,6 +96,11 @@ static int hex2bin (char *hex_string, u8 *byte_buf, int max_length)
 	return i;
 }
 
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#define congestion_wait blk_congestion_wait
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,14)
@@ -99,13 +111,11 @@ static void *mempool_alloc_pg (unsigned int gfp_mask, void *pool_data)
 static void *mempool_alloc_pg (int gfp_mask, void *pool_data)
 #endif
 {
-	trace (3, "mempool_alloc_pg (%d, %p)\n", gfp_mask, pool_data);
 	return alloc_page (gfp_mask);
 }
 
 static void mempool_free_pg (void *element, void *pool_data)
 {
-	trace (3, "mempool_free_pg (%p, %p)\n", element, pool_data);
 	__free_page (element);
 }
 
@@ -115,8 +125,6 @@ static void mempool_free_pg (void *element, void *pool_data)
 static void *malloc_wait (mempool_t *pool, int direction)
 {
 	void *p;
-	trace (3, "malloc_wait\n");
-
 	while (1)
 	{
 		p = mempool_alloc (pool, GFP_NOIO | __GFP_NOMEMALLOC);
@@ -124,8 +132,7 @@ static void *malloc_wait (mempool_t *pool, int direction)
 		if (p)
 			return p;
 
-		trace (3, "blk_congestion_wait\n");
-		blk_congestion_wait (direction, HZ / 50);
+		congestion_wait (direction, HZ / 50);
 	}
 }
 
@@ -147,8 +154,6 @@ static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 	int key_size;
 	int error = -EINVAL;
 	unsigned long long sector;
-
-	trace (3, "truecrypt_ctr (%p, %d, %p)\n", ti, argc, argv);
 
 	if (argc != TC_LAST_ARG + 1)
 	{
@@ -240,7 +245,6 @@ static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 	}
 	
 	// EA init
-	trace (2, "EAInit (%d, %p, %p)\n", tc->ci->ea, tc->ci->master_key, tc->ci->ks);
 	if (EAInit (tc->ci->ea, tc->ci->master_key, tc->ci->ks) == ERR_CIPHER_INIT_FAILURE)
 	{
 		ti->error = "truecrypt: Encryption algorithm initialization failed";
@@ -272,6 +276,13 @@ static int truecrypt_ctr (struct dm_target *ti, unsigned int argc, char **argv)
 	if (sscanf (argv[TC_ARG_RO_END], "%llu", &tc->read_only_end) != 1)
 	{
 		ti->error = "truecrypt: Invalid read-only end sector";
+		goto err;
+	}
+
+	// User ID
+	if (sscanf (argv[TC_ARG_UID], "%llu", &tc->uid) != 1)
+	{
+		ti->error = "truecrypt: Invalid user ID";
 		goto err;
 	}
 
@@ -341,8 +352,6 @@ static void truecrypt_dtr (struct dm_target *ti)
 {
 	struct target_ctx *tc = (struct target_ctx *) ti->private;
 
-	trace (3, "truecrypt_dtr (%p)\n", ti);
-
 	mempool_destroy (tc->bio_ctx_pool);
 	mempool_destroy (tc->pg_pool);
 	crypto_close (tc->ci);
@@ -362,27 +371,30 @@ static int RegionsOverlap (u64 start1, u64 end1, u64 start2, u64 end2)
 static void dereference_bio_ctx (struct bio_ctx *bc)
 {
 	struct target_ctx *tc = (struct target_ctx *) bc->target->private;
-	trace (3, "dereference_bio_ctx (%p)\n", bc);
 
 	if (!atomic_dec_and_test (&bc->ref_count))
 		return;
 
 	bio_endio (bc->orig_bio, bc->orig_bio->bi_size, bc->error);
-	trace (3, "deref: mempool_free (%p)\n", bc);
 	mempool_free (bc, tc->bio_ctx_pool);
 }
 
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+static void work_process (struct work_struct *qdata)
+{
+	struct bio_ctx *bc = container_of(qdata, struct bio_ctx, work);
+#else
 static void work_process (void *qdata)
 {
 	struct bio_ctx *bc = (struct bio_ctx *) qdata;
+#endif
+
 	struct target_ctx *tc = (struct target_ctx *) bc->target->private;
 	struct bio_vec *bv;
 	u64 sec_no = bc->crypto_sector;
 	int seg_no;
 	unsigned long flags;
-
-	trace (3, "work_process (%p)\n", qdata);
 
 	// Decrypt queued data
 	bio_for_each_segment (bv, bc->orig_bio, seg_no)
@@ -390,7 +402,6 @@ static void work_process (void *qdata)
 		unsigned int secs = bv->bv_len / SECTOR_SIZE;
 		char *data = bvec_kmap_irq (bv, &flags);
 
-		trace (2, "DecryptSectors (%llu, %d)\n", (unsigned long long) sec_no, secs);
 		DecryptSectors ((unsigned __int32 *)data, sec_no, secs, tc->ci);
 
 		sec_no += secs;
@@ -413,7 +424,6 @@ static int truecrypt_endio (struct bio *bio, unsigned int bytes_done, int error)
 	struct bio_vec *bv;
 	int seg_no;
 	
-	trace (3, "truecrypt_endio (%p, %d, %d)\n", bio, bytes_done, error);
 	trace (1, "end: sc=%llu fl=%ld rw=%ld sz=%d ix=%hd vc=%hd dn=%d er=%d\n",
 		(unsigned long long) bio->bi_sector, bio->bi_flags, bio->bi_rw, bio->bi_size, bio->bi_idx, bio->bi_vcnt, bytes_done, error);
 
@@ -431,8 +441,11 @@ static int truecrypt_endio (struct bio *bio, unsigned int bytes_done, int error)
 		bio_put (bio);
 
 		// Queue decryption to leave completion interrupt ASAP
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+		INIT_WORK (&bc->work, work_process);
+#else
 		INIT_WORK (&bc->work, work_process, bc);
-		trace (3, "queue_work (%p)\n", work_queue);
+#endif
 		queue_work (work_queue, &bc->work);
 		return error;
 	}
@@ -440,7 +453,6 @@ static int truecrypt_endio (struct bio *bio, unsigned int bytes_done, int error)
 	// Free pages allocated for encryption
 	bio_for_each_segment (bv, bio, seg_no)
 	{
-		trace (3, "endio: mempool_free (%p)\n", bv->bv_page);
 		mempool_free (bv->bv_page, tc->pg_pool);  
 	}
 
@@ -458,7 +470,6 @@ static int truecrypt_map (struct dm_target *ti, struct bio *bio, union map_info 
 	struct bio_vec *bv;
 	int seg_no;
 
-	trace (3, "truecrypt_map (%p, %p, %p)\n", ti, bio, map_context);
 	trace (1, "map: sc=%llu fl=%ld rw=%ld sz=%d ix=%hd vc=%hd\n",
 		(unsigned long long) bio->bi_sector, bio->bi_flags, bio->bi_rw, bio->bi_size, bio->bi_idx, bio->bi_vcnt);
 
@@ -484,7 +495,6 @@ static int truecrypt_map (struct dm_target *ti, struct bio *bio, union map_info 
 		error ("bio context allocation failed\n");
 		return -ENOMEM;
 	}
-	trace (3, "mempool_alloc bc: %p\n", bc);
 
 	atomic_set (&bc->ref_count, 1);
 	bc->orig_bio = bio;
@@ -493,11 +503,9 @@ static int truecrypt_map (struct dm_target *ti, struct bio *bio, union map_info 
 	bc->crypto_sector = tc->start + (bio->bi_sector - ti->begin);
 
 	// New bio for encrypted device
-	trace (3, "bio_alloc (%hd)\n", bio_segments (bio));
 	while (!(bion = bio_alloc (GFP_NOIO | __GFP_NOMEMALLOC, bio_segments (bio))))
 	{
-		trace (3, "blk_congestion_wait\n");
-		blk_congestion_wait (bio_data_dir (bio), HZ / 50);
+		congestion_wait (bio_data_dir (bio), HZ / 50);
 	}
 
 	bion->bi_bdev = tc->dev->bdev;
@@ -555,7 +563,6 @@ static int truecrypt_map (struct dm_target *ti, struct bio *bio, union map_info 
 			}
 
 			cbv->bv_page = malloc_wait (tc->pg_pool, bio_data_dir (bion));
-			trace (3, "mempool_alloc cbv: %p\n", bc);
 
 			cbv->bv_offset = 0;
 			cbv->bv_len = bv->bv_len;
@@ -564,8 +571,6 @@ static int truecrypt_map (struct dm_target *ti, struct bio *bio, union map_info 
 			data = bvec_kmap_irq (bv, &flags);
 
 			memcpy (copy, data, bv->bv_len);
-
-			trace (2, "EncryptSectors (%llu, %d)\n", (unsigned long long) sec_no, secs);
 
 			EncryptSectors ((unsigned __int32 *) copy, sec_no, secs, tc->ci);
 			sec_no += secs;
@@ -581,8 +586,6 @@ static int truecrypt_map (struct dm_target *ti, struct bio *bio, union map_info 
 	}
 
 	atomic_inc (&bc->ref_count);
-
-	trace (3, "generic_make_request (rw=%ld sc=%llu)\n", bion->bi_rw, (unsigned long long) bion->bi_sector);
 	generic_make_request (bion);
 
 	dereference_bio_ctx (bc);
@@ -604,13 +607,14 @@ static int truecrypt_status (struct dm_target *ti, status_type_t type, char *res
 		{
 			char name[32];
 			format_dev_t (name, tc->dev->bdev->bd_dev);
-			snprintf (result, maxlen, "%d %d 0 0 %s %llu %llu %llu %llu %llu %d %s",
+			snprintf (result, maxlen, "%d %d 0 0 %s %llu %llu %llu %llu %llu %llu %d %s",
 				tc->ci->ea,
 				tc->ci->mode,
 				name,
 				(unsigned long long) tc->start,
 				tc->read_only_start,
 				tc->read_only_end,
+				tc->uid,
 				tc->mtime,
 				tc->atime,
 				tc->flags,
@@ -637,11 +641,10 @@ static struct target_type truecrypt_target = {
 int __init dm_truecrypt_init(void)
 {
 	int r;
-	trace (3, "dm_truecrypt_init (trace_level=%d)\n", trace_level);
 
 	if (!AutoTestAlgorithms ())
 	{
-		DMERR ("truecrypt: self-test of algorithms failed");
+		error ("self-test of algorithms failed");
 		return -ERANGE;
 	}
 
@@ -649,21 +652,21 @@ int __init dm_truecrypt_init(void)
 
 	if (!work_queue)
 	{
-		DMERR ("truecrypt: create_workqueue failed");
+		error ("create_workqueue failed");
 		goto err;
 	}
 
 	bio_ctx_cache = kmem_cache_create ("truecrypt-bioctx", sizeof (struct bio_ctx), 0, 0, NULL, NULL);
 	if (!bio_ctx_cache)
 	{
-		DMERR ("truecrypt: kmem_cache_create failed");
+		error ("kmem_cache_create failed");
 		goto err;
 	}
 
 	r = dm_register_target (&truecrypt_target);
 	if (r < 0)
 	{
-		DMERR ("truecrypt: register failed %d", r);
+		error ("register failed %d", r);
 		goto err;
 	}
 
@@ -682,12 +685,11 @@ err:
 void __exit dm_truecrypt_exit(void)
 {
 	int r;
-	trace (3, "dm_truecrypt_exit ()\n");
 
 	r = dm_unregister_target (&truecrypt_target);
 
 	if (r < 0)
-		DMERR ("truecrypt: unregister failed %d", r);
+		error ("unregister failed %d", r);
 
 	destroy_workqueue (work_queue);
 	kmem_cache_destroy (bio_ctx_cache);
@@ -699,6 +701,6 @@ module_exit(dm_truecrypt_exit);
 module_param_named(trace, trace_level, int, 0);
 
 MODULE_AUTHOR("TrueCrypt Foundation");
-MODULE_DESCRIPTION(DM_NAME " target for encryption and decryption of TrueCrypt volumes");
+MODULE_DESCRIPTION("device-mapper target for encryption and decryption of TrueCrypt volumes");
 MODULE_PARM_DESC(trace, "Trace level");
-MODULE_LICENSE("GPL and additional rights"); // Kernel thinks only GPL/BSD/MPL != closed-source code
+MODULE_LICENSE("GPL and additional rights");

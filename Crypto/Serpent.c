@@ -3,7 +3,7 @@
 /* Adapted for TrueCrypt by the TrueCrypt Foundation */
 
 #include "Serpent.h"
-#include "Endian.h"
+#include "Common/Endian.h"
 
 #ifndef LINUX_DRIVER
 #include <memory.h>

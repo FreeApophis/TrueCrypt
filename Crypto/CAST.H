@@ -78,12 +78,12 @@ typedef struct cast_key_st
 
 #ifndef NOPROTO
  
-void _cdecl CAST_set_key(CAST_KEY *key, int len, unsigned char *data);
-void _cdecl CAST_ecb_encrypt(unsigned char *in,unsigned char *out,CAST_KEY *key,
+void CAST_set_key(CAST_KEY *key, int len, unsigned char *data);
+void CAST_ecb_encrypt(unsigned char *in,unsigned char *out,CAST_KEY *key,
 	int enc);
-void _cdecl CAST_encrypt(CAST_LONG *data,CAST_KEY *key);
-void _cdecl CAST_decrypt(CAST_LONG *data,CAST_KEY *key);
-void _cdecl CAST_cbc_encrypt(unsigned char *in, unsigned char *out, long length,
+void CAST_encrypt(CAST_LONG *data,CAST_KEY *key);
+void CAST_decrypt(CAST_LONG *data,CAST_KEY *key);
+void CAST_cbc_encrypt(unsigned char *in, unsigned char *out, long length,
 	CAST_KEY *ks, unsigned char *iv, int enc);
 void CAST_cfb64_encrypt(unsigned char *in, unsigned char *out, long length,
 	CAST_KEY *schedule, unsigned char *ivec, int *num, int enc);
@@ -93,9 +93,9 @@ void CAST_ofb64_encrypt(unsigned char *in, unsigned char *out, long length,
 #else
 
 void CAST_set_key();
-void _cdecl CAST_ecb_encrypt();
-void _cdecl CAST_encrypt();
-void _cdecl CAST_decrypt();
+void CAST_ecb_encrypt();
+void CAST_encrypt();
+void CAST_decrypt();
 void CAST_cbc_encrypt();
 void CAST_cfb64_encrypt();
 void CAST_ofb64_encrypt();

@@ -1,6 +1,6 @@
 /*
  ---------------------------------------------------------------------------
- Copyright (c) 2003, Dr Brian Gladman, Worcester, UK.   All rights reserved.
+ Copyright (c) 1998-2006, Brian Gladman, Worcester, UK. All rights reserved.
 
  LICENSE TERMS
 
@@ -27,7 +27,7 @@
  in respect of its properties, including, but not limited to, correctness
  and/or fitness for purpose.
  ---------------------------------------------------------------------------
- Issue 01/08/2005
+ Issue 09/09/2006
 */
 
 #include "Aesopt.h"
@@ -53,14 +53,14 @@ extern "C"
 #define state_out(y,x)  so(y,x,0); so(y,x,1); so(y,x,2); so(y,x,3)
 #define round(rm,y,x,k) rm(y,x,k,0); rm(y,x,k,1); rm(y,x,k,2); rm(y,x,k,3)
 
-#if ( FUNCS_IN_C & ENCRYPTION_IN_C)
+#if ( FUNCS_IN_C & ENCRYPTION_IN_C )
 
 /* Visual C++ .Net v7.1 provides the fastest encryption code when using
    Pentium optimiation with small code but this is poor for decryption
    so we need to control this with the following VC++ pragmas
 */
 
-#if defined(_MSC_VER)
+#if defined( _MSC_VER ) && !defined( _WIN64 )
 #pragma optimize( "s", on )
 #endif
 
@@ -99,7 +99,7 @@ extern "C"
 #define fwd_lrnd(y,x,k,c)   (s(y,c) = (k)[c] ^ no_table(x,t_use(s,box),fwd_var,rf1,c))
 #endif
 
-aes_rval aes_encrypt(const unsigned char *in, unsigned char *out, const aes_encrypt_ctx cx[1])
+AES_RETURN aes_encrypt(const unsigned char *in, unsigned char *out, const aes_encrypt_ctx cx[1])
 {   uint_32t         locals(b0, b1);
     const uint_32t   *kp;
 #if defined( dec_fmvars )
@@ -182,7 +182,7 @@ aes_rval aes_encrypt(const unsigned char *in, unsigned char *out, const aes_encr
    so we need to control this with the following VC++ pragmas
 */
 
-#if defined(_MSC_VER)
+#if defined( _MSC_VER ) && !defined( _WIN64 )
 #pragma optimize( "t", on )
 #endif
 
@@ -236,7 +236,7 @@ aes_rval aes_encrypt(const unsigned char *in, unsigned char *out, const aes_encr
 #define rnd_key(n)  (kp - n * N_COLS)
 #endif
 
-aes_rval aes_decrypt(const unsigned char *in, unsigned char *out, const aes_decrypt_ctx cx[1])
+AES_RETURN aes_decrypt(const unsigned char *in, unsigned char *out, const aes_decrypt_ctx cx[1])
 {   uint_32t        locals(b0, b1);
 #if defined( dec_imvars )
     dec_imvars; /* declare variables for inv_mcol() if needed */

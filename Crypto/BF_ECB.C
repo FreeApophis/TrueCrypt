@@ -60,9 +60,7 @@
 
 #include "Blowfish.h"
 #include "Bf_locl.h"
-#include "Endian.h"
-
-#pragma warning( disable : 4131 )
+#include "Common/Endian.h"
 
 /* Blowfish as implemented from 'Blowfish: Springer-Verlag paper'
  * (From LECTURE NOTES IN COIMPUTER SCIENCE 809, FAST SOFTWARE ENCRYPTION,

@@ -31,12 +31,6 @@ enum
 
 typedef struct
 {
-	int Length;
-	unsigned char Text[MAX_PASSWORD + 1];
-} Password;
-
-typedef struct
-{
 	BOOL ReadOnly;
 	BOOL Removable;
 	BOOL ProtectHiddenVolume;

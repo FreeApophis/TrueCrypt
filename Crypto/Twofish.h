@@ -36,6 +36,6 @@ typedef struct
 #define TF_MK_TAB_SIZE	(4*4*256)
 #define TWOFISH_KS		(sizeof(TwofishInstance) + TF_L_KEY_SIZE + TF_S_KEY_SIZE + TF_MK_TAB_SIZE)
 
-u4byte * _cdecl twofish_set_key(TwofishInstance *instance, const u4byte in_key[], const u4byte key_len);
-void _cdecl twofish_encrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte out_blk[]);
-void _cdecl twofish_decrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte out_blk[4]);
+u4byte * twofish_set_key(TwofishInstance *instance, const u4byte in_key[], const u4byte key_len);
+void twofish_encrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte out_blk[]);
+void twofish_decrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte out_blk[4]);

@@ -1,0 +1,40 @@
+/*
+ Copyright (c) TrueCrypt Foundation. All rights reserved.
+
+ Covered by the TrueCrypt License 2.2 the full text of which is contained
+ in the file License.txt included in TrueCrypt binary and source code
+ distribution packages.
+*/
+
+import "wtypes.idl";
+import "..\Common\Password.h";
+
+[
+	uuid(1770F56C-7881-4591-A179-79B8001C7D42),
+	helpstring("TrueCrypt"),
+	version(1.0)
+]
+library TrueCrypt
+{
+	[
+		uuid(252C9DE6-D4B9-4A59-8A10-9CA73217B3D0),
+		object,
+		oleautomation,
+		helpstring("TrueCrypt Interface")
+	]
+	interface ITrueCrypt : IUnknown
+	{
+		int BackupVolumeHeader (LONG_PTR hwndDlg, BOOL bRequireConfirmation, BSTR lpszVolume);
+		int RestoreVolumeHeader (LONG_PTR hwndDlg, BSTR lpszVolume);
+		int ChangePassword (BSTR volumePath, Password *oldPassword, Password *newPassword, int pkcs5, LONG_PTR hWnd);
+	};
+
+	[
+		uuid(CECBC0EE-78D9-41E6-BCF1-BC222BB224BA),
+		helpstring("TrueCrypt Coclass")
+	]
+	coclass TrueCrypt
+	{
+		[default] interface ITrueCrypt;
+	}
+}

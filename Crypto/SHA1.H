@@ -72,10 +72,10 @@ typedef struct
 
 void sha1_compile(sha1_ctx ctx[1]);
 
-void _cdecl sha1_begin(sha1_ctx ctx[1]);
-void _cdecl sha1_hash(const unsigned char data[], unsigned __int32 len, sha1_ctx ctx[1]);
-void _cdecl sha1_end(unsigned char hval[], sha1_ctx ctx[1]);
-void _cdecl sha1(unsigned char hval[], const unsigned char data[], unsigned __int32 len);
+void sha1_begin(sha1_ctx ctx[1]);
+void sha1_hash(const unsigned char data[], unsigned __int32 len, sha1_ctx ctx[1]);
+void sha1_end(unsigned char hval[], sha1_ctx ctx[1]);
+void sha1(unsigned char hval[], const unsigned char data[], unsigned __int32 len);
 
 #if defined(__cplusplus)
 }

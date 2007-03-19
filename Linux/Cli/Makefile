@@ -1,4 +1,10 @@
-# TrueCrypt Linux CLI Makefile
+#
+# Copyright (c) TrueCrypt Foundation. All rights reserved.
+#
+# Covered by the TrueCrypt License 2.2 the full text of which is contained
+# in the file License.txt included in TrueCrypt binary and source code
+# distribution packages.
+#
 
 TC_COMMON := ../../Common
 TC_CRYPTO := ../../Crypto
@@ -14,8 +20,8 @@ CFLAGS := -w
 else
 CFLAGS := -W
 endif
-CFLAGS += -I../../Crypto -I../../Common -I../Kernel
-CFLAGS += -D_cdecl="" -DBOOL=int -DTRUE=1 -DFALSE=0 -DMAX_PATH=260
+CFLAGS += -I../../Crypto -I../../Common -I../Kernel -I../..
+CFLAGS += -DBOOL=int -DTRUE=1 -DFALSE=0 -DMAX_PATH=260
 CFLAGS += $(TYPES)
 
 ifndef DEBUG
@@ -26,8 +32,8 @@ CFLAGS += -ggdb
 NO_STRIP := 1
 endif
 
-KERNEL_OBJS_F := ../.kernel-objs
-USER_OBJS_F := ../.user-objs
+KERNEL_OBJS_PRESENT := ../.kernel-objs
+KERNEL_OBJS_CLEAN := ../.user-objs
 
 OBJS := $(TC_CRYPTO)/Aescrypt.o
 OBJS += $(TC_CRYPTO)/Aeskey.o
@@ -64,30 +70,34 @@ OBJS += Cli.o
 	@echo Compiling $(<F)
 	@$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -MMD -o $@ -c $<
 
-all: objclean truecrypt
+.PHONY: all clean man
+
+all: $(KERNEL_OBJS_CLEAN) truecrypt
 	@echo Done.
 
+$(KERNEL_OBJS_CLEAN):
+	@rm -f ${OBJS} $(KERNEL_OBJS_PRESENT)
+	@>$(KERNEL_OBJS_CLEAN)
+	
 ../Common/.platform: ../Common/Platform.c
-	@$(CC) -o ../Common/platform $<
+	@echo Compiling Platform.c
+	@$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o ../Common/platform $<
+	@echo Detecting platform options
 	@../Common/platform >../Common/.platform
 
 -include $(OBJS:.o=.d)
 
 truecrypt: $(OBJS)
 	@echo Linking $@
-	@$(CC) -o $@ $(OBJS)
+	@$(CC) $(EXTRA_LFLAGS) -o $@ $(OBJS)
 ifndef NO_STRIP
 	@strip $@
 endif
-
+	
 man: truecrypt.1
 
-truecrypt.1: objclean truecrypt
+truecrypt.1: $(KERNEL_OBJS_CLEAN) truecrypt
 	help2man -N -i Man/help2man.inc ./truecrypt >Man/truecrypt.1
-	
-objclean:
-	@if [ -f $(KERNEL_OBJS_F) ]; then rm -f ${OBJS} $(KERNEL_OBJS_F); fi
-	@>$(USER_OBJS_F)
 
 clean:
 	-rm -f truecrypt ${OBJS} *.d $(TC_COMMON)/*.d $(TC_CRYPTO)/*.d ../Common/platform ../Common/.platform

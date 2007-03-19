@@ -1,11 +1,15 @@
-/* Legal Notice: The source code contained in this file has been derived from
-   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
-   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
-   Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
-   the full text of which is contained in the file License.txt included in
-   TrueCrypt binary and source code distribution archives.  */
+/*
+ Legal Notice: The source code contained in this file has been derived from
+ the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+ Paul Le Roux and which is covered by the 'License Agreement for Encryption
+ for the Masses'. Modifications and additions to that source code contained
+ in this file are Copyright (c) TrueCrypt Foundation and are covered by the
+ TrueCrypt License 2.2 the full text of which is contained in the file
+ License.txt included in TrueCrypt binary and source code distribution
+ packages. */
+
+#include <stdlib.h>
+#include <string.h>
 
 #include "Tcdefs.h"
 
@@ -22,11 +26,11 @@
 #include "Language.h"
 #include "Progress.h"
 #include "Resource.h"
+#include "../Format/FormatCom.h"
 
 int
-FormatVolume (char *lpszFilename,
+FormatVolume (char *volumePath,
 	      BOOL bDevice,
-		  char *volumePath,
 	      unsigned __int64 size,
 		  unsigned __int64 hiddenVolHostSize,
 	      Password *password,
@@ -36,27 +40,40 @@ FormatVolume (char *lpszFilename,
 		  BOOL sparseFileSwitch,
 		  int fileSystem,
 		  int clusterSize,
-		  wchar_t *summaryMsg,
 	      HWND hwndDlg,
 		  BOOL hiddenVol,
-		  int *realClusterSize)
+		  int *realClusterSize,
+		  BOOL uac)
 {
 	int nStatus;
 	PCRYPTO_INFO cryptoInfo;
 	HANDLE dev = INVALID_HANDLE_VALUE;
-	DWORD dwError, dwThen, dwNow;
-	char header[SECTOR_SIZE];
+	DWORD dwError;
+	char header[HEADER_SIZE];
 	unsigned __int64 num_sectors, startSector;
 	fatparams ft;
 	FILETIME ftCreationTime;
 	FILETIME ftLastWriteTime;
 	FILETIME ftLastAccessTime;
 	BOOL bTimeStampValid = FALSE;
-	
+	char dosDev[TC_MAX_PATH] = { 0 };
+	char devName[MAX_PATH] = { 0 };
+	int driveLetter = -1;
+	WCHAR deviceName[MAX_PATH];
+
 	if (!hiddenVol)
 		size -= HEADER_SIZE;	
 
 	num_sectors = size / SECTOR_SIZE;
+
+	if (bDevice)
+	{
+		strcpy ((char *)deviceName, volumePath);
+		ToUNICODE ((char *)deviceName);
+
+		driveLetter = GetDiskDeviceDriveLetter (deviceName);
+	}
+
 	VirtualLock (header, sizeof (header));
 
 	/* Copies any header structures into header, but does not do any
@@ -81,34 +98,155 @@ FormatVolume (char *lpszFilename,
 
 	if (bDevice)
 	{
-		dev = CreateFile (lpszFilename, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-		if (dev == INVALID_HANDLE_VALUE)
+		/* Device-hosted volume */
+		int nPass;
+
+		if (FakeDosNameForDevice (volumePath, dosDev, devName, FALSE) != 0)
 		{
-			// Try opening the device in shared mode
-			dev = CreateFile (lpszFilename, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
-			if (dev != INVALID_HANDLE_VALUE)
+			handleWin32Error (hwndDlg);
+			return ERR_DONT_REPORT;
+		}
+
+		if (IsDeviceMounted (devName))
+		{
+			if ((dev = DismountDrive (devName)) == INVALID_HANDLE_VALUE)
 			{
-				if (IDNO == MessageBoxW (hwndDlg, GetString ("DEVICE_IN_USE_FORMAT"), lpszTitle, MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2))
+				if (driveLetter > 2) // If a drive letter is assigned to the device, but not A:, B:, or C:
 				{
-					CloseHandle (dev);
-					dev = INVALID_HANDLE_VALUE;
+					char rootPath[] = { driveLetter + 'A', ':', '\\', 0 };
+
+					// Remove the assigned drive letter so that dismount will have a higher chance of success 
+					if (!DeleteVolumeMountPoint (rootPath))
+					{
+						// Drive letter could not be removed
+						Error ("FORMAT_CANT_DISMOUNT_FILESYS");
+						nStatus = ERR_DONT_REPORT; 
+						goto error;
+					}
+					else
+					{
+						// Drive letter successfully removed, retry dismount
+						driveLetter = -1;
+
+						if ((dev = DismountDrive (devName)) == INVALID_HANDLE_VALUE)
+						{
+							Error ("FORMAT_CANT_DISMOUNT_FILESYS_W_DRIVE_LETTER");
+							nStatus = ERR_DONT_REPORT; 
+							goto error;
+						}
+					}
 				}
+				else
+				{
+					Error ("FORMAT_CANT_DISMOUNT_FILESYS");
+					nStatus = ERR_DONT_REPORT; 
+					goto error;
+				}
+			}
+		}
+		else if (nCurrentOS == WIN_VISTA_OR_LATER && driveLetter == -1)
+		{
+			// Windows Vista doesn't allow overwriting sectors belonging to an unformatted partition 
+			// to which no drive letter has been assigned under the system. This problem can be worked
+			// around by assigning a drive letter to the partition temporarily.
+
+			char szDriveLetter[] = { 'A', ':', 0 };
+			char rootPath[] = { 'A', ':', '\\', 0 };
+			char uniqVolName[MAX_PATH+1] = { 0 };
+			int tmpDriveLetter = -1;
+			BOOL bResult = FALSE;
+
+			tmpDriveLetter = GetFirstAvailableDrive ();
+ 
+			if (tmpDriveLetter != -1)
+			{
+				rootPath[0] += tmpDriveLetter;
+				szDriveLetter[0] += tmpDriveLetter;
+
+				if (DefineDosDevice (DDD_RAW_TARGET_PATH, szDriveLetter, volumePath))
+				{
+					bResult = GetVolumeNameForVolumeMountPoint (rootPath, uniqVolName, MAX_PATH);
+
+					DefineDosDevice (DDD_RAW_TARGET_PATH|DDD_REMOVE_DEFINITION|DDD_EXACT_MATCH_ON_REMOVE,
+						szDriveLetter,
+						volumePath);
+
+					if (bResult 
+						&& SetVolumeMountPoint (rootPath, uniqVolName))
+					{
+						// The drive letter can be removed immediately
+						DeleteVolumeMountPoint (rootPath);
+					}
+				}
+			}
+		}
+
+
+		// Perform open - 'quick format' - close - open to prevent Windows from restoring NTFS boot sector backup
+		for (nPass = 0; nPass < 2; nPass++)
+		{
+			// Try exclusive access mode first
+			if (dev == INVALID_HANDLE_VALUE)
+				dev = CreateFile (devName, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+
+			if (dev == INVALID_HANDLE_VALUE)
+			{
+				// Retry in shared mode
+				dev = CreateFile (devName, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+				if (dev != INVALID_HANDLE_VALUE)
+				{
+					DWORD dwResult;
+
+					if (IDNO == MessageBoxW (hwndDlg, GetString ("DEVICE_IN_USE_FORMAT"), lpszTitle, MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2))
+					{
+						CloseHandle (dev);
+						dev = INVALID_HANDLE_VALUE;
+						nStatus = ERR_DONT_REPORT; 
+						goto error;
+					}
+
+					DeviceIoControl (dev, FSCTL_DISMOUNT_VOLUME, NULL, 0, NULL, 0, &dwResult, NULL);
+				}
+				else
+				{
+					handleWin32Error (hwndDlg);
+					nStatus = ERR_DONT_REPORT; 
+					goto error;
+				}
+			}
+
+			if (hiddenVol)
+				break;	// The following "quick format" operation would damage the outer volume
+
+			if (nPass == 0)
+			{
+				char buf[65536];
+				DWORD bw;
+
+				// Pseudo "quick format" to prevent Windows from restoring NTFS boot sector backup
+				memset (buf, 0, sizeof (buf));
+				WriteFile (dev, buf, sizeof (buf), &bw, NULL);
+				FlushFileBuffers (dev);
+				CloseHandle (dev);
+				dev = INVALID_HANDLE_VALUE;
 			}
 		}
 	}
 	else
 	{
+		/* File-hosted volume */
+
 		// We could support FILE_ATTRIBUTE_HIDDEN as an option
 		// (Now if the container has hidden or system file attribute, the OS will not allow
 		// overwritting it; so the user will have to delete it manually).
-		dev = CreateFile (lpszFilename, GENERIC_WRITE,
+		dev = CreateFile (volumePath, GENERIC_WRITE,
 			hiddenVol ? (FILE_SHARE_READ | FILE_SHARE_WRITE) : 0,
 			NULL, hiddenVol ? OPEN_EXISTING : CREATE_ALWAYS, 0, NULL);
 
 		if (dev == INVALID_HANDLE_VALUE)
 		{
 			handleWin32Error (hwndDlg);
-			nStatus = ERR_OS_ERROR; 
+			nStatus = ERR_DONT_REPORT; 
 			goto error;
 		}
 
@@ -124,7 +262,7 @@ FormatVolume (char *lpszFilename,
 				if (!DeviceIoControl (dev, FSCTL_SET_SPARSE, NULL, 0, NULL, 0, &tmp, NULL))
 				{
 					handleWin32Error (hwndDlg);
-					nStatus = ERR_OS_ERROR; 
+					nStatus = ERR_DONT_REPORT; 
 					goto error;
 				}
 			}
@@ -135,7 +273,7 @@ FormatVolume (char *lpszFilename,
 				|| SetFilePointer (dev, 0, NULL, FILE_BEGIN) != 0)
 			{
 				handleWin32Error (hwndDlg);
-				nStatus = ERR_OS_ERROR;
+				nStatus = ERR_DONT_REPORT;
 				goto error;
 			}
 		}
@@ -155,10 +293,6 @@ FormatVolume (char *lpszFilename,
 	}
 
 	KillTimer (hwndDlg, 0xff);
-
-	InitProgressBar (num_sectors);
-	dwThen = GetTickCount ();
-
 
 	/* Volume header */
 
@@ -183,12 +317,15 @@ FormatVolume (char *lpszFilename,
 
 	// Write the volume header
 	if (_lwrite ((HFILE) dev, header, HEADER_SIZE) == HFILE_ERROR)
-		return ERR_OS_ERROR;
-
+	{
+		handleWin32Error (hwndDlg);
+		nStatus = ERR_DONT_REPORT;
+		goto error;
+	}
 
 	/* Data area */
 
-	startSector = 1;	// Data area of normal volume starts right after volume header
+	startSector = HEADER_SIZE / SECTOR_SIZE;	// Data area of normal volume starts right after volume header
 
 	if (hiddenVol)
 	{
@@ -212,10 +349,10 @@ FormatVolume (char *lpszFilename,
 	switch (fileSystem)
 	{
 	case FILESYS_NONE:
-	case FILESYS_NTFS: // NTFS volume is just prepared for quick format performed by system
+	case FILESYS_NTFS:
 		nStatus = FormatNoFs (startSector, num_sectors, dev, cryptoInfo, quickFormat);
 		break;
-
+		
 	case FILESYS_FAT:
 		if (num_sectors > 0xFFFFffff)
 		{
@@ -234,9 +371,19 @@ FormatVolume (char *lpszFilename,
 		break;
 	}
 
-error:
+	if (bDevice && nStatus == 0 
+		&& driveLetter > 1)		// If a drive letter is assigned to the device, but not A: or B:
+	{
+		char rootPath[] = { driveLetter + 'A', ':', '\\', 0 };
 
-	dwNow = GetTickCount ();
+		// The device has been successfully formatted so we should remove its original drive letter (inexperienced 
+		// users often attempt to double click the original drive letter and due to the Windows format prompt
+		// they sometimes format the volume, which disables encryption without them realizing it).
+		DeleteVolumeMountPoint (rootPath);
+	}
+
+error:
+	dwError = GetLastError();
 
 	burn (header, sizeof (header));
 	VirtualUnlock (header, sizeof (header));
@@ -258,85 +405,62 @@ error:
 	}
 
 	CloseHandle (dev);
+	dev = INVALID_HANDLE_VALUE;
 
-	dwError = GetLastError();
+	if (dosDev[0])
+		RemoveFakeDosName (volumePath, dosDev);
 
 	if (nStatus != 0)
-		SetLastError(dwError);
-	else
 	{
-		switch (fileSystem)
+		SetLastError(dwError);
+		return nStatus;
+	}
+
+	if (fileSystem == FILESYS_NTFS)
+	{
+		// Quick-format volume as NTFS
+		int driveNo = GetLastAvailableDrive ();
+		MountOptions mountOptions;
+		int retCode;
+
+		ZeroMemory (&mountOptions, sizeof (mountOptions));
+
+		if (driveNo == -1)
 		{
-		case FILESYS_NONE:
-			swprintf (summaryMsg
-				, GetString ("FORMAT_STAT")
-				, num_sectors, num_sectors*512/1024/1024
-				, GetString ("NONE")
-				, (dwNow - dwThen)/1000);
-			break;
+			MessageBoxW (hwndDlg, GetString ("NO_FREE_DRIVES"), lpszTitle, ICON_HAND);
+			MessageBoxW (hwndDlg, GetString ("FORMAT_NTFS_STOP"), lpszTitle, ICON_HAND);
 
-		case FILESYS_FAT:
-			swprintf (summaryMsg 
-				, GetString ("FORMAT_STAT_FAT")
-				, ft.num_sectors, ((__int64) ft.num_sectors*512)/1024/1024, ft.size_fat
-				, (int) (512*ft.fats*ft.fat_length),
-				(int) (512*ft.cluster_size), ft.cluster_count,
-				(dwNow - dwThen)/1000);
-			break;
-
-		case FILESYS_NTFS:
-			{
-				// NTFS format is performed by system so we first need to mount the volume
-				int driveNo = GetLastAvailableDrive ();
-				MountOptions mountOptions;
-				ZeroMemory (&mountOptions, sizeof (mountOptions));
-				
-				if (driveNo == -1)
-				{
-					MessageBoxW (hwndDlg, GetString ("NO_FREE_DRIVES"), lpszTitle, ICON_HAND);
-					MessageBoxW (hwndDlg, GetString ("FORMAT_NTFS_STOP"), lpszTitle, ICON_HAND);
-
-					return ERR_NO_FREE_DRIVES;
-				}
-
-				mountOptions.ReadOnly = FALSE;
-				mountOptions.Removable = FALSE;
-				mountOptions.ProtectHiddenVolume = FALSE;
-				mountOptions.PreserveTimestamp = bPreserveTimestamp;
-
-				if (MountVolume (hwndDlg, driveNo, volumePath, password, FALSE, TRUE, &mountOptions, FALSE, TRUE) < 1)
-				{
-					MessageBoxW (hwndDlg, GetString ("CANT_MOUNT_VOLUME"), lpszTitle, ICON_HAND);
-					MessageBoxW (hwndDlg, GetString ("FORMAT_NTFS_STOP"), lpszTitle, ICON_HAND);
-					return ERR_VOL_MOUNT_FAILED;
-				}
-
-				// Quick-format volume as NTFS
-				if (!FormatNtfs (driveNo, clusterSize))
-				{
-					MessageBoxW (hwndDlg, GetString ("FORMAT_NTFS_FAILED"), lpszTitle, MB_ICONERROR);
-				
-					if (!UnmountVolume (hwndDlg, driveNo, FALSE))
-						MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_VOLUME"), lpszTitle, ICON_HAND);
-
-					return ERR_VOL_FORMAT_BAD;
-				}
-
-				if (!UnmountVolume (hwndDlg, driveNo, FALSE))
-					MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_VOLUME"), lpszTitle, ICON_HAND);
-
-				dwNow = GetTickCount ();
-
-				swprintf (summaryMsg,
-					GetString ("FORMAT_STAT")
-					, num_sectors
-					, num_sectors*512/1024/1024
-					, L"NTFS"
-					, (dwNow - dwThen)/1000);
-
-				break;
-			}
+			return ERR_NO_FREE_DRIVES;
 		}
+
+		mountOptions.ReadOnly = FALSE;
+		mountOptions.Removable = FALSE;
+		mountOptions.ProtectHiddenVolume = FALSE;
+		mountOptions.PreserveTimestamp = bPreserveTimestamp;
+
+		if (MountVolume (hwndDlg, driveNo, volumePath, password, FALSE, TRUE, &mountOptions, FALSE, TRUE) < 1)
+		{
+			MessageBoxW (hwndDlg, GetString ("CANT_MOUNT_VOLUME"), lpszTitle, ICON_HAND);
+			MessageBoxW (hwndDlg, GetString ("FORMAT_NTFS_STOP"), lpszTitle, ICON_HAND);
+			return ERR_VOL_MOUNT_FAILED;
+		}
+
+		if (!IsAdmin () && IsUacSupported ())
+			retCode = UacFormatNtfs (hwndDlg, driveNo, clusterSize);
+		else
+			retCode = FormatNtfs (driveNo, clusterSize);
+
+		if (retCode != TRUE)
+		{
+			if (!UnmountVolume (hwndDlg, driveNo, FALSE))
+				MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_VOLUME"), lpszTitle, ICON_HAND);
+
+			Error ("FORMAT_NTFS_FAILED");
+			return ERR_DONT_REPORT;
+		}
+
+		if (!UnmountVolume (hwndDlg, driveNo, FALSE))
+			MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_VOLUME"), lpszTitle, ICON_HAND);
 	}
 
 	return nStatus;
@@ -464,6 +588,7 @@ BOOL FormatNtfs (int driveNo, int clusterSize)
 	WCHAR dir[8] = { driveNo + 'A', 0 };
 	PFORMATEX FormatEx;
 	HMODULE hModule = LoadLibrary ("fmifs.dll");
+	int i;
 
 	if (hModule == NULL)
 		return FALSE;
@@ -478,8 +603,12 @@ BOOL FormatNtfs (int driveNo, int clusterSize)
 
 	FormatExResult = FALSE;
 
-	if (*(char *)dir > 'C' && *(char *)dir <= 'Z')
+	// Windows sometimes fail to format a volume (hosted on a removable medium) as NTFS.
+	// It often helps to retry several times.
+	for (i = 0; i < 10 && FormatExResult != TRUE; i++)
+	{
 		FormatEx (dir, FMIFS_HARDDISK, L"NTFS", L"", TRUE, clusterSize * 512, FormatExCallback);
+	}
 
 	FreeLibrary (hModule);
 	return FormatExResult;

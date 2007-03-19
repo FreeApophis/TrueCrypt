@@ -82,8 +82,6 @@ static int check_parity(des_cblock (*key));
 static int check_parity();
 #endif
 
-#pragma warning( disable : 4131 )
-
 int des_check_key=1;
 
 void des_set_odd_parity(key)
@@ -256,7 +254,7 @@ des_key_schedule schedule;
 	return(0);
 	}
 
-int _cdecl des_key_sched(key, schedule)
+int des_key_sched(key, schedule)
 des_cblock (*key);
 des_key_schedule schedule;
 	{

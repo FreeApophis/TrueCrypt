@@ -1,8 +1,9 @@
-/* 
-Copyright (c) 2004-2006 TrueCrypt Foundation. All rights reserved. 
+/*
+ Copyright (c) TrueCrypt Foundation. All rights reserved.
 
-Covered by TrueCrypt License 2.1 the full text of which is contained in the file
-License.txt included in TrueCrypt binary and source code distribution archives. 
+ Covered by the TrueCrypt License 2.2 the full text of which is contained
+ in the file License.txt included in TrueCrypt binary and source code
+ distribution packages.
 */
 
 #include "Language.h"
@@ -45,7 +46,11 @@ static char *MapFirstLanguageFile ()
 	}
 
 	if (LanguageResource == NULL)
-		LanguageResource = MapResource ("Xml", IDR_LANGUAGE, NULL);
+	{
+		DWORD size;
+		LanguageResource = MapResource ("Xml", IDR_LANGUAGE, &size);
+		LanguageResource[size - 1] = 0;
+	}
 
 	return LanguageResource;
 }
@@ -135,13 +140,13 @@ BOOL LoadLanguageFile ()
 			continue;
 
 		// Required TrueCrypt version
-		XmlAttribute (xml, "prog-version", attr, sizeof (attr));
+		XmlGetAttributeText (xml, "prog-version", attr, sizeof (attr));
 
 		// Check version of external language file
 		if (defaultLangParsed && strcmp (attr, VERSION_STRING))
 		{
-			wchar_t m[1024];
-			swprintf (m, L"The installed language pack is incompatible with this version of TrueCrypt\n(this language pack is for TrueCrypt %hs).\n\nA newer version may be available at www.truecrypt.org.\n\nTo prevent this message from being displayed, do any of the following:\n- Update the language pack\n- Remove the language pack file from the TrueCrypt folder", attr);
+			wchar_t m[2048];
+			swprintf (m, L"The installed language pack is incompatible with this version of TrueCrypt (the language pack is for TrueCrypt %hs). A newer version may be available at www.truecrypt.org.\n\nTo prevent this message from being displayed, do any of the following:\n\n- Select 'Settings' > 'Language'; then select 'English' and click 'OK'.\n\n- Remove or replace the language pack with a compatible version (the language pack may reside e.g. in 'C:\\Program Files\\TrueCrypt' or '%%LOCALAPPDATA%%\\VirtualStore\\Program Files\\TrueCrypt', etc.)", attr);
 			MessageBoxW (NULL, m, L"TrueCrypt", MB_ICONERROR);
 			continue;
 		}
@@ -151,7 +156,7 @@ BOOL LoadLanguageFile ()
 		{
 			while (xml = XmlFindElement (xml, "language"))
 			{
-				XmlAttribute (xml++, "langid", attr, sizeof (attr));
+				XmlGetAttributeText (xml++, "langid", attr, sizeof (attr));
 				if (strcmp (attr, langId) == 0)
 				{
 					langFound = TRUE;
@@ -166,23 +171,23 @@ BOOL LoadLanguageFile ()
 		xml = (char *) res;
 		while (xml = XmlFindElement (xml, "font"))
 		{
-			XmlAttribute (xml, "lang", attr, sizeof (attr));
+			XmlGetAttributeText (xml, "lang", attr, sizeof (attr));
 			if (!defaultLangParsed
 				|| strcmp (attr, langId) == 0)
 			{
 				Font font;
 				memset (&font, 0, sizeof (font));
 
-				XmlAttribute (xml, "face", attr, sizeof (attr));
+				XmlGetAttributeText (xml, "face", attr, sizeof (attr));
 			
 				len = MultiByteToWideChar (CP_UTF8, 0, attr, -1, wattr, sizeof (wattr));
 				font.FaceName = AddPoolData ((void *) wattr, len * 2);
 				
-				XmlAttribute (xml, "size", attr, sizeof (attr));
+				XmlGetAttributeText (xml, "size", attr, sizeof (attr));
 				sscanf (attr, "%d", &font.Size);
 
 				strcpy (attr, "font_");
-				XmlAttribute (xml, "class", attr + 5, sizeof (attr) - 5);
+				XmlGetAttributeText (xml, "class", attr + 5, sizeof (attr) - 5);
 				AddDictionaryEntry (
 					AddPoolData ((void *) attr, strlen (attr) + 1), 0,
 					AddPoolData ((void *) &font, sizeof(font)));
@@ -200,16 +205,16 @@ BOOL LoadLanguageFile ()
 				void *key;
 				void *text;
 
-				XmlAttribute (xml, "lang", attr, sizeof (attr));
+				XmlGetAttributeText (xml, "lang", attr, sizeof (attr));
 				if (!defaultLangParsed
 					|| strcmp (attr, langId) == 0)
 				{
-					if (XmlAttribute (xml, "key", attr, sizeof (attr)))
+					if (XmlGetAttributeText (xml, "key", attr, sizeof (attr)))
 					{
 						key = AddPoolData (attr, strlen (attr) + 1);
 						if (key == NULL) return FALSE;
 
-						XmlNodeText (xml, attr, sizeof (attr));
+						XmlGetNodeText (xml, attr, sizeof (attr));
 
 						// Parse \ escape sequences
 						{
@@ -280,7 +285,10 @@ BOOL LoadLanguageFile ()
 	for (i = 0; headers[i] != 0; i++)
 	{
 		if (HeaderResource[i] == NULL)
+		{
 			HeaderResource[i] = MapResource ("Header", headers[i], &size);
+			*(HeaderResource[i] + size - 1) = 0;
+		}
 
 		header = HeaderResource[i];
 		if (header == NULL) return FALSE;
@@ -320,14 +328,13 @@ BOOL WINAPI LanguageDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPara
 			BOOL defaultLangFound = FALSE;
 
 			LocalizeDialog (hwndDlg, "IDD_LANGUAGE");
-
-			SendMessage (GetDlgItem (hwndDlg, IDC_GET_LANG_PACKS), WM_SETFONT, (WPARAM) hUserUnderlineFont, 0);
+			ToHyperlink (hwndDlg, IDC_GET_LANG_PACKS);
 
 			for (xml = MapFirstLanguageFile (); xml != NULL; xml = MapNextLanguageFile ())
 			{
 				while (xml = XmlFindElement (xml, "language"))
 				{
-					XmlAttribute (xml, "name", attr, sizeof (attr));
+					XmlGetAttributeText (xml, "name", attr, sizeof (attr));
 					len = MultiByteToWideChar (CP_UTF8, 0, attr, -1, wattr, sizeof (wattr));
 
 					if (len != 0 && len != ERROR_NO_UNICODE_TRANSLATION
@@ -339,7 +346,7 @@ BOOL WINAPI LanguageDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPara
 							int id;
 
 							// Encode language id in LPARAM
-							XmlAttribute (xml, "langid", attr, sizeof (attr));
+							XmlGetAttributeText (xml, "langid", attr, sizeof (attr));
 							switch (strlen (attr))
 							{
 							case 2: id = attr[0] | attr[1] << 8; break;
@@ -363,7 +370,7 @@ BOOL WINAPI LanguageDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPara
 								SendDlgItemMessage (hwndDlg, IDC_LANGLIST, LB_SETCURSEL, i, 0);
 
 								// Language pack version 
-								XmlAttribute (xml, "version", ActiveLangPackVersion, sizeof (ActiveLangPackVersion));
+								XmlGetAttributeText (xml, "version", ActiveLangPackVersion, sizeof (ActiveLangPackVersion));
 								if (memcmp (ActiveLangPackVersion, "0.0.0", 5) == 0)
 								{
 									swprintf (szVers, GetString("LANG_PACK_VERSION"), L"--");
@@ -377,7 +384,7 @@ BOOL WINAPI LanguageDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPara
 								SetWindowTextW (GetDlgItem (hwndDlg, IDC_LANGPACK_VERSION), szVers);
 
 								// Translator credits
-								XmlAttribute (xml, "translators", credits, sizeof (credits));
+								XmlGetAttributeText (xml, "translators", credits, sizeof (credits));
 								nLen = MultiByteToWideChar (CP_UTF8, 0, credits, -1, wcredits, sizeof (wcredits));
 								if (nLen != 0 && nLen != ERROR_NO_UNICODE_TRANSLATION)
 								{
@@ -401,15 +408,13 @@ BOOL WINAPI LanguageDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPara
 					EndDialog (hwndDlg, IDCANCEL);
 
 				if (langCount == 2)
-				{
 					strcpy (PreferredLangId, lastLangId);
-					EndDialog (hwndDlg, IDOK);
-				}
+				
+				EndDialog (hwndDlg, IDOK);
 			}
 
 			return 1;
 		}
-
 
 	case WM_COMMAND:
 
@@ -457,15 +462,13 @@ BOOL WINAPI LanguageDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPara
 		{
 			char tmpstr [256];
 
-			ArrowWaitCursor ();
-			if (strlen(ActiveLangPackVersion) > 0 && strlen(GetPreferredLangId()) > 0)
-				sprintf (tmpstr, "http://www.truecrypt.org/applink.php?version=%s&dest=localizations&langpackversion=%s&lang=%s", VERSION_STRING, ActiveLangPackVersion, GetPreferredLangId());
+			if (strlen (ActiveLangPackVersion) > 0 && strlen (GetPreferredLangId()) > 0)
+				sprintf (tmpstr, "&langpackversion=%s&lang=%s", ActiveLangPackVersion, GetPreferredLangId());
 			else
-				sprintf (tmpstr, "http://www.truecrypt.org/applink.php?version=%s&dest=localizations", VERSION_STRING);
+				tmpstr[0] = 0;
 
-			ShellExecute (NULL, "open", (LPCTSTR) tmpstr, NULL, NULL, SW_SHOWNORMAL);
-			Sleep (200);
-			NormalCursor ();
+			Applink ("localizations", TRUE, tmpstr);
+
 			return 1;
 		}
 		return 0;

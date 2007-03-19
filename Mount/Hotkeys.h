@@ -1,8 +1,9 @@
-/* 
-Copyright (c) 2004-2006 TrueCrypt Foundation. All rights reserved. 
+/*
+ Copyright (c) TrueCrypt Foundation. All rights reserved.
 
-Covered by TrueCrypt License 2.1 the full text of which is contained in the file
-License.txt included in TrueCrypt binary and source code distribution archives. 
+ Covered by the TrueCrypt License 2.2 the full text of which is contained
+ in the file License.txt included in TrueCrypt binary and source code
+ distribution packages.
 */
 
 enum
@@ -19,6 +20,7 @@ enum
 	HK_FORCE_DISMOUNT_ALL_AND_WIPE_AND_EXIT,
 	HK_MOUNT_FAVORITE_VOLUMES,
 	HK_SHOW_HIDE_MAIN_WINDOW,
+	HK_WIPE_CACHE,
 	NBR_HOTKEYS
 };
 
@@ -33,5 +35,5 @@ extern TCHOTKEY	Hotkeys [NBR_HOTKEYS];
 BOOL WINAPI HotkeysDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
 BOOL GetKeyName (UINT vKey, wchar_t *keyName);
 void UnregisterAllHotkeys (HWND hwndDlg, TCHOTKEY hotkeys[]);
-void RegisterAllHotkeys (HWND hwndDlg, TCHOTKEY hotkeys[]);
+BOOL RegisterAllHotkeys (HWND hwndDlg, TCHOTKEY hotkeys[]);
 

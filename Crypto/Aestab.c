@@ -1,6 +1,6 @@
 /*
  ---------------------------------------------------------------------------
- Copyright (c) 2003, Dr Brian Gladman, Worcester, UK.   All rights reserved.
+ Copyright (c) 1998-2006, Brian Gladman, Worcester, UK. All rights reserved.
 
  LICENSE TERMS
 
@@ -27,7 +27,7 @@
  in respect of its properties, including, but not limited to, correctness
  and/or fitness for purpose.
  ---------------------------------------------------------------------------
- Issue 01/08/2005
+ Issue 09/09/2006
 */
 
 #define DO_TABLES
@@ -197,7 +197,7 @@ extern "C"
 
 /* implemented in case of wrong call for fixed tables */
 
-aes_rval gen_tabs(void)
+AES_RETURN gen_tabs(void)
 {
     return EXIT_SUCCESS;
 }
@@ -264,14 +264,15 @@ static uint_8t fi(const uint_8t x)
 
 static int init = 0;
 
-aes_rval gen_tabs(void)
+AES_RETURN gen_tabs(void)
 {   uint_32t  i, w;
 
 #if defined(FF_TABLES)
 
     uint_8t  pow[512], log[256];
 
-    if(init) return;
+    if(init)
+        return EXIT_SUCCESS;
     /*  log and power tables for GF(2^8) finite field with
         WPOLY as modular polynomial - the simplest primitive
         root is 0x03, used here to generate the tables
@@ -288,7 +289,8 @@ aes_rval gen_tabs(void)
     while (w != 1);
 
 #else
-    if(init) return;
+    if(init)
+        return EXIT_SUCCESS;
 #endif
 
     for(i = 0, w = 1; i < RC_LENGTH; ++i)

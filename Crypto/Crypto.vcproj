@@ -1,99 +1,150 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="7.10"
+	Version="8.00"
 	Name="Crypto"
 	ProjectGUID="{993245CF-6B70-47EE-91BB-39F8FC6DC0E7}"
-	Keyword="Win32Proj">
+	RootNamespace="Crypto"
+	Keyword="Win32Proj"
+	>
 	<Platforms>
 		<Platform
-			Name="Win32"/>
+			Name="Win32"
+		/>
 	</Platforms>
+	<ToolFiles>
+	</ToolFiles>
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
 			OutputDirectory="Debug"
 			IntermediateDirectory="Debug"
 			ConfigurationType="4"
-			CharacterSet="2">
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			CharacterSet="2"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+			/>
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\Common"
-				PreprocessorDefinitions="WIN32;_DEBUG;_LIB"
-				MinimalRebuild="TRUE"
+				AdditionalIncludeDirectories="..\Common;..\"
+				PreprocessorDefinitions="WIN32;_DEBUG;_LIB;_CRT_SECURE_NO_DEPRECATE;_CRT_NON_CONFORMING_SWPRINTFS"
+				MinimalRebuild="true"
 				BasicRuntimeChecks="0"
-				RuntimeLibrary="5"
-				BufferSecurityCheck="FALSE"
+				RuntimeLibrary="1"
+				BufferSecurityCheck="false"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
-				Detect64BitPortabilityProblems="FALSE"
-				DebugInformationFormat="3"/>
+				Detect64BitPortabilityProblems="false"
+				DebugInformationFormat="3"
+			/>
 			<Tool
-				Name="VCCustomBuildTool"/>
+				Name="VCManagedResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCPreLinkEventTool"
+			/>
 			<Tool
 				Name="VCLibrarianTool"
-				OutputFile="$(OutDir)/Crypto.lib"/>
+				OutputFile="$(OutDir)/Crypto.lib"
+			/>
 			<Tool
-				Name="VCMIDLTool"/>
+				Name="VCALinkTool"
+			/>
 			<Tool
-				Name="VCPostBuildEventTool"/>
+				Name="VCXDCMakeTool"
+			/>
 			<Tool
-				Name="VCPreBuildEventTool"/>
+				Name="VCBscMakeTool"
+			/>
 			<Tool
-				Name="VCPreLinkEventTool"/>
+				Name="VCFxCopTool"
+			/>
 			<Tool
-				Name="VCResourceCompilerTool"/>
-			<Tool
-				Name="VCWebServiceProxyGeneratorTool"/>
-			<Tool
-				Name="VCXMLDataGeneratorTool"/>
-			<Tool
-				Name="VCManagedWrapperGeneratorTool"/>
-			<Tool
-				Name="VCAuxiliaryManagedWrapperGeneratorTool"/>
+				Name="VCPostBuildEventTool"
+			/>
 		</Configuration>
 		<Configuration
 			Name="Release|Win32"
 			OutputDirectory="Release"
 			IntermediateDirectory="Release"
 			ConfigurationType="4"
-			CharacterSet="2">
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			CharacterSet="2"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalIncludeDirectories="..\Common"
-				PreprocessorDefinitions="WIN32;NDEBUG;_LIB"
-				RuntimeLibrary="4"
-				BufferSecurityCheck="TRUE"
+				AdditionalIncludeDirectories="..\Common;..\"
+				PreprocessorDefinitions="WIN32;NDEBUG;_LIB;_CRT_SECURE_NO_DEPRECATE;_CRT_NON_CONFORMING_SWPRINTFS"
+				RuntimeLibrary="0"
+				BufferSecurityCheck="true"
 				UsePrecompiledHeader="0"
 				AssemblerOutput="2"
 				AssemblerListingLocation="$(IntDir)/"
 				WarningLevel="3"
-				Detect64BitPortabilityProblems="FALSE"
-				DebugInformationFormat="0"/>
+				Detect64BitPortabilityProblems="false"
+				DebugInformationFormat="0"
+			/>
 			<Tool
-				Name="VCCustomBuildTool"/>
+				Name="VCManagedResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCPreLinkEventTool"
+			/>
 			<Tool
 				Name="VCLibrarianTool"
-				OutputFile="$(OutDir)/Crypto.lib"/>
+				OutputFile="$(OutDir)/Crypto.lib"
+			/>
 			<Tool
-				Name="VCMIDLTool"/>
+				Name="VCALinkTool"
+			/>
 			<Tool
-				Name="VCPostBuildEventTool"/>
+				Name="VCXDCMakeTool"
+			/>
 			<Tool
-				Name="VCPreBuildEventTool"/>
+				Name="VCBscMakeTool"
+			/>
 			<Tool
-				Name="VCPreLinkEventTool"/>
+				Name="VCFxCopTool"
+			/>
 			<Tool
-				Name="VCResourceCompilerTool"/>
-			<Tool
-				Name="VCWebServiceProxyGeneratorTool"/>
-			<Tool
-				Name="VCXMLDataGeneratorTool"/>
-			<Tool
-				Name="VCManagedWrapperGeneratorTool"/>
-			<Tool
-				Name="VCAuxiliaryManagedWrapperGeneratorTool"/>
+				Name="VCPostBuildEventTool"
+			/>
 		</Configuration>
 	</Configurations>
 	<References>
@@ -102,131 +153,172 @@
 		<Filter
 			Name="Source Files"
 			Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx"
-			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}">
+			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
+			>
 			<File
-				RelativePath=".\Aescrypt.c">
+				RelativePath=".\Aescrypt.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Aeskey.c">
+				RelativePath=".\Aeskey.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Aestab.c">
+				RelativePath=".\Aestab.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Bf_ecb.c">
+				RelativePath=".\Bf_ecb.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Bf_enc.c">
+				RelativePath=".\Bf_enc.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Bf_skey.c">
+				RelativePath=".\Bf_skey.c"
+				>
 			</File>
 			<File
-				RelativePath=".\C_ecb.c">
+				RelativePath=".\C_ecb.c"
+				>
 			</File>
 			<File
-				RelativePath=".\C_enc.c">
+				RelativePath=".\C_enc.c"
+				>
 			</File>
 			<File
-				RelativePath=".\C_skey.c">
+				RelativePath=".\C_skey.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Des.c">
+				RelativePath=".\Des.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Des_enc.c">
+				RelativePath=".\Des_enc.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Ecb3_enc.c">
+				RelativePath=".\Ecb3_enc.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Rmd160.c">
+				RelativePath=".\Rmd160.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Serpent.c">
+				RelativePath=".\Serpent.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Set_key.c">
+				RelativePath=".\Set_key.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Sha1.c">
+				RelativePath=".\Sha1.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Twofish.c">
+				RelativePath=".\Twofish.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Whirlpool.c">
+				RelativePath=".\Whirlpool.c"
+				>
 			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
-			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}">
+			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
+			>
 			<File
-				RelativePath=".\Aes.h">
+				RelativePath=".\Aes.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Aesopt.h">
+				RelativePath=".\Aesopt.h"
+				>
 			</File>
 			<File
-				RelativePath=".\aestab.h">
+				RelativePath=".\aestab.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Bf_locl.h">
+				RelativePath=".\Bf_locl.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Bf_pi.h">
+				RelativePath=".\Bf_pi.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Blowfish.h">
+				RelativePath=".\Blowfish.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Cast.h">
+				RelativePath=".\Cast.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Cast_lcl.h">
+				RelativePath=".\Cast_lcl.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Cast_s.h">
+				RelativePath=".\Cast_s.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Des.h">
+				RelativePath=".\Des.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Des_locl.h">
+				RelativePath=".\Des_locl.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Podd.h">
+				RelativePath=".\Podd.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Rmd160.h">
+				RelativePath=".\Rmd160.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Serpent.h">
+				RelativePath=".\Serpent.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Set_key.h">
+				RelativePath=".\Set_key.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Sha1.h">
+				RelativePath=".\Sha1.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Sk.h">
+				RelativePath=".\Sk.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Spr.h">
+				RelativePath=".\Spr.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Twofish.h">
+				RelativePath=".\Twofish.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Whirlpool.h">
+				RelativePath=".\Whirlpool.h"
+				>
 			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx"
-			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}">
+			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
+			>
 		</Filter>
 	</Files>
 	<Globals>

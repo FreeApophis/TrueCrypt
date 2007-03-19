@@ -1,6 +1,6 @@
 /*
  ---------------------------------------------------------------------------
- Copyright (c) 2003, Dr Brian Gladman, Worcester, UK.   All rights reserved.
+ Copyright (c) 1998-2006, Brian Gladman, Worcester, UK. All rights reserved.
 
  LICENSE TERMS
 
@@ -27,14 +27,14 @@
  in respect of its properties, including, but not limited to, correctness
  and/or fitness for purpose.
  ---------------------------------------------------------------------------
- Issue 01/08/2005
+ Issue 09/09/2006
 */
 
 #include "Aesopt.h"
 #include "Aestab.h"
 
 #ifdef USE_VIA_ACE_IF_PRESENT
-#include "via_ace.h"
+#  include "aes_via_ace.h"
 #endif
 
 #if defined(__cplusplus)
@@ -71,7 +71,7 @@ extern "C"
     k[4*(i)+7] = ss[3] ^= ss[2]; \
 }
 
-aes_rval aes_encrypt_key128(const unsigned char *key, aes_encrypt_ctx cx[1])
+AES_RETURN aes_encrypt_key128(const unsigned char *key, aes_encrypt_ctx cx[1])
 {   uint_32t    ss[4];
 
     cx->ks[0] = ss[0] = word_in(key, 0);
@@ -96,7 +96,7 @@ aes_rval aes_encrypt_key128(const unsigned char *key, aes_encrypt_ctx cx[1])
     cx->inf.b[0] = 10 * 16;
 
 #ifdef USE_VIA_ACE_IF_PRESENT
-    if(via_ace_available())
+    if(VIA_ACE_AVAILABLE)
         cx->inf.b[1] = 0xff;
 #endif
 
@@ -122,7 +122,7 @@ aes_rval aes_encrypt_key128(const unsigned char *key, aes_encrypt_ctx cx[1])
     k[6*(i)+11] = ss[5] ^= ss[4]; \
 }
 
-aes_rval aes_encrypt_key192(const unsigned char *key, aes_encrypt_ctx cx[1])
+AES_RETURN aes_encrypt_key192(const unsigned char *key, aes_encrypt_ctx cx[1])
 {   uint_32t    ss[6];
 
     cx->ks[0] = ss[0] = word_in(key, 0);
@@ -148,7 +148,7 @@ aes_rval aes_encrypt_key192(const unsigned char *key, aes_encrypt_ctx cx[1])
     cx->inf.b[0] = 12 * 16;
 
 #ifdef USE_VIA_ACE_IF_PRESENT
-    if(via_ace_available())
+    if(VIA_ACE_AVAILABLE)
         cx->inf.b[1] = 0xff;
 #endif
 
@@ -176,7 +176,7 @@ aes_rval aes_encrypt_key192(const unsigned char *key, aes_encrypt_ctx cx[1])
     k[8*(i)+15] = ss[7] ^= ss[6]; \
 }
 
-aes_rval aes_encrypt_key256(const unsigned char *key, aes_encrypt_ctx cx[1])
+AES_RETURN aes_encrypt_key256(const unsigned char *key, aes_encrypt_ctx cx[1])
 {   uint_32t    ss[8];
 
     cx->ks[0] = ss[0] = word_in(key, 0);
@@ -203,7 +203,7 @@ aes_rval aes_encrypt_key256(const unsigned char *key, aes_encrypt_ctx cx[1])
     cx->inf.b[0] = 14 * 16;
 
 #ifdef USE_VIA_ACE_IF_PRESENT
-    if(via_ace_available())
+    if(VIA_ACE_AVAILABLE)
         cx->inf.b[1] = 0xff;
 #endif
 
@@ -216,7 +216,7 @@ aes_rval aes_encrypt_key256(const unsigned char *key, aes_encrypt_ctx cx[1])
 
 #if defined(AES_VAR)
 
-aes_rval aes_encrypt_key(const unsigned char *key, int key_len, aes_encrypt_ctx cx[1])
+AES_RETURN aes_encrypt_key(const unsigned char *key, int key_len, aes_encrypt_ctx cx[1])
 {
     switch(key_len)
     {
@@ -323,7 +323,7 @@ aes_rval aes_encrypt_key(const unsigned char *key, int key_len, aes_encrypt_ctx 
 
 #endif
 
-aes_rval aes_decrypt_key128(const unsigned char *key, aes_decrypt_ctx cx[1])
+AES_RETURN aes_decrypt_key128(const unsigned char *key, aes_decrypt_ctx cx[1])
 {   uint_32t    ss[5];
 #if defined( d_vars )
         d_vars;
@@ -353,7 +353,7 @@ aes_rval aes_decrypt_key128(const unsigned char *key, aes_decrypt_ctx cx[1])
     cx->inf.b[0] = 10 * 16;
 
 #ifdef USE_VIA_ACE_IF_PRESENT
-    if(via_ace_available())
+    if(VIA_ACE_AVAILABLE)
         cx->inf.b[1] = 0xff;
 #endif
 
@@ -405,7 +405,7 @@ aes_rval aes_decrypt_key128(const unsigned char *key, aes_decrypt_ctx cx[1])
     ss[3] ^= ss[2]; k[v(48,(6*(i))+ 9)] = ss[3]; \
 }
 
-aes_rval aes_decrypt_key192(const unsigned char *key, aes_decrypt_ctx cx[1])
+AES_RETURN aes_decrypt_key192(const unsigned char *key, aes_decrypt_ctx cx[1])
 {   uint_32t    ss[7];
 #if defined( d_vars )
         d_vars;
@@ -440,7 +440,7 @@ aes_rval aes_decrypt_key192(const unsigned char *key, aes_decrypt_ctx cx[1])
     cx->inf.b[0] = 12 * 16;
 
 #ifdef USE_VIA_ACE_IF_PRESENT
-    if(via_ace_available())
+    if(VIA_ACE_AVAILABLE)
         cx->inf.b[1] = 0xff;
 #endif
 
@@ -499,7 +499,7 @@ aes_rval aes_decrypt_key192(const unsigned char *key, aes_decrypt_ctx cx[1])
     ss[3] ^= ss[2]; k[v(56,(8*(i))+11)] = ss[3]; \
 }
 
-aes_rval aes_decrypt_key256(const unsigned char *key, aes_decrypt_ctx cx[1])
+AES_RETURN aes_decrypt_key256(const unsigned char *key, aes_decrypt_ctx cx[1])
 {   uint_32t    ss[9];
 #if defined( d_vars )
         d_vars;
@@ -539,7 +539,7 @@ aes_rval aes_decrypt_key256(const unsigned char *key, aes_decrypt_ctx cx[1])
     cx->inf.b[0] = 14 * 16;
 
 #ifdef USE_VIA_ACE_IF_PRESENT
-    if(via_ace_available())
+    if(VIA_ACE_AVAILABLE)
         cx->inf.b[1] = 0xff;
 #endif
 
@@ -552,7 +552,7 @@ aes_rval aes_decrypt_key256(const unsigned char *key, aes_decrypt_ctx cx[1])
 
 #if defined(AES_VAR)
 
-aes_rval aes_decrypt_key(const unsigned char *key, int key_len, aes_decrypt_ctx cx[1])
+AES_RETURN aes_decrypt_key(const unsigned char *key, int key_len, aes_decrypt_ctx cx[1])
 {
     switch(key_len)
     {

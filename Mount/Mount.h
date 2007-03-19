@@ -1,20 +1,22 @@
-/* Legal Notice: The source code contained in this file has been derived from
-   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
-   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
-   Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
-   the full text of which is contained in the file License.txt included in
-   TrueCrypt binary and source code distribution archives.  */
+/*
+ Legal Notice: The source code contained in this file has been derived from
+ the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+ Paul Le Roux and which is covered by the 'License Agreement for Encryption
+ for the Masses'. Modifications and additions to that source code contained
+ in this file are Copyright (c) TrueCrypt Foundation and are covered by the
+ TrueCrypt License 2.2 the full text of which is contained in the file
+ License.txt included in TrueCrypt binary and source code distribution
+ packages. */
 
 #define VMOUNTED					1
 #define VFREE						0
 #define MAIN_TIMER_INTERVAL	1000
-#define MSG_TASKBAR_ICON			7
 #define FILE_FAVORITE_VOLUMES		"Favorite Volumes.xml"
 
-#define APP_MESSAGE_ENABLE_DISABLE	100
-#define APP_MESSAGE_SHOW_WINDOW		101
+#define APPMSG_ENABLE_DISABLE	1
+#define APPMSG_SHOW_WINDOW		2
+#define APPMSG_TASKBAR_ICON		3
+#define APPMSG_CLOSE_BKG_TASK	4
 
 #define WM_COPY_SET_VOLUME_NAME		"VNAM"
 
@@ -66,3 +68,4 @@ static BOOL DismountAll (HWND hwndDlg, BOOL forceUnmount, BOOL interact, int dis
 static void KeyfileDefaultsDlg (HWND hwndDlg);
 static void HandleHotKey (HWND hwndDlg, WPARAM wParam);
 static BOOL CheckMountList ();
+int GetCipherBlockSizeByDriveNo (int nDosDriveNo);

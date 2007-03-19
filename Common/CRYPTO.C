@@ -1,20 +1,23 @@
-/* Legal Notice: The source code contained in this file has been derived from
-   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
-   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
-   Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
-   the full text of which is contained in the file License.txt included in
-   TrueCrypt binary and source code distribution archives.  */
+/*
+ Legal Notice: The source code contained in this file has been derived from
+ the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+ Paul Le Roux and which is covered by the 'License Agreement for Encryption
+ for the Masses'. Modifications and additions to that source code contained
+ in this file are Copyright (c) TrueCrypt Foundation and are covered by the
+ TrueCrypt License 2.2 the full text of which is contained in the file
+ License.txt included in TrueCrypt binary and source code distribution
+ packages. */
 
 #include "Tcdefs.h"
 #include "Crypto.h"
 #include "Crc.h"
-#include "Endian.h"
+#include "Common/Endian.h"
 
 #ifdef LINUX_DRIVER
 #include <linux/module.h>
 #include <linux/string.h>
+#else
+#include <string.h>
 #endif
 
 /* Update the following when adding a new cipher or EA:
@@ -52,21 +55,21 @@ static Cipher Ciphers[] =
 static EncryptionAlgorithm EncryptionAlgorithms[] =
 {
 	//  Cipher(s)                     Modes
-	{ { 0,						0 } , { 0, 0, 0 }			},	// Must be all-zero
-	{ { AES,					0 } , { LRW, CBC, 0 }		},
-	{ { BLOWFISH,				0 } , { LRW, CBC, 0 }		},
-	{ { CAST,					0 } , { LRW, CBC, 0 }		},
-	{ { SERPENT,				0 } , { LRW, CBC, 0 }		},
-	{ { TRIPLEDES,				0 } , { LRW, CBC, 0 }		},
-	{ { TWOFISH,				0 } , { LRW, CBC, 0 }		},
-	{ { TWOFISH, AES,			0 } , { LRW, OUTER_CBC, 0 }	},
-	{ { SERPENT, TWOFISH, AES,	0 } , { LRW, OUTER_CBC, 0 }	},
-	{ { AES, SERPENT,			0 } , { LRW, OUTER_CBC, 0 }	},
-	{ { AES, TWOFISH, SERPENT,	0 } , { LRW, OUTER_CBC, 0 }	},
-	{ { SERPENT, TWOFISH,		0 } , { LRW, OUTER_CBC, 0 }	},
-	{ { BLOWFISH, AES,			0 } , { INNER_CBC, 0, 0 }	},
-	{ { SERPENT, BLOWFISH, AES,	0 } , { INNER_CBC, 0, 0 }	},
-	{ { 0,						0 } , { 0, 0, 0 }			}	// Must be all-zero
+	{ { 0,						0 }, { 0, 0, 0 },			0 },	// Must be all-zero
+	{ { AES,					0 }, { LRW, CBC, 0 },		1 },
+	{ { BLOWFISH,				0 }, { LRW, CBC, 0 },		0 },
+	{ { CAST,					0 }, { LRW, CBC, 0 },		0 },
+	{ { SERPENT,				0 }, { LRW, CBC, 0 },		1 },
+	{ { TRIPLEDES,				0 }, { LRW, CBC, 0 },		0 },
+	{ { TWOFISH,				0 }, { LRW, CBC, 0 },		1 },
+	{ { TWOFISH, AES,			0 }, { LRW, OUTER_CBC, 0 },	1 },
+	{ { SERPENT, TWOFISH, AES,	0 }, { LRW, OUTER_CBC, 0 },	1 },
+	{ { AES, SERPENT,			0 }, { LRW, OUTER_CBC, 0 },	1 },
+	{ { AES, TWOFISH, SERPENT,	0 }, { LRW, OUTER_CBC, 0 },	1 },
+	{ { SERPENT, TWOFISH,		0 }, { LRW, OUTER_CBC, 0 },	1 },
+	{ { BLOWFISH, AES,			0 }, { INNER_CBC, 0, 0 },	0 },
+	{ { SERPENT, BLOWFISH, AES,	0 }, { INNER_CBC, 0, 0 },	0 },
+	{ { 0,						0 }, { 0, 0, 0 },			0 }		// Must be all-zero
 };
 
 // Hash algorithms
@@ -488,6 +491,12 @@ int EAGetPreviousCipher (int ea, int previousCipherId)
 	}
 
 	return 0;
+}
+
+
+int EAIsFormatEnabled (int ea)
+{
+	return EncryptionAlgorithms[ea].FormatEnabled;
 }
 
 
@@ -1108,7 +1117,7 @@ unsigned __int64 LRWSector2Index (unsigned __int64 sector, int blockSize, PCRYPT
 // iv:			IV
 // ea:			encryption algorithm
 
-void _cdecl 
+void 
 EncryptSectors (unsigned __int32 *buf,
 		unsigned __int64 secNo,
 		unsigned __int64 noSectors,
@@ -1270,7 +1279,7 @@ DecryptBuffer (unsigned __int32 *buf,
 // iv:			IV
 // ea:			encryption algorithm
 
-void _cdecl 
+void 
 DecryptSectors (unsigned __int32 *buf,
 		unsigned __int64 secNo,
 		unsigned __int64 noSectors,

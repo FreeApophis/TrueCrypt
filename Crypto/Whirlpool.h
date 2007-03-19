@@ -133,8 +133,8 @@ typedef struct NESSIEstruct {
 
 typedef NESSIEstruct WHIRLPOOL_CTX;
 
-void _cdecl WHIRLPOOL_add(const unsigned char * const source, unsigned __int32 sourceBits, struct NESSIEstruct * const structpointer);
-void _cdecl WHIRLPOOL_finalize(struct NESSIEstruct * const structpointer, unsigned char * const result);
-void _cdecl WHIRLPOOL_init(struct NESSIEstruct * const structpointer); 
+void WHIRLPOOL_add(const unsigned char * const source, unsigned __int32 sourceBits, struct NESSIEstruct * const structpointer);
+void WHIRLPOOL_finalize(struct NESSIEstruct * const structpointer, unsigned char * const result);
+void WHIRLPOOL_init(struct NESSIEstruct * const structpointer); 
 
 #endif /* WHIRLPOOL_H */

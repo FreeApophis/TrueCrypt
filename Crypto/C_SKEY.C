@@ -61,8 +61,6 @@
 #include "Cast_lcl.h"
 #include "Cast_s.h"
 
-#pragma warning( disable : 4131 )
-
 #define CAST_exp(l,A,a,n) \
 	A[n/4]=l; \
 	a[n+3]=(l    )&0xff; \
@@ -75,7 +73,7 @@
 #define S6 CAST_S_table6
 #define S7 CAST_S_table7
 
-void _cdecl CAST_set_key(key,len,data)
+void CAST_set_key(key,len,data)
 CAST_KEY *key;
 int len;
 unsigned char *data;

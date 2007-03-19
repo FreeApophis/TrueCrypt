@@ -1,11 +1,12 @@
-/* Legal Notice: The source code contained in this file has been derived from
-   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
-   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
-   Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
-   the full text of which is contained in the file License.txt included in
-   TrueCrypt binary and source code distribution archives.  */
+/*
+ Legal Notice: The source code contained in this file has been derived from
+ the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+ Paul Le Roux and which is covered by the 'License Agreement for Encryption
+ for the Masses'. Modifications and additions to that source code contained
+ in this file are Copyright (c) TrueCrypt Foundation and are covered by the
+ TrueCrypt License 2.2 the full text of which is contained in the file
+ License.txt included in TrueCrypt binary and source code distribution
+ packages. */
 
 #include "TCdefs.h"
 #include "Crypto.h"
@@ -14,14 +15,12 @@
 #include "Apidrvr.h"
 #include "Ntdriver.h"
 #include "Ntvol.h"
-#include "Ntrawdv.h"
-#include "Ntfiledv.h"
 
 #include "Cache.h"
 
-//#ifdef _DEBUG
-//#define EXTRA_INFO 1
-//#endif
+#if 0 && _DEBUG
+#define EXTRA_INFO 1
+#endif
 
 #pragma warning( disable : 4127 )
 
@@ -57,6 +56,7 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	if (bRawDevice)
 	{
 		PARTITION_INFORMATION pi;
+		PARTITION_INFORMATION_EX pix;
 		DISK_GEOMETRY dg;
 
 		ntStatus = IoGetDeviceObjectPointer (&FullFileName,
@@ -65,35 +65,36 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			&Extension->pFsdDevice);
 
 		if (!NT_SUCCESS (ntStatus))
-		{
 			goto error;
-		}
 
 		DeviceObject->StackSize = (CCHAR) (Extension->pFsdDevice->StackSize + 1);
 
-		// Query partition size
-		ntStatus = TCSendDeviceIoControlRequest (DeviceObject,
-			Extension, IOCTL_DISK_GET_PARTITION_INFO,
-			(char *) &pi, sizeof (pi));
-
-		if (NT_SUCCESS (ntStatus))
+		if (NT_SUCCESS (TCSendDeviceIoControlRequest (DeviceObject, Extension, IOCTL_DISK_GET_DRIVE_GEOMETRY, (char *) &dg, sizeof (dg))))
 		{
-			lDiskLength.QuadPart = pi.PartitionLength.QuadPart;
+			lDiskLength.QuadPart = dg.Cylinders.QuadPart * dg.SectorsPerTrack * dg.TracksPerCylinder * dg.BytesPerSector;
+			mount->BytesPerSector = dg.BytesPerSector;
 		}
 		else
+			lDiskLength.QuadPart = 0;
+
+		// Drive geometry is used only when IOCTL_DISK_GET_PARTITION_INFO fails
+		if (NT_SUCCESS (TCSendDeviceIoControlRequest (DeviceObject, Extension, IOCTL_DISK_GET_PARTITION_INFO_EX, (char *) &pix, sizeof (pix))))
+			lDiskLength.QuadPart = pix.PartitionLength.QuadPart;
+		// Windows 2000 does not support IOCTL_DISK_GET_PARTITION_INFO_EX
+		else if (NT_SUCCESS (TCSendDeviceIoControlRequest (DeviceObject, Extension, IOCTL_DISK_GET_PARTITION_INFO, (char *) &pi, sizeof (pi))))
+			lDiskLength.QuadPart = pi.PartitionLength.QuadPart;
+
+		if (!mount->bMountReadOnly && TCDeviceIoControl (pwszMountVolume, IOCTL_DISK_IS_WRITABLE, NULL, 0, NULL, 0) == STATUS_MEDIA_WRITE_PROTECTED)
 		{
-			// Drive geometry info is used only when IOCTL_DISK_GET_PARTITION_INFO fails
-			ntStatus = TCSendDeviceIoControlRequest (DeviceObject,
-				Extension, IOCTL_DISK_GET_DRIVE_GEOMETRY,
-				(char *) &dg, sizeof (dg));
-
-			if (!NT_SUCCESS (ntStatus))
-				goto error;
-
-			lDiskLength.QuadPart = dg.Cylinders.QuadPart * dg.SectorsPerTrack *
-				dg.TracksPerCylinder * dg.BytesPerSector;
+			mount->bMountReadOnly = TRUE;
+			DeviceObject->Characteristics |= FILE_READ_ONLY_DEVICE;
 		}
 	}
+
+	if (mount->BytesPerSector == 0)
+		mount->BytesPerSector = SECTOR_SIZE;
+
+	Extension->HostBytesPerSector = mount->BytesPerSector;
 
 	// Open the volume hosting file/device
 	if (!mount->bMountReadOnly)
@@ -107,19 +108,17 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			FILE_ATTRIBUTE_SYSTEM,
 			mount->bExclusiveAccess ? 0 : FILE_SHARE_READ | FILE_SHARE_WRITE,
 			FILE_OPEN,
+			FILE_RANDOM_ACCESS |
 			FILE_WRITE_THROUGH |
-			FILE_NO_INTERMEDIATE_BUFFERING |
+			(Extension->HostBytesPerSector == SECTOR_SIZE ? FILE_NO_INTERMEDIATE_BUFFERING : 0) |
 			FILE_SYNCHRONOUS_IO_NONALERT,
 			NULL,
 			0);
 	}
 
-	/* 26-4-99 NT for some partitions returns this code, it is really a
-	access denied */
+	/* 26-4-99 NT for some partitions returns this code, it is really a	access denied */
 	if (ntStatus == 0xc000001b)
-	{
 		ntStatus = STATUS_ACCESS_DENIED;
-	}
 	
 	if (mount->bMountReadOnly || ntStatus == STATUS_ACCESS_DENIED)
 	{
@@ -132,6 +131,7 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			FILE_ATTRIBUTE_SYSTEM,
 			mount->bExclusiveAccess ? FILE_SHARE_READ : FILE_SHARE_READ | FILE_SHARE_WRITE,
 			FILE_OPEN,
+			FILE_RANDOM_ACCESS |
 			FILE_WRITE_THROUGH |
 			FILE_NO_INTERMEDIATE_BUFFERING |
 			FILE_SYNCHRONOUS_IO_NONALERT,
@@ -364,8 +364,8 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 				// Calculate virtual volume geometry
 				Extension->TracksPerCylinder = 1;
 				Extension->SectorsPerTrack = 1;
-				Extension->BytesPerSector = 512;
-				Extension->NumberOfCylinders = Extension->DiskLength / 512;
+				Extension->BytesPerSector = SECTOR_SIZE;
+				Extension->NumberOfCylinders = Extension->DiskLength / SECTOR_SIZE;
 				Extension->PartitionType = 0;
 
 				Extension->bRawDevice = bRawDevice;
@@ -462,213 +462,15 @@ TCCloseVolume (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension)
 	crypto_close (Extension->cryptoInfo);
 }
 
-/* This rountine can be called at any IRQL so we need to tread carefully. Not
-   even DbgPrint or KdPrint are called here as the kernel sometimes faults if
-   they are called at high IRQL */
-
-NTSTATUS
-TCCompletion (PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID pUserBuffer)
-{
-	PIO_STACK_LOCATION irpSp;
-	PEXTENSION Extension;
-	NTSTATUS ntStatus;
-
-	Extension = (PEXTENSION) DeviceObject->DeviceExtension;
-
-	/* Check to make sure the DeviceObject passed in is actually ours! */
-	if (Extension->lMagicNumber != 0xabfeacde)
-		KeBugCheck ((ULONG) 0xabfeacde);
-
-	ASSERT (Extension->nDosDriveNo >= 0 && Extension->nDosDriveNo <= 0x19);
-
-#ifdef USE_KERNEL_MUTEX
-	KeWaitForMutexObject (&Extension->KernelMutex, Executive, KernelMode,
-			      FALSE, NULL);
-#endif
-
-#if EXTRA_INFO
-	Dump ("Completing IRP...BEGIN\n");
-	Dump ("COMPLETION USER BUFFER IS 0x%08x MDL ADDRESS IS 0x%08x\n", Irp->UserBuffer, Irp->MdlAddress);
-	Dump ("COMPLETION Irp->Tail.Overlay.OriginalFileObject = 0x%08x\n", Irp->Tail.Overlay.OriginalFileObject);
-	Dump ("Completing DeviceObject 0x%08x Irp 0x%08x\n", DeviceObject, Irp);
-#endif
-
-	/* Note: The Irp stack location we get back here is our one, we setup
-	   the next stack location with a copy of this stack data in the send
-	   function... here we always get back our own stack location, so
-	   it's possible to use Read.Key to store extra pointers if needed. */
-	irpSp = IoGetCurrentIrpStackLocation (Irp);
-
-	ntStatus = Irp->IoStatus.Status;
-
-	if (ntStatus == STATUS_TOO_LATE)
-		KeBugCheck ((ULONG) 0x50ff);
-
-	if (Irp->PendingReturned)	/* From Windows NT File System
-					   Internals */
-		IoMarkIrpPending (Irp);
-
-	if (Extension->bRawDevice == FALSE)
-	{
-		/* Note: For some reason even though we used DIRECT_IO
-		   sometimes the Irp's come back to use with MDLs !! if we
-		   get an MDL here we need to free it up otherwise later when
-		   we call IoFreeIrp the system will trap */
-
-		PMDL pMdl, pNextMdl;
-
-		pMdl = Irp->MdlAddress;
-
-		while (pMdl != NULL)
-		{
-			pNextMdl = pMdl->Next;
-
-			MmUnmapLockedPages (MmGetSystemAddressForMdlSafe (pMdl, HighPagePriority), pMdl);
-			MmUnlockPages (pMdl);
-			IoFreeMdl (pMdl);
-
-			pMdl = pNextMdl;
-		}
-	}
-
-	if (NT_SUCCESS (Irp->IoStatus.Status) && irpSp->MajorFunction == IRP_MJ_READ)
-	{
-		__int64 tmpOffset = irpSp->Parameters.Read.ByteOffset.QuadPart;
-		ULONG tmpLength = irpSp->Parameters.Read.Length;
-		PUCHAR CurrentAddress;
-
-		if (Extension->bRawDevice)
-			CurrentAddress = MmGetSystemAddressForMdlSafe (Irp->MdlAddress, HighPagePriority);
-		else
-			CurrentAddress = Irp->UserBuffer;
-
-		if (tmpLength > 0)
-		{
-			/* Decrypt the data on read */
-			DecryptSectors ((ULONG *) CurrentAddress,
-				tmpOffset / SECTOR_SIZE,
-				tmpLength / SECTOR_SIZE,
-				Extension->cryptoInfo);
-		}
-
-		if (Extension->bRawDevice == FALSE)
-		{
-			PIRP OldIrp = (PIRP) pUserBuffer;
-			PUCHAR OriginalAddress;
-			CurrentAddress = Irp->UserBuffer;
-			OriginalAddress = MmGetSystemAddressForMdlSafe (OldIrp->MdlAddress, HighPagePriority);
-			memcpy (OriginalAddress, CurrentAddress, Irp->IoStatus.Information);
-		}
-
-	}
-
-	if (NT_SUCCESS (Irp->IoStatus.Status) && irpSp->MajorFunction == IRP_MJ_WRITE)
-	{
-		PUCHAR CurrentAddress;
-		PUCHAR OriginalAddress;
-
-		if (Extension->bRawDevice)
-		{
-			CurrentAddress = MmGetSystemAddressForMdlSafe (Irp->MdlAddress, HighPagePriority);
-			OriginalAddress = MmGetSystemAddressForMdlSafe ((PMDL) pUserBuffer, HighPagePriority);
-		}
-		else
-		{
-			PIRP OldIrp = (PIRP) pUserBuffer;
-			CurrentAddress = Irp->UserBuffer;
-			OriginalAddress = MmGetSystemAddressForMdlSafe (OldIrp->MdlAddress, HighPagePriority);
-		}
-	}
-
-	if (Extension->bRawDevice && irpSp->MajorFunction == IRP_MJ_WRITE)
-	{
-		PUCHAR tmpBuffer = MmGetSystemAddressForMdlSafe (Irp->MdlAddress, HighPagePriority);
-		/* Free the temp buffer we allocated */
-		TCfree (tmpBuffer);
-		/* Free the Mdl we allocated */
-		IoFreeMdl (Irp->MdlAddress);
-		/* Reset the Irp */
-		Irp->MdlAddress = pUserBuffer;
-	}
-
-	if (Extension->bRawDevice && irpSp->MajorFunction == IRP_MJ_READ)
-	{
-		/* Nothing to do */
-	}
-
-#if EXTRA_INFO
-	Dump ("COMPLETION OLD USER BUFFER IS 0x%08x MDL ADDRESS IS 0x%08x\n", Irp->UserBuffer, Irp->MdlAddress);
-	Dump ("COMPLETION OLD Irp->Tail.Overlay.OriginalFileObject = 0x%08x\n", Irp->Tail.Overlay.OriginalFileObject);
-	Dump ("Completing IRP 0x%08x NTSTATUS 0x%08x information %lu END\n", (ULONG) irpSp->MajorFunction,
-	      Irp->IoStatus.Status, Irp->IoStatus.Information);
-#endif
-
-	if (Extension->bRawDevice == FALSE)
-	{
-		PIRP OldIrp = (PIRP) pUserBuffer;
-		PVOID tmpBuffer = Irp->UserBuffer;
-		BOOL bFreeBuffer = irpSp->MajorFunction == IRP_MJ_WRITE || irpSp->MajorFunction == IRP_MJ_READ;
-
-		OldIrp->IoStatus.Status = Irp->IoStatus.Status;
-		OldIrp->IoStatus.Information = Irp->IoStatus.Information;
-
-		IoCompleteRequest (OldIrp, IO_DISK_INCREMENT);
-
-#if EXTRA_INFO
-		Dump ("About to free allocated IRP\n");
-#endif
-
-		Irp->UserBuffer = NULL;
-
-		/* Free the allocated IRP. Note: This must be done before we
-		   free tmpBuffer! */
-		IoFreeIrp (Irp);
-
-		/* Note: From here on we cannot touch the Irp or irpSp */
-
-#if EXTRA_INFO
-		Dump ("Free allocated buffer = %d\n", bFreeBuffer);
-#endif
-
-		if (bFreeBuffer)
-			TCfree (tmpBuffer);
-
-		ntStatus = STATUS_MORE_PROCESSING_REQUIRED;
-	}
-
-#ifdef USE_KERNEL_MUTEX
-	KeReleaseMutex (&Extension->KernelMutex, FALSE);
-#endif
-
-	return ntStatus;
-}
 
 NTSTATUS
 TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 {
 	PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation (Irp);
-	PUCHAR tmpBuffer = NULL;/* Remove compiler warning */
+	PUCHAR currentAddress;
+	PUCHAR tmpBuffer;
 	NTSTATUS ntStatus;
-
-//	Dump ("TCReadWrite BEGIN\n");
-
-	/* Check for invalid parameters.  It is an error for the starting
-	   offset + length to go past the end of the buffer, or for the
-	   length to not be a proper multiple of the sector size. Others are
-	   possible, but we don't check them since we trust the file system
-	   and they aren't deadly.  */
-	if (irpSp->Parameters.Read.ByteOffset.QuadPart + irpSp->Parameters.Read.Length > Extension->DiskLength
-		|| (irpSp->Parameters.Read.Length & (Extension->BytesPerSector - 1)))
-	{
-		return COMPLETE_IRP (DeviceObject, Irp, STATUS_INVALID_PARAMETER, 0);
-	}
-	else
-	{
-		if (irpSp->Parameters.Read.Length == 0)
-		{
-			return COMPLETE_IRP (DeviceObject, Irp, STATUS_INVALID_PARAMETER, 0);
-		}
-	}
+	BOOL lowerPriority = (OsMajorVersion >= 6 && KeNumberProcessors == 1);
 
 #if EXTRA_INFO
 	Dump ("USER BUFFER IS 0x%08x MDL ADDRESS IS 0x%08x\n", Irp->UserBuffer, Irp->MdlAddress);
@@ -694,12 +496,79 @@ TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 	}
 #endif
 
-	// Volume protection
-	if (irpSp->MajorFunction == IRP_MJ_WRITE)
+	currentAddress = (PUCHAR) MmGetSystemAddressForMdlSafe (Irp->MdlAddress, HighPagePriority);
+	if (currentAddress == NULL)
+		return COMPLETE_IRP (DeviceObject, Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
+
+	if (irpSp->MajorFunction == IRP_MJ_READ)
 	{
-		// Read-only mode
+		LARGE_INTEGER readOffset;
+
+		readOffset.QuadPart = irpSp->Parameters.Read.ByteOffset.QuadPart;
+
+		if (irpSp->Parameters.Read.Length == 0
+			|| (irpSp->Parameters.Read.Length & (SECTOR_SIZE - 1))
+			|| readOffset.QuadPart + irpSp->Parameters.Read.Length > Extension->DiskLength)
+		{
+			return COMPLETE_IRP (DeviceObject, Irp, STATUS_INVALID_PARAMETER, 0);
+		}
+
+		if (Extension->cryptoInfo->hiddenVolume)
+			readOffset.QuadPart += Extension->cryptoInfo->hiddenVolumeOffset;
+		else
+			readOffset.QuadPart += HEADER_SIZE;  
+
+		tmpBuffer = TCalloc (irpSp->Parameters.Read.Length);
+		if (tmpBuffer == NULL)
+			return COMPLETE_IRP (DeviceObject, Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
+
+		ntStatus = ZwReadFile (Extension->hDeviceFile,
+			NULL,
+			NULL,
+			NULL,
+			&Irp->IoStatus,
+			tmpBuffer,
+			irpSp->Parameters.Read.Length,
+			&readOffset,
+			NULL);
+
+		Irp->IoStatus.Status = ntStatus;
+
+		if (NT_SUCCESS(ntStatus))
+		{
+			Extension->TotalBytesRead += irpSp->Parameters.Read.Length;
+
+			memcpy (currentAddress, tmpBuffer, irpSp->Parameters.Read.Length);
+
+			if (lowerPriority)
+				KeSetPriorityThread (KeGetCurrentThread (), LOW_REALTIME_PRIORITY - 5);
+
+			DecryptSectors ((ULONG *) currentAddress,
+				readOffset.QuadPart / SECTOR_SIZE,
+				irpSp->Parameters.Read.Length / SECTOR_SIZE,
+				Extension->cryptoInfo);
+
+			if (lowerPriority)
+				KeSetPriorityThread (KeGetCurrentThread (), LOW_REALTIME_PRIORITY);
+		}
+
+		TCfree (tmpBuffer);
+	}
+	else if (irpSp->MajorFunction == IRP_MJ_WRITE)
+	{
+		LARGE_INTEGER writeOffset;
+
 		if (Extension->bReadOnly)
 			return COMPLETE_IRP (DeviceObject, Irp, STATUS_MEDIA_WRITE_PROTECTED, 0);
+
+		writeOffset.QuadPart = irpSp->Parameters.Write.ByteOffset.QuadPart;
+
+		if (irpSp->Parameters.Write.Length == 0
+			|| (irpSp->Parameters.Write.Length & (SECTOR_SIZE - 1))
+			|| writeOffset.QuadPart + irpSp->Parameters.Write.Length > Extension->DiskLength)
+		{
+			return COMPLETE_IRP (DeviceObject, Irp, STATUS_INVALID_PARAMETER, 0);
+		}
 
 		// Hidden volume protection
 		if (Extension->cryptoInfo->bProtectHiddenVolume)
@@ -708,8 +577,6 @@ TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 			// hidden volume (since the volume mount time)
 			if (Extension->cryptoInfo->bHiddenVolProtectionAction)	
 			{
-				Dump("Write operation denied due to a previous hidden volume protection action");
-
 				// Do not allow writing to this volume anymore. This is to fake a complete volume
 				// or system failure (otherwise certain kinds of inconsistency within the file
 				// system could indicate that this volume has used hidden volume protection).
@@ -717,124 +584,64 @@ TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 			}
 
 			// Verify that no byte is going to be written to the hidden volume area
-			if (RegionsOverlap ((unsigned __int64) irpSp->Parameters.Read.ByteOffset.QuadPart + HEADER_SIZE,
-								(unsigned __int64) irpSp->Parameters.Read.ByteOffset.QuadPart + HEADER_SIZE + irpSp->Parameters.Read.Length - 1,
+			if (RegionsOverlap ((unsigned __int64) irpSp->Parameters.Write.ByteOffset.QuadPart + HEADER_SIZE,
+								(unsigned __int64) irpSp->Parameters.Write.ByteOffset.QuadPart + HEADER_SIZE + irpSp->Parameters.Write.Length - 1,
 								Extension->cryptoInfo->hiddenVolumeOffset,
 								(unsigned __int64) Extension->DiskLength + HEADER_SIZE - (HIDDEN_VOL_HEADER_OFFSET - HEADER_SIZE) - 1))
 			{
 				Extension->cryptoInfo->bHiddenVolProtectionAction = TRUE;
-				Dump("Write operation denied (offset = %I64d) to protect hidden volume", irpSp->Parameters.Read.ByteOffset.QuadPart);
 
 				// Deny this write operation to prevent the hidden volume from being overwritten
 				return COMPLETE_IRP (DeviceObject, Irp, STATUS_INVALID_PARAMETER, 0);
 			}
-
 		}
-	}
 
-	if (Extension->bRawDevice == FALSE || irpSp->MajorFunction == IRP_MJ_WRITE)
-	{
-		tmpBuffer = TCalloc (irpSp->Parameters.Read.Length);
+		if (Extension->cryptoInfo->hiddenVolume)
+			writeOffset.QuadPart += Extension->cryptoInfo->hiddenVolumeOffset;
+		else
+			writeOffset.QuadPart += HEADER_SIZE;
+
+		tmpBuffer = TCalloc (irpSp->Parameters.Write.Length);
 		if (tmpBuffer == NULL)
 			return COMPLETE_IRP (DeviceObject, Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
-	}
 
-	if (irpSp->MajorFunction == IRP_MJ_READ)
-	{
-//		Dump ("Read: 0x%08x for %lu bytes...\n", irpSp->Parameters.Read.ByteOffset.LowPart,
-//		      irpSp->Parameters.Read.Length);
+		memcpy (tmpBuffer, currentAddress, irpSp->Parameters.Write.Length);
 
-		Extension->TotalBytesRead += irpSp->Parameters.Read.Length;
+		if (lowerPriority)
+ 			KeSetPriorityThread (KeGetCurrentThread (), LOW_REALTIME_PRIORITY - 5);
 
-		if (Extension->cryptoInfo->hiddenVolume)
-		{
-			/* Hidden volume offset */
-			irpSp->Parameters.Read.ByteOffset.QuadPart += Extension->cryptoInfo->hiddenVolumeOffset;
-		}
-		else
-		{
-			/* Fixup the parameters to handle this particular volume type */
-			irpSp->Parameters.Read.ByteOffset.QuadPart += HEADER_SIZE;  
-		}
+		EncryptSectors ((ULONG *) tmpBuffer,
+			writeOffset.QuadPart / SECTOR_SIZE,
+			irpSp->Parameters.Write.Length / SECTOR_SIZE,
+			Extension->cryptoInfo);
+		
+		if (lowerPriority)
+ 			KeSetPriorityThread (KeGetCurrentThread (), LOW_REALTIME_PRIORITY);
 
-		if (Extension->bRawDevice)
-			ntStatus = TCSendIRP_RawDevice (DeviceObject, Extension,
-				     NULL, IRP_READ_OPERATION | IRP_NOCACHE,
-						       irpSp->MajorFunction, Irp);
-		else
-			ntStatus = TCSendIRP_FileDevice (DeviceObject, Extension,
-				tmpBuffer, IRP_READ_OPERATION | IRP_NOCACHE,
-						       irpSp->MajorFunction, Irp);
+		ntStatus = ZwWriteFile (Extension->hDeviceFile,
+			NULL,
+			NULL,
+			NULL,
+			&Irp->IoStatus,
+			tmpBuffer,
+			irpSp->Parameters.Write.Length,
+			&writeOffset,
+			NULL);
+
+		Irp->IoStatus.Status = ntStatus;
+
+		if (NT_SUCCESS(ntStatus))
+			Extension->TotalBytesWritten += irpSp->Parameters.Write.Length;
+
+		TCfree (tmpBuffer);
 	}
 	else
-	{
-		PUCHAR CurrentAddress;
+		return COMPLETE_IRP (DeviceObject, Irp, STATUS_INVALID_PARAMETER, 0);
 
-//		Dump ("Write: 0x%08x for %lu bytes...\n", irpSp->Parameters.Read.ByteOffset.LowPart,
-//		      irpSp->Parameters.Read.Length);
-
-		Extension->TotalBytesWritten += irpSp->Parameters.Read.Length;
-
-		CurrentAddress = (PUCHAR) MmGetSystemAddressForMdlSafe (Irp->MdlAddress, HighPagePriority);
-		if (CurrentAddress == NULL)
-		{
-			TCfree (tmpBuffer);
-			return COMPLETE_IRP (DeviceObject, Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
-		}
-
-		if (Extension->cryptoInfo->hiddenVolume)
-		{
-			/* Hidden volume offset */
-			irpSp->Parameters.Read.ByteOffset.QuadPart += Extension->cryptoInfo->hiddenVolumeOffset;
-		}
-		else
-		{
-			/* Fixup the parameters to handle this particular volume type */
-			irpSp->Parameters.Read.ByteOffset.QuadPart += HEADER_SIZE;
-		}
-
-		memcpy (tmpBuffer, CurrentAddress, irpSp->Parameters.Read.Length);
-
-		/* Encrypt the data */
-		EncryptSectors ((ULONG *) tmpBuffer,
-			irpSp->Parameters.Read.ByteOffset.QuadPart / SECTOR_SIZE,
-			irpSp->Parameters.Read.Length / SECTOR_SIZE,
-			Extension->cryptoInfo);
-
-		if (Extension->bRawDevice)
-		{
-			PMDL tmpBufferMdl = IoAllocateMdl (tmpBuffer, irpSp->Parameters.Read.Length, FALSE, FALSE, NULL);
-			PMDL pTrueMdl = Irp->MdlAddress;
-
-			if (tmpBufferMdl == NULL)
-			{
-				TCfree (tmpBuffer);
-				return COMPLETE_IRP (DeviceObject, Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
-			}
-
-			MmBuildMdlForNonPagedPool (tmpBufferMdl);
-
-			Irp->MdlAddress = tmpBufferMdl;
-
-#if EXTRA_INFO
-			Dump ("NEW MDL ADDRESS IS 0x%08x UserBuffer = 0x%08x\n", Irp->MdlAddress, Irp->UserBuffer);
-#endif
-
-			ntStatus = TCSendIRP_RawDevice (DeviceObject, Extension,
-				pTrueMdl, IRP_WRITE_OPERATION | IRP_NOCACHE,
-						       irpSp->MajorFunction, Irp);
-		}
-		else
-		{
-			ntStatus = TCSendIRP_FileDevice (DeviceObject, Extension,
-			       tmpBuffer, IRP_WRITE_OPERATION | IRP_NOCACHE,
-						       irpSp->MajorFunction, Irp);
-		}
-	}
-
-//	Dump ("TCReadWrite END\n");
+	IoCompleteRequest (Irp, NT_SUCCESS(ntStatus) ? IO_DISK_INCREMENT : IO_NO_INCREMENT);
 	return ntStatus;
 }
+
 
 NTSTATUS
 TCSendDeviceIoControlRequest (PDEVICE_OBJECT DeviceObject,
@@ -889,19 +696,19 @@ COMPLETE_IRP (PDEVICE_OBJECT DeviceObject,
 
 	if (DeviceObject);	/* Remove compiler warning */
 
-#ifdef _DEBUG
-	//if (!NT_SUCCESS (IrpStatus))
-	//{
-	//	PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation (Irp);
-	//	Dump ("COMPLETE_IRP FAILING IRP %ls Flags 0x%08x vpb 0x%08x NTSTATUS 0x%08x\n", TCTranslateCode (irpSp->MajorFunction),
-	//	      (ULONG) DeviceObject->Flags, (ULONG) DeviceObject->Vpb->Flags, IrpStatus);
-	//}
-	//else
-	//{
-	//	PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation (Irp);
-	//	Dump ("COMPLETE_IRP SUCCESS IRP %ls Flags 0x%08x vpb 0x%08x NTSTATUS 0x%08x\n", TCTranslateCode (irpSp->MajorFunction),
-	//	      (ULONG) DeviceObject->Flags, (ULONG) DeviceObject->Vpb->Flags, IrpStatus);
-	//}
+#if EXTRA_INFO
+	if (!NT_SUCCESS (IrpStatus))
+	{
+		PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation (Irp);
+		Dump ("COMPLETE_IRP FAILING IRP %ls Flags 0x%08x vpb 0x%08x NTSTATUS 0x%08x\n", TCTranslateCode (irpSp->MajorFunction),
+		      (ULONG) DeviceObject->Flags, (ULONG) DeviceObject->Vpb->Flags, IrpStatus);
+	}
+	else
+	{
+		PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation (Irp);
+		Dump ("COMPLETE_IRP SUCCESS IRP %ls Flags 0x%08x vpb 0x%08x NTSTATUS 0x%08x\n", TCTranslateCode (irpSp->MajorFunction),
+		      (ULONG) DeviceObject->Flags, (ULONG) DeviceObject->Vpb->Flags, IrpStatus);
+	}
 #endif
 	IoCompleteRequest (Irp, IO_NO_INCREMENT);
 	return IrpStatus;

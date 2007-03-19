@@ -1,5 +1,11 @@
 #!/bin/sh 
-# TrueCrypt install script
+#
+# Copyright (c) TrueCrypt Foundation. All rights reserved.
+#
+# Covered by the TrueCrypt License 2.2 the full text of which is contained
+# in the file License.txt included in TrueCrypt binary and source code
+# distribution packages.
+#
 
 BIN_DIR=/usr/bin
 MAN_DIR=/usr/share/man
@@ -47,22 +53,22 @@ then
 	exit 1
 fi
 
+if ! which losetup >/dev/null
+then
+	echo "Warning: losetup command not found - mounting of containers may fail."
+fi
+
 if [ ! -b /dev/loop0 -a ! -b /dev/loop/0 -a ! -b /dev/loop1 ]
 then
 	echo -n "No loopback device found - create? [Y/n]: "
 	read A
-	if [ "$A" = "y" -o "$A" = "Y" ]
+	if [ "$A" != "n" -a "$A" != "N" ]
 	then
 		for I in 0 1 2 3 4 5 6 7
 		do
 			mknod -m 600 /dev/loop$I b 7 $I
 		done
 	fi
-fi
-
-if [ $(losetup 2>&1 | wc -l) -lt 2 ]
-then
-	echo "Warning: losetup command not found - mounting of containers may fail."
 fi
 
 rmmod truecrypt >&- 2>&-
@@ -132,7 +138,8 @@ cp Cli/Man/truecrypt.1 "$MAN_DIR" && chown root:root "$MAN_DIR/truecrypt.1" && c
 echo Done.
 
 echo -n "Installing user guide to $SHARE_DIR/doc... "
-cp ../License.txt "$SHARE_DIR/doc" && cp "../Release/Setup Files/TrueCrypt User Guide.pdf" "$SHARE_DIR/doc/TrueCrypt-User-Guide.pdf" 
+cp ../License.txt "$SHARE_DIR/doc" || exit 1
+cp "../Release/Setup Files/TrueCrypt User Guide.pdf" "$SHARE_DIR/doc/TrueCrypt-User-Guide.pdf" 
 [ $? -ne 0 ] && error "Failed to install truecrypt user guide" && exit 1
 chmod 644 "$SHARE_DIR/doc/License.txt" "$SHARE_DIR/doc/TrueCrypt-User-Guide.pdf"
 echo Done.

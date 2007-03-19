@@ -1,17 +1,18 @@
-/* Legal Notice: The source code contained in this file has been derived from
-   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
-   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
-   Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
-   the full text of which is contained in the file License.txt included in
-   TrueCrypt binary and source code distribution archives.  */
+/*
+ Legal Notice: The source code contained in this file has been derived from
+ the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+ Paul Le Roux and which is covered by the 'License Agreement for Encryption
+ for the Masses'. Modifications and additions to that source code contained
+ in this file are Copyright (c) TrueCrypt Foundation and are covered by the
+ TrueCrypt License 2.2 the full text of which is contained in the file
+ License.txt included in TrueCrypt binary and source code distribution
+ packages. */
 
 // Version displayed to user 
-#define VERSION_STRING                  "4.2a"
+#define VERSION_STRING                  "4.3"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x042a
+#define VERSION_NUM						0x0430
 
 // Version number written to volume header during format,
 // specifies the minimum program version required to mount the volume
@@ -20,7 +21,9 @@
 // Volume header version
 #define VOLUME_HEADER_VERSION			0x0002 
 
-#define SECTOR_SIZE                     512	/* Filesystem sector size */
+// Sector size of encrypted filesystem, which may differ from sector size of host filesystem/device (this 
+// is fully supported since v4.3). To retain maximum portability and compatibility, it should always be 512.
+#define SECTOR_SIZE                     512
 
 #define BYTES_PER_KB                    1024LL
 #define BYTES_PER_MB                    1048576LL
@@ -35,7 +38,6 @@
 #define ERR_OUTOFMEMORY                 2
 #define ERR_PASSWORD_WRONG              3
 #define ERR_VOL_FORMAT_BAD              4
-#define ERR_BAD_DRIVE_LETTER            5
 #define ERR_DRIVE_NOT_FOUND             6
 #define ERR_FILES_OPEN                  7
 #define ERR_VOL_SIZE_WRONG              8
@@ -51,9 +53,9 @@
 #define ERR_CIPHER_INIT_FAILURE			18
 #define ERR_CIPHER_INIT_WEAK_KEY		19
 #define ERR_SELF_TESTS_FAILED			20
+#define ERR_SECTOR_SIZE_INCOMPATIBLE	21
 
 #define ERR_VOL_ALREADY_MOUNTED         32
-#define ERR_NO_FREE_SLOTS               33
 #define ERR_NO_FREE_DRIVES              34
 #define ERR_FILE_OPEN_FAILED            35
 #define ERR_VOL_MOUNT_FAILED            36
@@ -66,20 +68,11 @@
 #define MIN_VOLUME_SIZE                 19456
 #define MIN_HIDDEN_VOLUME_HOST_SIZE     ( MIN_VOLUME_SIZE * 2 + HIDDEN_VOL_HEADER_OFFSET + HEADER_SIZE )
 #define MAX_VOLUME_SIZE                 0x7fffFFFFffffFFFFLL
-#define MAX_FAT_VOLUME_SIZE				0xFFFFFFFE00LL		// Should be possible to increase up to 0x1FFFFFFFC00LL (untested)
+#define MAX_FAT_VOLUME_SIZE				0x20000000000LL
 #define MAX_HIDDEN_VOLUME_HOST_SIZE     MAX_FAT_VOLUME_SIZE
 #define MAX_HIDDEN_VOLUME_SIZE          ( MAX_HIDDEN_VOLUME_HOST_SIZE - HIDDEN_VOL_HEADER_OFFSET - HEADER_SIZE )
 
-#define burn(mem,size) \
-	memset(mem,0xff,size); \
-	memset(mem,0,size);
-
 #define WIDE(x) (LPWSTR)L##x
-
-#ifndef LINUX_DRIVER
-#include <string.h>
-#pragma intrinsic(memcmp, memcpy, memset, strcat, strcmp, strcpy, strlen)
-#endif
 
 #ifdef NT4_DRIVER
 
@@ -183,13 +176,18 @@ typedef unsigned __int32 LRESULT;
 #endif				/* NT4_DRIVER */
 
 #ifdef _WIN32
-
-#pragma hdrstop
-
+#define burn(mem,size) do { volatile char *burnm = (volatile char *)(mem); int burnc = size; RtlSecureZeroMemory (mem, size); while (burnc--) *burnm++ = 0; } while (0)
+#else
+#define burn(mem,size) do { volatile char *burnm = (volatile char *)(mem); int burnc = size; while (burnc--) *burnm++ = 0; } while (0)
 #endif
 
 #ifdef MAX_PATH
-#define TC_MAX_PATH						MAX_PATH
+#define TC_MAX_PATH		MAX_PATH
 #else
-#define TC_MAX_PATH						260	/* Includes the null terminator */
+#define TC_MAX_PATH		260	/* Includes the null terminator */
 #endif
+
+#define MAX_URL_LENGTH	2084 /* Internet Explorer limit. Includes the terminating null character. */
+
+#define TC_APPLINK "http://www.truecrypt.org/applink.php?version=" VERSION_STRING
+#define TC_APPLINK_SECURE "https://www.truecrypt.org/applink.php?version=" VERSION_STRING

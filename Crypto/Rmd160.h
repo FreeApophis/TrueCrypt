@@ -37,9 +37,9 @@ typedef struct RMD160Context {
 	u_char buffer[64];	/* input buffer */
 } RMD160_CTX;
 
-void	 _cdecl RMD160Init(RMD160_CTX *);
-void	 _cdecl RMD160Transform(u_int32_t [5], const u_char [64]);
-void	 _cdecl RMD160Update(RMD160_CTX *, const u_char *, u_int32_t);
-void	 _cdecl RMD160Final(u_char [20], RMD160_CTX *);
+void	 RMD160Init(RMD160_CTX *);
+void	 RMD160Transform(u_int32_t [5], const u_char [64]);
+void	 RMD160Update(RMD160_CTX *, const u_char *, u_int32_t);
+void	 RMD160Final(u_char [20], RMD160_CTX *);
 
 #endif  /* _RMD160_H */

@@ -151,7 +151,7 @@ extern int des_rw_mode;		/* defaults to DES_PCBC_MODE */
 #endif
 #ifndef NOPROTO
 char *des_options(void);
-void _cdecl des_ecb3_encrypt(des_cblock *input,des_cblock *output,
+void des_ecb3_encrypt(des_cblock *input,des_cblock *output,
 	des_key_schedule ks1,des_key_schedule ks2,
 	des_key_schedule ks3, int enc);
 DES_LONG des_cbc_cksum(des_cblock *input,des_cblock *output,
@@ -167,11 +167,11 @@ void des_cfb_encrypt(unsigned char *in,unsigned char *out,int numbits,
 	long length,des_key_schedule schedule,des_cblock *ivec,int enc);
 void des_ecb_encrypt(des_cblock *input,des_cblock *output,
 	des_key_schedule ks,int enc);
-void _cdecl des_encrypt(DES_LONG *data,des_key_schedule ks, int enc);
-void _cdecl des_encrypt2(DES_LONG *data,des_key_schedule ks, int enc);
-void _cdecl des_encrypt3(DES_LONG *data, des_key_schedule ks1,
+void des_encrypt(DES_LONG *data,des_key_schedule ks, int enc);
+void des_encrypt2(DES_LONG *data,des_key_schedule ks, int enc);
+void des_encrypt3(DES_LONG *data, des_key_schedule ks1,
 	des_key_schedule ks2, des_key_schedule ks3);
-void _cdecl des_decrypt3(DES_LONG *data, des_key_schedule ks1,
+void des_decrypt3(DES_LONG *data, des_key_schedule ks1,
 	des_key_schedule ks2, des_key_schedule ks3);
 void des_ede3_cbc_encrypt(des_cblock *input, des_cblock *output, 
 	long length, des_key_schedule ks1, des_key_schedule ks2, 
@@ -217,7 +217,7 @@ int des_read_pw_string(char *buf,int length,char *prompt,int verify);
 void des_set_odd_parity(des_cblock *key);
 int des_is_weak_key(des_cblock *key);
 int des_set_key(des_cblock *key,des_key_schedule schedule);
-int _cdecl des_key_sched(des_cblock *key,des_key_schedule schedule);
+int des_key_sched(des_cblock *key,des_key_schedule schedule);
 void des_string_to_key(char *str,des_cblock *key);
 void des_string_to_2keys(char *str,des_cblock *key1,des_cblock *key2);
 void des_cfb64_encrypt(unsigned char *in, unsigned char *out, long length,
@@ -251,10 +251,10 @@ void des_cfb_encrypt();
 void des_ede3_cfb64_encrypt();
 void des_ede3_ofb64_encrypt();
 void des_ecb_encrypt();
-void _cdecl des_encrypt();
-void _cdecl des_encrypt2();
-void _cdecl des_encrypt3();
-void _cdecl des_decrypt3();
+void des_encrypt();
+void des_encrypt2();
+void des_encrypt3();
+void des_decrypt3();
 void des_ede3_cbc_encrypt();
 int des_enc_read();
 int des_enc_write();

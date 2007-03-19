@@ -59,9 +59,7 @@
 #include "Des_locl.h"
 
 
-#pragma warning( disable : 4131 )
-
-void _cdecl des_ecb3_encrypt(input, output, ks1, ks2, ks3, enc)
+void des_ecb3_encrypt(input, output, ks1, ks2, ks3, enc)
 des_cblock (*input);
 des_cblock (*output);
 des_key_schedule ks1;

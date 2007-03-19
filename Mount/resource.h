@@ -2,6 +2,7 @@
 // Microsoft Visual C++ generated include file.
 // Used by Mount.rc
 //
+#define IDR_MOUNT_TLB                   1
 #define IDB_LOGO                        20
 #define IDD_MOUNT_DLG                   101
 #define IDD_PASSWORDCHANGE_DLG          102
@@ -12,6 +13,7 @@
 #define IDD_PREFERENCES_DLG             107
 #define IDD_VOLUME_PROPERTIES           108
 #define IDR_MOUNT_RSRC_HEADER           109
+#define IDS_UACSTRING                   110
 #define IDC_PREF_MOUNT_READONLY         1000
 #define IDC_PREF_MOUNT_REMOVABLE        1001
 #define IDC_VERIFY                      1002
@@ -155,14 +157,15 @@
 #define IDM_SET_DEFAULT_KEYFILES        40044
 #define IDM_ONLINE_TUTORIAL             40045
 #define IDM_ONLINE_HELP                 40046
+#define IDM_DONATIONS                   40047
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
-#define _APS_NEXT_RESOURCE_VALUE        110
-#define _APS_NEXT_COMMAND_VALUE         40047
+#define _APS_NEXT_RESOURCE_VALUE        111
+#define _APS_NEXT_COMMAND_VALUE         40048
 #define _APS_NEXT_CONTROL_VALUE         1097
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

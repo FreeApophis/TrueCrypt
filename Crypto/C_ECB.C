@@ -59,12 +59,10 @@
 #include "Cast.h"
 #include "Cast_lcl.h"
 
-#pragma warning( disable : 4131 )
-
 
 char *CAST_version="CAST part of SSLeay 0.8.2b 08-Jan-1998";
 
-void _cdecl CAST_ecb_encrypt(in, out, ks, encrypt)
+void CAST_ecb_encrypt(in, out, ks, encrypt)
 unsigned char *in;
 unsigned char *out;
 CAST_KEY *ks;

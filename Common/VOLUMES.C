@@ -1,15 +1,17 @@
-/* Legal Notice: The source code contained in this file has been derived from
-   the source code of Encryption for the Masses 2.02a, which is Copyright (c)
-   1998-99 Paul Le Roux and which is covered by the 'License Agreement for
-   Encryption for the Masses'. Modifications and additions to that source code
-   contained in this file are Copyright (c) 2004-2006 TrueCrypt Foundation and
-   Copyright (c) 2004 TrueCrypt Team, and are covered by TrueCrypt License 2.1
-   the full text of which is contained in the file License.txt included in
-   TrueCrypt binary and source code distribution archives.  */
+/*
+ Legal Notice: The source code contained in this file has been derived from
+ the source code of Encryption for the Masses 2.02a, which is Copyright (c)
+ Paul Le Roux and which is covered by the 'License Agreement for Encryption
+ for the Masses'. Modifications and additions to that source code contained
+ in this file are Copyright (c) TrueCrypt Foundation and are covered by the
+ TrueCrypt License 2.2 the full text of which is contained in the file
+ License.txt included in TrueCrypt binary and source code distribution
+ packages. */
 
 #include "Tcdefs.h"
 
 #include <fcntl.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -20,7 +22,7 @@
 #endif
 
 #include "Crypto.h"
-#include "Endian.h"
+#include "Common/Endian.h"
 #include "Volumes.h"
 
 #include "Pkcs5.h"
@@ -217,11 +219,8 @@ err:
 #ifndef DEVICE_DRIVER
 
 #ifdef VOLFORMAT
-extern BOOL showKeys;
-extern HWND hDiskKey;
-extern HWND hHeaderKey;
+#include "../Format/TcFormat.h"
 #endif
-
 
 // VolumeWriteHeader:
 // Creates volume header in memory
@@ -435,8 +434,7 @@ VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 			strcat (tmp, "...");
 		}
 
-
-		SetWindowText (hDiskKey, tmp);
+		SendMessage (hDiskKey, WM_SETTEXT, 0, (LPARAM) tmp);
 
 		tmp[0] = 0;
 		for (i = 0; i < NBR_KEY_BYTES_TO_DISPLAY; i++)
@@ -451,7 +449,7 @@ VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 			strcat (tmp, "...");
 		}
 
-		SetWindowText (hHeaderKey, tmp);
+		SendMessage (hHeaderKey, WM_SETTEXT, 0, (LPARAM) tmp);
 	}
 #endif
 

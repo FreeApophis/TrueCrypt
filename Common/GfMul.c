@@ -34,6 +34,8 @@
 */
 
 /* 
+ Portions Copyright (c) TrueCrypt Foundation
+
  TrueCrypt Foundation made the following changes:
 
    - Added multiplication in the finite field GF(2^128) optimized for
@@ -57,7 +59,7 @@
 
 #include "GfMul.h"
 #include "Tcdefs.h"
-#include "Endian.h"
+#include "Common/Endian.h"
 
 /* BUFFER_ALIGN32 or BUFFER_ALIGN64 must be defined at this point to    */
 /* enable faster operation by taking advantage of memory aligned values */

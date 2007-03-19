@@ -1,61 +1,61 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="7.10"
+	Version="8,00"
 	Name="Driver"
 	ProjectGUID="{EF5EF444-18D0-40D7-8DFA-775EC4448602}"
 	RootNamespace="Driver"
-	Keyword="MakeFileProj">
+	Keyword="MakeFileProj"
+	>
 	<Platforms>
 		<Platform
-			Name="Win32"/>
+			Name="Win32"
+		/>
 	</Platforms>
+	<ToolFiles>
+	</ToolFiles>
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
 			OutputDirectory="Debug"
 			IntermediateDirectory="Debug"
-			ConfigurationType="0">
+			ConfigurationType="0"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			>
 			<Tool
 				Name="VCNMakeTool"
-				BuildCommandLine="md Debug Debug64 2&gt;NUL:
-cd Debug
-nmake -nologo ..\Makefile DEBUG=1
-if errorlevel 1 exit 1
-cd ..\Debug64
-nmake -nologo ..\Makefile DEBUG=1 AMD64=1"
-				ReBuildCommandLine="rd /s /q Debug Debug64 2&gt;NUL:
-md Debug Debug64 2&gt;NUL:
-cd Debug
-nmake -nologo ..\Makefile DEBUG=1
-if errorlevel 1 exit 1
-cd ..\Debug64
-nmake -nologo ..\Makefile DEBUG=1 AMD64=1"
+				BuildCommandLine="md Debug Debug64 2&gt;NUL:&#x0D;&#x0A;cd Debug&#x0D;&#x0A;nmake -nologo ..\Makefile DEBUG=1&#x0D;&#x0A;if errorlevel 1 exit 1&#x0D;&#x0A;cd ..\Debug64&#x0D;&#x0A;nmake -nologo ..\Makefile DEBUG=1 AMD64=1"
+				ReBuildCommandLine="rd /s /q Debug Debug64 2&gt;NUL:&#x0D;&#x0A;md Debug Debug64 2&gt;NUL:&#x0D;&#x0A;cd Debug&#x0D;&#x0A;nmake -nologo ..\Makefile DEBUG=1&#x0D;&#x0A;if errorlevel 1 exit 1&#x0D;&#x0A;cd ..\Debug64&#x0D;&#x0A;nmake -nologo ..\Makefile DEBUG=1 AMD64=1"
 				CleanCommandLine="rd /s /q Debug Debug64 2&gt;NUL:"
-				Output="Debug64/truecrypt-x64.sys"/>
+				Output="Debug64/truecrypt-x64.sys"
+				PreprocessorDefinitions=""
+				IncludeSearchPath=""
+				ForcedIncludes=""
+				AssemblySearchPath=""
+				ForcedUsingAssemblies=""
+				CompileAsManaged=""
+			/>
 		</Configuration>
 		<Configuration
 			Name="Release|Win32"
 			OutputDirectory="Release"
 			IntermediateDirectory="Release"
-			ConfigurationType="0">
+			ConfigurationType="0"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			>
 			<Tool
 				Name="VCNMakeTool"
-				BuildCommandLine="md Release Release64 2&gt;NUL:
-cd Release
-nmake -nologo ..\Makefile RELEASE=1
-if errorlevel 1 exit 1
-cd ..\Release64
-nmake -nologo ..\Makefile RELEASE=1 AMD64=1"
-				ReBuildCommandLine="rd /s /q Release Release64 2&gt;NUL:
-md Release Release64 2&gt;NUL:
-cd Release
-nmake -nologo ..\Makefile RELEASE=1
-if errorlevel 1 exit 1
-cd ..\Release64
-nmake -nologo ..\Makefile RELEASE=1 AMD64=1"
+				BuildCommandLine="md Release Release64 2&gt;NUL:&#x0D;&#x0A;cd Release&#x0D;&#x0A;nmake -nologo ..\Makefile RELEASE=1&#x0D;&#x0A;if errorlevel 1 exit 1&#x0D;&#x0A;cd ..\Release64&#x0D;&#x0A;nmake -nologo ..\Makefile RELEASE=1 AMD64=1"
+				ReBuildCommandLine="rd /s /q Release Release64 2&gt;NUL:&#x0D;&#x0A;md Release Release64 2&gt;NUL:&#x0D;&#x0A;cd Release&#x0D;&#x0A;nmake -nologo ..\Makefile RELEASE=1&#x0D;&#x0A;if errorlevel 1 exit 1&#x0D;&#x0A;cd ..\Release64&#x0D;&#x0A;nmake -nologo ..\Makefile RELEASE=1 AMD64=1"
 				CleanCommandLine="rd /s /q Release Release64 2&gt;NUL:"
-				Output="Release64/truecrypt-x64.sys"/>
+				Output="Release64/truecrypt-x64.sys"
+				PreprocessorDefinitions=""
+				IncludeSearchPath=""
+				ForcedIncludes=""
+				AssemblySearchPath=""
+				ForcedUsingAssemblies=""
+				CompileAsManaged=""
+			/>
 		</Configuration>
 	</Configurations>
 	<References>
@@ -64,90 +64,116 @@ nmake -nologo ..\Makefile RELEASE=1 AMD64=1"
 		<Filter
 			Name="Source Files"
 			Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx"
-			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}">
+			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
+			>
 			<File
-				RelativePath=".\Ntdriver.c">
+				RelativePath=".\Ntdriver.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Ntfiledv.c">
+				RelativePath=".\Ntfiledv.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Ntrawdv.c">
+				RelativePath=".\Ntrawdv.c"
+				>
 			</File>
 			<File
-				RelativePath=".\Ntvol.c">
+				RelativePath=".\Ntvol.c"
+				>
 			</File>
 			<Filter
 				Name="Common"
-				Filter="">
+				>
 				<File
-					RelativePath="..\Common\Cache.c">
+					RelativePath="..\Common\Cache.c"
+					>
 				</File>
 				<File
-					RelativePath="..\Common\Crc.c">
+					RelativePath="..\Common\Crc.c"
+					>
 				</File>
 				<File
-					RelativePath="..\Common\Crypto.c">
+					RelativePath="..\Common\Crypto.c"
+					>
 				</File>
 				<File
-					RelativePath="..\Common\Endian.c">
+					RelativePath="..\Common\Endian.c"
+					>
 				</File>
 				<File
-					RelativePath="..\Common\Pkcs5.c">
+					RelativePath="..\Common\Pkcs5.c"
+					>
 				</File>
 				<File
-					RelativePath="..\Common\Tests.c">
+					RelativePath="..\Common\Tests.c"
+					>
 				</File>
 				<File
-					RelativePath="..\Common\Volumes.c">
+					RelativePath="..\Common\Volumes.c"
+					>
 				</File>
 			</Filter>
 		</Filter>
 		<Filter
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
-			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}">
+			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
+			>
 			<File
-				RelativePath="..\Common\Apidrvr.h">
+				RelativePath="..\Common\Apidrvr.h"
+				>
 			</File>
 			<File
-				RelativePath="..\Common\Cache.h">
+				RelativePath="..\Common\Cache.h"
+				>
 			</File>
 			<File
-				RelativePath="..\Common\Common.h">
+				RelativePath="..\Common\Common.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Ntdriver.h">
+				RelativePath=".\Ntdriver.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Ntfiledv.h">
+				RelativePath=".\Ntfiledv.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Ntrawdv.h">
+				RelativePath=".\Ntrawdv.h"
+				>
 			</File>
 			<File
-				RelativePath=".\Ntvol.h">
+				RelativePath=".\Ntvol.h"
+				>
 			</File>
 			<File
-				RelativePath=".\resource.h">
+				RelativePath=".\resource.h"
+				>
 			</File>
 			<File
-				RelativePath="..\Common\Tcdefs.h">
+				RelativePath="..\Common\Tcdefs.h"
+				>
 			</File>
 			<File
-				RelativePath="..\Common\Volumes.h">
+				RelativePath="..\Common\Volumes.h"
+				>
 			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx"
-			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}">
+			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
+			>
 			<File
-				RelativePath=".\Driver.rc">
+				RelativePath=".\Driver.rc"
+				>
 			</File>
 		</Filter>
 		<File
-			RelativePath=".\Makefile">
+			RelativePath=".\Makefile"
+			>
 		</File>
 	</Files>
 	<Globals>
