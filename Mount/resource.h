@@ -3,7 +3,6 @@
 // Used by Mount.rc
 //
 #define IDR_MOUNT_TLB                   1
-#define IDB_LOGO                        20
 #define IDD_MOUNT_DLG                   101
 #define IDD_PASSWORDCHANGE_DLG          102
 #define IDB_DRIVEICON                   103
@@ -14,6 +13,8 @@
 #define IDD_VOLUME_PROPERTIES           108
 #define IDR_MOUNT_RSRC_HEADER           109
 #define IDS_UACSTRING                   110
+#define IDB_LOGO_288DPI                 111
+#define IDB_LOGO_96DPI                  112
 #define IDC_PREF_MOUNT_READONLY         1000
 #define IDC_PREF_MOUNT_REMOVABLE        1001
 #define IDC_VERIFY                      1002
@@ -111,6 +112,7 @@
 #define IDC_PREFS_HOTKEY_SETTINGS       1094
 #define IDC_PREFS_KEYFILE_SETTINGS      1095
 #define IDC_SHOW_PASSWORD               1096
+#define IDC_LOGO                        1097
 #define IDM_HELP                        40001
 #define IDM_ABOUT                       40002
 #define IDM_UNMOUNT_VOLUME              40003
@@ -164,9 +166,9 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
-#define _APS_NEXT_RESOURCE_VALUE        111
+#define _APS_NEXT_RESOURCE_VALUE        113
 #define _APS_NEXT_COMMAND_VALUE         40048
-#define _APS_NEXT_CONTROL_VALUE         1097
+#define _APS_NEXT_CONTROL_VALUE         1098
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

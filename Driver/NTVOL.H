@@ -4,9 +4,11 @@
  Paul Le Roux and which is covered by the 'License Agreement for Encryption
  for the Masses'. Modifications and additions to that source code contained
  in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.2 the full text of which is contained in the file
+ TrueCrypt License 2.3 the full text of which is contained in the file
  License.txt included in TrueCrypt binary and source code distribution
  packages. */
+
+#define TC_PRIORITY_DECREASE 5
 
 NTSTATUS TCOpenVolume ( PDEVICE_OBJECT DeviceObject , PEXTENSION Extension , MOUNT_STRUCT *mount , PWSTR pwszMountVolume , BOOL bRawDevice );
 void TCCloseVolume ( PDEVICE_OBJECT DeviceObject , PEXTENSION Extension );

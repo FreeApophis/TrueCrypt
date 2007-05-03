@@ -1,13 +1,15 @@
-#!/bin/sh 
+#!/bin/bash 
 #
 # Copyright (c) TrueCrypt Foundation. All rights reserved.
 #
-# Covered by the TrueCrypt License 2.2 the full text of which is contained
+# Covered by the TrueCrypt License 2.3 the full text of which is contained
 # in the file License.txt included in TrueCrypt binary and source code
 # distribution packages.
 #
 
-KERNEL_VER=$(uname -r)
+[ -z "$KERNEL_VER" ] && KERNEL_VER=$(uname -r)
+KERNEL_BUILD=/lib/modules/$KERNEL_VER/build
+KERNEL_SRC=/lib/modules/$KERNEL_VER/source
 
 TMP=.build.sh.tmp
 umask 022
@@ -45,11 +47,11 @@ case "$KERNEL_VER" in
 esac
 [ "$V" ] && error "TrueCrypt requires Linux kernel 2.6.5 or later" && exit 1
 
-KERNEL_SRC=/usr/src/linux-source-$KERNEL_VER
-check_kernel_version "$KERNEL_SRC" || KERNEL_SRC=/usr/src/linux-source-$(echo $KERNEL_VER | cut -d'-' -f1)
 check_kernel_version "$KERNEL_SRC" || KERNEL_SRC=/usr/src/linux-$KERNEL_VER
-check_kernel_version "$KERNEL_SRC" || KERNEL_SRC=/usr/src/linux-$(echo $KERNEL_VER | cut -d'-' -f1)
+check_kernel_version "$KERNEL_SRC" || KERNEL_SRC=/usr/src/linux-source-$KERNEL_VER
 check_kernel_version "$KERNEL_SRC" || KERNEL_SRC=/usr/src/kernels/$KERNEL_VER-$(uname -p)
+check_kernel_version "$KERNEL_SRC" || KERNEL_SRC=/usr/src/linux-$(echo $KERNEL_VER | cut -d'-' -f1)
+check_kernel_version "$KERNEL_SRC" || KERNEL_SRC=/usr/src/linux-source-$(echo $KERNEL_VER | cut -d'-' -f1)
 check_kernel_version "$KERNEL_SRC" || KERNEL_SRC=/usr/src/linux
 
 if ! check_kernel_version "$KERNEL_SRC"
@@ -72,77 +74,85 @@ then
 	exit 1
 fi
 
-if [ ! -f "$KERNEL_SRC/.config" ]
+if [ ! -d "$KERNEL_BUILD/include/asm/" -o ! -f "$KERNEL_BUILD/Module.symvers" -o ! -f "$KERNEL_BUILD/.config" ]
 then
-	if [ -f /proc/config.gz -o -f /boot/config-$KERNEL_VER -o -f /boot/config-$(uname -r) ]
+	if [ ! -f "$KERNEL_SRC/.config" ]
 	then
-		echo -n "Configure kernel source according to the system configuration? [Y/n]: "
-		read A
-		if [ -z "$A" -o "$A" = "y" -o "$A" = "Y" ]
+		if [ -f /proc/config.gz -o -f /boot/config-$KERNEL_VER -o -f /boot/config-$(uname -r) ]
 		then
-			echo -n "Configuring kernel source in $KERNEL_SRC... "
-			
-			if [ -f /proc/config.gz ]
+			echo -n "Configure kernel source according to the system configuration? [Y/n]: "
+			read A
+			if [ -z "$A" -o "$A" = "y" -o "$A" = "Y" ]
 			then
-				zcat /proc/config.gz >$KERNEL_SRC/.config || exit 1
-			else
-				if [ -f /boot/config-$(uname -r) ]
+				echo -n "Configuring kernel source in $KERNEL_SRC... "
+				
+				if [ -f /proc/config.gz ]
 				then
-					cp /boot/config-$(uname -r) $KERNEL_SRC/.config || exit 1
+					zcat /proc/config.gz >$KERNEL_SRC/.config || exit 1
 				else
-					cp /boot/config-$KERNEL_VER $KERNEL_SRC/.config || exit 1
+					if [ -f /boot/config-$(uname -r) ]
+					then
+						cp /boot/config-$(uname -r) $KERNEL_SRC/.config || exit 1
+					else
+						cp /boot/config-$KERNEL_VER $KERNEL_SRC/.config || exit 1
+					fi
 				fi
+				
+				make -C $KERNEL_SRC oldconfig </dev/null >/dev/null || exit 1
+				echo Done.
 			fi
-			
-			make -C $KERNEL_SRC oldconfig </dev/null >/dev/null || exit 1
-			echo Done.
+		fi
+
+		if [ ! -f "$KERNEL_SRC/.config" ]
+		then
+			error "Kernel not configured. You should run make -C $KERNEL_SRC config"
+			exit 1
 		fi
 	fi
 
-	if [ ! -f "$KERNEL_SRC/.config" ]
+	if [ ! -d "$KERNEL_SRC/include/asm" ] && grep -q modules_prepare $KERNEL_SRC/Makefile
 	then
-		error "Kernel not configured. You should run make -C $KERNEL_SRC config"
+		echo -n "Preparing kernel build system in $KERNEL_SRC... "
+		if ! make -C $KERNEL_SRC modules_prepare >/dev/null 2>$TMP
+		then
+			cat $TMP; rm $TMP
+			exit 1
+		fi
+		rm $TMP
+		echo Done.
+	fi
+
+
+	if [ ! -d "$KERNEL_SRC/include/asm" -o ! -f "$KERNEL_SRC/Module.symvers" ] 
+	then
+		echo -n "Building internal kernel modules (may take a long time)... "
+		if ! make -C $KERNEL_SRC modules >/dev/null 2>$TMP
+		then
+			cat $TMP; rm $TMP
+			exit 1
+		fi
+		rm $TMP
+		echo Done.
+	fi
+
+	if [ ! -d "$KERNEL_SRC/include/asm" ]
+	then
+		error "Kernel source code is not prepared for building of modules - $KERNEL_SRC/include/asm not found."
 		exit 1
 	fi
+	
+	KERNEL_BUILD=$KERNEL_SRC
 fi
 
-if [ ! -d "$KERNEL_SRC/include/asm" ] && grep -q modules_prepare $KERNEL_SRC/Makefile
+if [ -f $KERNEL_BUILD/.config ]
 then
-	echo -n "Preparing kernel build system in $KERNEL_SRC... "
-	if ! make -C $KERNEL_SRC modules_prepare >/dev/null 2>$TMP
-	then
-		cat $TMP; rm $TMP
-		exit 1
-	fi
-	rm $TMP
-	echo Done.
+	grep -qi 'CONFIG_BLK_DEV_DM=[YM]' $KERNEL_BUILD/.config || echo "Warning: kernel device mapper support (CONFIG_BLK_DEV_DM) is disabled in $KERNEL_SRC"
 fi
-
-grep -qi 'CONFIG_BLK_DEV_DM=[YM]' $KERNEL_SRC/.config || echo "Warning: kernel device mapper support (CONFIG_BLK_DEV_DM) is disabled in $KERNEL_SRC"
-
-if [ ! -d "$KERNEL_SRC/include/asm" -o ! -f "$KERNEL_SRC/Module.symvers" ] 
-then
-	echo -n "Building internal kernel modules (may take a long time)... "
-	if ! make -C $KERNEL_SRC modules >/dev/null 2>$TMP
-	then
-		cat $TMP; rm $TMP
-		exit 1
-	fi
-	rm $TMP
-	echo Done.
-fi
-
-if [ ! -d "$KERNEL_SRC/include/asm" ]
-then
-	error "Kernel source code is not prepared for building of modules - $KERNEL_SRC/include/asm not found."
-	exit 1
-fi
-
 
 # Build
 
 echo -n "Building kernel module... "
-cd Kernel && make "KERNEL_SRC=$KERNEL_SRC" NO_WARNINGS=1 >/dev/null
+cd Kernel && make "KERNEL_SRC=$KERNEL_SRC" "KERNEL_BUILD=$KERNEL_BUILD" NO_WARNINGS=1 >/dev/null
 [ $? -ne 0 ] && error "Failed to build kernel module" && exit 1
 echo Done.
 

@@ -4,7 +4,7 @@
  Paul Le Roux and which is covered by the 'License Agreement for Encryption
  for the Masses'. Modifications and additions to that source code contained
  in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.2 the full text of which is contained in the file
+ TrueCrypt License 2.3 the full text of which is contained in the file
  License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -23,7 +23,7 @@ typedef struct argumentspec_t
 	int		 arg_cnt;
 } argumentspec;
 
-BOOL WINAPI CommandHelpDlgProc ( HWND hwndDlg , UINT msg , WPARAM wParam , LPARAM lParam );
+BOOL CALLBACK CommandHelpDlgProc ( HWND hwndDlg , UINT msg , WPARAM wParam , LPARAM lParam );
 int Win32CommandLine ( char *lpszCommandLine , char ***lpszArgs );
 int GetArgSepPosOffset ( char *lpszArgument );
 int GetArgumentID ( argumentspec *as , char *lpszArgument , int *nArgPos );

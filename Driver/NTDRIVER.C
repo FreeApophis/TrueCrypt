@@ -4,7 +4,7 @@
  Paul Le Roux and which is covered by the 'License Agreement for Encryption
  for the Masses'. Modifications and additions to that source code contained
  in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.2 the full text of which is contained in the file
+ TrueCrypt License 2.3 the full text of which is contained in the file
  License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -32,6 +32,7 @@ KMUTEX driverMutex;			/* Sync mutex for the entire driver */
 BOOL SelfTestsPassed;
 int LastUniqueVolumeId;
 ULONG OsMajorVersion;
+BOOL ReferencedDeviceDeleted = FALSE;
 
 /* DriverEntry initialize's the dispatch addresses to be passed back to NT.
    RUNS AT IRQL = PASSIVE_LEVEL(0) */
@@ -118,8 +119,8 @@ TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 		|| irpSp->MajorFunction == IRP_MJ_DEVICE_CONTROL
 		|| irpSp->MajorFunction == IRP_MJ_FLUSH_BUFFERS))
 	{
-		Dump ("Device %d shutdown -> STATUS_IO_DEVICE_ERROR\n", Extension->nDosDriveNo);
-		Irp->IoStatus.Status = STATUS_IO_DEVICE_ERROR;
+		Dump ("Device %d shutting down: STATUS_DEVICE_NOT_READY\n", Extension->nDosDriveNo);
+		Irp->IoStatus.Status = STATUS_DEVICE_NOT_READY;
 		Irp->IoStatus.Information = 0;
 
 		ntStatus = Irp->IoStatus.Status;
@@ -463,7 +464,7 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength <
 		    sizeof (DISK_GEOMETRY))
 		{
-			Irp->IoStatus.Status = STATUS_BUFFER_OVERFLOW;
+			Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
 			Irp->IoStatus.Information = 0;
 		}
 		else
@@ -485,7 +486,7 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength <
 		    sizeof (PARTITION_INFORMATION))
 		{
-			Irp->IoStatus.Status = STATUS_BUFFER_OVERFLOW;
+			Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
 			Irp->IoStatus.Information = 0;
 		}
 		else
@@ -497,9 +498,9 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 			outputBuffer->BootIndicator = FALSE;
 			outputBuffer->RecognizedPartition = TRUE;
 			outputBuffer->RewritePartition = FALSE;
-			outputBuffer->StartingOffset = RtlConvertUlongToLargeInteger (0);
+			outputBuffer->StartingOffset.QuadPart = SECTOR_SIZE;
 			outputBuffer->PartitionLength.QuadPart= Extension->DiskLength;
-			outputBuffer->HiddenSectors = 1L;
+			outputBuffer->HiddenSectors = 0;
 			Irp->IoStatus.Status = STATUS_SUCCESS;
 			Irp->IoStatus.Information = sizeof (PARTITION_INFORMATION);
 		}
@@ -508,7 +509,7 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 	case IOCTL_DISK_GET_PARTITION_INFO_EX:
 		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (PARTITION_INFORMATION_EX))
 		{
-			Irp->IoStatus.Status = STATUS_BUFFER_OVERFLOW;
+			Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
 			Irp->IoStatus.Information = 0;
 		}
 		else
@@ -517,12 +518,12 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 
 			outputBuffer->PartitionStyle = PARTITION_STYLE_MBR;
 			outputBuffer->RewritePartition = FALSE;
-			outputBuffer->StartingOffset = RtlConvertUlongToLargeInteger (0);
+			outputBuffer->StartingOffset.QuadPart = SECTOR_SIZE;
 			outputBuffer->PartitionLength.QuadPart= Extension->DiskLength;
 			outputBuffer->Mbr.PartitionType = Extension->PartitionType;
 			outputBuffer->Mbr.BootIndicator = FALSE;
 			outputBuffer->Mbr.RecognizedPartition = TRUE;
-			outputBuffer->Mbr.HiddenSectors = 1L;
+			outputBuffer->Mbr.HiddenSectors = 0;
 			Irp->IoStatus.Status = STATUS_SUCCESS;
 			Irp->IoStatus.Information = sizeof (PARTITION_INFORMATION_EX);
 		}
@@ -532,7 +533,7 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength <
 		    sizeof (DRIVE_LAYOUT_INFORMATION))
 		{
-			Irp->IoStatus.Status = STATUS_BUFFER_OVERFLOW;
+			Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
 			Irp->IoStatus.Information = 0;
 		}
 		else
@@ -547,9 +548,9 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 			outputBuffer->PartitionEntry->BootIndicator = FALSE;
 			outputBuffer->PartitionEntry->RecognizedPartition = TRUE;
 			outputBuffer->PartitionEntry->RewritePartition = FALSE;
-			outputBuffer->PartitionEntry->StartingOffset = RtlConvertUlongToLargeInteger (0);
-			outputBuffer->PartitionEntry->PartitionLength.QuadPart= Extension->DiskLength;
-			outputBuffer->PartitionEntry->HiddenSectors = 1L;
+			outputBuffer->PartitionEntry->StartingOffset.QuadPart = SECTOR_SIZE;
+			outputBuffer->PartitionEntry->PartitionLength.QuadPart = Extension->DiskLength;
+			outputBuffer->PartitionEntry->HiddenSectors = 0;
 
 			Irp->IoStatus.Status = STATUS_SUCCESS;
 			Irp->IoStatus.Information = sizeof (PARTITION_INFORMATION);
@@ -610,7 +611,7 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 	case DRIVER_VERSION:
 		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (LONG))
 		{
-			Irp->IoStatus.Status = STATUS_BUFFER_OVERFLOW;
+			Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
 			Irp->IoStatus.Information = 0;
 		}
 		else
@@ -625,12 +626,26 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 	case DEVICE_REFCOUNT:
 		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (int))
 		{
-			Irp->IoStatus.Status = STATUS_BUFFER_OVERFLOW;
+			Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
 			Irp->IoStatus.Information = 0;
 		}
 		else
 		{
 			*(int *) Irp->AssociatedIrp.SystemBuffer = DeviceObject->ReferenceCount;
+			Irp->IoStatus.Information = sizeof (int);
+			Irp->IoStatus.Status = STATUS_SUCCESS;
+		}
+		break;
+
+	case REFERENCED_DEV_DELETED:
+		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (int))
+		{
+			Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
+			Irp->IoStatus.Information = 0;
+		}
+		else
+		{
+			*(int *) Irp->AssociatedIrp.SystemBuffer = ReferencedDeviceDeleted;
 			Irp->IoStatus.Information = sizeof (int);
 			Irp->IoStatus.Status = STATUS_SUCCESS;
 		}
@@ -691,16 +706,18 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 #endif
 
 	case MOUNT_LIST:
+	case MOUNT_LIST_ALL:
 		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (MOUNT_LIST_STRUCT)
 			|| !DeviceObject || !DeviceObject->DriverObject)
 		{
-			Irp->IoStatus.Status = STATUS_BUFFER_OVERFLOW;
+			Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
 			Irp->IoStatus.Information = 0;
 		}
 		else
 		{
 			MOUNT_LIST_STRUCT *list = (MOUNT_LIST_STRUCT *) Irp->AssociatedIrp.SystemBuffer;
 			PDEVICE_OBJECT ListDevice;
+			BOOL listAll = (irpSp->Parameters.DeviceIoControl.IoControlCode == MOUNT_LIST_ALL);
 
 			DriverMutexWait ();
 
@@ -708,12 +725,10 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 			for (ListDevice = DeviceObject->DriverObject->DeviceObject;
 			     ListDevice != (PDEVICE_OBJECT) NULL; ListDevice = ListDevice->NextDevice)
 			{
-
 				PEXTENSION ListExtension = (PEXTENSION) ListDevice->DeviceExtension;
 				if (ListExtension->lMagicNumber == 0xabfeacde
 					&& ListExtension->bRootDevice == FALSE
-					&& !ListExtension->bSystemVolume
-					&& !ListExtension->bPersistentVolume
+					&& (listAll || (!ListExtension->bSystemVolume && !ListExtension->bPersistentVolume))
 					&& !ListExtension->bShuttingDown)
 				{
 					list->ulMountedDrives |= (1 << ListExtension->nDosDriveNo);
@@ -742,7 +757,7 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (VOLUME_PROPERTIES_STRUCT)
 			|| !DeviceObject || !DeviceObject->DriverObject)
 		{
-			Irp->IoStatus.Status = STATUS_BUFFER_OVERFLOW;
+			Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
 			Irp->IoStatus.Information = 0;
 		}
 		else
@@ -799,7 +814,7 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 	case RESOLVE_SYMLINK:
 		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (RESOLVE_SYMLINK_STRUCT))
 		{
-			Irp->IoStatus.Status = STATUS_BUFFER_OVERFLOW;
+			Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
 			Irp->IoStatus.Information = 0;
 		}
 		else
@@ -822,7 +837,7 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 	case DISK_GET_PARTITION_INFO:
 		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (DISK_PARTITION_INFO_STRUCT))
 		{
-			Irp->IoStatus.Status = STATUS_BUFFER_OVERFLOW;
+			Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
 			Irp->IoStatus.Information = 0;
 		}
 		else
@@ -860,7 +875,7 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 	case DISK_GET_GEOMETRY:
 		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (DISK_GEOMETRY_STRUCT))
 		{
-			Irp->IoStatus.Status = STATUS_BUFFER_OVERFLOW;
+			Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
 			Irp->IoStatus.Information = 0;
 		}
 		else
@@ -882,7 +897,7 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 	case MOUNT:
 		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (MOUNT_STRUCT))
 		{
-			Irp->IoStatus.Status = STATUS_BUFFER_OVERFLOW;
+			Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
 			Irp->IoStatus.Information = 0;
 		}
 		else
@@ -904,7 +919,7 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (UNMOUNT_STRUCT)
 			|| !DeviceObject || !DeviceObject->DriverObject)
 		{
-			Irp->IoStatus.Status = STATUS_BUFFER_OVERFLOW;
+			Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
 			Irp->IoStatus.Information = 0;
 		}
 		else
@@ -939,7 +954,7 @@ TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 	case UNMOUNT_ALL:
 		if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (UNMOUNT_STRUCT))
 		{
-			Irp->IoStatus.Status = STATUS_BUFFER_OVERFLOW;
+			Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
 			Irp->IoStatus.Information = 0;
 		}
 		else
@@ -1412,6 +1427,9 @@ TCUnloadDriver (PDRIVER_OBJECT DriverObject)
 				(PEXTENSION) DeviceObject->DeviceExtension);
 	}
 
+	/* For extra security (as the OS clears relevant memory pages after driver unload, it should never really be necessary). */
+	WipeCache ();	
+
 	Dump ("TCUnloadDriver END\n");
 }
 
@@ -1447,7 +1465,8 @@ TCDeviceIoControl (PWSTR deviceName, ULONG IoControlCode,
 	if (irp == NULL)
 	{
 		Dump ("IRP allocation failed\n");
-		return STATUS_INSUFFICIENT_RESOURCES;
+		ntStatus = STATUS_INSUFFICIENT_RESOURCES;
+		goto ret;
 	}
 
 	ntStatus = IoCallDriver (deviceObject, irp);
@@ -1457,6 +1476,8 @@ TCDeviceIoControl (PWSTR deviceName, ULONG IoControlCode,
 		ntStatus = ioStatusBlock.Status;
 	}
 
+ret:
+	ObDereferenceObject (fileObject);
 	return ntStatus;
 }
 
@@ -1789,10 +1810,14 @@ UnmountDevice (PDEVICE_OBJECT deviceObject, BOOL ignoreOpenFiles)
 
 	if (volumeHandle != NULL)
 		TCCloseFsVolume (volumeHandle, volumeFileObject);
+	
+	if (deviceObject->ReferenceCount > 0)
+		ReferencedDeviceDeleted = TRUE;
 
 	Dump ("Deleting DeviceObject with ref count %ld\n", deviceObject->ReferenceCount);
 	deviceObject->ReferenceCount = 0;
 	TCDeleteDeviceObject (deviceObject, (PEXTENSION) deviceObject->DeviceExtension);
+
 	return 0;
 }
 

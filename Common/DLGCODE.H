@@ -4,7 +4,7 @@
  Paul Le Roux and which is covered by the 'License Agreement for Encryption
  for the Masses'. Modifications and additions to that source code contained
  in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.2 the full text of which is contained in the file
+ TrueCrypt License 2.3 the full text of which is contained in the file
  License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -27,13 +27,22 @@ extern "C" {
 
 #define SELDEVFLAG_CONTAINS_PARTITIONS		0x00000001L
 #define SELDEVFLAG_VIRTUAL_PARTITION		0x00000002L
+#define SELDEVFLAG_REMOVABLE_HOST_DEVICE	0x00000004L
 
-#define UNMOUNT_MAX_AUTO_RETRIES 5
+#define UNMOUNT_MAX_AUTO_RETRIES 10
 #define UNMOUNT_AUTO_RETRY_DELAY 50
 
 #define MAX_MULTI_CHOICES		10		/* Maximum number of options for mutliple-choice dialog */
 
 #define FILE_DEFAULT_KEYFILES		"Default Keyfiles.xml"
+
+#ifndef USER_DEFAULT_SCREEN_DPI
+#define USER_DEFAULT_SCREEN_DPI 96
+#endif
+
+#if (USER_DEFAULT_SCREEN_DPI != 96)
+#error Revision of GUI and graphics necessary, since everything assumes default screen DPI as 96 (note that 96 is the default on Windows 2000, XP, and Vista).
+#endif
 
 extern char *LastDialogId;
 extern char szHelpFile[TC_MAX_PATH];
@@ -45,6 +54,8 @@ extern HFONT hFixedFont;
 extern HFONT hUserFont;
 extern HFONT hUserUnderlineFont;
 extern HFONT hUserBoldFont;
+extern int ScreenDPI;
+extern double DlgAspectRatio;
 extern HWND MainDlg;
 extern BOOL Silent;
 extern BOOL bHistory;
@@ -61,6 +72,7 @@ extern BOOL	KeyFilesEnable;
 extern KeyFile	*FirstKeyFile;
 extern KeyFilesDlgParam		defaultKeyFilesParam;
 extern BOOL UacElevated;
+extern BOOL IgnoreWmDeviceChange;
 
 enum 
 {
@@ -102,14 +114,14 @@ void *err_malloc ( size_t size );
 char *err_strdup ( char *lpszText );
 DWORD handleWin32Error ( HWND hwndDlg );
 BOOL translateWin32Error ( wchar_t *lpszMsgBuf , int nSizeOfBuf );
-BOOL WINAPI AboutDlgProc ( HWND hwndDlg , UINT msg , WPARAM wParam , LPARAM lParam );
+BOOL CALLBACK AboutDlgProc ( HWND hwndDlg , UINT msg , WPARAM wParam , LPARAM lParam );
 BOOL IsButtonChecked ( HWND hButton );
 void CheckButton ( HWND hButton );
 void ToSBCS ( LPWSTR lpszText );
 void ToUNICODE ( char *lpszText );
 void InitDialog ( HWND hwndDlg );
 HDC CreateMemBitmap ( HINSTANCE hInstance , HWND hwnd , char *resource );
-void PaintBitmap ( HDC pdcMem , int x , int y , int nWidth , int nHeight , HDC hDC );
+HBITMAP RenderBitmap ( char *resource , HWND hwndDest , int x , int y , int nWidth , int nHeight , BOOL bDirectRender , BOOL bKeepAspectRatio);
 LRESULT CALLBACK RedTick ( HWND hwnd , UINT uMsg , WPARAM wParam , LPARAM lParam );
 BOOL RegisterRedTick ( HINSTANCE hInstance );
 BOOL UnregisterRedTick ( HINSTANCE hInstance );
@@ -127,11 +139,11 @@ void InitHelpFileName (void);
 BOOL OpenDevice ( char *lpszPath , OPEN_TEST_STRUCT *driver );
 int GetAvailableFixedDisks ( HWND hComboBox , char *lpszRootPath );
 int GetAvailableRemovables ( HWND hComboBox , char *lpszRootPath );
-BOOL WINAPI RawDevicesDlgProc ( HWND hwndDlg , UINT msg , WPARAM wParam , LPARAM lParam );
-BOOL WINAPI LegalNoticesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
+BOOL CALLBACK RawDevicesDlgProc ( HWND hwndDlg , UINT msg , WPARAM wParam , LPARAM lParam );
+BOOL CALLBACK LegalNoticesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
 char * GetLegalNotices ();
-BOOL WINAPI BenchmarkDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
-BOOL WINAPI KeyfileGeneratorDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
+BOOL CALLBACK BenchmarkDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
+BOOL CALLBACK KeyfileGeneratorDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
 BOOL CALLBACK MultiChoiceDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 int DriverAttach ( void );
 BOOL SeekHiddenVolHeader (HFILE dev, unsigned __int64 volSize, BOOL deviceFlag);
@@ -157,6 +169,7 @@ int MountVolume (HWND hwndDlg, int driveNo, char *volumePath, Password *password
 BOOL UnmountVolume (HWND hwndDlg , int nDosDriveNo, BOOL forceUnmount);
 BOOL IsPasswordCacheEmpty (void);
 BOOL IsMountedVolume (char *volname);
+int GetMountedVolumeDriveNo (char *volname);
 BOOL IsAdmin (void);
 BOOL IsUacSupported ();
 BOOL ResolveSymbolicLink (PWSTR symLinkName, PWSTR targetName);
@@ -190,6 +203,7 @@ int AskYesNo (char *stringId);
 int AskNoYes (char *stringId);
 int AskWarnYesNo (char *stringId);
 int AskWarnNoYes (char *stringId);
+int AskWarnNoYesString (wchar_t *string);
 int AskWarnCancelOk (char *stringId);
 int AskMultiChoice (void *strings[]);
 BOOL ConfigWriteBegin ();
@@ -215,9 +229,13 @@ void OpenOnlineHelp ();
 BOOL GetPartitionInfo (char *deviceName, PPARTITION_INFORMATION rpartInfo);
 BOOL GetDriveGeometry (char *deviceName, PDISK_GEOMETRY diskGeometry);
 BOOL IsVolumeDeviceHosted (char *lpszDiskFile);
+int CompensateXDPI (int val);
+int CompensateYDPI (int val);
+int CompensateDPIFont (int val);
 int GetTextGfxWidth (HWND hwndDlgItem, wchar_t *text, HFONT hFont);
 int GetTextGfxHeight (HWND hwndDlgItem, wchar_t *text, HFONT hFont);
 BOOL ToHyperlink (HWND hwndDlg, UINT ctrlId);
+void AccommodateTextField (HWND hwndDlg, UINT ctrlId, BOOL bFirstUpdate);
 BOOL GetDriveLabel (int driveNo, wchar_t *label, int labelSize);
 
 #ifdef __cplusplus

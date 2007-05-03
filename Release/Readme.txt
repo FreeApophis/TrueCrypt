@@ -1,4 +1,4 @@
-This archive contains TrueCrypt 4.3 setup and documentation.
+This archive contains TrueCrypt 4.3a setup and documentation.
 
 
 If you have never used TrueCrypt before, we recommend that you read the 
@@ -13,10 +13,12 @@ IMPORTANT NOTES -- PLEASE READ
 If you are upgrading from an older version of TrueCrypt, it is normally not 
 necessary to uninstall it first. However, if any errors occur during the 
 process of installation, please uninstall TrueCrypt, restart the operating 
-system, and then try to install the new version of TrueCrypt again.
-To uninstall TrueCrypt, click Start Menu -> Settings -> Control Panel -> 
--> Add or Remove Programs -> TrueCrypt -> Change/Remove. Note that when you 
-uninstall TrueCrypt, no TrueCrypt volume is removed or modified.
+system, and then try to install the new version of TrueCrypt again. Note that 
+when you uninstall TrueCrypt, no TrueCrypt volume is removed or modified. 
+To uninstall TrueCrypt on Windows XP, click Start Menu -> Settings -> Control 
+Panel -> Add or Remove Programs -> TrueCrypt -> Change/Remove. To uninstall 
+TrueCrypt on Windows Vista, click Start Menu -> Control Panel -> 
+Programs - Uninstall a program -> TrueCrypt -> Change/Remove.
 
 
 IMPORTANT NOTE TO USERS WHO USE VOLUMES CREATED BY TRUECRYPT 4.0 OR EARLIER: 
@@ -67,7 +69,7 @@ REQUIREMENTS
 ============
 
 - Any of the following operating systems:
-  Windows Vista, Windows Windows XP, Windows 2000, Windows Server 2003
+  Windows Vista, Windows XP, Windows 2000, Windows Server 2003
 
 - Free disk space: approximately 2 MB (this does not apply if you run
   TrueCrypt in 'traveller' mode).

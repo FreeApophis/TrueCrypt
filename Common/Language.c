@@ -1,7 +1,7 @@
 /*
  Copyright (c) TrueCrypt Foundation. All rights reserved.
 
- Covered by the TrueCrypt License 2.2 the full text of which is contained
+ Covered by the TrueCrypt License 2.3 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -126,6 +126,7 @@ BOOL LoadLanguageFile ()
 #endif
 
 	LocalizationActive = FALSE;
+	ActiveLangPackVersion[0] = 0;
 	ClearDictionaryPool ();
 
 	if (PreferredLangId[0] != 0)
@@ -143,7 +144,7 @@ BOOL LoadLanguageFile ()
 		XmlGetAttributeText (xml, "prog-version", attr, sizeof (attr));
 
 		// Check version of external language file
-		if (defaultLangParsed && strcmp (attr, VERSION_STRING))
+		if (defaultLangParsed && strcmp (attr, VERSION_STRING) && strcmp (attr, "DEBUG"))
 		{
 			wchar_t m[2048];
 			swprintf (m, L"The installed language pack is incompatible with this version of TrueCrypt (the language pack is for TrueCrypt %hs). A newer version may be available at www.truecrypt.org.\n\nTo prevent this message from being displayed, do any of the following:\n\n- Select 'Settings' > 'Language'; then select 'English' and click 'OK'.\n\n- Remove or replace the language pack with a compatible version (the language pack may reside e.g. in 'C:\\Program Files\\TrueCrypt' or '%%LOCALAPPDATA%%\\VirtualStore\\Program Files\\TrueCrypt', etc.)", attr);
@@ -156,12 +157,14 @@ BOOL LoadLanguageFile ()
 		{
 			while (xml = XmlFindElement (xml, "language"))
 			{
-				XmlGetAttributeText (xml++, "langid", attr, sizeof (attr));
+				XmlGetAttributeText (xml, "langid", attr, sizeof (attr));
 				if (strcmp (attr, langId) == 0)
 				{
+					XmlGetAttributeText (xml++, "version", ActiveLangPackVersion, sizeof (ActiveLangPackVersion));
 					langFound = TRUE;
 					break;
 				}
+				xml++;
 			}
 
 			if (!langFound) continue;
@@ -311,7 +314,7 @@ BOOL LoadLanguageFile ()
 
 
 // lParam = 1: auto mode
-BOOL WINAPI LanguageDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+BOOL CALLBACK LanguageDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	WORD lw = LOWORD (wParam);
 	WORD hw = HIWORD (wParam);
@@ -370,8 +373,7 @@ BOOL WINAPI LanguageDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPara
 								SendDlgItemMessage (hwndDlg, IDC_LANGLIST, LB_SETCURSEL, i, 0);
 
 								// Language pack version 
-								XmlGetAttributeText (xml, "version", ActiveLangPackVersion, sizeof (ActiveLangPackVersion));
-								if (memcmp (ActiveLangPackVersion, "0.0.0", 5) == 0)
+								if (!ActiveLangPackVersion[0] || memcmp (ActiveLangPackVersion, "0.0.0", 5) == 0)
 								{
 									swprintf (szVers, GetString("LANG_PACK_VERSION"), L"--");
 								}
@@ -487,6 +489,12 @@ char *GetPreferredLangId ()
 void SetPreferredLangId (char *langId)
 {
 	strncpy (PreferredLangId, langId, 5);
+}
+
+
+char *GetActiveLangPackVersion ()
+{
+	return ActiveLangPackVersion;
 }
 
 

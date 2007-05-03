@@ -218,6 +218,10 @@
 				Name="Common"
 				>
 				<File
+					RelativePath="..\Common\Crc.c"
+					>
+				</File>
+				<File
 					RelativePath="..\Common\Dictionary.c"
 					>
 				</File>
@@ -295,7 +299,7 @@
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
 			<File
-				RelativePath=".\setup.ico"
+				RelativePath=".\Setup.ico"
 				>
 			</File>
 			<File
@@ -305,10 +309,6 @@
 			<Filter
 				Name="Common"
 				>
-				<File
-					RelativePath="..\Common\about.bmp"
-					>
-				</File>
 				<File
 					RelativePath="..\Common\Common.rc"
 					>
@@ -338,11 +338,15 @@
 					>
 				</File>
 				<File
-					RelativePath="..\Common\TrueCrypt.ico"
+					RelativePath="..\Common\Textual_logo_288dpi.bmp"
 					>
 				</File>
 				<File
-					RelativePath="..\Common\TrueCrypt_Volume.ico"
+					RelativePath="..\Common\Textual_logo_96dpi.bmp"
+					>
+				</File>
+				<File
+					RelativePath="..\Common\Textual_logo_background.bmp"
 					>
 				</File>
 			</Filter>

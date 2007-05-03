@@ -4,7 +4,7 @@
  Paul Le Roux and which is covered by the 'License Agreement for Encryption
  for the Masses'. Modifications and additions to that source code contained
  in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.2 the full text of which is contained in the file
+ TrueCrypt License 2.3 the full text of which is contained in the file
  License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -702,13 +702,11 @@ DoDriverUnload (HWND hwndDlg)
 		DWORD dwResult;
 		BOOL bResult;
 
-
 		// Try to determine if it's upgrade (and not reinstall, downgrade, or first-time install).
 		bUpgrade = (DeviceIoControl (hDriver, DRIVER_VERSION, &driverVersion, 4, &driverVersion, 4, &dwResult, NULL) 
 					&& driverVersion < VERSION_NUM);
 
-
-		bResult = DeviceIoControl (hDriver, MOUNT_LIST, &driver, sizeof (driver), &driver,
+		bResult = DeviceIoControl (hDriver, MOUNT_LIST_ALL, &driver, sizeof (driver), &driver,
 			sizeof (driver), &dwResult, NULL);
 
 		if (bResult)
@@ -1262,7 +1260,7 @@ DoInstall (void *hwndDlg)
 }
 
 
-BOOL WINAPI
+BOOL CALLBACK
 InstallDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	WORD lw = LOWORD (wParam);
@@ -1455,17 +1453,31 @@ WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine,
 		fh = FindFirstFile ("Setup Files", &fd);
 		if (fh == INVALID_HANDLE_VALUE)
 		{
-			fh = FindFirstFile ("TrueCrypt.exe", &fd);
-			if (fh == INVALID_HANDLE_VALUE)
+			HKEY hkey;
+			if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\TrueCrypt", 0, KEY_READ, &hkey) == ERROR_SUCCESS)
+			{
+				char rv[MAX_PATH*4];
+				DWORD size = sizeof (rv);
+				if (RegQueryValueEx (hkey, "UninstallString", 0, 0, (LPBYTE) &rv, &size) == ERROR_SUCCESS)
+				{
+					char mp[MAX_PATH];
+
+					GetModuleFileName (NULL, mp, sizeof (mp));
+					_strupr (mp);
+					_strupr (rv);
+					if (strstr (rv, mp))
+					{
+						bUninstall = TRUE;
+						UninstallPath = SetupFilesDir;
+					}
+				}
+				RegCloseKey (hkey);
+			}
+
+			if (!bUninstall)
 			{
 				Error ("SETUP_INCOMPLETE");
 				exit (1);
-			}
-			else
-			{
-				FindClose (fh);
-				bUninstall = TRUE;
-				UninstallPath = SetupFilesDir;
 			}
 		}
 		else

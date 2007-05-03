@@ -1,8 +1,8 @@
-#!/bin/sh 
+#!/bin/bash 
 #
 # Copyright (c) TrueCrypt Foundation. All rights reserved.
 #
-# Covered by the TrueCrypt License 2.2 the full text of which is contained
+# Covered by the TrueCrypt License 2.3 the full text of which is contained
 # in the file License.txt included in TrueCrypt binary and source code
 # distribution packages.
 #
@@ -115,10 +115,6 @@ read A
 [ "$A" ] && SHARE_DIR=$A
 mkdir -p "$SHARE_DIR/doc" 2>&- || exit 1
 
-
-echo -n "Allow non-admin users to run TrueCrypt [y/N]: "
-read A
-[ "$A" = "y" -o "$A" = "Y" ] && BIN_PERM=4755
 
 echo -n "Installing kernel module... "
 # make "KERNEL_SRC=$KERNEL_SRC" install >/dev/null

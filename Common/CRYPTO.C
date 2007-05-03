@@ -4,7 +4,7 @@
  Paul Le Roux and which is covered by the 'License Agreement for Encryption
  for the Masses'. Modifications and additions to that source code contained
  in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.2 the full text of which is contained in the file
+ TrueCrypt License 2.3 the full text of which is contained in the file
  License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -41,34 +41,34 @@ static Cipher Ciphers[] =
 //								Block Size	Key Size	Key Schedule Size
 //	  ID		Name			(Bytes)		(Bytes)		(Bytes)
 	{ AES,		"AES",			16,			32,			sizeof(aes_encrypt_ctx)+sizeof(aes_decrypt_ctx)	},
-	{ BLOWFISH,	"Blowfish",		8,			56,			4168											},
-	{ CAST,		"CAST5",		8,			16,			128												},
-	{ DES56,	"DES",			8,			7,			128												},
-	{ SERPENT,	"Serpent",		16,			32,			140*4											},
-	{ TRIPLEDES,"Triple DES",	8,			8*3,		128*3											},
-	{ TWOFISH,	"Twofish",		16,			32,			TWOFISH_KS										},
-	{ 0,		0,				0,			0,			0												}
+	{ BLOWFISH,	"Blowfish",		8,			56,			4168				},	// Deprecated/legacy
+	{ CAST,		"CAST5",		8,			16,			128					},	// Deprecated/legacy
+	{ DES56,	"DES",			8,			7,			128					},	// Deprecated/legacy
+	{ SERPENT,	"Serpent",		16,			32,			140*4				},
+	{ TRIPLEDES,"Triple DES",	8,			8*3,		128*3				},	// Deprecated/legacy
+	{ TWOFISH,	"Twofish",		16,			32,			TWOFISH_KS			},
+	{ 0,		0,				0,			0,			0					}
 };
 
 // Encryption algorithm configuration
-// The following modes have been deprecated (legacy):  CBC, INNER_CBC, OUTER_CBC
+// The following modes have been deprecated (legacy): CBC, INNER_CBC, OUTER_CBC
 static EncryptionAlgorithm EncryptionAlgorithms[] =
 {
 	//  Cipher(s)                     Modes
 	{ { 0,						0 }, { 0, 0, 0 },			0 },	// Must be all-zero
 	{ { AES,					0 }, { LRW, CBC, 0 },		1 },
-	{ { BLOWFISH,				0 }, { LRW, CBC, 0 },		0 },
-	{ { CAST,					0 }, { LRW, CBC, 0 },		0 },
+	{ { BLOWFISH,				0 }, { LRW, CBC, 0 },		0 },	// Deprecated/legacy
+	{ { CAST,					0 }, { LRW, CBC, 0 },		0 },	// Deprecated/legacy
 	{ { SERPENT,				0 }, { LRW, CBC, 0 },		1 },
-	{ { TRIPLEDES,				0 }, { LRW, CBC, 0 },		0 },
+	{ { TRIPLEDES,				0 }, { LRW, CBC, 0 },		0 },	// Deprecated/legacy
 	{ { TWOFISH,				0 }, { LRW, CBC, 0 },		1 },
 	{ { TWOFISH, AES,			0 }, { LRW, OUTER_CBC, 0 },	1 },
 	{ { SERPENT, TWOFISH, AES,	0 }, { LRW, OUTER_CBC, 0 },	1 },
 	{ { AES, SERPENT,			0 }, { LRW, OUTER_CBC, 0 },	1 },
 	{ { AES, TWOFISH, SERPENT,	0 }, { LRW, OUTER_CBC, 0 },	1 },
 	{ { SERPENT, TWOFISH,		0 }, { LRW, OUTER_CBC, 0 },	1 },
-	{ { BLOWFISH, AES,			0 }, { INNER_CBC, 0, 0 },	0 },
-	{ { SERPENT, BLOWFISH, AES,	0 }, { INNER_CBC, 0, 0 },	0 },
+	{ { BLOWFISH, AES,			0 }, { INNER_CBC, 0, 0 },	0 },	// Deprecated/legacy
+	{ { SERPENT, BLOWFISH, AES,	0 }, { INNER_CBC, 0, 0 },	0 },	// Deprecated/legacy
 	{ { 0,						0 }, { 0, 0, 0 },			0 }		// Must be all-zero
 };
 
@@ -89,6 +89,7 @@ int CipherInit (int cipher, unsigned char *key, unsigned __int8 *ks)
 	switch (cipher)
 	{
 	case BLOWFISH:
+		/* Deprecated/legacy */
 		BF_set_key ((BF_KEY *)ks, CipherGetKeySize(BLOWFISH), key);
 		break;
 
@@ -102,7 +103,7 @@ int CipherInit (int cipher, unsigned char *key, unsigned __int8 *ks)
 		break;
 
 	case DES56:		
-		/* Included for testing purposes only */
+		/* Deprecated/legacy */
 		switch (des_key_sched ((des_cblock *) key, (struct des_ks_struct *) ks))
 		{
 		case -1:
@@ -114,6 +115,7 @@ int CipherInit (int cipher, unsigned char *key, unsigned __int8 *ks)
 		break;
 
 	case CAST:
+		/* Deprecated/legacy */
 		CAST_set_key((CAST_KEY *) ks, CipherGetKeySize(CAST), key);
 		break;
 
@@ -122,6 +124,7 @@ int CipherInit (int cipher, unsigned char *key, unsigned __int8 *ks)
 		break;
 
 	case TRIPLEDES:
+		/* Deprecated/legacy */
 		switch (des_key_sched ((des_cblock *) key, (struct des_ks_struct *) ks))
 		{
 		case -1:
@@ -167,12 +170,12 @@ void EncipherBlock(int cipher, void *data, void *ks)
 {
 	switch (cipher)
 	{
-	case BLOWFISH:		BF_ecb_le_encrypt (data, data, ks, 1); break;
+	case BLOWFISH:		BF_ecb_le_encrypt (data, data, ks, 1); break;	// Deprecated/legacy
 	case AES:			aes_encrypt (data, data, ks); break;
-	case DES56:			des_encrypt (data, ks, 1); break;
-	case CAST:			CAST_ecb_encrypt (data, data, ks, 1); break;
+	case DES56:			des_encrypt (data, ks, 1); break;				// Deprecated/legacy
+	case CAST:			CAST_ecb_encrypt (data, data, ks, 1); break;	// Deprecated/legacy
 	case SERPENT:		serpent_encrypt (data, data, ks); break;
-	case TRIPLEDES:		des_ecb3_encrypt (data, data, ks,
+	case TRIPLEDES:		des_ecb3_encrypt (data, data, ks,				// Deprecated/legacy
 						(void*)((char*) ks + CipherGetKeyScheduleSize (DES56)), (void*)((char*) ks + CipherGetKeyScheduleSize (DES56) * 2), 1); break;
 	case TWOFISH:		twofish_encrypt (ks, data, data); break;
 	}
@@ -182,12 +185,12 @@ void DecipherBlock(int cipher, void *data, void *ks)
 {
 	switch (cipher)
 	{
-	case BLOWFISH:	BF_ecb_le_encrypt (data, data, ks, 0); break;
+	case BLOWFISH:	BF_ecb_le_encrypt (data, data, ks, 0); break;	// Deprecated/legacy
 	case AES:		aes_decrypt (data, data, (void *) ((char *) ks + sizeof(aes_encrypt_ctx))); break;
-	case DES56:		des_encrypt (data, ks, 0); break;
-	case CAST:		CAST_ecb_encrypt (data, data, ks,0); break;
+	case DES56:		des_encrypt (data, ks, 0); break;				// Deprecated/legacy
+	case CAST:		CAST_ecb_encrypt (data, data, ks,0); break;		// Deprecated/legacy
 	case SERPENT:	serpent_decrypt (data, data, ks); break;
-	case TRIPLEDES:	des_ecb3_encrypt (data, data, ks,
+	case TRIPLEDES:	des_ecb3_encrypt (data, data, ks,				// Deprecated/legacy
 					(void*)((char*) ks + CipherGetKeyScheduleSize (DES56)),
 					(void*)((char*) ks + CipherGetKeyScheduleSize (DES56) * 2), 0); break;
 	case TWOFISH:	twofish_decrypt (ks, data, data); break;
@@ -289,6 +292,7 @@ int EAInitMode (PCRYPTO_INFO ci)
 		switch (CipherGetBlockSize (EAGetFirstCipher (ci->ea)))
 		{
 		case 8:
+			/* Deprecated/legacy */
 			return Gf64TabInit (ci->iv, &ci->gf_ctx);
 
 		case 16:
@@ -655,7 +659,7 @@ InitSectorIVAndWhitening (unsigned __int64 secNo,
 
 	case 8:
 
-		// 64-bit block
+		// 64-bit block - deprecated/legacy
 
 		whitening[0] = LE32( crc32int ( &iv32[2] ) ^ crc32int ( &iv32[5] ) );
 		whitening[1] = LE32( crc32int ( &iv32[3] ) ^ crc32int ( &iv32[4] ) );
@@ -905,6 +909,8 @@ void EncryptBufferLRW128 (unsigned __int8 *plainText, unsigned int length, unsig
 
 void EncryptBufferLRW64 (unsigned __int8 *plainText, unsigned int length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo)
 {
+	/* Deprecated/legacy */
+
 	int cipher = EAGetFirstCipher (cryptoInfo->ea);
 	unsigned __int8 *p = plainText;
 	unsigned __int8 *ks = cryptoInfo->ks;
@@ -989,6 +995,8 @@ void DecryptBufferLRW128 (unsigned __int8 *plainText, int length, unsigned __int
 
 void DecryptBufferLRW64 (unsigned __int8 *plainText, int length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo)
 {
+	/* Deprecated/legacy */
+
 	int cipher = EAGetFirstCipher (cryptoInfo->ea);
 	unsigned __int8 *p = plainText;
 	unsigned __int8 *ks = cryptoInfo->ks;
@@ -1037,6 +1045,7 @@ EncryptBuffer (unsigned __int32 *buf,
 		switch (CipherGetBlockSize (EAGetFirstCipher (cryptoInfo->ea)))
 		{
 		case 8:
+			/* Deprecated/legacy */
 			EncryptBufferLRW64 ((unsigned __int8 *)buf, (unsigned int) len, 1, cryptoInfo);
 			break;
 
@@ -1098,6 +1107,7 @@ unsigned __int64 LRWSector2Index (unsigned __int64 sector, int blockSize, PCRYPT
 	switch (blockSize)
 	{
 	case 8:
+		// Deprecated/legacy
 		return (sector << 6) | 1;
 
 	case 16:
@@ -1138,6 +1148,7 @@ EncryptSectors (unsigned __int32 *buf,
 			switch (CipherGetBlockSize (EAGetFirstCipher (ea)))
 			{
 			case 8:
+				/* Deprecated/legacy */
 				EncryptBufferLRW64 ((unsigned __int8 *)buf,
 					(unsigned int) noSectors * SECTOR_SIZE,
 					LRWSector2Index (secNo, 8, ci),
@@ -1220,6 +1231,7 @@ DecryptBuffer (unsigned __int32 *buf,
 		switch (CipherGetBlockSize (EAGetFirstCipher (cryptoInfo->ea)))
 		{
 		case 8:
+			/* Deprecated/legacy */
 			DecryptBufferLRW64 ((unsigned __int8 *)buf, (unsigned int) len, 1, cryptoInfo);
 			break;
 
@@ -1301,6 +1313,7 @@ DecryptSectors (unsigned __int32 *buf,
 			switch (CipherGetBlockSize (EAGetFirstCipher (ea)))
 			{
 			case 8:
+				/* Deprecated/legacy */
 				DecryptBufferLRW64 ((unsigned __int8 *)buf,
 					(unsigned int) noSectors * SECTOR_SIZE,
 					LRWSector2Index (secNo, 8, ci),

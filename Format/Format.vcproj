@@ -392,11 +392,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\resource.h"
+				RelativePath="..\Common\resource.h"
 				>
 			</File>
 			<File
-				RelativePath="..\Common\resource.h"
+				RelativePath=".\resource.h"
 				>
 			</File>
 			<File
@@ -439,16 +439,12 @@
 				>
 			</File>
 			<File
-				RelativePath=".\TrueCrypt_Wizard.bmp"
+				RelativePath=".\TrueCrypt_wizard.bmp"
 				>
 			</File>
 			<Filter
 				Name="Common"
 				>
-				<File
-					RelativePath="..\Common\about.bmp"
-					>
-				</File>
 				<File
 					RelativePath="..\Common\Common.rc"
 					>
@@ -478,11 +474,19 @@
 					>
 				</File>
 				<File
-					RelativePath="..\Common\TrueCrypt.ico"
+					RelativePath="..\Common\Textual_logo_288dpi.bmp"
 					>
 				</File>
 				<File
-					RelativePath="..\Common\TrueCrypt_Volume.ico"
+					RelativePath="..\Common\Textual_logo_96dpi.bmp"
+					>
+				</File>
+				<File
+					RelativePath="..\Common\Textual_logo_background.bmp"
+					>
+				</File>
+				<File
+					RelativePath="..\Common\TrueCrypt.ico"
 					>
 				</File>
 			</Filter>

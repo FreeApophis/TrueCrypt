@@ -4,7 +4,7 @@
  Paul Le Roux and which is covered by the 'License Agreement for Encryption
  for the Masses'. Modifications and additions to that source code contained
  in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.2 the full text of which is contained in the file
+ TrueCrypt License 2.3 the full text of which is contained in the file
  License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -99,6 +99,7 @@ FormatVolume (char *volumePath,
 	if (bDevice)
 	{
 		/* Device-hosted volume */
+		DWORD dwResult;
 		int nPass;
 
 		if (FakeDosNameForDevice (volumePath, dosDev, devName, FALSE) != 0)
@@ -111,37 +112,9 @@ FormatVolume (char *volumePath,
 		{
 			if ((dev = DismountDrive (devName)) == INVALID_HANDLE_VALUE)
 			{
-				if (driveLetter > 2) // If a drive letter is assigned to the device, but not A:, B:, or C:
-				{
-					char rootPath[] = { driveLetter + 'A', ':', '\\', 0 };
-
-					// Remove the assigned drive letter so that dismount will have a higher chance of success 
-					if (!DeleteVolumeMountPoint (rootPath))
-					{
-						// Drive letter could not be removed
-						Error ("FORMAT_CANT_DISMOUNT_FILESYS");
-						nStatus = ERR_DONT_REPORT; 
-						goto error;
-					}
-					else
-					{
-						// Drive letter successfully removed, retry dismount
-						driveLetter = -1;
-
-						if ((dev = DismountDrive (devName)) == INVALID_HANDLE_VALUE)
-						{
-							Error ("FORMAT_CANT_DISMOUNT_FILESYS_W_DRIVE_LETTER");
-							nStatus = ERR_DONT_REPORT; 
-							goto error;
-						}
-					}
-				}
-				else
-				{
-					Error ("FORMAT_CANT_DISMOUNT_FILESYS");
-					nStatus = ERR_DONT_REPORT; 
-					goto error;
-				}
+				Error ("FORMAT_CANT_DISMOUNT_FILESYS");
+				nStatus = ERR_DONT_REPORT; 
+				goto error;
 			}
 		}
 		else if (nCurrentOS == WIN_VISTA_OR_LATER && driveLetter == -1)
@@ -181,7 +154,6 @@ FormatVolume (char *volumePath,
 			}
 		}
 
-
 		// Perform open - 'quick format' - close - open to prevent Windows from restoring NTFS boot sector backup
 		for (nPass = 0; nPass < 2; nPass++)
 		{
@@ -195,17 +167,11 @@ FormatVolume (char *volumePath,
 				dev = CreateFile (devName, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 				if (dev != INVALID_HANDLE_VALUE)
 				{
-					DWORD dwResult;
-
 					if (IDNO == MessageBoxW (hwndDlg, GetString ("DEVICE_IN_USE_FORMAT"), lpszTitle, MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2))
 					{
-						CloseHandle (dev);
-						dev = INVALID_HANDLE_VALUE;
 						nStatus = ERR_DONT_REPORT; 
 						goto error;
 					}
-
-					DeviceIoControl (dev, FSCTL_DISMOUNT_VOLUME, NULL, 0, NULL, 0, &dwResult, NULL);
 				}
 				else
 				{
@@ -230,6 +196,13 @@ FormatVolume (char *volumePath,
 				CloseHandle (dev);
 				dev = INVALID_HANDLE_VALUE;
 			}
+		}
+
+		if (DeviceIoControl (dev, FSCTL_IS_VOLUME_MOUNTED, NULL, 0, NULL, 0, &dwResult, NULL))
+		{
+			Error ("FORMAT_CANT_DISMOUNT_FILESYS");
+			nStatus = ERR_DONT_REPORT; 
+			goto error;
 		}
 	}
 	else
@@ -371,17 +344,6 @@ FormatVolume (char *volumePath,
 		break;
 	}
 
-	if (bDevice && nStatus == 0 
-		&& driveLetter > 1)		// If a drive letter is assigned to the device, but not A: or B:
-	{
-		char rootPath[] = { driveLetter + 'A', ':', '\\', 0 };
-
-		// The device has been successfully formatted so we should remove its original drive letter (inexperienced 
-		// users often attempt to double click the original drive letter and due to the Windows format prompt
-		// they sometimes format the volume, which disables encryption without them realizing it).
-		DeleteVolumeMountPoint (rootPath);
-	}
-
 error:
 	dwError = GetLastError();
 
@@ -390,22 +352,27 @@ error:
 
 	crypto_close (cryptoInfo);
 
-	if (bTimeStampValid)
+	if (dev != INVALID_HANDLE_VALUE)
 	{
-		// Restore the container timestamp (to preserve plausible deniability of the hidden volume) 
-		if (SetFileTime (dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
-			MessageBoxW (hwndDlg, GetString ("SETFILETIME_FAILED_IMPLANT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
-	}
+		if (!bDevice && !hiddenVol && nStatus != 0)
+		{
+			// Remove preallocated part before closing file handle if format failed
+			if (SetFilePointer (dev, 0, NULL, FILE_BEGIN) == 0)
+				SetEndOfFile (dev);
+		}
 
-	if (!bDevice && !hiddenVol && nStatus != 0)
-	{
-		// Remove preallocated part before closing file handle if format failed
-		if (SetFilePointer (dev, 0, NULL, FILE_BEGIN) == 0)
-			SetEndOfFile (dev);
-	}
+		FlushFileBuffers (dev);
 
-	CloseHandle (dev);
-	dev = INVALID_HANDLE_VALUE;
+		if (bTimeStampValid)
+		{
+			// Restore the container timestamp (to preserve plausible deniability of the hidden volume) 
+			if (SetFileTime (dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
+				MessageBoxW (hwndDlg, GetString ("SETFILETIME_FAILED_IMPLANT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
+		}
+
+		CloseHandle (dev);
+		dev = INVALID_HANDLE_VALUE;
+	}
 
 	if (dosDev[0])
 		RemoveFakeDosName (volumePath, dosDev);
@@ -607,7 +574,7 @@ BOOL FormatNtfs (int driveNo, int clusterSize)
 	// It often helps to retry several times.
 	for (i = 0; i < 10 && FormatExResult != TRUE; i++)
 	{
-		FormatEx (dir, FMIFS_HARDDISK, L"NTFS", L"", TRUE, clusterSize * 512, FormatExCallback);
+		FormatEx (dir, FMIFS_HARDDISK, L"NTFS", L"", TRUE, clusterSize * SECTOR_SIZE, FormatExCallback);
 	}
 
 	FreeLibrary (hModule);

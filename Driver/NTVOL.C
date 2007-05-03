@@ -4,7 +4,7 @@
  Paul Le Roux and which is covered by the 'License Agreement for Encryption
  for the Masses'. Modifications and additions to that source code contained
  in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.2 the full text of which is contained in the file
+ TrueCrypt License 2.3 the full text of which is contained in the file
  License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -84,7 +84,7 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		else if (NT_SUCCESS (TCSendDeviceIoControlRequest (DeviceObject, Extension, IOCTL_DISK_GET_PARTITION_INFO, (char *) &pi, sizeof (pi))))
 			lDiskLength.QuadPart = pi.PartitionLength.QuadPart;
 
-		if (!mount->bMountReadOnly && TCDeviceIoControl (pwszMountVolume, IOCTL_DISK_IS_WRITABLE, NULL, 0, NULL, 0) == STATUS_MEDIA_WRITE_PROTECTED)
+		if (!mount->bMountReadOnly && TCSendDeviceIoControlRequest (DeviceObject, Extension, IOCTL_DISK_IS_WRITABLE, NULL, 0) == STATUS_MEDIA_WRITE_PROTECTED)
 		{
 			mount->bMountReadOnly = TRUE;
 			DeviceObject->Characteristics |= FILE_READ_ONLY_DEVICE;
@@ -133,11 +133,13 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			FILE_OPEN,
 			FILE_RANDOM_ACCESS |
 			FILE_WRITE_THROUGH |
-			FILE_NO_INTERMEDIATE_BUFFERING |
+			(Extension->HostBytesPerSector == SECTOR_SIZE ? FILE_NO_INTERMEDIATE_BUFFERING : 0) |
 			FILE_SYNCHRONOUS_IO_NONALERT,
 			NULL,
 			0);
+
 		Extension->bReadOnly = TRUE;
+		DeviceObject->Characteristics |= FILE_READ_ONLY_DEVICE;
 	}
 	else
 		Extension->bReadOnly = FALSE;
@@ -470,7 +472,7 @@ TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 	PUCHAR currentAddress;
 	PUCHAR tmpBuffer;
 	NTSTATUS ntStatus;
-	BOOL lowerPriority = (OsMajorVersion >= 6 && KeNumberProcessors == 1);
+	BOOL lowerPriority = (OsMajorVersion >= 6);
 
 #if EXTRA_INFO
 	Dump ("USER BUFFER IS 0x%08x MDL ADDRESS IS 0x%08x\n", Irp->UserBuffer, Irp->MdlAddress);
@@ -541,7 +543,7 @@ TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 			memcpy (currentAddress, tmpBuffer, irpSp->Parameters.Read.Length);
 
 			if (lowerPriority)
-				KeSetPriorityThread (KeGetCurrentThread (), LOW_REALTIME_PRIORITY - 5);
+				KeSetPriorityThread (KeGetCurrentThread (), LOW_REALTIME_PRIORITY - TC_PRIORITY_DECREASE);
 
 			DecryptSectors ((ULONG *) currentAddress,
 				readOffset.QuadPart / SECTOR_SIZE,
@@ -608,7 +610,7 @@ TCReadWrite (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp)
 		memcpy (tmpBuffer, currentAddress, irpSp->Parameters.Write.Length);
 
 		if (lowerPriority)
- 			KeSetPriorityThread (KeGetCurrentThread (), LOW_REALTIME_PRIORITY - 5);
+ 			KeSetPriorityThread (KeGetCurrentThread (), LOW_REALTIME_PRIORITY - TC_PRIORITY_DECREASE);
 
 		EncryptSectors ((ULONG *) tmpBuffer,
 			writeOffset.QuadPart / SECTOR_SIZE,

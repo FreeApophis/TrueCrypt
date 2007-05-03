@@ -1,4 +1,4 @@
-TrueCrypt Collective License Version 1.1
+TrueCrypt Collective License Version 1.2
 
 
 The TrueCrypt Collective License consists of several distinct licenses, which
@@ -27,7 +27,7 @@ applicable law.
 
 ____________________________________________________________
 
-TrueCrypt License Version 2.2
+TrueCrypt License Version 2.3
 
 
 I. Definitions
@@ -59,26 +59,29 @@ product (or a portion thereof) made available for download or not.
 
 II. Terms and Conditions for Use, Reproduction, and Distribution
 
-1. You may copy and/or distribute This Product, provided that You do not modify
-any part of This Product (for terms and conditions for reproduction and
+1. You may reproduce and/or distribute This Product, provided that You do not
+modify any part of This Product (for terms and conditions for reproduction and
 distribution of modified versions of This Product, see Section III) and
 provided that You ensure that all the legal notices and documents (containing,
 e.g., the text of this License, references to this License, etc.) included with
 This Product are included with every copy of This Product that you make and
-distribute.
+distribute, and provided that you comply with all applicable terms and
+conditions of this License.
 
-2. You may use This Product freely (see also Section III) on any number of
-computers/systems for non-commercial and/or commercial purposes.
+2. Provided that you comply with all applicable terms and conditions of this
+License, You may use This Product freely (see also Section III) on any number
+of computers/systems for non-commercial and/or commercial purposes.
 
 
 
 III. Terms and Conditions for Modification and Derivation of New Products
 
-1. You may modify This Product (thus forming Your Product), derive new works
-from This Product or portions thereof (thus forming Your Product), include This
-Product or portions thereof in another product (thus forming Your Product), and
-You may copy and/or distribute Your Product, only if the following conditions
-are met (for exceptions, see Sections III.2 and III.3):
+1. If all conditions specified in the following paragraphs in this Section are
+met (for exceptions, see Sections III.2 and III.3), You may modify This Product
+(thus forming Your Product), derive new works from This Product or portions
+thereof (thus forming Your Product), include This Product or portions thereof
+in another product (thus forming Your Product), and You may copy and/or
+distribute Your Product.
 
     a. The name of Your Product (or of Your modified version of This Product)
     must not contain the name TrueCrypt (for example, the following names are
@@ -86,12 +89,20 @@ are met (for exceptions, see Sections III.2 and III.3):
     etc.) nor any of its variations that can be easily confused with the name
     TrueCrypt (e.g., True-Crypt, True Crypt, TrueKrypt, TruCrypt, etc.)
 
-    Note: TrueCrypt is a trademark of the TrueCrypt Foundation. The goal is not
-    to monetize the name or the product, but to protect the reputation of
-    TrueCrypt, and to prevent support issues and other kinds of issues that
-    might arise from the existence of similar products with the same or similar
-    name. Even though TrueCrypt is a trademark, TrueCrypt is and will remain
-    open-source and free software.
+    Note: TrueCrypt and the TrueCrypt logos are trademarks of the TrueCrypt
+    Foundation. The goal is not to monetize the name or the product, but to
+    protect the reputation of TrueCrypt, and to prevent support issues and
+    other kinds of issues that might arise from the existence of similar
+    products with the same or similar name. Even though TrueCrypt and the
+    TrueCrypt logos are trademarks, TrueCrypt is and will remain open-source
+    and free software.
+
+    All graphics files showing any TrueCrypt logo (including the non-textual
+    logo consisting primarily of a key in stylized form) must be removed from
+    Your Product (or from Your modified version of This Product) and from any
+    associated materials. Logo(s) included in (or attached to) Your Product
+    (or in/to associated materials) must not incorporate and must not be
+    confusingly similar to any of the TrueCrypt logos or portion(s) thereof.
 
     b. The following phrases must be removed from Your Product and from any
     associated materials:
@@ -130,15 +141,16 @@ are met (for exceptions, see Sections III.2 and III.3):
     Product) about where the source code can be freely obtained (e.g., an
     Internet address, etc.) with every copy of Your Product that you make and
     distribute. The source code must be available under license(s) that are/is
-    compatible with this version of the TrueCrypt License and that allow(s)
-    anyone to modify and derive new works from Your Product (and portions
-    thereof) and to redistribute such modifications and/or derived works. The
-    license(s) must be non-exclusive, royalty-free, no-charge, perpetual, and
-    world-wide. The text of the license(s) must be included with every copy of
-    Your Product that you make and distribute. The source code must not be
-    deliberately obfuscated, and it must not be in an intermediate form (e.g.,
-    the output of a preprocessor). Source code means the preferred form in
-    which a programmer would usually modify the program.
+    compatible with this version of the TrueCrypt License (however, see also
+    Section III.1.e) and that allow(s) anyone to modify and derive new works
+    from Your Product (and portions thereof) and to use, reproduce, and
+    redistribute such modifications and/or derived works. The license(s) must
+    be non-exclusive, royalty-free, no-charge, perpetual, and world-wide. The
+    text of the license(s) must be included with every copy of Your Product
+    that you make and distribute. The source code must not be deliberately
+    obfuscated, and it must not be in an intermediate form (e.g., the output of
+    a preprocessor). Source code means the preferred form in which a programmer
+    would usually modify the program.
 
     Note: If you cannot comply with the above requirements, we may grant an
     exception under certain conditions. You may request an exception at:
@@ -195,34 +207,43 @@ distributed (i.e., Your Product is available only to You).
 
 
 
-IV. Disclaimer of Warranties and Liabilities
+IV. Disclaimer of Warranties and Liabilities; Indemnification
 
-1. THERE IS NO WARRANTY FOR THE PRODUCT, TO THE EXTENT PERMITTED BY APPLICABLE
-LAW. UNLESS OTHERWISE STATED, THE PRODUCT IS PROVIDED "AS IS" WITHOUT WARRANTY
-OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE
-ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU.
-SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY
+You expressly acknowledge and agree to the following:
+
+1. IN NO EVENT WILL ANY (CO)AUTHOR OF THIS PRODUCT, OR ANY APPLICABLE
+COPYRIGHT/TRADEMARK OWNER, OR ANY OTHER PARTY WHO MAY REPRODUCE AND/OR
+(RE)DISTRIBUTE THIS PRODUCT OR PORTIONS THEREOF, AS MAY BE PERMITTED HEREIN, BE
+LIABLE TO YOU OR TO ANY OTHER PARTY FOR ANY DAMAGES, INCLUDING, BUT NOT LIMITED
+TO, ANY GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF
+THE USE, REPRODUCTION, MODIFICATION, OR (RE)DISTRIBUTION OF THIS PRODUCT (OR A
+PORTION THEREOF), OR INABILITY TO USE THIS PRODUCT (OR A PORTION THEREOF),
+INCLUDING, BUT NOT LIMITED TO, CORRUPTION OR LOSS OF DATA, LOSSES SUSTAINED BY
+YOU OR THIRD PARTIES, OR A FAILURE OF THIS PRODUCT TO OPERATE WITH ANY OTHER
+PRODUCT, EVEN IF SUCH (CO)AUTHOR, COPYRIGHT/TRADEMARK OWNER, AND/OR ANY OTHER
+PARTY HAD PREVIOUSLY BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+2. THIS PRODUCT IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, WHETHER
+EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. THE
+ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THIS PRODUCT IS WITH YOU.
+SHOULD THIS PRODUCT PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY
 SERVICING, REPAIR OR CORRECTION.
-
-2. IN NO EVENT, UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING, WILL
-ANY COPYRIGHT HOLDER, OR (CO)AUTHOR OF THIS PRODUCT, OR ANY OTHER PARTY WHO MAY
-MODIFY AND/OR DISTRIBUTE THE PROGRAM AS PERMITTED HEREIN, BE LIABLE TO YOU OR
-ANY OTHER PARTY FOR DAMAGES, INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL OR
-CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE THE PROGRAM,
-INCLUDING, BUT NOT LIMITED TO, LOSS OF DATA OR DATA BEING RENDERED INACCURATE
-OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A FAILURE OF THE PROGRAM TO
-OPERATE WITH ANY OTHER PROGRAMS, EVEN IF SUCH HOLDER OR OTHER PARTY HAD
-PREVIOUSLY BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
 
 3. THIS PRODUCT MAY INCORPORATE IMPLEMENTATIONS OF CRYPTOGRAPHIC ALGORITHMS
 THAT ARE REGULATED (E.G., SUBJECT TO EXPORT/IMPORT CONTROL REGULATIONS) OR
-ILLEGAL IN SOME COUNTRIES. YOU EXPRESSLY ACKNOWLEDGE AND AGREE THAT IT IS
-SOLELY YOUR RESPONSIBILITY TO VERIFY THAT IT IS LEGAL TO IMPORT AND/OR EXPORT
-AND/OR USE THIS PRODUCT (OR PARTS THEREOF) IN COUNTRIES WHERE YOU INTEND TO USE
-IT AND/OR TO WHICH YOU INTEND TO IMPORT IT AND/OR FROM WHICH YOU INTEND TO
-EXPORT IT, AND THAT IT IS SOLELY YOUR RESPONSIBILITY TO COMPLY WITH ANY SUCH
-REGULATIONS/RESTRICTIONS.
+ILLEGAL IN SOME COUNTRIES. IT IS SOLELY YOUR RESPONSIBILITY TO VERIFY THAT IT
+IS LEGAL TO IMPORT AND/OR (RE)EXPORT AND/OR USE THIS PRODUCT (OR PORTIONS
+THEREOF) IN COUNTRIES WHERE YOU INTEND TO USE IT AND/OR TO WHICH YOU INTEND TO
+IMPORT IT AND/OR FROM WHICH YOU INTEND TO EXPORT IT, AND THAT IT IS SOLELY YOUR
+RESPONSIBILITY TO COMPLY WITH ANY SUCH REGULATIONS/RESTRICTIONS.
+
+4. You shall indemnify, defend and hold all (co)authors of This Product, their
+agents and associates, and applicable copyright/trademark owners, harmless
+from/against any liability, loss, expense, damages, claims or causes of action,
+arising out of Your use, inability to use, reproduction, (re)distribution,
+import and/or (re)export of This Product (or portions thereof) and/or Your
+breach of any term of this License.
 
 
 
@@ -232,7 +253,10 @@ This License does not grant permission to use trademarks associated with (or
 applying to) This Product, except for fair use as defined by applicable law and
 except for use expressly permitted or required by this License.
 
-TrueCrypt and the TrueCrypt logos are trademarks of the TrueCrypt Foundation.
+TrueCrypt and the TrueCrypt logos (including the non-textual logo consisting
+primarily of a key in stylized form) are trademarks of the TrueCrypt
+Foundation.
+
 Note: The goal is not to monetize the name or the product, but to protect the
 reputation of TrueCrypt. TrueCrypt is and will remain open-source and free
 software.
@@ -241,16 +265,26 @@ software.
 
 VI. General Terms
 
-1. You may not use, modify, reproduce, (re)distribute, or sublicense This 
-Product except as expressly provided under this License. Any attempt otherwise 
-to use, modify, reproduce, (re)distribute, or sublicense This Product 
-automatically terminates Your rights under this License.
+1. You may not use, modify, reproduce, derive from, (re)distribute, or
+sublicense This Product, or portion(s) thereof, except as expressly provided
+under this License. Any attempt (even if permitted by applicable law) otherwise
+to use, modify, reproduce, derive from, (re)distribute, or sublicense This
+Product, or portion(s) thereof, automatically and immediately terminates Your
+rights under this License.
 
-2. Anyone who uses and/or reproduces and/or modifies and/or (re)distributes 
-This Product, or any part(s) thereof, is, by such action(s), accepting in full 
-the responsibilities and obligations contained in this License.
+2. ANYONE WHO USES AND/OR REPRODUCES AND/OR MODIFIES AND/OR DERIVES FROM AND/OR
+(RE)DISTRIBUTES THIS PRODUCT, OR ANY PORTION(S) THEREOF, IS, BY SUCH ACTION(S),
+ACCEPTING ALL TERMS OF THIS LICENSE (AND THE RESPONSIBILITIES AND OBLIGATIONS
+CONTAINED IN THIS LICENSE). IF YOU DO NOT ACCEPT THEM, DO NOT USE, MODIFY,
+REPRODUCE, DERIVE FROM, NOR (RE)DISTRIBUTE THIS PRODUCT, NOR ANY PORTION(S)
+THEREOF.
 
-3. If any term of this License is found to be invalid or unenforceable under
+3. IF ANY PROVISION OF SECTION IV OF THIS LICENSE IS UNENFORCEABLE, PROHIBITED,
+OR INVALID UNDER APPLICABLE LAW IN YOUR JURISDICTION, YOU MAY NOT USE, MODIFY,
+REPRODUCE, DERIVE FROM, NOR (RE)DISTRIBUTE THIS PRODUCT, NOR ANY PORTION(S)
+THEREOF.
+
+4. If any term of this License is found to be invalid or unenforceable under
 applicable law, You agree that it shall not affect the validity or
 enforceability of any other terms of this License that are found to be valid
 and enforceable under applicable law.

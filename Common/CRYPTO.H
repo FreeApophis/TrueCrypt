@@ -4,7 +4,7 @@
  Paul Le Roux and which is covered by the 'License Agreement for Encryption
  for the Masses'. Modifications and additions to that source code contained
  in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.2 the full text of which is contained in the file
+ TrueCrypt License 2.3 the full text of which is contained in the file
  License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -78,12 +78,12 @@ enum
 // Cipher IDs
 #define NONE				0
 #define AES					1
-#define BLOWFISH			2
-#define CAST				3
+#define BLOWFISH			2	// Deprecated/legacy
+#define CAST				3	// Deprecated/legacy
 #define SERPENT				4
-#define TRIPLEDES			5
+#define TRIPLEDES			5	// Deprecated/legacy
 #define TWOFISH				6
-#define DES56				7			// Used only by Triple DES
+#define DES56				7	// Deprecated/legacy (used only by Triple DES)
 
 typedef struct
 {

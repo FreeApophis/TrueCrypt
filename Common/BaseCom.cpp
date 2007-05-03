@@ -1,7 +1,7 @@
 /*
  Copyright (c) TrueCrypt Foundation. All rights reserved.
 
- Covered by the TrueCrypt License 2.2 the full text of which is contained
+ Covered by the TrueCrypt License 2.3 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -15,25 +15,19 @@
 
 HRESULT CreateElevatedComObject (HWND hwnd, REFGUID guid, REFIID iid, void **ppv)
 {
+    WCHAR monikerName[1024];
+    WCHAR clsid[1024];
     BIND_OPTS3 bo;
-    WCHAR wszCLSID[50];
-    WCHAR wszMonikerName[300];
 
-    StringFromGUID2 (guid, wszCLSID, sizeof (wszCLSID) / sizeof (wszCLSID[0]));
-    
-	HRESULT hr = StringCchPrintfW (
-		wszMonikerName, sizeof (wszMonikerName) / sizeof (wszMonikerName[0]),
-		L"Elevation:Administrator!new:%s", wszCLSID);
-
-    if (FAILED(hr))
-        return hr;
+    StringFromGUID2 (guid, clsid, sizeof (clsid) / 2);
+	swprintf_s (monikerName, sizeof (monikerName) / 2, L"Elevation:Administrator!new:%s", clsid);
 
     memset (&bo, 0, sizeof (bo));
     bo.cbStruct = sizeof (bo);
     bo.hwnd = hwnd;
     bo.dwClassContext = CLSCTX_LOCAL_SERVER;
 
-    return CoGetObject (wszMonikerName, &bo, iid, ppv);
+    return CoGetObject (monikerName, &bo, iid, ppv);
 }
 
 

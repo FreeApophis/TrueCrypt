@@ -1,3 +1,5 @@
+/* Deprecated/legacy */
+
 /* crypto/des/podd.h */
 /* Copyright (C) 1995-1997 Eric Young (eay@cryptsoft.com)
  * All rights reserved.

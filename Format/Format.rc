@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 4,3,0,0
- PRODUCTVERSION 4,3,0,0
+ FILEVERSION 4,3,1,0
+ PRODUCTVERSION 4,3,1,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -46,13 +46,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Format"
-            VALUE "FileVersion", "4.3"
+            VALUE "FileVersion", "4.3a"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt Format.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "4.3"
-            VALUE "SpecialBuild", "2007-03-19"
+            VALUE "ProductVersion", "4.3a"
+            VALUE "SpecialBuild", "2007-05-03"
         END
     END
     BLOCK "VarFileInfo"
@@ -93,7 +93,8 @@ BEGIN
     PUSHBUTTON      "Cancel",IDCANCEL,343,189,50,14
     LTEXT           "",IDC_BOX_TITLE,160,8,233,17
     GROUPBOX        "",IDC_STATIC,4,0,392,183
-    CONTROL         20,IDC_STATIC,"Static",SS_BITMAP | SS_SUNKEN,10,9,137,169
+    CONTROL         114,IDC_BITMAP_WIZARD,"Static",SS_BITMAP | SS_SUNKEN,10,9,137,169
+    LTEXT           "",IDC_POS_BOX,160,24,231,152
 END
 
 IDD_CIPHER_PAGE_DLG DIALOGEX 0, 0, 217, 152
@@ -102,13 +103,13 @@ FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     COMBOBOX        IDC_COMBO_BOX,7,23,137,126,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     PUSHBUTTON      "&Test",IDC_CIPHER_TEST,149,22,59,14
-    PUSHBUTTON      "&Benchmark",IDC_WIZ_BENCHMARK,149,80,59,14
-    COMBOBOX        IDC_COMBO_BOX_HASH_ALGO,7,119,83,126,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON      "&Benchmark",IDC_WIZ_BENCHMARK,149,82,59,14
+    COMBOBOX        IDC_COMBO_BOX_HASH_ALGO,7,122,83,126,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     LTEXT           "",IDC_BOX_HELP,7,40,205,40
-    GROUPBOX        "Encryption Algorithm",IDT_ENCRYPTION_ALGO,0,10,217,92
-    GROUPBOX        "Hash Algorithm",IDT_HASH_ALGO,0,106,217,35
-    LTEXT           "More information",IDC_LINK_CIPHER_INFO,7,80,135,10,SS_NOTIFY
-    LTEXT           "Information on hash algorithms",IDC_LINK_HASH_INFO,97,121,111,10,SS_NOTIFY
+    GROUPBOX        "Encryption Algorithm",IDT_ENCRYPTION_ALGO,0,10,217,95
+    GROUPBOX        "Hash Algorithm",IDT_HASH_ALGO,0,109,217,35
+    LTEXT           "More information",IDC_LINK_MORE_INFO_ABOUT_CIPHER,7,82,135,10,SS_NOTIFY
+    LTEXT           "Information on hash algorithms",IDC_LINK_HASH_INFO,97,124,115,8,SS_NOTIFY
 END
 
 IDD_PASSWORD_PAGE_DLG DIALOGEX 0, 0, 226, 156
@@ -167,11 +168,11 @@ BEGIN
     RTEXT           "",IDC_TIMEREMAIN,179,93,42,11,SS_CENTERIMAGE,WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
     RTEXT           "",IDC_WRITESPEED,109,93,42,11,SS_CENTERIMAGE,WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
     LTEXT           "",IDC_BYTESWRITTEN,32,93,42,11,SS_CENTERIMAGE,WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
-    RTEXT           "Done ",IDT_DONE,1,94,30,8
+    RTEXT           "Done ",IDT_DONE,2,94,30,8
     RTEXT           "Speed ",IDT_SPEED,74,94,35,8
     RTEXT           "Left ",IDT_LEFT,151,94,28,8
     GROUPBOX        "",IDC_STATIC,0,67,225,41
-    RTEXT           "Filesystem ",IDT_FILESYSTEM,2,15,41,8,0,WS_EX_RIGHT
+    RTEXT           "Filesystem ",IDT_FILESYSTEM,1,15,41,8,0,WS_EX_RIGHT
     RTEXT           "Random Pool: ",IDT_RANDOM_POOL,2,39,54,8
     GROUPBOX        "",IDC_STATIC,0,32,225,35
     CONTROL         "",IDC_RANDOM_BYTES,"Static",SS_SIMPLE | WS_GROUP,57,38,149,8,WS_EX_TRANSPARENT
@@ -348,7 +349,7 @@ END
 // Bitmap
 //
 
-IDB_TRUECRYPT           BITMAP                  "TrueCrypt_Wizard.bmp"
+IDB_WIZARD              BITMAP                  "TrueCrypt_wizard.bmp"
 
 /////////////////////////////////////////////////////////////////////////////
 //

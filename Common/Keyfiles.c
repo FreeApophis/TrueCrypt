@@ -1,7 +1,7 @@
 /*
  Copyright (c) TrueCrypt Foundation. All rights reserved.
 
- Covered by the TrueCrypt License 2.2 the full text of which is contained
+ Covered by the TrueCrypt License 2.3 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -125,13 +125,14 @@ KeyFile *KeyFileCloneAll (KeyFile *firstKeyFile)
 }
 
 
-static BOOL KeyFileProcess (unsigned __int8 *keyPool, KeyFile *keyFile, BOOL preserveTimestamp)
+static BOOL KeyFileProcess (unsigned __int8 *keyPool, KeyFile *keyFile)
 {
 	FILE *f;
 	unsigned __int8 buffer[64 * 1024];
 	unsigned __int32 crc = 0xffffffff;
 	int writePos = 0;
 	size_t bytesRead, totalRead = 0;
+	int status = TRUE;
 
 #ifdef _WIN32
 	HANDLE src;
@@ -144,26 +145,23 @@ static BOOL KeyFileProcess (unsigned __int8 *keyPool, KeyFile *keyFile, BOOL pre
 
 	BOOL bTimeStampValid = FALSE;
 
-	if (preserveTimestamp)
-	{
-		/* Remember the last access time of the keyfile. It will be preserved in order to prevent
-		   an adversary from determining which file may have been used as keyfile. */
+	/* Remember the last access time of the keyfile. It will be preserved in order to prevent
+	an adversary from determining which file may have been used as keyfile. */
 #ifdef _WIN32
-		src = CreateFile (keyFile->FileName,
-			preserveTimestamp ? (GENERIC_READ | GENERIC_WRITE) : GENERIC_READ,
-			FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+	src = CreateFile (keyFile->FileName,
+		GENERIC_READ | GENERIC_WRITE,
+		FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 
-		if (src != INVALID_HANDLE_VALUE)
-		{
-			if (GetFileTime ((HANDLE) src, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime))
-				bTimeStampValid = TRUE;
-			else
-				Warning ("GETFILETIME_FAILED_KEYFILE");
-		}
-#else
-		bTimeStampValid = stat (keyFile->FileName, &kfStat) == 0;
-#endif
+	if (src != INVALID_HANDLE_VALUE)
+	{
+		if (GetFileTime ((HANDLE) src, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime))
+			bTimeStampValid = TRUE;
+		else
+			Warning ("GETFILETIME_FAILED_KEYFILE");
 	}
+#else
+	bTimeStampValid = stat (keyFile->FileName, &kfStat) == 0;
+#endif
 
 	f = fopen (keyFile->FileName, "rb");
 	if (f == NULL) return FALSE;
@@ -171,6 +169,12 @@ static BOOL KeyFileProcess (unsigned __int8 *keyPool, KeyFile *keyFile, BOOL pre
 	while ((bytesRead = fread (buffer, 1, sizeof (buffer), f)) > 0)
 	{
 		size_t i;
+
+		if (ferror (f))
+		{
+			status = FALSE;
+			goto close;
+		}
 
 		for (i = 0; i < bytesRead; i++)
 		{
@@ -189,6 +193,9 @@ static BOOL KeyFileProcess (unsigned __int8 *keyPool, KeyFile *keyFile, BOOL pre
 		}
 	}
 
+	if (ferror (f))
+		status = FALSE;
+
 close:
 	fclose (f);
 
@@ -202,16 +209,16 @@ close:
 #else
 		struct utimbuf u;
 		u.actime = kfStat.st_atime;
-		u.modtime = kfStat.st_atime;
+		u.modtime = kfStat.st_mtime;
 		utime (keyFile->FileName, &u);
 #endif
 	}
 
-	return TRUE;
+	return status;
 }
 
 
-BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile, BOOL preserveTimestamp)
+BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile)
 {
 	BOOL status = TRUE;
 	KeyFile kfSubStruct;
@@ -242,6 +249,7 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile, BOOL preserveTime
 		if (stat (kf->FileName, &statStruct) != 0)
 		{
 #ifdef _WIN32
+			handleWin32Error (MainDlg);
 			Error ("ERR_PROCESS_KEYFILE");
 #else
 			perror ("stat");
@@ -262,6 +270,7 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile, BOOL preserveTime
 #endif
 			{
 #ifdef _WIN32
+				handleWin32Error (MainDlg);
 				Error ("ERR_PROCESS_KEYFILE_PATH");
 #endif
 				status = FALSE;
@@ -288,6 +297,7 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile, BOOL preserveTime
 				if (stat (kfSub->FileName, &statStruct) != 0)
 				{
 #ifdef _WIN32
+					handleWin32Error (MainDlg);
 					Error ("ERR_PROCESS_KEYFILE");
 #endif
 					status = FALSE;
@@ -301,10 +311,10 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile, BOOL preserveTime
 
 
 				// Apply keyfile to the pool
-				if (!KeyFileProcess (keyPool, kfSub, preserveTimestamp))
+				if (!KeyFileProcess (keyPool, kfSub))
 				{
 #ifdef _WIN32
-					handleWin32Error (NULL);
+					handleWin32Error (MainDlg);
 					Error ("ERR_PROCESS_KEYFILE");
 #endif
 					status = FALSE;
@@ -322,10 +332,10 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile, BOOL preserveTime
 
 		}
 		// Apply keyfile to the pool
-		else if (!KeyFileProcess (keyPool, kf, preserveTimestamp))
+		else if (!KeyFileProcess (keyPool, kf))
 		{
 #ifdef _WIN32
-			handleWin32Error (NULL);
+			handleWin32Error (MainDlg);
 			Error ("ERR_PROCESS_KEYFILE");
 #endif
 			status = FALSE;
@@ -380,7 +390,7 @@ static void LoadKeyList (HWND hwndDlg, KeyFile *firstKeyFile)
 #error KEYFILE_POOL_SIZE must be a multiple of 4
 #endif
 
-BOOL WINAPI KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+BOOL CALLBACK KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	static KeyFilesDlgParam *param;
 	static KeyFilesDlgParam origParam;
@@ -409,7 +419,7 @@ BOOL WINAPI KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPara
 			memset (&LvCol,0,sizeof(LvCol));               
 			LvCol.mask = LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM|LVCF_FMT;  
 			LvCol.pszText = GetString ("KEYFILE");                           
-			LvCol.cx = 366;
+			LvCol.cx = CompensateXDPI (366);
 			LvCol.fmt = LVCFMT_LEFT;
 			SendMessageW (hList, LVM_INSERTCOLUMNW, 0, (LPARAM)&LvCol);
 

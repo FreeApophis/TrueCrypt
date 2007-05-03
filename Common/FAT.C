@@ -4,7 +4,7 @@
  Paul Le Roux and which is covered by the 'License Agreement for Encryption
  for the Masses'. Modifications and additions to that source code contained
  in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.2 the full text of which is contained in the file
+ TrueCrypt License 2.3 the full text of which is contained in the file
  License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -54,7 +54,7 @@ GetFatParams (fatparams * ft)
 	ft->create_time = (unsigned int) time (NULL);
 	ft->media = 0xf8;
 	ft->sector_size = SECTOR_SIZE;
-	ft->hidden = 63;
+	ft->hidden = 0;
 
 	ft->size_root_dir = ft->dir_entries * 32;
 
@@ -68,7 +68,7 @@ GetFatParams (fatparams * ft)
 	if (ft->cluster_count >= 4085) // FAT16
 	{
 		ft->size_fat = 16;
-		ft->reserved = 8;
+		ft->reserved = 2;
 		fatsecs = ft->num_sectors - (ft->size_root_dir + SECTOR_SIZE - 1) / SECTOR_SIZE - ft->reserved;
 		ft->cluster_count = (int) (((__int64) fatsecs * SECTOR_SIZE) / (ft->cluster_size * SECTOR_SIZE + 4));
 		ft->fat_length = (ft->cluster_count * 2 + SECTOR_SIZE - 1) / SECTOR_SIZE;
@@ -77,7 +77,7 @@ GetFatParams (fatparams * ft)
 	if(ft->cluster_count >= 65525) // FAT32
 	{
 		ft->size_fat = 32;
-		ft->reserved = 38;
+		ft->reserved = 32;
 		fatsecs = ft->num_sectors - ft->reserved;
 		ft->size_root_dir = ft->cluster_size * SECTOR_SIZE;
 		ft->cluster_count = (int) (((__int64) fatsecs * SECTOR_SIZE) / (ft->cluster_size * SECTOR_SIZE + 8));

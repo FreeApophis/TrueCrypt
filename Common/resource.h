@@ -2,9 +2,8 @@
 // Microsoft Visual C++ generated include file.
 // Used by Common.rc
 //
-#define IDB_ABOUT                       50
 #define IDI_TRUECRYPT_ICON              501
-#define IDI_TRUECRYPT_ICON_B            502
+#define IDI_TRUECRYPT_VOL_ICON          502
 #define IDD_BENCHMARK_DLG               503
 #define IDD_MOUNT_OPTIONS               504
 #define IDD_KEYFILES                    505
@@ -19,6 +18,10 @@
 #define IDD_LEGAL_NOTICES               514
 #define IDD_CIPHER_TEST_DLG             515
 #define IDR_LICENSE                     516
+#define IDD_AUXILIARY_DLG               517
+#define IDB_TEXTUAL_LOGO_BKG            518
+#define IDB_TEXTUAL_LOGO_96DPI          519
+#define IDB_TEXTUAL_LOGO_288DPI         520
 #define IDC_KEY                         5000
 #define IDC_PLAINTEXT                   5001
 #define IDC_CIPHERTEXT                  5002
@@ -55,7 +58,7 @@
 #define IDT_LRW_BLOCK_INDEX             5033
 #define IDC_KEYFILES_HIDVOL_PROT        5034
 #define IDC_KEYLIST                     5035
-#define IDC_ABOUT_IMG                   5036
+#define IDC_ABOUT_BKG                   5036
 #define IDT_ABOUT_VERSION               5037
 #define IDT_BOX_BENCHMARK_INFO          5038
 #define IDC_ABOUT_CREDITS               5039
@@ -110,15 +113,18 @@
 #define IDC_DONATIONS                   5088
 #define IDC_LINK_HIDVOL_PROTECTION_INFO 5089
 #define IDC_LINK_KEYFILES_INFO          5090
+#define IDC_TEXTUAL_LOGO_IMG            5091
+#define IDC_ASPECT_RATIO_CALIBRATION_BOX 5092
+#define IDC_ABOUT_LOGO_AREA             5093
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
-#define _APS_NEXT_RESOURCE_VALUE        517
+#define _APS_NEXT_RESOURCE_VALUE        521
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         5091
+#define _APS_NEXT_CONTROL_VALUE         5094
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

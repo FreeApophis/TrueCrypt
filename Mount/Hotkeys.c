@@ -1,7 +1,7 @@
 /*
  Copyright (c) TrueCrypt Foundation. All rights reserved.
 
- Covered by the TrueCrypt License 2.2 the full text of which is contained
+ Covered by the TrueCrypt License 2.3 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -259,7 +259,7 @@ static void DisplayHotkeyList (HWND hwndDlg)
 
 
 
-BOOL WINAPI HotkeysDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+BOOL CALLBACK HotkeysDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	HWND hList = GetDlgItem (hwndDlg, IDC_HOTKEY_LIST);
 	HWND hwndMainDlg = hwndDlg;
@@ -292,12 +292,12 @@ BOOL WINAPI HotkeysDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 			memset (&col,0,sizeof(col));               
 			col.mask = LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM|LVCF_FMT;  
 			col.pszText = GetString ("ACTION");                           
-			col.cx = 341;
+			col.cx = CompensateXDPI (341);
 			col.fmt = LVCFMT_LEFT;
 			SendMessageW (hList,LVM_INSERTCOLUMNW,0,(LPARAM)&col);
 
 			col.pszText = GetString ("SHORTCUT");  
-			col.cx = 190;           
+			col.cx = CompensateXDPI (190);           
 			col.fmt = LVCFMT_LEFT;
 			SendMessageW (hList,LVM_INSERTCOLUMNW,1,(LPARAM)&col);
 
@@ -373,6 +373,8 @@ BOOL WINAPI HotkeysDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 
 		if (lw == IDC_HOTKEY_ASSIGN)
 		{
+			BOOL bOwnActiveShortcut = FALSE;
+
 			if (nSelectedHotkeyId >= 0 && currentVKeyCode != 0)
 			{
 				UINT modifiers = 0; 
@@ -409,15 +411,18 @@ BOOL WINAPI HotkeysDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 					break;
 				}
 
+				bOwnActiveShortcut = ShortcutInUse (currentVKeyCode, modifiers, Hotkeys);
+
 				// Test if the shortcut can be assigned without errors
-				if (!RegisterHotKey (hwndDlg, nSelectedHotkeyId, modifiers, currentVKeyCode))
+				if (!bOwnActiveShortcut
+					&& !RegisterHotKey (hwndDlg, nSelectedHotkeyId, modifiers, currentVKeyCode))
 				{
 					handleWin32Error(hwndDlg);
 					return 1;
 				}
 				else
 				{
-					if (!UnregisterHotKey (hwndDlg, nSelectedHotkeyId))
+					if (!bOwnActiveShortcut && !UnregisterHotKey (hwndDlg, nSelectedHotkeyId))
 						handleWin32Error(hwndDlg);
 
 					tmpHotkeys[nSelectedHotkeyId].vKeyCode = currentVKeyCode;

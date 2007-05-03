@@ -4,7 +4,7 @@
  Paul Le Roux and which is covered by the 'License Agreement for Encryption
  for the Masses'. Modifications and additions to that source code contained
  in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.2 the full text of which is contained in the file
+ TrueCrypt License 2.3 the full text of which is contained in the file
  License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -13,6 +13,7 @@
 #include <dbt.h>
 #include <fcntl.h>
 #include <io.h>
+#include <math.h>
 #include <shlobj.h>
 #include <sys/stat.h>
 #include <stdlib.h>
@@ -22,6 +23,7 @@
 
 #include "Apidrvr.h"
 #include "Combo.h"
+#include "Crc.h"
 #include "Crypto.h"
 #include "Dictionary.h"
 #include "Dlgcode.h"
@@ -55,6 +57,11 @@ HFONT hUserUnderlineFont = NULL;
 HFONT hUserBoldFont = NULL;
 HFONT hUserUnderlineBoldFont = NULL;
 
+int ScreenDPI = USER_DEFAULT_SCREEN_DPI;
+double DPIScaleFactorX = 1;
+double DPIScaleFactorY = 1;
+double DlgAspectRatio = 1;
+
 HWND MainDlg = NULL;
 wchar_t *lpszTitle = NULL;
 
@@ -74,6 +81,8 @@ BOOL UacElevated = FALSE;
 BOOL	KeyFilesEnable = FALSE;
 KeyFile	*FirstKeyFile = NULL;
 KeyFilesDlgParam		defaultKeyFilesParam;
+
+BOOL IgnoreWmDeviceChange = FALSE;
 
 /* Handle to the device driver */
 HANDLE hDriver = INVALID_HANDLE_VALUE;
@@ -153,19 +162,36 @@ cleanup ()
 		DeleteObject (hUserBoldFont);
 	if (hUserUnderlineBoldFont != NULL)
 		DeleteObject (hUserUnderlineBoldFont);
+
 	/* Cleanup our dialog class */
 	if (hDlgClass)
 		UnregisterClass (TC_DLG_CLASS, hInst);
 	if (hSplashClass)
 		UnregisterClass (TC_SPLASH_CLASS, hInst);
+
 	/* Close the device driver handle */
 	if (hDriver != INVALID_HANDLE_VALUE)
 	{
 		// Unload driver mode if possible (non-install mode) 
 		if (IsNonInstallMode ())
-			DriverUnload ();
+		{
+			// If a dismount was forced in the lifetime of the driver, Windows may later prevent it to be loaded again from
+			// the same path. Therefore, the driver will not be unloaded even though it was loaded in non-install mode.
+			int refDevDeleted;
+			DWORD dwResult;
+
+			if (!DeviceIoControl (hDriver, REFERENCED_DEV_DELETED, NULL, 0, &refDevDeleted, sizeof (refDevDeleted), &dwResult, NULL))
+				refDevDeleted = 0;
+
+			if (!refDevDeleted)
+				DriverUnload ();
+			else
+				CloseHandle (hDriver);
+		}
 		else
+		{
 			CloseHandle (hDriver);
+		}
 	}
 
 	if (hMutex != NULL)
@@ -181,6 +207,7 @@ cleanup ()
 
 	CoUninitialize ();
 }
+
 
 void
 LowerCaseCopy (char *lpszDest, char *lpszSource)
@@ -356,6 +383,60 @@ translateWin32Error (wchar_t *lpszMsgBuf, int nSizeOfBuf)
 }
 
 
+// If the user has a non-default screen DPI, all absolute font sizes must be
+// converted using this function.
+int CompensateDPIFont (int val)
+{
+	if (ScreenDPI == USER_DEFAULT_SCREEN_DPI)
+		return val;
+	else
+	{
+		double tmpVal = (double) val * DPIScaleFactorY * DlgAspectRatio * 0.999;
+
+		if (tmpVal > 0)
+			return (int) floor(tmpVal);
+		else
+			return (int) ceil(tmpVal);
+	}
+}
+
+
+// If the user has a non-default screen DPI, some screen coordinates and sizes must
+// be converted using this function
+int CompensateXDPI (int val)
+{
+	if (ScreenDPI == USER_DEFAULT_SCREEN_DPI)
+		return val;
+	else
+	{
+		double tmpVal = (double) val * DPIScaleFactorX;
+
+		if (tmpVal > 0)
+			return (int) floor(tmpVal);
+		else
+			return (int) ceil(tmpVal);
+	}
+}
+
+
+// If the user has a non-default screen DPI, some screen coordinates and sizes must
+// be converted using this function
+int CompensateYDPI (int val)
+{
+	if (ScreenDPI == USER_DEFAULT_SCREEN_DPI)
+		return val;
+	else
+	{
+		double tmpVal = (double) val * DPIScaleFactorY;
+
+		if (tmpVal > 0)
+			return (int) floor(tmpVal);
+		else
+			return (int) ceil(tmpVal);
+	}
+}
+
+
 int GetTextGfxWidth (HWND hwndDlgItem, wchar_t *text, HFONT hFont)
 {
 	SIZE sizes;
@@ -423,6 +504,27 @@ static LRESULT CALLBACK HyperlinkProc (HWND hwnd, UINT message, WPARAM wParam, L
 
 BOOL ToHyperlink (HWND hwndDlg, UINT ctrlId)
 {
+	HWND hwndCtrl = GetDlgItem (hwndDlg, ctrlId);
+
+	SendMessage (hwndCtrl, WM_SETFONT, (WPARAM) hUserUnderlineFont, 0);
+
+	SetWindowLongPtr (hwndCtrl, GWL_USERDATA, (LONG_PTR) GetWindowLongPtr (hwndCtrl, GWL_WNDPROC));
+	SetWindowLongPtr (hwndCtrl, GWL_WNDPROC, (LONG_PTR) HyperlinkProc);
+
+	// Resize the field according to its actual length in pixels and move if centered or right-aligned.
+	// This should be done again if the link text changes.
+	AccommodateTextField (hwndDlg, ctrlId, TRUE);
+
+	return TRUE;
+}
+
+
+// Resizes a text field according to its actual width in pixels (font size is taken into account) and moves
+// it accordingly if the field is centered or right-aligned. Should be used on all hyperlinks upon dialog init
+// after localization (bFirstUpdate should be TRUE) and later whenever a hyperlink text changes (bFirstUpdate
+// must be FALSE).
+void AccommodateTextField (HWND hwndDlg, UINT ctrlId, BOOL bFirstUpdate)
+{
 	RECT rec, wrec, trec;
 	HWND hwndCtrl = GetDlgItem (hwndDlg, ctrlId);
 	int width, origWidth, origHeight;
@@ -430,12 +532,6 @@ BOOL ToHyperlink (HWND hwndDlg, UINT ctrlId)
 	wchar_t text [MAX_URL_LENGTH];
 	WINDOWINFO windowInfo;
 	BOOL bBorderlessWindow = !(GetWindowLongPtr (hwndDlg, GWL_STYLE) & (WS_BORDER | WS_DLGFRAME));
-
-	SendMessage (hwndCtrl, WM_SETFONT, (WPARAM) hUserUnderlineFont, 0);
-
-	SetWindowLongPtr (hwndCtrl, GWL_USERDATA, (LONG_PTR) GetWindowLongPtr (hwndCtrl, GWL_WNDPROC));
-	SetWindowLongPtr (hwndCtrl, GWL_WNDPROC, (LONG_PTR) HyperlinkProc);
-
 
 	// Resize the field according to its length and font size and move if centered or right-aligned
 
@@ -447,8 +543,8 @@ BOOL ToHyperlink (HWND hwndDlg, UINT ctrlId)
 	origWidth = rec.right;
 	origHeight = rec.bottom;
 
-	if (width > 0
-		&& origWidth > width)	// The original width of the field is the maximum allowed size 
+	if (width >= 0
+		&& (!bFirstUpdate || origWidth > width))	// The original width of the field is the maximum allowed size 
 	{
 		horizSubOffset = origWidth - width;
 
@@ -490,30 +586,107 @@ BOOL ToHyperlink (HWND hwndDlg, UINT ctrlId)
 				origHeight,
 				SWP_NOMOVE | SWP_NOZORDER);
 		}
+
+		SetWindowPos (hwndCtrl, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+
+		InvalidateRect (hwndCtrl, NULL, TRUE);
 	}
-	return TRUE;
+}
+
+
+// This function currently serves the following purposes:
+// - Determines scaling factors for current screen DPI and GUI aspect ratio.
+// - Determines how Windows skews the GUI aspect ratio (which happens when the user has a non-default DPI).
+// The determined values must be used when performing some GUI operations and calculations.
+BOOL CALLBACK AuxiliaryDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+	case WM_INITDIALOG:
+		{
+			HDC hDC = GetDC (hwndDlg);
+
+			ScreenDPI = GetDeviceCaps (hDC, LOGPIXELSY);
+			ReleaseDC (hwndDlg, hDC); 
+
+			DPIScaleFactorX = 1;
+			DPIScaleFactorY = 1;
+			DlgAspectRatio = 1;
+
+			if (ScreenDPI != USER_DEFAULT_SCREEN_DPI)
+			{
+				// Windows skews the GUI aspect ratio if the user has a non-default DPI. Hence, working with 
+				// actual screen DPI is redundant and leads to incorrect results. What really matters here is
+				// how Windows actually renders our GUI. This is determined by comparing the expected and current
+				// sizes of a hidden calibration text field.
+
+				RECT trec;
+
+				trec.right = 0;
+				trec.bottom = 0;
+
+				GetClientRect (GetDlgItem (hwndDlg, IDC_ASPECT_RATIO_CALIBRATION_BOX), &trec);
+
+				if (trec.right != 0 && trec.bottom != 0)
+				{
+					// The size of the 282x282 IDC_ASPECT_RATIO_CALIBRATION_BOX rendered at the default DPI (96) is 423x458
+					DPIScaleFactorX = (double) trec.right / 423;
+					DPIScaleFactorY = (double) trec.bottom / 458;
+					DlgAspectRatio = DPIScaleFactorX / DPIScaleFactorY;
+				}
+			}
+
+			EndDialog (hwndDlg, 0);
+			return 1;
+		}
+
+	case WM_CLOSE:
+		EndDialog (hwndDlg, 0);
+		return 1;
+	}
+
+	return 0;
 }
 
 
 /* Except in response to the WM_INITDIALOG message, the dialog box procedure
    should return nonzero if it processes the message, and zero if it does
    not. - see DialogProc */
-BOOL WINAPI
+BOOL CALLBACK
 AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	WORD lw = LOWORD (wParam);
+	static HBITMAP hbmTextualLogoBitmapRescaled = NULL;
+
 	if (lParam);		/* remove warning */
 
 	switch (msg)
 	{
-
 	case WM_INITDIALOG:
 		{
 			char szTmp[100];
-  			LocalizeDialog (hwndDlg, "IDD_ABOUT_DLG");
+			RECT rec;
 
+			LocalizeDialog (hwndDlg, "IDD_ABOUT_DLG");
+
+			// Hyperlink
 			SetWindowText (GetDlgItem (hwndDlg, IDC_HOMEPAGE), "www.truecrypt.org");
 			ToHyperlink (hwndDlg, IDC_HOMEPAGE);
+
+			// Logo area background (must not keep aspect ratio; must retain Windows-imposed distortion)
+			GetClientRect (GetDlgItem (hwndDlg, IDC_ABOUT_LOGO_AREA), &rec);
+			SetWindowPos (GetDlgItem (hwndDlg, IDC_ABOUT_BKG), HWND_TOP, 0, 0, rec.right, rec.bottom, SWP_NOMOVE);
+
+			// Resize the logo bitmap if the user has a non-default DPI 
+			if (ScreenDPI != USER_DEFAULT_SCREEN_DPI)
+			{
+				// Logo (must recreate and keep the original aspect ratio as Windows distorts it)
+				hbmTextualLogoBitmapRescaled = RenderBitmap (MAKEINTRESOURCE (IDB_TEXTUAL_LOGO_288DPI),
+					GetDlgItem (hwndDlg, IDC_TEXTUAL_LOGO_IMG),
+					0, 0, 0, 0, FALSE, TRUE);
+
+				SetWindowPos (GetDlgItem (hwndDlg, IDC_ABOUT_BKG), HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+			}
 
 			// Version
 			SendMessage (GetDlgItem (hwndDlg, IDT_ABOUT_VERSION), WM_SETFONT, (WPARAM) hUserBoldFont, 0);
@@ -531,14 +704,13 @@ AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 
 	case WM_APP:
 		SetWindowText (GetDlgItem (hwndDlg, IDC_ABOUT_CREDITS),
-			"Portions of this software are based in part on the works of the following people:\r\n"
+			"Portions of this software are based in part on the works of the following people: "
 			"Paul Le Roux, "
-			"Bruce Schneier, "
+			"Bruce Schneier, John Kelsey, Doug Whiting, David Wagner, Chris Hall, Niels Ferguson, "
+			"Lars Knudsen, Ross Anderson, Eli Biham, "
+			"Joan Daemen, Vincent Rijmen, "
 			"Horst Feistel, Don Coppersmith, "
 			"Walt Tuchmann, "
-			"Joan Daemen, Vincent Rijmen, "
-			"Lars Knudsen, Ross Anderson, Eli Biham, "
-			"David Wagner, John Kelsey, Niels Ferguson, Doug Whiting, Chris Hall, "
 			"Carlisle Adams, Stafford Tavares, "
 			"Hans Dobbertin, Antoon Bosselaers, Bart Preneel, "
 			"Paulo Barreto, Brian Gladman, Wei Dai, Peter Gutmann, and many others.\r\n\r\n"
@@ -554,7 +726,7 @@ AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 	case WM_COMMAND:
 		if (lw == IDOK || lw == IDCANCEL)
 		{
-			EndDialog (hwndDlg, 0);
+			PostMessage (hwndDlg, WM_CLOSE, 0, 0);
 			return 1;
 		}
 
@@ -569,7 +741,7 @@ AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			Applink ("donate", FALSE, "");
 			return 1;
 		}
-	
+
 		// Disallow modification of credits
 		if (HIWORD (wParam) == EN_UPDATE)
 		{
@@ -580,6 +752,13 @@ AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 		return 0;
 
 	case WM_CLOSE:
+		/* Delete buffered bitmaps (if any) */
+		if (hbmTextualLogoBitmapRescaled != NULL)
+		{
+			DeleteObject ((HGDIOBJ) hbmTextualLogoBitmapRescaled);
+			hbmTextualLogoBitmapRescaled = NULL;
+		}
+
 		EndDialog (hwndDlg, 0);
 		return 1;
 	}
@@ -662,13 +841,12 @@ InitDialog (HWND hwndDlg)
 	NONCLIENTMETRICSW metric;
 	static BOOL aboutMenuAppended = FALSE;
 
-	HDC hDC;
 	int nHeight;
 	LOGFONTW lf;
 	HMENU hMenu;
 	Font *font;
 
-	hDC = GetDC (hwndDlg);
+	/* Fonts */
 
 	// Normal
 	font = GetFont ("font_normal");
@@ -676,7 +854,7 @@ InitDialog (HWND hwndDlg)
 	metric.cbSize = sizeof (metric);
 	SystemParametersInfoW (SPI_GETNONCLIENTMETRICS, sizeof(metric), &metric, 0);
 
-	metric.lfMessageFont.lfHeight = !font ? -11 : -font->Size;
+	metric.lfMessageFont.lfHeight = CompensateDPIFont (!font ? -11 : -font->Size);
 	metric.lfMessageFont.lfWidth = 0;
 
 	if (font && wcscmp (font->FaceName, L"default") != 0)
@@ -703,8 +881,8 @@ InitDialog (HWND hwndDlg)
 	metric.lfMessageFont.lfWeight = FW_BOLD;
 	hUserUnderlineBoldFont = CreateFontIndirectW (&metric.lfMessageFont);
 
-	// Fixed (digits)
-	nHeight = -((9 * GetDeviceCaps (hDC, LOGPIXELSY)) / 72);
+	// Fixed-size (hexadecimal digits)
+	nHeight = CompensateDPIFont (-12);
 	lf.lfHeight = nHeight;
 	lf.lfWidth = 0;
 	lf.lfEscapement = 0;
@@ -729,7 +907,7 @@ InitDialog (HWND hwndDlg)
 	// Bold
 	font = GetFont ("font_bold");
 
-	nHeight = -(((!font ? 10 : font->Size) * GetDeviceCaps (hDC, LOGPIXELSY)) / 72);
+	nHeight = CompensateDPIFont (!font ? -13 : -font->Size);
 	lf.lfHeight = nHeight;
 	lf.lfWeight = FW_BLACK;
 	wcsncpy (lf.lfFaceName, !font ? L"Arial" : font->FaceName, sizeof (lf.lfFaceName)/2);
@@ -743,7 +921,7 @@ InitDialog (HWND hwndDlg)
 	// Title
 	font = GetFont ("font_title");
 
-	nHeight = -(((!font ? 16 : font->Size) * GetDeviceCaps (hDC, LOGPIXELSY)) / 72);
+	nHeight = CompensateDPIFont (!font ? -21 : -font->Size);
 	lf.lfHeight = nHeight;
 	lf.lfWeight = FW_REGULAR;
 	wcsncpy (lf.lfFaceName, !font ? L"Times New Roman" : font->FaceName, sizeof (lf.lfFaceName)/2);
@@ -754,10 +932,10 @@ InitDialog (HWND hwndDlg)
 		AbortProcess ("NOFONT");
 	}
 
-	// Fixed
+	// Fixed-size
 	font = GetFont ("font_fixed");
 
-	nHeight = -(((!font ? 9 : font->Size) * GetDeviceCaps (hDC, LOGPIXELSY)) / 72);
+	nHeight = CompensateDPIFont (!font ? -12 : -font->Size);
 	lf.lfHeight = nHeight;
 	lf.lfWidth = 0;
 	lf.lfEscapement = 0;
@@ -789,8 +967,7 @@ InitDialog (HWND hwndDlg)
 	}
 }
 
-HDC
-CreateMemBitmap (HINSTANCE hInstance, HWND hwnd, char *resource)
+HDC CreateMemBitmap (HINSTANCE hInstance, HWND hwnd, char *resource)
 {
 	HBITMAP picture = LoadBitmap (hInstance, resource);
 	HDC viewDC = GetDC (hwnd), dcMem;
@@ -801,85 +978,176 @@ CreateMemBitmap (HINSTANCE hInstance, HWND hwnd, char *resource)
 
 	SelectObject (dcMem, picture);
 
+	DeleteObject (picture);
+
 	ReleaseDC (hwnd, viewDC);
 
 	return dcMem;
 }
 
-/* Draw the specified bitmap at the specified location - Stretch to fit. */
-void
-PaintBitmap (HDC pdcMem, int x, int y, int nWidth, int nHeight, HDC hDC)
-{
-	HGDIOBJ picture = GetCurrentObject (pdcMem, OBJ_BITMAP);
 
+/* Renders the specified bitmap at the specified location and stretches it to fit (anti-aliasing is applied). 
+If bDirectRender is FALSE and both nWidth and nHeight are zero, the width and height of hwndDest are
+retrieved and adjusted according to screen DPI (the width and height of the resultant image are adjusted the
+same way); furthermore, if bKeepAspectRatio is TRUE, the smaller DPI factor of the two (i.e. horiz. or vert.)
+is used both for horiz. and vert. scaling (note that the overall GUI aspect ratio changes irregularly in
+both directions depending on the DPI). If bDirectRender is TRUE, bKeepAspectRatio is ignored. 
+This function returns a handle to the scaled bitmap. When the bitmap is no longer needed, it should be
+deleted by calling DeleteObject() with the handle passed as the parameter. 
+Known Windows issues: 
+- For some reason, anti-aliasing is not applied if the source bitmap contains less than 16K pixels. 
+- Windows 2000 may produce slightly inaccurate colors even when source, buffer, and target are 24-bit true color. */
+HBITMAP RenderBitmap (char *resource, HWND hwndDest, int x, int y, int nWidth, int nHeight, BOOL bDirectRender, BOOL bKeepAspectRatio)
+{
+	LRESULT lResult = 0;
+
+	HDC hdcSrc = CreateMemBitmap (hInst, hwndDest, resource);
+
+	HGDIOBJ picture = GetCurrentObject (hdcSrc, OBJ_BITMAP);
+
+	HBITMAP hbmpRescaled;
 	BITMAP bitmap;
+
+	HDC hdcRescaled;
+
+	if (!bDirectRender && nWidth == 0 && nHeight == 0)
+	{
+		RECT rec;
+
+		GetClientRect (hwndDest, &rec);
+
+		if (bKeepAspectRatio)
+		{
+			if (DlgAspectRatio > 1)
+			{
+				// Do not fix this, it's correct. We use the Y scale factor intentionally for both
+				// directions to maintain aspect ratio (see above for more info).
+				nWidth = CompensateYDPI (rec.right);
+				nHeight = CompensateYDPI (rec.bottom);
+			}
+			else
+			{
+				// Do not fix this, it's correct. We use the X scale factor intentionally for both
+				// directions to maintain aspect ratio (see above for more info).
+				nWidth = CompensateXDPI (rec.right);
+				nHeight = CompensateXDPI (rec.bottom);
+			}
+		}
+		else
+		{
+			nWidth = CompensateXDPI (rec.right);
+			nHeight = CompensateYDPI (rec.bottom);
+		}
+	}
+
 	GetObject (picture, sizeof (BITMAP), &bitmap);
 
-	BitBlt (hDC, x, y, nWidth, nHeight, pdcMem, 0, 0, SRCCOPY);
+    hdcRescaled = CreateCompatibleDC (hdcSrc); 
+ 
+    hbmpRescaled = CreateCompatibleBitmap (hdcSrc, nWidth, nHeight); 
+ 
+    SelectObject (hdcRescaled, hbmpRescaled);
+
+	/* Anti-aliasing mode (HALFTONE is the only anti-aliasing algorithm natively supported by Windows 2000.
+	   TODO: GDI+ offers higher quality -- InterpolationModeHighQualityBicubic) */
+	SetStretchBltMode (hdcRescaled, HALFTONE);
+
+	StretchBlt (hdcRescaled,
+		0,
+		0,
+		nWidth,
+		nHeight,
+		hdcSrc,
+		0,
+		0,
+		bitmap.bmWidth, 
+		bitmap.bmHeight,
+		SRCCOPY);
+
+	DeleteDC (hdcSrc);
+
+	if (bDirectRender)
+	{
+		HDC hdcDest = GetDC (hwndDest);
+
+		BitBlt (hdcDest, x, y, nWidth, nHeight, hdcRescaled, 0, 0, SRCCOPY);
+		DeleteDC (hdcDest);
+	}
+	else
+	{
+		lResult = SendMessage (hwndDest, (UINT) STM_SETIMAGE, (WPARAM) IMAGE_BITMAP, (LPARAM) (HANDLE) hbmpRescaled);
+	}
+
+	if ((HGDIOBJ) lResult != NULL && (HGDIOBJ) lResult != (HGDIOBJ) hbmpRescaled)
+		DeleteObject ((HGDIOBJ) lResult);
+
+	DeleteDC (hdcRescaled);
+
+	return hbmpRescaled;
 }
 
 
 LRESULT CALLBACK
 RedTick (HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-  if (uMsg == WM_CREATE)
-    {
-    }
-  else if (uMsg == WM_DESTROY)
-    {
-    }
-  else if (uMsg == WM_TIMER)
-    {
-    }
-  else if (uMsg == WM_PAINT)
-    {
-      PAINTSTRUCT tmp;
-      HPEN hPen;
-      HDC hDC;
-      BOOL bEndPaint;
-      RECT Rect;
-
-      if (GetUpdateRect (hwnd, NULL, FALSE))
+	if (uMsg == WM_CREATE)
 	{
-	  hDC = BeginPaint (hwnd, &tmp);
-	  bEndPaint = TRUE;
-	  if (hDC == NULL)
-	    return DefWindowProc (hwnd, uMsg, wParam, lParam);
 	}
-      else
+	else if (uMsg == WM_DESTROY)
 	{
-	  hDC = GetDC (hwnd);
-	  bEndPaint = FALSE;
 	}
-
-      GetClientRect (hwnd, &Rect);
-
-      hPen = CreatePen (PS_SOLID, 2, RGB (0, 255, 0));
-      if (hPen != NULL)
+	else if (uMsg == WM_TIMER)
 	{
-	  HGDIOBJ hObj = SelectObject (hDC, hPen);
-	  WORD bx = LOWORD (GetDialogBaseUnits ());
-	  WORD by = HIWORD (GetDialogBaseUnits ());
+	}
+	else if (uMsg == WM_PAINT)
+	{
+		PAINTSTRUCT tmp;
+		HPEN hPen;
+		HDC hDC;
+		BOOL bEndPaint;
+		RECT Rect;
 
-	  MoveToEx (hDC, (Rect.right - Rect.left) / 2, Rect.bottom, NULL);
-	  LineTo (hDC, Rect.right, Rect.top);
-	  MoveToEx (hDC, (Rect.right - Rect.left) / 2, Rect.bottom, NULL);
+		if (GetUpdateRect (hwnd, NULL, FALSE))
+		{
+			hDC = BeginPaint (hwnd, &tmp);
+			bEndPaint = TRUE;
+			if (hDC == NULL)
+				return DefWindowProc (hwnd, uMsg, wParam, lParam);
+		}
+		else
+		{
+			hDC = GetDC (hwnd);
+			bEndPaint = FALSE;
+		}
 
-	  LineTo (hDC, (3 * bx) / 4, (2 * by) / 8);
+		GetClientRect (hwnd, &Rect);
 
-	  SelectObject (hDC, hObj);
-	  DeleteObject (hPen);
+		hPen = CreatePen (PS_SOLID, 2, RGB (0, 255, 0));
+		if (hPen != NULL)
+		{
+			HGDIOBJ hObj = SelectObject (hDC, hPen);
+			WORD bx = LOWORD (GetDialogBaseUnits ());
+			WORD by = HIWORD (GetDialogBaseUnits ());
+
+			MoveToEx (hDC, (Rect.right - Rect.left) / 2, Rect.bottom, NULL);
+			LineTo (hDC, Rect.right, Rect.top);
+			MoveToEx (hDC, (Rect.right - Rect.left) / 2, Rect.bottom, NULL);
+
+			LineTo (hDC, (3 * bx) / 4, (2 * by) / 8);
+
+			SelectObject (hDC, hObj);
+			DeleteObject (hPen);
+		}
+
+		if (bEndPaint)
+			EndPaint (hwnd, &tmp);
+		else
+			ReleaseDC (hwnd, hDC);
+
+		return TRUE;
 	}
 
-      if (bEndPaint)
-	EndPaint (hwnd, &tmp);
-      else
-	ReleaseDC (hwnd, hDC);
-
-      return TRUE;
-    }
-
-  return DefWindowProc (hwnd, uMsg, wParam, lParam);
+	return DefWindowProc (hwnd, uMsg, wParam, lParam);
 }
 
 BOOL
@@ -1020,55 +1288,94 @@ void ExceptionHandlerThread (void *ept)
 	DWORD exCode = ep->ExceptionRecord->ExceptionCode;
 	SYSTEM_INFO si;
 	wchar_t msg[8192];
+	char modPath[MAX_PATH];
+	int crc = 0;
 	char url[MAX_URL_LENGTH];
+	char lpack[128];
 	int i;
 
 	addr = (DWORD) ep->ExceptionRecord->ExceptionAddress;
 	ZeroMemory (retAddr, sizeof (retAddr));
 
-	if (exCode == 0xc0000006)
+	switch (exCode)
 	{
+	case 0x80000003:
+	case 0x80000004:
+	case 0xc0000006:
+	case 0xc000001d:
+	case 0xc000001e:
+	case 0xc0000094:
+	case 0xc0000096:
+	case 0xeedfade:
 		// Exception not caused by TrueCrypt
-		MessageBoxW (MainDlg, GetString ("EXCEPTION_REPORT_EXT"),
+		MessageBoxW (0, GetString ("EXCEPTION_REPORT_EXT"),
 			GetString ("EXCEPTION_REPORT_TITLE"),
 			MB_ICONERROR | MB_OK | MB_SETFOREGROUND | MB_TOPMOST);
-
 		return;
-	}
-	else
-	{
-		// Call stack
-		PDWORD sp = (PDWORD) ep->ContextRecord->Esp, stackTop;
-		int i = 0, e = 0;
-		MEMORY_BASIC_INFORMATION mi;
 
-		VirtualQuery (sp, &mi, sizeof (mi));
-		stackTop = (PDWORD)((char *)mi.BaseAddress + mi.RegionSize);
-
-		while (&sp[i] < stackTop && e < MAX_RET_ADDR_COUNT)
+	default:
 		{
-			if (sp[i] > 0x400000 && sp[i] < 0x500000)
-			{
-				int ee = 0;
-				
-				// Skip duplicates
-				while (ee < MAX_RET_ADDR_COUNT && retAddr[ee] != sp[i])
-					ee++;
-				if (ee != MAX_RET_ADDR_COUNT)
-				{
-					i++;
-					continue;
-				}
+			// Call stack
+			PDWORD sp = (PDWORD) ep->ContextRecord->Esp, stackTop;
+			int i = 0, e = 0;
+			MEMORY_BASIC_INFORMATION mi;
 
-				retAddr[e++] = sp[i];
+			VirtualQuery (sp, &mi, sizeof (mi));
+			stackTop = (PDWORD)((char *)mi.BaseAddress + mi.RegionSize);
+
+			while (&sp[i] < stackTop && e < MAX_RET_ADDR_COUNT)
+			{
+				if (sp[i] > 0x400000 && sp[i] < 0x500000)
+				{
+					int ee = 0;
+
+					// Skip duplicates
+					while (ee < MAX_RET_ADDR_COUNT && retAddr[ee] != sp[i])
+						ee++;
+					if (ee != MAX_RET_ADDR_COUNT)
+					{
+						i++;
+						continue;
+					}
+
+					retAddr[e++] = sp[i];
+				}
+				i++;
 			}
-			i++;
+		}
+	}
+
+	// Timestamp of the module
+	if (GetModuleFileName (NULL, modPath, sizeof (modPath)))
+	{
+		HANDLE h = CreateFile (modPath, FILE_READ_DATA | FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+		if (h != INVALID_HANDLE_VALUE)
+		{
+			BY_HANDLE_FILE_INFORMATION fi;
+			if (GetFileInformationByHandle (h, &fi))
+			{
+				char *buf = malloc (fi.nFileSizeLow);
+				if (buf)
+				{
+					DWORD bytesRead;
+					if (ReadFile (h, buf, fi.nFileSizeLow, &bytesRead, NULL) && bytesRead == fi.nFileSizeLow)
+						crc = crc32 (buf, fi.nFileSizeLow);
+					free (buf);
+				}
+			}
+			CloseHandle (h);
 		}
 	}
 
 	GetSystemInfo (&si);
 
-	sprintf (url, TC_APPLINK_SECURE "&dest=err-report&osver=%d.%d.%d-%s&cpus=%d&app=%s&dlg=%s&err=%x&addr=%x"
+	if (LocalizationActive)
+		sprintf_s (lpack, sizeof (lpack), "&langpack=%s_%s", GetPreferredLangId (), GetActiveLangPackVersion ());
+	else
+		lpack[0] = 0;
+
+	sprintf (url, TC_APPLINK_SECURE "&dest=err-report%s&osver=%d.%d.%d-%s&cpus=%d&app=%s&cksum=%x&dlg=%s&err=%x&addr=%x"
+		, lpack
 		, CurrentOSMajor
 		, CurrentOSMinor
 		, CurrentOSServicePack
@@ -1083,6 +1390,7 @@ void ExceptionHandlerThread (void *ept)
 #ifdef SETUP
 		,"setup"
 #endif
+		, crc
 		, LastDialogId ? LastDialogId : "-"
 		, exCode
 		, addr);
@@ -1236,7 +1544,7 @@ InitApp (HINSTANCE hInstance, char *lpszCommandLine)
 	{
 		OSVERSIONINFOEX osEx;
 
-		// Service pack check
+		// Service pack check & warnings about critical MS issues
 		osEx.dwOSVersionInfoSize = sizeof (OSVERSIONINFOEX);
 		if (GetVersionEx ((LPOSVERSIONINFOA) &osEx) != 0)
 		{
@@ -1246,7 +1554,22 @@ InitApp (HINSTANCE hInstance, char *lpszCommandLine)
 			case WIN_2000:
 				if (osEx.wServicePackMajor < 3)
 					Warning ("LARGE_IDE_WARNING_2K");
+				else
+				{
+					DWORD val = 0, size = sizeof(val);
+					HKEY hkey;
+
+					if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Services\\Atapi\\Parameters", 0, KEY_READ, &hkey) == ERROR_SUCCESS
+						&& (RegQueryValueEx (hkey, "EnableBigLba", 0, 0, (LPBYTE) &val, &size) != ERROR_SUCCESS
+						|| val != 1))
+
+					{
+						Warning ("LARGE_IDE_WARNING_2K_REGISTRY");
+					}
+					RegCloseKey (hkey);
+				}
 				break;
+
 			case WIN_XP:
 				if (osEx.wServicePackMajor < 1)
 				{
@@ -1297,6 +1620,10 @@ InitApp (HINSTANCE hInstance, char *lpszCommandLine)
 	hSplashClass = RegisterClass (&wc);
 	if (hSplashClass == 0)
 		AbortProcess ("INIT_REGISTER");
+
+	// DPI and GUI aspect ratio
+	DialogBoxParamW (hInst, MAKEINTRESOURCEW (IDD_AUXILIARY_DLG), NULL,
+		(DLGPROC) AuxiliaryDlgProc, (LPARAM) 1);
 
 	InitHelpFileName ();
 }
@@ -1388,7 +1715,7 @@ GetAvailableFixedDisks (HWND hComboBox, char *lpszRootPath)
 		for (n = 0; n <= 32; n++)
 		{
 			char szTmp[TC_MAX_PATH];
-			wchar_t size[100] = {0}, partTypeStr[1024] = {0}, *partType = partTypeStr;
+			wchar_t size[100] = {0};
 			OPEN_TEST_STRUCT driver;
 
 			sprintf (szTmp, lpszRootPath, i, n);
@@ -1428,6 +1755,7 @@ GetAvailableFixedDisks (HWND hComboBox, char *lpszRootPath)
 						
 						LvItem.iSubItem = 1;
 						LvItem.pszText = drive;
+						LvItem.mask = LVIF_TEXT;
 						SendMessage (hComboBox,LVM_SETITEM,0,(LPARAM)&LvItem);
 
 						// Label				
@@ -1448,69 +1776,6 @@ GetAvailableFixedDisks (HWND hComboBox, char *lpszRootPath)
 						break;
 					}
 
-					switch(diskInfo.PartitionType)
-					{
-					case PARTITION_ENTRY_UNUSED:	partType = L""; break;
-					case PARTITION_XINT13_EXTENDED:
-					case PARTITION_EXTENDED:		partType = L"Extended"; break;
-					case PARTITION_HUGE:			partType = L"FAT (06)"; break;
-					case PARTITION_FAT_12:			partType = L"FAT12"; break;
-					case PARTITION_FAT_16:			partType = L"FAT16"; break;
-					case PARTITION_FAT32:		
-					case PARTITION_FAT32_XINT13:	partType = L"FAT32"; break;
-					case 0x08:						partType = L"DELL (spanning)"; break;
-					case 0x12:						partType = L"Config/diagnostics"; break;
-					case 0x11:
-					case 0x14:
-					case 0x16:
-					case 0x1b:
-					case 0x1c:
-					case 0x1e:						partType = L"Hidden FAT"; break;
-					case PARTITION_IFS:				partType = L"NTFS"; break;
-					case 0x17:						partType = L"Hidden NTFS"; break;
-					case 0x3c:						partType = L"PMagic recovery"; break;
-					case 0x3d:						partType = L"Hidden NetWare"; break;
-					case 0x41:						partType = L"Linux/MINIX"; break;
-					case 0x42:						partType = L"SFS/LDM/Linux Swap"; break;
-					case 0x51:
-					case 0x64:
-					case 0x65:
-					case 0x66:
-					case 0x67:
-					case 0x68:
-					case 0x69:						partType = L"Novell"; break;
-					case 0x55:						partType = L"EZ-Drive"; break;
-					case PARTITION_OS2BOOTMGR:		partType = L"OS/2 BM"; break;
-					case PARTITION_XENIX_1:
-					case PARTITION_XENIX_2:			partType = L"Xenix"; break;
-					case PARTITION_UNIX:			partType = L"UNIX"; break;
-					case 0x74:						partType = L"Scramdisk"; break;
-					case 0x78:						partType = L"XOSL FS"; break;
-					case 0x80:
-					case 0x81:						partType = L"MINIX"; break;
-					case 0x82:						partType = L"Linux Swap"; break;
-					case 0x43:
-					case 0x83:						partType = L"Linux"; break;
-					case 0xc2:
-					case 0x93:						partType = L"Hidden Linux"; break;
-					case 0x86:
-					case 0x87:						partType = L"NTFS volume set"; break;
-					case 0x9f:						partType = L"BSD/OS"; break;
-					case 0xa0:
-					case 0xa1:						partType = L"Hibernation"; break;
-					case 0xa5:						partType = L"BSD"; break;
-					case 0xa8:						partType = L"Mac OS-X"; break;
-					case 0xa9:						partType = L"NetBSD"; break;
-					case 0xab:						partType = L"Mac OS-X Boot"; break;
-					case 0xb8:						partType = L"BSDI BSD/386 swap"; break;
-					case 0xc3:						partType = L"Hidden Linux swap"; break;
-					case 0xfb:						partType = L"VMware"; break;
-					case 0xfc:						partType = L"VMware swap"; break;
-					case 0xfd:						partType = L"Linux RAID"; break;
-					case 0xfe:						partType = L"WinNT hidden"; break;
-					default:						wsprintfW (partTypeStr, L"0x%02X", diskInfo.PartitionType); partType = partTypeStr; break;
-					}
-
 					GetSizeString (diskInfo.PartitionLength.QuadPart, size);
 				}
 
@@ -1524,7 +1789,12 @@ GetAvailableFixedDisks (HWND hComboBox, char *lpszRootPath)
 				{
 					wchar_t s[1024];
 					deviceSize = diskInfo.PartitionLength.QuadPart;
-					wsprintfW (s, L"Harddisk %d:", i);
+
+					if (removable)
+						wsprintfW (s, L"Harddisk %d (%s):", i, GetString ("REMOVABLE"));
+					else
+						wsprintfW (s, L"Harddisk %d:", i);
+
 					ListItemAddW (hComboBox, LvItem.iItem, s);
 				}
 				else
@@ -1537,9 +1807,15 @@ GetAvailableFixedDisks (HWND hComboBox, char *lpszRootPath)
 				ListSubItemSetW (hComboBox, LvItem.iItem, 2, size);
 
 				// Device type removable
-				if (n == 0 && removable)
+				if (removable)
 				{
-					ListSubItemSetW (hComboBox, LvItem.iItem, 4, GetString ("REMOVABLE"));
+					// Mark as removable
+					LvItem.iSubItem = 0;
+					LvItem.mask = LVIF_PARAM;
+					LvItem.lParam |= SELDEVFLAG_REMOVABLE_HOST_DEVICE;
+					SendMessage (hComboBox, LVM_SETITEM, 0, (LPARAM) &LvItem);
+
+					LvItem.mask = LVIF_TEXT;   
 				}
 
 				if (n > 0)
@@ -1556,6 +1832,7 @@ GetAvailableFixedDisks (HWND hComboBox, char *lpszRootPath)
 
 					LvItem.iSubItem = 1;
 					LvItem.pszText = drive;
+					LvItem.mask = LVIF_TEXT;   
 					SendMessage (hComboBox,LVM_SETITEM,0,(LPARAM)&LvItem);
 
 					// Label				
@@ -1566,9 +1843,6 @@ GetAvailableFixedDisks (HWND hComboBox, char *lpszRootPath)
 						if (GetDriveLabel (driveNo, name, sizeof (name)))
 							ListSubItemSetW (hComboBox, LvItem.iItem, 3, name);
 					}
-
-					// Partition type
-					ListSubItemSetW (hComboBox, LvItem.iItem, 4, partType);
 				}
 
 				if (n == 1)
@@ -1579,6 +1853,8 @@ GetAvailableFixedDisks (HWND hComboBox, char *lpszRootPath)
 					LvItem.mask = LVIF_PARAM;
 					LvItem.lParam |= SELDEVFLAG_CONTAINS_PARTITIONS;
 					SendMessage (hComboBox, LVM_SETITEM, 0, (LPARAM) &LvItem);
+
+					LvItem.mask = LVIF_TEXT;   
 				}
 			}
 			else if (n == 0)
@@ -1645,7 +1921,7 @@ GetAvailableRemovables (HWND hComboBox, char *lpszRootPath)
 		return 0;
 }
 
-BOOL WINAPI LegalNoticesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+BOOL CALLBACK LegalNoticesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	WORD lw = LOWORD (wParam);
 	if (lParam);		/* remove warning */
@@ -1715,7 +1991,7 @@ char * GetLegalNotices ()
 }
 
 
-BOOL WINAPI
+BOOL CALLBACK
 RawDevicesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	static char *lpszFileName;
@@ -1740,29 +2016,24 @@ RawDevicesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			memset (&LvCol,0,sizeof(LvCol));               
 			LvCol.mask = LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM|LVCF_FMT;  
 			LvCol.pszText = GetString ("DEVICE");
-			LvCol.cx = 160;
+			LvCol.cx = CompensateXDPI (186);
 			LvCol.fmt = LVCFMT_LEFT;
 			SendMessage (hList,LVM_INSERTCOLUMNW,0,(LPARAM)&LvCol);
 
 			LvCol.pszText = GetString ("DRIVE");  
-			LvCol.cx = 38;           
+			LvCol.cx = CompensateXDPI (38);           
 			LvCol.fmt = LVCFMT_LEFT;
 			SendMessage (hList,LVM_INSERTCOLUMNW,1,(LPARAM)&LvCol);
 
 			LvCol.pszText = GetString ("SIZE");  
-			LvCol.cx = 52;           
+			LvCol.cx = CompensateXDPI (64);           
 			LvCol.fmt = LVCFMT_RIGHT;
 			SendMessage (hList,LVM_INSERTCOLUMNW,2,(LPARAM)&LvCol);
 
 			LvCol.pszText = GetString ("VOLUME_LABEL");  
-			LvCol.cx = 90;           
+			LvCol.cx = CompensateXDPI (128);           
 			LvCol.fmt = LVCFMT_LEFT;
 			SendMessage (hList,LVM_INSERTCOLUMNW,3,(LPARAM)&LvCol);
-
-			LvCol.pszText = GetString ("TYPE");  
-			LvCol.cx = 76;
-			LvCol.fmt = LVCFMT_LEFT;
-			SendMessage (hList,LVM_INSERTCOLUMNW,4,(LPARAM)&LvCol);
 
 			nCount = GetAvailableFixedDisks (hList, "\\Device\\Harddisk%d\\Partition%d");
 			nCount += GetAvailableRemovables (hList, "\\Device\\Floppy%d");
@@ -1775,6 +2046,10 @@ RawDevicesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			}
 
 			lpszFileName = (char *) lParam;
+
+#ifdef VOLFORMAT
+			EnableWindow (GetDlgItem (hwndDlg, IDOK), FALSE);
+#endif
 			return 1;
 		}
 
@@ -1804,6 +2079,22 @@ RawDevicesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			LvItem.iItem =  SendMessage (GetDlgItem (hwndDlg, IDC_DEVICELIST), LVM_GETSELECTIONMARK, 0, 0);
 			LvItem.pszText = lpszFileName;
 			LvItem.cchTextMax = TC_MAX_PATH;
+
+			if (lpszFileName[0] == 0)
+				return 1; // non-device line selected
+
+#ifdef VOLFORMAT
+			if (bWarnDeviceFormatAdvanced
+				&& !bHiddenVolDirect
+				&& AskWarnNoYes("FORMAT_DEVICE_FOR_ADVANCED_ONLY") == IDNO)
+			{
+				EndDialog (hwndDlg, IDCANCEL);
+				return 1;
+			}
+
+			if (!bHiddenVolDirect)
+				bWarnDeviceFormatAdvanced = FALSE;
+#endif
 
 			SendMessage (GetDlgItem (hwndDlg, IDC_DEVICELIST), LVM_GETITEM, LvItem.iItem, (LPARAM) &LvItem);
 
@@ -1843,8 +2134,9 @@ RawDevicesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 #endif
 			}
 
-			if (lpszFileName[0] == 0)
-				return 1; // non-device line selected
+#ifdef VOLFORMAT
+			bRemovableHostDevice = LvItem.lParam & SELDEVFLAG_REMOVABLE_HOST_DEVICE;
+#endif
 
 			EndDialog (hwndDlg, IDOK);
 			return 1;
@@ -1903,6 +2195,15 @@ static int DriverLoad ()
 		return ERR_OS_ERROR;
 	}
 
+	hService = OpenService (hManager, "truecrypt", SERVICE_ALL_ACCESS);
+	if (hService != NULL)
+	{
+		// Remove stale service (driver is not loaded but service exists)
+		DeleteService (hService);
+		CloseServiceHandle (hService);
+		Sleep (500);
+	}
+
 	hService = CreateService (hManager, "truecrypt", "truecrypt",
 		SERVICE_ALL_ACCESS, SERVICE_KERNEL_DRIVER, SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL,
 		driverPath, NULL, NULL, NULL, NULL, NULL);
@@ -1914,8 +2215,8 @@ static int DriverLoad ()
 	}
 
 	res = StartService (hService, 0, NULL);
-
 	DeleteService (hService);
+
 	CloseServiceHandle (hManager);
 	CloseServiceHandle (hService);
 
@@ -1939,7 +2240,7 @@ BOOL DriverUnload ()
 		return TRUE;
 
 	// Test for mounted volumes
-	bResult = DeviceIoControl (hDriver, MOUNT_LIST, &driver, sizeof (driver), &driver,
+	bResult = DeviceIoControl (hDriver, MOUNT_LIST_ALL, &driver, sizeof (driver), &driver,
 		sizeof (driver), &dwResult, NULL);
 
 	if (bResult)
@@ -1957,6 +2258,7 @@ BOOL DriverUnload ()
 		return FALSE;
 
 	CloseHandle (hDriver);
+	hDriver = INVALID_HANDLE_VALUE;
 
 	// Stop driver service
 
@@ -2016,6 +2318,7 @@ DriverAttach (void)
 	if (hDriver == INVALID_HANDLE_VALUE)
 	{
 #ifndef SETUP
+load:
 		// Attempt to load driver (non-install mode)
 		{
 			BOOL res = DriverLoad ();
@@ -2039,9 +2342,19 @@ DriverAttach (void)
 
 #ifndef SETUP // Don't check version during setup to allow removal of another version
 		if (bResult == FALSE)
+		{
 			return ERR_OS_ERROR;
+		}
 		else if (DriverVersion != VERSION_NUM)
+		{
+			// Unload an incompatbile version of the driver loaded in non-install mode and load the required version
+			if (IsNonInstallMode () && DriverUnload ())
+				goto load;
+
+			CloseHandle (hDriver);
+			hDriver = INVALID_HANDLE_VALUE;
 			return ERR_DRIVER_VERSION;
+		}
 #else
 		if (!bResult)
 			DriverVersion = 0;
@@ -2497,7 +2810,7 @@ static BOOL CALLBACK CloseVolumeExplorerWindowsEnum (HWND hwnd, LPARAM driveNo)
 		{
 			PostMessage (hwnd, WM_CLOSE, 0, 0);
 			explorerCloseSent = TRUE;
-			return FALSE;
+			return TRUE;
 		}
 
 		explorerTopLevelWindow = hwnd;
@@ -2919,7 +3232,7 @@ counter_error:
 }
 
 
-BOOL WINAPI BenchmarkDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+BOOL CALLBACK BenchmarkDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	WORD lw = LOWORD (wParam);
 	LPARAM nIndex;
@@ -2945,23 +3258,23 @@ BOOL WINAPI BenchmarkDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPar
 
 			memset (&LvCol,0,sizeof(LvCol));               
 			LvCol.mask = LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM|LVCF_FMT;  
-			LvCol.pszText = GetString ("ALGORITHM");                           
-			LvCol.cx = 114;
+			LvCol.pszText = GetString ("ALGORITHM");
+			LvCol.cx = CompensateXDPI (114);
 			LvCol.fmt = LVCFMT_LEFT;
 			SendMessage (hList,LVM_INSERTCOLUMNW,0,(LPARAM)&LvCol);
 
-			LvCol.pszText = GetString ("ENCRYPTION");  
-			LvCol.cx = 80;           
+			LvCol.pszText = GetString ("ENCRYPTION");
+			LvCol.cx = CompensateXDPI (80);
 			LvCol.fmt = LVCFMT_RIGHT;
 			SendMessageW (hList,LVM_INSERTCOLUMNW,1,(LPARAM)&LvCol);
 
-			LvCol.pszText = GetString ("DECRYPTION");  
-			LvCol.cx = 80;
+			LvCol.pszText = GetString ("DECRYPTION");
+			LvCol.cx = CompensateXDPI (80);
 			LvCol.fmt = LVCFMT_RIGHT;
 			SendMessageW (hList,LVM_INSERTCOLUMNW,2,(LPARAM)&LvCol);
 
-			LvCol.pszText = GetString ("MEAN");  
-			LvCol.cx = 80;
+			LvCol.pszText = GetString ("MEAN");
+			LvCol.cx = CompensateXDPI (80);
 			LvCol.fmt = LVCFMT_RIGHT;
 			SendMessageW (hList,LVM_INSERTCOLUMNW,3,(LPARAM)&LvCol);
 
@@ -3082,7 +3395,7 @@ BOOL WINAPI BenchmarkDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPar
 /* Except in response to the WM_INITDIALOG message, the dialog box procedure
    should return nonzero if it processes the message, and zero if it does
    not. - see DialogProc */
-BOOL WINAPI
+BOOL CALLBACK
 KeyfileGeneratorDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	WORD lw = LOWORD (wParam);
@@ -3298,7 +3611,7 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			for (ea = EAGetFirst (); ea != 0; ea = EAGetNext (ea))
 			{
 				if (EAGetCipherCount (ea) == 1 && EAIsFormatEnabled (ea))
-					AddComboPair (GetDlgItem (hwndDlg, IDC_CIPHER), EAGetName (buf, ea), ea);
+					AddComboPair (GetDlgItem (hwndDlg, IDC_CIPHER), EAGetName (buf, ea), EAGetFirstCipher (ea));
 			}
 
 			ResetCipherTest(hwndDlg, idTestCipher);
@@ -3516,10 +3829,15 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						return 1;
 
 					ci->mode = LRW;
-					ci->ea = idTestCipher;
+
+					for (ci->ea = EAGetFirst (); ci->ea != 0 ; ci->ea = EAGetNext (ci->ea))
+						if (EAGetCipherCount (ci->ea) == 1 && EAGetFirstCipher (ci->ea) == idTestCipher)
+							break;
 
 					if (idTestCipher == BLOWFISH)
 					{
+						/* Deprecated/legacy */
+
 						/* Convert to little-endian, this is needed here and not in
 						above auto-tests because BF_ecb_encrypt above correctly converts
 						from big to little endian, and EncipherBlock does not! */
@@ -3551,6 +3869,8 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					}
 					else if (pt == 8)
 					{
+						/* Deprecated/legacy */
+
 						if (bEncrypt)
 							EncryptBufferLRW64 (tmp, pt, BE64(((unsigned __int64 *)lrwIndex)[0]), ci);
 						else
@@ -3559,6 +3879,8 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 					if (idTestCipher == BLOWFISH)
 					{
+						/* Deprecated/legacy */
+
 						/* Convert to little-endian, this is needed here and not in
 						above auto-tests because BF_ecb_encrypt above correctly converts
 						from big to little endian, and EncipherBlock does not! */
@@ -3571,6 +3893,8 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				{
 					if (idTestCipher == BLOWFISH)
 					{
+						/* Deprecated/legacy */
+
 						/* Convert to little-endian, this is needed here and not in
 						above auto-tests because BF_ecb_encrypt above correctly converts
 						from big to little endian, and EncipherBlock does not! */
@@ -3590,6 +3914,8 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 					if (idTestCipher == BLOWFISH)
 					{
+						/* Deprecated/legacy */
+
 						/* Convert back to big-endian */
 						LongReverse((void*)tmp, pt);
 					}
@@ -3653,6 +3979,8 @@ ResetCipherTest(HWND hwndDlg, int idTestCipher)
 
 	if (idTestCipher == BLOWFISH)
 	{
+		/* Deprecated/legacy */
+
 		ndx = SendMessage (GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_ADDSTRING, 0,(LPARAM) "448");
 		SendMessage(GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_SETITEMDATA, ndx,(LPARAM) 56);
 		ndx = SendMessage (GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_ADDSTRING, 0,(LPARAM) "256");
@@ -3668,6 +3996,8 @@ ResetCipherTest(HWND hwndDlg, int idTestCipher)
 
 	if (idTestCipher == CAST)
 	{
+		/* Deprecated/legacy */
+
 		ndx = SendMessage (GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_ADDSTRING, 0,(LPARAM) "128");
 		SendMessage(GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_SETITEMDATA, ndx,(LPARAM) 16);
 		SendMessage(GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_SETCURSEL, ndx,0);
@@ -3676,6 +4006,8 @@ ResetCipherTest(HWND hwndDlg, int idTestCipher)
 
 	if (idTestCipher == TRIPLEDES)
 	{
+		/* Deprecated/legacy */
+
 		ndx = SendMessage (GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_ADDSTRING, 0,(LPARAM) "168");
 		SendMessage(GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_SETITEMDATA, ndx,(LPARAM) 24);
 		SendMessage(GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_SETCURSEL, ndx,0);
@@ -3684,6 +4016,8 @@ ResetCipherTest(HWND hwndDlg, int idTestCipher)
 
 	if (idTestCipher == DES56)
 	{
+		/* Deprecated/legacy */
+
 		ndx = SendMessage (GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_ADDSTRING, 0,(LPARAM) "56");
 		SendMessage(GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_SETITEMDATA, ndx,(LPARAM) 7);
 		SendMessage(GetDlgItem(hwndDlg, IDC_KEY_SIZE), CB_SETCURSEL, 0,0);
@@ -3788,7 +4122,7 @@ BOOL CALLBACK MultiChoiceDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
 			nBaseButtonHeight = rec.bottom + 2;
 
 			// Increase in width based on the gfx length of the widest button caption
-			horizSubOffset = min (500, max (0, nLongestButtonCaptionWidth + 50 - nBaseButtonWidth));
+			horizSubOffset = min (CompensateXDPI (500), max (0, nLongestButtonCaptionWidth + CompensateXDPI (50) - nBaseButtonWidth));
 
 			// Vertical "title bar" offset
 			GetClientRect(hwndDlg, &wtrec);
@@ -3805,7 +4139,7 @@ BOOL CALLBACK MultiChoiceDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
 								bResolve ? GetString(*(pStrOrig+1)) : *(pwStrOrig+1),
 								hUserFont) / (trec.right + horizSubOffset) + 1)	* nTextGfxLineHeight) - trec.bottom;
 
-			vertMsgHeightOffset = min (350, vertMsgHeightOffset + nTextGfxLineHeight + (trec.bottom + vertMsgHeightOffset) / 10);
+			vertMsgHeightOffset = min (CompensateYDPI (350), vertMsgHeightOffset + nTextGfxLineHeight + (trec.bottom + vertMsgHeightOffset) / 10);
 
 			// Reduction in height according to the number of shown buttons
 			vertSubOffset = ((MAX_MULTI_CHOICES - nActiveChoices) * nBaseButtonHeight);
@@ -3912,20 +4246,10 @@ BOOL CheckCapsLock (HWND hwnd, BOOL quiet)
 // Windows and antivirus software to interfere with the container 
 BOOL CheckFileExtension (char *fileName)
 {
-	char ext[5];
-	int i, j = 0;
+	char *ext = strrchr (fileName, '.');
 
-	for (i = strlen(fileName)-4; i <= (int) strlen(fileName)-1 && i > 0; i++)
-	{
-		ext [j++] = fileName [i];
-	}
-
-	if (!strncmp (ext, ".exe", 4)
-		|| !strncmp (ext, ".sys", 4)
-		|| !strncmp (ext, ".dll", 4))
-	{
+	if (ext && (!_stricmp (ext, ".exe") || !_stricmp (ext, ".sys") || !_stricmp (ext, ".dll")))
 		return TRUE;
-	}
 
 	return FALSE;
 }
@@ -3974,7 +4298,7 @@ BOOL IsDeviceMounted (char *deviceName)
 	HANDLE dev = INVALID_HANDLE_VALUE;
 
 	if ((dev = CreateFile (deviceName,
-		GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+		GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
 		NULL,
 		OPEN_EXISTING,
 		0,
@@ -4057,7 +4381,13 @@ void BroadcastDeviceChange (WPARAM message, int nDosDriveNo, DWORD driveMap)
 	dbv.dbcv_unitmask = driveMap;
 	dbv.dbcv_flags = 0; 
 
+	IgnoreWmDeviceChange = TRUE;
 	SendMessageTimeout (HWND_BROADCAST, WM_DEVICECHANGE, message, (LPARAM)(&dbv), 0, 1000, &dwResult);
+
+	// Explorer sometimes fails to register a new drive
+	if (message == DBT_DEVICEARRIVAL)
+		SendMessageTimeout (HWND_BROADCAST, WM_DEVICECHANGE, message, (LPARAM)(&dbv), 0, 200, &dwResult);
+	IgnoreWmDeviceChange = FALSE;
 }
 
 
@@ -4263,7 +4593,7 @@ retry:
 	{
 		if (result == ERR_FILES_OPEN && !Silent)
 		{
-			if (IDYES == AskWarnNoYes("UNMOUNT_LOCK_FAILED"))
+			if (IDYES == AskWarnNoYes ("UNMOUNT_LOCK_FAILED"))
 			{
 				forced = TRUE;
 				goto retry;
@@ -4312,6 +4642,35 @@ BOOL IsMountedVolume (char *volname)
 			return TRUE;
 
 	return FALSE;
+}
+
+
+int GetMountedVolumeDriveNo (char *volname)
+{
+	MOUNT_LIST_STRUCT mlist;
+	DWORD dwResult;
+	int i;
+	char volume[TC_MAX_PATH*2+16];
+
+	if (volname == NULL)
+		return -1;
+
+	strcpy (volume, volname);
+
+	if (strstr (volname, "\\Device\\") != volname)
+		sprintf(volume, "\\??\\%s", volname);
+	ToUNICODE (volume);
+
+	memset (&mlist, 0, sizeof (mlist));
+	DeviceIoControl (hDriver, MOUNT_LIST, &mlist,
+		sizeof (mlist), &mlist, sizeof (mlist), &dwResult,
+		NULL);
+
+	for (i=0 ; i<26; i++)
+		if (0 == wcscmp (mlist.wszVolume[i], (WCHAR *)volume))
+			return i;
+
+	return -1;
 }
 
 
@@ -5094,26 +5453,23 @@ char *GetModPath (char *path, int maxSize)
 char *GetConfigPath (char *fileName)
 {
 	static char path[MAX_PATH * 2] = { 0 };
-	FILE *f;
-
-	// Module's directory
-	GetModPath (path, sizeof (path));
-	strcat (path, fileName);
 
 	if (IsNonInstallMode ())
-		return path;
-
-	f = fopen (fileName, "r");
-	if (f == NULL)
 	{
-		// User application data folder
-		SHGetFolderPath (NULL, CSIDL_APPDATA | CSIDL_FLAG_CREATE, NULL, 0, path);
+		GetModPath (path, sizeof (path));
+		strcat (path, fileName);
+
+		return path;
+	}
+
+	if (SUCCEEDED(SHGetFolderPath (NULL, CSIDL_APPDATA | CSIDL_FLAG_CREATE, NULL, 0, path)))
+	{
 		strcat (path, "\\TrueCrypt\\");
 		CreateDirectory (path, NULL);
 		strcat (path, fileName);
 	}
 	else
-		fclose (f);
+		path[0] = 0;
 
 	return path;
 }
@@ -5165,6 +5521,13 @@ int AskWarnNoYes (char *stringId)
 {
 	if (Silent) return 0;
 	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2 | MB_SETFOREGROUND | MB_TOPMOST);
+}
+
+
+int AskWarnNoYesString (wchar_t *string)
+{
+	if (Silent) return 0;
+	return MessageBoxW (MainDlg, string, lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2 | MB_SETFOREGROUND | MB_TOPMOST);
 }
 
 
@@ -5475,9 +5838,8 @@ void Applink (char *dest, BOOL bSendOS, char *extraOutput)
 			break;
 
 		case WIN_VISTA_OR_LATER:
-			if (os.dwMajorVersion >= 7)
-				strcat (osname, "win7-or-later");
-			else
+			if (CurrentOSMajor == 6 && CurrentOSMinor == 0 &&
+				os.wProductType != VER_NT_SERVER && os.wProductType != VER_NT_DOMAIN_CONTROLLER)
 			{
 				strcat (osname, "winvista");
 
@@ -5504,22 +5866,26 @@ void Applink (char *dest, BOOL bSendOS, char *extraOutput)
 					RegCloseKey (hkey);
 				}
 			}
+			else
+			{
+				sprintf (osname + strlen (osname), "win%d.%d", CurrentOSMajor, CurrentOSMinor);
+			}
+
+			if (os.wProductType == VER_NT_SERVER || os.wProductType == VER_NT_DOMAIN_CONTROLLER)
+				strcat (osname, "-server");
+
 			break;
 
 		default:
-			strcat (osname, "other");
+			sprintf (osname + strlen (osname), "win%d.%d", CurrentOSMajor, CurrentOSMinor);
+			break;
 		}
 
 		if (Is64BitOs())
 			strcat (osname, "-x64");
 
 		if (CurrentOSServicePack > 0)
-		{
-			char s[64];
-			sprintf (s, "-sp%d", CurrentOSServicePack);
-			strcat (osname, s);
-		}
-
+			sprintf (osname + strlen (osname), "-sp%d", CurrentOSServicePack);
 	}
 	else
 		osname[0] = 0;
@@ -5577,9 +5943,9 @@ BOOL CALLBACK CloseTCWindowsEnum (HWND hwnd, LPARAM lParam)
 {
 	if (GetWindowLongPtr (hwnd, GWLP_USERDATA) == (LONG_PTR) 'TRUE')
 	{
-		char name[32] = { 0 };
+		char name[1024] = { 0 };
 		GetWindowText (hwnd, name, sizeof (name) - 1);
-		if (hwnd != MainDlg && strstr (name, "TrueCrypt") == name)
+		if (hwnd != MainDlg && strstr (name, "TrueCrypt"))
 		{
 			PostMessage (hwnd, WM_APP + APPMSG_CLOSE_BKG_TASK, 0, 0);
 

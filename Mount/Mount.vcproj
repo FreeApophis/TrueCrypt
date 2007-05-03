@@ -410,15 +410,19 @@
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
 			<File
-				RelativePath=".\driveicon.bmp"
+				RelativePath=".\Drive_icon_96dpi.bmp"
 				>
 			</File>
 			<File
-				RelativePath=".\driveicon_mask.bmp"
+				RelativePath=".\Drive_icon_mask_96dpi.bmp"
 				>
 			</File>
 			<File
-				RelativePath="..\Common\logo.bmp"
+				RelativePath=".\Logo_288dpi.bmp"
+				>
+			</File>
+			<File
+				RelativePath=".\Logo_96dpi.bmp"
 				>
 			</File>
 			<File
@@ -428,10 +432,6 @@
 			<Filter
 				Name="Common"
 				>
-				<File
-					RelativePath="..\Common\about.bmp"
-					>
-				</File>
 				<File
 					RelativePath="..\Common\Common.rc"
 					>
@@ -461,11 +461,23 @@
 					>
 				</File>
 				<File
+					RelativePath="..\Common\Textual_logo_288dpi.bmp"
+					>
+				</File>
+				<File
+					RelativePath="..\Common\Textual_logo_96dpi.bmp"
+					>
+				</File>
+				<File
+					RelativePath="..\Common\Textual_logo_background.bmp"
+					>
+				</File>
+				<File
 					RelativePath="..\Common\TrueCrypt.ico"
 					>
 				</File>
 				<File
-					RelativePath="..\Common\TrueCrypt_Volume.ico"
+					RelativePath="..\Common\TrueCrypt_volume.ico"
 					>
 				</File>
 			</Filter>

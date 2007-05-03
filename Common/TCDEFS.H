@@ -4,15 +4,15 @@
  Paul Le Roux and which is covered by the 'License Agreement for Encryption
  for the Masses'. Modifications and additions to that source code contained
  in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.2 the full text of which is contained in the file
+ TrueCrypt License 2.3 the full text of which is contained in the file
  License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
 // Version displayed to user 
-#define VERSION_STRING                  "4.3"
+#define VERSION_STRING                  "4.3a"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x0430
+#define VERSION_NUM						0x043a
 
 // Version number written to volume header during format,
 // specifies the minimum program version required to mount the volume
@@ -21,8 +21,8 @@
 // Volume header version
 #define VOLUME_HEADER_VERSION			0x0002 
 
-// Sector size of encrypted filesystem, which may differ from sector size of host filesystem/device (this 
-// is fully supported since v4.3). To retain maximum portability and compatibility, it should always be 512.
+// Sector size of encrypted filesystem, which may differ from sector size 
+// of host filesystem/device (this is fully supported since v4.3). 
 #define SECTOR_SIZE                     512
 
 #define BYTES_PER_KB                    1024LL

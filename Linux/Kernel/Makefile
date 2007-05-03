@@ -1,14 +1,13 @@
 #
 # Copyright (c) TrueCrypt Foundation. All rights reserved.
 #
-# Covered by the TrueCrypt License 2.2 the full text of which is contained
+# Covered by the TrueCrypt License 2.3 the full text of which is contained
 # in the file License.txt included in TrueCrypt binary and source code
 # distribution packages.
 #
 
-ifndef KERNEL_SRC
-KERNEL_SRC := /usr/src/linux
-endif
+KERNEL_SRC ?= /usr/src/linux
+KERNEL_BUILD ?= $(KERNEL_SRC)
 
 TC_COMMON := ../../Common
 TC_CRYPTO := ../../Crypto
@@ -65,7 +64,7 @@ USER_OBJS_CLEAN := ../.kernel-objs
 .PHONY:	clean install truecrypt
 
 truecrypt: $(USER_OBJS_CLEAN) platform
-	@$(MAKE) TC_BASE=$(PWD)/../.. -C $(KERNEL_SRC) SUBDIRS=$(PWD) M=$(PWD) modules 
+	@$(MAKE) TC_BASE=$(PWD)/../.. -C $(KERNEL_BUILD) SUBDIRS=$(PWD) M=$(PWD) modules 
 
 CMN := ../../Linux/Common
 
@@ -81,8 +80,8 @@ $(USER_OBJS_CLEAN):
 
 clean:
 	-rm -f $(OBJS) ../Common/.platform ../Common/platform
-	$(MAKE) -C $(KERNEL_SRC) SUBDIRS=$(PWD) M=$(PWD) clean
+	$(MAKE) -C $(KERNEL_BUILD) SUBDIRS=$(PWD) M=$(PWD) clean
 
 install: truecrypt
-	$(MAKE) -C $(KERNEL_SRC) SUBDIRS=$(PWD) M=$(PWD) modules_install
+	$(MAKE) -C $(KERNEL_BUILD) SUBDIRS=$(PWD) M=$(PWD) modules_install
 	depmod -a

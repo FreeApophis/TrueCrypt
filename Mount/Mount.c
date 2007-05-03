@@ -4,7 +4,7 @@
  Paul Le Roux and which is covered by the 'License Agreement for Encryption
  for the Masses'. Modifications and additions to that source code contained
  in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.2 the full text of which is contained in the file
+ TrueCrypt License 2.3 the full text of which is contained in the file
  License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -77,6 +77,8 @@ MountOptions mountOptions;
 MountOptions defaultMountOptions;
 KeyFile *FirstCmdKeyFile;
 
+HBITMAP hbmLogoBitmapRescaled = NULL;
+
 static KeyFilesDlgParam				hidVolProtKeyFilesParam;
 
 static MOUNT_LIST_STRUCT			LastKnownMountList;
@@ -97,6 +99,13 @@ localcleanup (void)
 	wchar_t *wc = GetCommandLineW ();
 	burn(c, strlen (c));
 	burn(wc, wcslen (wc) * sizeof (wchar_t));
+
+	/* Delete buffered bitmaps (if any) */
+	if (hbmLogoBitmapRescaled != NULL)
+	{
+		DeleteObject ((HGDIOBJ) hbmLogoBitmapRescaled);
+		hbmLogoBitmapRescaled = NULL;
+	}
 
 	/* Cleanup common code resources */
 	cleanup ();
@@ -191,6 +200,14 @@ static void InitMainDialog (HWND hwndDlg)
 		info.cch = wcslen (str);
 
 		SetMenuItemInfoW (GetMenu (hwndDlg), i, TRUE,  &info); 
+	}
+
+	// Resize the logo bitmap if the user has a non-default DPI
+	if (ScreenDPI != USER_DEFAULT_SCREEN_DPI)
+	{
+		hbmLogoBitmapRescaled = RenderBitmap (MAKEINTRESOURCE (IDB_LOGO_288DPI),
+			GetDlgItem (hwndDlg, IDC_LOGO),
+			0, 0, 0, 0, FALSE, TRUE);
 	}
 
 	BuildTree (GetDlgItem (hwndDlg, IDC_DRIVELIST));
@@ -645,7 +662,7 @@ static void PasswordChangeEnable (HWND hwndDlg, int button, int passwordId, BOOL
 /* Except in response to the WM_INITDIALOG message, the dialog box procedure
    should return nonzero if it processes the message, and zero if it does
    not. - see DialogProc */
-BOOL WINAPI
+BOOL CALLBACK
 PasswordChangeDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	static KeyFilesDlgParam newKeyFilesParam;
@@ -922,12 +939,11 @@ PasswordChangeDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			}
 
 			if (KeyFilesEnable)
-				KeyFilesApply (&oldPassword, FirstKeyFile, bPreserveTimestamp);
+				KeyFilesApply (&oldPassword, FirstKeyFile);
 
 			if (newKeyFilesParam.EnableKeyFiles)
 				KeyFilesApply (&newPassword,
-				pwdChangeDlgMode==PCDM_CHANGE_PKCS5_PRF ? FirstKeyFile : newKeyFilesParam.FirstKeyFile,
-				bPreserveTimestamp);
+				pwdChangeDlgMode==PCDM_CHANGE_PKCS5_PRF ? FirstKeyFile : newKeyFilesParam.FirstKeyFile);
 
 			nStatus = ChangePwd (szFileName, &oldPassword, &newPassword, pkcs5, hwndDlg);
 
@@ -972,7 +988,7 @@ static char PasswordDlgVolume[MAX_PATH];
 /* Except in response to the WM_INITDIALOG message, the dialog box procedure
    should return nonzero if it processes the message, and zero if it does
    not. - see DialogProc */
-BOOL WINAPI
+BOOL CALLBACK
 PasswordDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	WORD lw = LOWORD (wParam);
@@ -1058,8 +1074,7 @@ PasswordDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			if (lw == IDOK)
 			{
 				if (mountOptions.ProtectHiddenVolume && hidVolProtKeyFilesParam.EnableKeyFiles)
-					KeyFilesApply (&mountOptions.ProtectedHidVolPassword, hidVolProtKeyFilesParam.FirstKeyFile,
-					bPreserveTimestamp);
+					KeyFilesApply (&mountOptions.ProtectedHidVolPassword, hidVolProtKeyFilesParam.FirstKeyFile);
 
 				GetWindowText (GetDlgItem (hwndDlg, IDC_PASSWORD), szXPwd->Text, MAX_PASSWORD + 1);
 				szXPwd->Length = strlen (szXPwd->Text);
@@ -1131,7 +1146,7 @@ static void PreferencesDlgEnableButtons (HWND hwndDlg)
 	EnableWindow (GetDlgItem (hwndDlg, IDC_PREF_FORCE_AUTO_DISMOUNT), back);
 }
 
-BOOL WINAPI
+BOOL CALLBACK
 PreferencesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	WORD lw = LOWORD (wParam);
@@ -1293,7 +1308,9 @@ PreferencesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 					DeleteRegistryValue (regk, "TrueCrypt");
 			}
 
+			WaitCursor ();
 			SaveSettings (hwndDlg);
+			NormalCursor ();
 
 			EndDialog (hwndDlg, lw);
 			return 1;
@@ -1301,8 +1318,8 @@ PreferencesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 
 		if (lw == IDC_PREFS_HOTKEY_SETTINGS)
 		{
-			DialogBoxParam (hInst, 
-				MAKEINTRESOURCE (IDD_HOTKEYS_DLG), hwndDlg,
+			DialogBoxParamW (hInst, 
+				MAKEINTRESOURCEW (IDD_HOTKEYS_DLG), hwndDlg,
 				(DLGPROC) HotkeysDlgProc, (LPARAM) 0);
 			return 1;
 
@@ -1327,7 +1344,7 @@ PreferencesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 }
 
 
-BOOL WINAPI
+BOOL CALLBACK
 MountOptionsDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	static MountOptions *mountOptions;
@@ -1514,7 +1531,7 @@ int GetCipherBlockSizeByDriveNo (int nDosDriveNo)
 }
 
 
-BOOL WINAPI
+BOOL CALLBACK
 VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	WORD lw = LOWORD (wParam);
@@ -1544,12 +1561,12 @@ VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			memset (&lvCol,0,sizeof(lvCol));               
 			lvCol.mask = LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM|LVCF_FMT;  
 			lvCol.pszText = GetString ("VALUE");                           
-			lvCol.cx = 208;
+			lvCol.cx = CompensateXDPI (208);
 			lvCol.fmt = LVCFMT_LEFT ;
 			SendMessage (list,LVM_INSERTCOLUMNW,0,(LPARAM)&lvCol);
 
 			lvCol.pszText = GetString ("PROPERTY");  
-			lvCol.cx = 192;           
+			lvCol.cx = CompensateXDPI (192);           
 			lvCol.fmt = LVCFMT_LEFT;
 			SendMessage (list,LVM_INSERTCOLUMNW,0,(LPARAM)&lvCol);
 	
@@ -1615,7 +1632,7 @@ VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 				int size = EAGetKeySize (prop.ea);	
 				EAGetName (name, prop.ea);
 
-				if (strcmp (name, "Triple DES") == 0)
+				if (strcmp (name, "Triple DES") == 0)	/* Deprecated/legacy */
 					size -= 3; // Compensate for parity bytes
 
 				ListItemAddW (list, i, GetString ("KEY_SIZE"));
@@ -1662,6 +1679,7 @@ VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 
 			{
 				FILETIME ft, curFt;
+				LARGE_INTEGER ft64, curFt64;
 				SYSTEMTIME st;
 				wchar_t date[128];
 				memset (date, 0, sizeof (date));
@@ -1687,8 +1705,12 @@ VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 
 				GetLocalTime (&st);
 				SystemTimeToFileTime (&st, &curFt);
+				curFt64.HighPart = curFt.dwHighDateTime;
+				curFt64.LowPart = curFt.dwLowDateTime;
+				ft64.HighPart = ft.dwHighDateTime;
+				ft64.LowPart = ft.dwLowDateTime;
 				swprintf (date + wcslen (date),  GetString ("VOLUME_HEADER_DAYS")
-					, (*(__int64 *)&curFt - *(__int64 *)&ft)/1000000000000);
+					, (curFt64.QuadPart - ft64.QuadPart)/(24LL*3600*10000000));
 				ListSubItemSetW (list, i++, 1, date);
 			}
 
@@ -1722,7 +1744,7 @@ VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 }
 
 
-BOOL WINAPI
+BOOL CALLBACK
 TravellerDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	WORD lw = LOWORD (wParam);
@@ -1916,13 +1938,14 @@ TravellerDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			}
 
 			// AutoRun
+			sprintf (dstPath, "%s\\autorun.inf", dstDir);
+			DeleteFile (dstPath);
 			if (bAutoRun)
 			{
 				FILE *af;
 				char autoMount[100];
 				char driveLetter[] = { ' ', '/', 'l', drive, 0 };
 
-				sprintf (dstPath, "%s\\autorun.inf", dstDir);
 				af = fopen (dstPath, "w,ccs=UNICODE");
 
 				if (af == NULL)
@@ -1982,27 +2005,27 @@ BuildTree (HWND hTree)
 
 	lvCol.mask = LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM|LVCF_FMT;  
 	lvCol.pszText = GetString ("DRIVE");                           
-	lvCol.cx = 38;
+	lvCol.cx = CompensateXDPI (38);
 	lvCol.fmt = LVCFMT_COL_HAS_IMAGES|LVCFMT_LEFT ;
 	SendMessage (hTree,LVM_INSERTCOLUMNW,0,(LPARAM)&lvCol);
 
 	lvCol.pszText = GetString ("VOLUME");  
-	lvCol.cx = 253;           
+	lvCol.cx = CompensateXDPI (253);           
 	lvCol.fmt = LVCFMT_LEFT;
 	SendMessage (hTree,LVM_INSERTCOLUMNW,1,(LPARAM)&lvCol);
 
 	lvCol.pszText = GetString ("SIZE");  
-	lvCol.cx = 55;
+	lvCol.cx = CompensateXDPI (55);
 	lvCol.fmt = LVCFMT_RIGHT;
 	SendMessage (hTree,LVM_INSERTCOLUMNW,2,(LPARAM)&lvCol);
 
 	lvCol.pszText = GetString ("ENCRYPTION_ALGORITHM_LV");  
-	lvCol.cx = 121;
+	lvCol.cx = CompensateXDPI (121);
 	lvCol.fmt = LVCFMT_LEFT;
 	SendMessage (hTree,LVM_INSERTCOLUMNW,3,(LPARAM)&lvCol);
 
 	lvCol.pszText = GetString ("TYPE");  
-	lvCol.cx = 52;
+	lvCol.cx = CompensateXDPI (52);
 	lvCol.fmt = LVCFMT_LEFT;
 	SendMessage (hTree,LVM_INSERTCOLUMNW,4,(LPARAM)&lvCol);
 
@@ -2116,7 +2139,7 @@ static BOOL Mount (HWND hwndDlg, int nDosDriveNo, char *szFileName)
 	// If keyfiles are enabled, test empty password first
 	if (!mounted && KeyFilesEnable)
 	{
-		KeyFilesApply (&VolumePassword, FirstKeyFile, bPreserveTimestamp);
+		KeyFilesApply (&VolumePassword, FirstKeyFile);
 		mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, &VolumePassword, bCacheInDriver, bForceMount, &mountOptions, FALSE, FALSE);
 	}
 
@@ -2149,7 +2172,7 @@ static BOOL Mount (HWND hwndDlg, int nDosDriveNo, char *szFileName)
 		WaitCursor ();
 
 		if (KeyFilesEnable)
-			KeyFilesApply (&VolumePassword, FirstKeyFile, bPreserveTimestamp);
+			KeyFilesApply (&VolumePassword, FirstKeyFile);
 
 		mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, &VolumePassword, bCacheInDriver, bForceMount, &mountOptions, FALSE, TRUE);
 		NormalCursor ();
@@ -2359,9 +2382,9 @@ static BOOL MountAllDevices (HWND hwndDlg, BOOL bPasswordPrompt)
 		WaitCursor();
 
 		if (FirstCmdKeyFile)
-			KeyFilesApply (&VolumePassword, FirstCmdKeyFile, bPreserveTimestamp);
+			KeyFilesApply (&VolumePassword, FirstCmdKeyFile);
 		else if (KeyFilesEnable)
-			KeyFilesApply (&VolumePassword, FirstKeyFile, bPreserveTimestamp);
+			KeyFilesApply (&VolumePassword, FirstKeyFile);
 
 		for (i = 0; i < 64; i++)
 		{
@@ -2717,7 +2740,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						BOOL reportBadPasswd = CmdVolumePassword.Length > 0;
 
 						if (FirstCmdKeyFile)
-							KeyFilesApply (&CmdVolumePassword, FirstCmdKeyFile, bPreserveTimestamp);
+							KeyFilesApply (&CmdVolumePassword, FirstCmdKeyFile);
 
 						mounted = MountVolume (hwndDlg, szDriveLetter[0] - 'A',
 							szFileName, &CmdVolumePassword, bCacheInDriver, bForceMount,
@@ -2744,7 +2767,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						WaitCursor ();
 
 						if (KeyFilesEnable && FirstKeyFile)
-							KeyFilesApply (&VolumePassword, FirstKeyFile, bPreserveTimestamp);
+							KeyFilesApply (&VolumePassword, FirstKeyFile);
 
 						mounted = MountVolume (hwndDlg, szDriveLetter[0] - 'A', szFileName, &VolumePassword, bCacheInDriver, bForceMount, &mountOptions, FALSE, TRUE);
 
@@ -2784,8 +2807,8 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					else
 						exitCode = 1;
 				}
-				else if (bExplore)
-					OpenVolumeExplorerWindow (szDriveLetter[0] - 'A');
+				else if (bExplore && GetMountedVolumeDriveNo (szFileName) != -1)
+					OpenVolumeExplorerWindow (GetMountedVolumeDriveNo (szFileName));
 				else if (szFileName[0] != 0 && IsMountedVolume (szFileName))
 					Warning ("VOL_ALREADY_MOUNTED");
 					
@@ -2830,20 +2853,27 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 			// TaskBar icon
 			if (bEnableBkgTask)
-			{
 				TaskBarIconAdd (hwndDlg);
-				if (Quit && TaskBarIconMutex != NULL)
-					MainWindowHidden = TRUE;
-			}
-
-			// Register hot keys
-			if (!RegisterAllHotkeys (hwndDlg, Hotkeys)
-				&& TaskBarIconMutex != NULL)	// Warn only if we are the first instance of TrueCrypt
-				Warning("HOTKEY_REGISTRATION_ERROR");
 
 			// Quit
-			if (Quit && TaskBarIconMutex == NULL)
-				exit (exitCode);
+			if (Quit)
+			{
+				if (TaskBarIconMutex == NULL)
+					exit (exitCode);
+
+				MainWindowHidden = TRUE;
+
+				LoadSettings (hwndDlg);
+				LoadDefaultKeyFilesParam ();
+				RestoreDefaultKeyFilesParam ();
+
+				if (!bEnableBkgTask)
+				{
+					if (TaskBarIconMutex)
+						TaskBarIconRemove (hwndDlg);
+					exit (exitCode);
+				}
+			}
 
 			// No command line arguments or only /volume => bring active instance
 			// to foreground if available
@@ -2868,9 +2898,16 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 					ShowWindow (h, SW_SHOW);
 					SetForegroundWindow (h);
-					exit (0);
+
+					if (TaskBarIconMutex == NULL)
+						exit (0);
 				}
 			}
+
+			// Register hot keys
+			if (!RegisterAllHotkeys (hwndDlg, Hotkeys)
+				&& TaskBarIconMutex != NULL)	// Warn only if we are the first instance of TrueCrypt
+				Warning("HOTKEY_REGISTRATION_ERROR");
 
 			Silent = FALSE;
 
@@ -2934,10 +2971,13 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		{
 			// Auto-dismount when entering power-saving mode
 			DWORD dwResult;
-			DismountAll (hwndDlg, bForceAutoDismount, TRUE, UNMOUNT_MAX_AUTO_RETRIES, UNMOUNT_AUTO_RETRY_DELAY);
-			
+			BOOL volumesMounted = LastKnownMountList.ulMountedDrives != 0;
+
 			if (bWipeCacheOnAutoDismount)
 				DeviceIoControl (hDriver, WIPE_CACHE, NULL, 0, NULL, 0, &dwResult, NULL);
+
+			if (DismountAll (hwndDlg, bForceAutoDismount, TRUE, UNMOUNT_MAX_AUTO_RETRIES, UNMOUNT_AUTO_RETRY_DELAY) && volumesMounted)
+				Info ("MOUNTED_VOLUMES_AUTO_DISMOUNTED");
 		}
 		return 0;
 
@@ -2969,10 +3009,11 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					{
 						DWORD dwResult;
 						previousState = TRUE;
-						DismountAll (hwndDlg, bForceAutoDismount, FALSE, UNMOUNT_MAX_AUTO_RETRIES, UNMOUNT_AUTO_RETRY_DELAY);
 
 						if (bWipeCacheOnAutoDismount)
 							DeviceIoControl (hDriver, WIPE_CACHE, NULL, 0, NULL, 0, &dwResult, NULL);
+
+						DismountAll (hwndDlg, bForceAutoDismount, FALSE, UNMOUNT_MAX_AUTO_RETRIES, UNMOUNT_AUTO_RETRY_DELAY);
 					}
 					else
 					{
@@ -3121,15 +3162,19 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		return 1;
 
 	case WM_DEVICECHANGE:
+		if (!IgnoreWmDeviceChange && wParam != DBT_DEVICEARRIVAL)
 		{
 			// Check if any host device has been removed and force dismount of volumes accordingly
 			PDEV_BROADCAST_HDR hdr = (PDEV_BROADCAST_HDR) lParam;
+			int m;
+
+			GetMountList (&LastKnownMountList);
+
 			if (wParam == DBT_DEVICEREMOVECOMPLETE && hdr->dbch_devicetype == DBT_DEVTYP_VOLUME)
 			{
+				// File-hosted volumes
 				PDEV_BROADCAST_VOLUME vol = (PDEV_BROADCAST_VOLUME) lParam;
-				int i, m;
-
-				GetMountList (&LastKnownMountList);
+				int i;
 
 				for (i = 0; i < 26; i++)
 				{
@@ -3140,24 +3185,11 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 							if (LastKnownMountList.ulMountedDrives & (1 << m))
 							{
 								wchar_t *vol = LastKnownMountList.wszVolume[m];
-								int drive = -1;
 
-								if (wcsstr (vol, L"\\??\\"))
+								if (wcsstr (vol, L"\\??\\") == vol)
 									vol += 4;
 
-								if (vol[1] != L':')
-								{
-									OPEN_TEST_STRUCT ots;
-									char p[MAX_PATH];
-
-									_snprintf (p, sizeof(p), "%ls", vol);
-									if (!OpenDevice (p, &ots))
-										drive = i;
-								}
-								else
-									drive = vol[0] - (vol[0] <= L'Z' ? L'A' : L'a');
-
-								if (drive == i)
+								if (vol[1] == L':' && i == (vol[0] - (vol[0] <= L'Z' ? L'A' : L'a')))
 								{
 									UnmountVolume (hwndDlg, m, TRUE);
 									if (bWipeCacheOnAutoDismount || bWipeCacheOnExit)
@@ -3167,10 +3199,37 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						}
 					}
 				}
-
-				return 1;
 			}
+
+			// Device-hosted volumes
+			for (m = 0; m < 26; m++)
+			{
+				if (LastKnownMountList.ulMountedDrives & (1 << m))
+				{
+					wchar_t *vol = LastKnownMountList.wszVolume[m];
+					char volp[MAX_PATH];
+
+					if (wcsstr (vol, L"\\??\\") == vol)
+						vol += 4;
+
+					_snprintf (volp, sizeof(volp), "%ls", vol);
+
+					if (IsVolumeDeviceHosted (volp))
+					{
+						OPEN_TEST_STRUCT ots;
+
+						if (!OpenDevice (volp, &ots))
+						{
+							UnmountVolume (hwndDlg, m, TRUE);
+							if (bWipeCacheOnAutoDismount || bWipeCacheOnExit)
+								WipeCache (NULL);
+						}
+					}
+				}
+			}
+			return 1;
 		}
+		return 0;
 
 	case WM_NOTIFY:
 
@@ -3208,7 +3267,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 							return 1;
 
 						if (mountOptions.ProtectHiddenVolume && hidVolProtKeyFilesParam.EnableKeyFiles)
-							KeyFilesApply (&mountOptions.ProtectedHidVolPassword, hidVolProtKeyFilesParam.FirstKeyFile, bPreserveTimestamp);
+							KeyFilesApply (&mountOptions.ProtectedHidVolPassword, hidVolProtKeyFilesParam.FirstKeyFile);
 					}
 
 					if (CheckMountList ())
@@ -3354,7 +3413,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			return 1;
 		}
 
-		if (lw == IDM_ABOUT || lw == IDB_LOGO)
+		if (lw == IDM_ABOUT || lw == IDC_LOGO)
 		{
 			DialogBoxW (hInst, MAKEINTRESOURCEW (IDD_ABOUT_DLG), hwndDlg, (DLGPROC) AboutDlgProc);
 			return 1;
@@ -3399,7 +3458,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						return 1;
 
 					if (mountOptions.ProtectHiddenVolume && hidVolProtKeyFilesParam.EnableKeyFiles)
-						KeyFilesApply (&mountOptions.ProtectedHidVolPassword, hidVolProtKeyFilesParam.FirstKeyFile, bPreserveTimestamp);
+						KeyFilesApply (&mountOptions.ProtectedHidVolPassword, hidVolProtKeyFilesParam.FirstKeyFile);
 				}
 
 				if (CheckMountList ())
@@ -3706,9 +3765,15 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				(DLGPROC) PreferencesDlgProc, (LPARAM) 0))
 			{
 				if (bEnableBkgTask)
+				{
 					TaskBarIconAdd (hwndDlg);
+				}
 				else
+				{
 					TaskBarIconRemove (hwndDlg);
+					if (!IsWindowVisible (hwndDlg))
+						EndMainDlg (hwndDlg);
+				}
 			}
 			return 1;
 		}
@@ -4111,19 +4176,26 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 			case 'q':
 				{
 					char szTmp[32];
-					Quit = TRUE;
-					UsePreferences = FALSE;
 
 					if (HAS_ARGUMENT == GetArgumentValue (lpszCommandLineArgs,
 						nArgPos, &i, nNoCommandLineArgs, szTmp, sizeof (szTmp)))
 					{
+						if (!_stricmp (szTmp, "UAC")) // Used to indicate non-install elevation
+							break;
+
+						if (!_stricmp (szTmp, "preferences"))
+						{
+							Quit = TRUE;
+							UsePreferences = TRUE;
+							break;
+						}
+
 						if (!_stricmp (szTmp, "background"))
 							bEnableBkgTask = TRUE;
-						if (!_stricmp (szTmp, "preferences"))
-							UsePreferences = TRUE;
-						if (!_stricmp (szTmp, "UAC")) // Used to indicate non-install elevation
-							Quit = FALSE;
 					}
+
+					Quit = TRUE;
+					UsePreferences = FALSE;
 				}
 				break;
 
@@ -4232,9 +4304,13 @@ BOOL TaskBarIconAdd (HWND hwnd)
     tnid.uID = IDI_TRUECRYPT_ICON; 
     tnid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP; 
     tnid.uCallbackMessage = WM_APP + APPMSG_TASKBAR_ICON; 
-	tnid.hIcon = LoadImage (hInst, MAKEINTRESOURCE (IDI_TRUECRYPT_ICON), IMAGE_ICON, 16, 16,
-		nCurrentOS != WIN_2000 ? LR_DEFAULTCOLOR : LR_VGACOLOR); // Windows 2000 cannot display more than 16 fixed colors in notification tray
-        
+	tnid.hIcon = LoadImage (hInst, MAKEINTRESOURCE (IDI_TRUECRYPT_ICON), 
+		IMAGE_ICON, 
+		ScreenDPI >= 120 ? 0 : 16, 
+		ScreenDPI >= 120 ? 0 : 16,
+		(ScreenDPI >= 120 ? LR_DEFAULTSIZE : 0) 
+		| (nCurrentOS != WIN_2000 ? LR_DEFAULTCOLOR : LR_VGACOLOR)); // Windows 2000 cannot display more than 16 fixed colors in notification tray
+
 	wcscpy (tnid.szTip, L"TrueCrypt");
 	
 	res = Shell_NotifyIconW (NIM_ADD, &tnid); 
@@ -4491,13 +4567,13 @@ static void HandleHotKey (HWND hwndDlg, WPARAM wParam)
 		break;
 
 	case HK_DISMOUNT_ALL:
-		DismountAll (hwndDlg, FALSE, TRUE, UNMOUNT_MAX_AUTO_RETRIES, UNMOUNT_AUTO_RETRY_DELAY);
-
-		if (bPlaySoundOnHotkeyMountDismount)
-			MessageBeep(-1);
-
-		if (bDisplayMsgBoxOnHotkeyDismount)
+		if (DismountAll (hwndDlg, FALSE, TRUE, UNMOUNT_MAX_AUTO_RETRIES, UNMOUNT_AUTO_RETRY_DELAY) && bDisplayMsgBoxOnHotkeyDismount)
+			Info ("MOUNTED_VOLUMES_DISMOUNTED");
+		else if (bDisplayMsgBoxOnHotkeyDismount)
 			Info ("DISMOUNT_ALL_ATTEMPT_COMPLETED");
+
+		if (!bDisplayMsgBoxOnHotkeyDismount && bPlaySoundOnHotkeyMountDismount)
+			MessageBeep(-1);
 
 		break;
 

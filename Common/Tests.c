@@ -4,7 +4,7 @@
  Paul Le Roux and which is covered by the 'License Agreement for Encryption
  for the Masses'. Modifications and additions to that source code contained
  in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.2 the full text of which is contained in the file
+ TrueCrypt License 2.3 the full text of which is contained in the file
  License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -21,7 +21,7 @@
 #include "Pkcs5.h"
 #endif
 
-/* Blowfish Test Vectors */
+/* Blowfish Test Vectors (deprecated/legacy) */
 
 /* Blowfish test vectors from www.counterpane.com/blowfish.html */
 
@@ -71,7 +71,7 @@ BF_TEST bf_ecb_vectors[BF_TEST_COUNT] = {
 };
 
 
-/* DES Test Vectors */
+/* DES Test Vectors (deprecated/legacy) */
 
 /* DES test vectors, derived from "Validating the Correctness of Hardware
    Implementations of the NBS Data Encryption Standard", NBS Special
@@ -994,7 +994,7 @@ DES_TEST des56_ecb_vectors_sb[DES56_TEST_COUNT_SB] = {
 	  { 0x63, 0xFA, 0xC0, 0xD0, 0x34, 0xD9, 0xF7, 0x93 } }
 	};
 
-/* Triple DES TECB (EDE) test vectors */
+/* Triple DES TECB (EDE) test vectors (deprecated/legacy) */
 
 #define TRIPLEDES_TEST_COUNT 1
 
@@ -1013,7 +1013,7 @@ TRIPLEDES_TEST tripledes_vectors[TRIPLEDES_TEST_COUNT] = {
 0xde, 0x0b, 0x7c, 0x06, 0xae, 0x5e, 0x0e, 0xd5
 };
 
-/* CAST-128 Test Vectors from RFC2144 */
+/* CAST-128 Test Vectors from RFC2144 (deprecated/legacy) */
 
 #define CAST_TEST_COUNT 1
 
@@ -1157,6 +1157,7 @@ CipherInit2(int cipher, void* key, void* ks, int key_len)
 	switch (cipher)
 	{
 	case BLOWFISH:
+		/* Deprecated/legacy */
 		BF_set_key (ks, key_len,  key); 
 		break;
 
@@ -1165,10 +1166,12 @@ CipherInit2(int cipher, void* key, void* ks, int key_len)
 		break;
 
 	case DES56:
+		/* Deprecated/legacy */
 		CipherInit(cipher,key,ks);
 		break;
 
 	case CAST:
+		/* Deprecated/legacy */
 		CipherInit(cipher,key,ks);
 		break;
 
@@ -1177,6 +1180,7 @@ CipherInit2(int cipher, void* key, void* ks, int key_len)
 		break;
 
 	case TRIPLEDES:
+		/* Deprecated/legacy */
 		CipherInit(cipher,key,ks);
 		break;
 
@@ -1188,6 +1192,8 @@ CipherInit2(int cipher, void* key, void* ks, int key_len)
 
 BOOL Des56TestLoop(void *test_vectors, int nVectorCount, int enc)
 {
+	/* Deprecated/legacy */
+
 	char key[32];
 	__int32 tmp[2];
 	int i, cipher;
@@ -1317,7 +1323,7 @@ BOOL TestSectorBufEncryption (PCRYPTO_INFO ci)
 				if (!EAInitMode (ci))
 					return FALSE;
 
-				if (blockSize == 8)
+				if (blockSize == 8)	// Deprecated/legacy
 					lrw64InitDone = TRUE;
 				else if (blockSize == 16)
 					lrw128InitDone = TRUE;
@@ -1331,13 +1337,13 @@ BOOL TestSectorBufEncryption (PCRYPTO_INFO ci)
 			case LRW:
 				if (strcmp (name, "AES") == 0 &&					crc != 0x5237acf9)
 					return FALSE;
-				if (strcmp (name, "Blowfish") == 0 &&				crc != 0xf94d5300)
+				if (strcmp (name, "Blowfish") == 0 &&				crc != 0xf94d5300)	// Deprecated/legacy
 					return FALSE;
-				if (strcmp (name, "CAST5") == 0 &&					crc != 0x33971e82)
+				if (strcmp (name, "CAST5") == 0 &&					crc != 0x33971e82)	// Deprecated/legacy
 					return FALSE;
 				if (strcmp (name, "Serpent") == 0 &&				crc != 0x7fb86805)
 					return FALSE;
-				if (strcmp (name, "Triple DES") == 0 &&				crc != 0x2b20bb84)
+				if (strcmp (name, "Triple DES") == 0 &&				crc != 0x2b20bb84)	// Deprecated/legacy
 					return FALSE;
 				if (strcmp (name, "Twofish") == 0 &&				crc != 0xa9de0f0b)
 					return FALSE;
@@ -1353,9 +1359,9 @@ BOOL TestSectorBufEncryption (PCRYPTO_INFO ci)
 					return FALSE;
 				break;
 
-			case CBC:
-			case INNER_CBC:
-			case OUTER_CBC:
+			case CBC:		// Deprecated/legacy
+			case INNER_CBC:	// Deprecated/legacy
+			case OUTER_CBC:	// Deprecated/legacy
 				if (strcmp (name, "AES") == 0 &&					crc != 0x2274f53d)
 					return FALSE;
 				if (strcmp (name, "Blowfish") == 0 &&				crc != 0x033899a1)
@@ -1399,15 +1405,15 @@ BOOL TestSectorBufEncryption (PCRYPTO_INFO ci)
 			case LRW:
 				if (strcmp (name, "AES") == 0 &&					crc != 0x5ae1e3d8)
 					return FALSE;
-				if (strcmp (name, "Blowfish") == 0 &&				crc != 0x2738426f)
+				if (strcmp (name, "Blowfish") == 0 &&				crc != 0x2738426f)	// Deprecated/legacy
 					return FALSE;
 				if (strcmp (name, "AES-Twofish-Serpent") == 0 &&	crc != 0x14f2948a)
 					return FALSE;
 				break;
 
-			case CBC:
-			case INNER_CBC:
-			case OUTER_CBC:
+			case CBC:		// Deprecated/legacy
+			case INNER_CBC:	// Deprecated/legacy
+			case OUTER_CBC:	// Deprecated/legacy
 				if (strcmp (name, "AES") == 0 &&					crc != 0x960f740e)
 					return FALSE;
 				if (strcmp (name, "Blowfish") == 0 &&				crc != 0x7e1cfabb)
@@ -1462,7 +1468,7 @@ BOOL AutoTestAlgorithms (void)
 
 	memset (ci, 0, sizeof (*ci));
 
-	/* Blowfish */
+	/* Blowfish (deprecated/legacy) */
 
 	for (i=0;i<BF_TEST_COUNT;i++)
 	{			
@@ -1510,7 +1516,7 @@ BOOL AutoTestAlgorithms (void)
 		bFailed = TRUE;
 
 
-	/* CAST5 */
+	/* CAST5 (deprecated/legacy) */
 
 	for (i=0;i<CAST_TEST_COUNT;i++)
 	{			
@@ -1527,7 +1533,7 @@ BOOL AutoTestAlgorithms (void)
 		bFailed = TRUE;
 
 
-	/* DES */
+	/* DES (deprecated/legacy) */
 
 	if (Des56TestLoop(des56_ecb_vectors_ip, DES56_TEST_COUNT_IP,1)!=TRUE)
 		bFailed = TRUE;
@@ -1543,7 +1549,7 @@ BOOL AutoTestAlgorithms (void)
 		bFailed = TRUE;
 
 
-	/* Triple DES (TECB, EDE) */
+	/* Triple DES (TECB, EDE) - deprecated/legacy */
 
 	for (i = 0; i < TRIPLEDES_TEST_COUNT; i++)
 	{			

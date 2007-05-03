@@ -72,7 +72,7 @@ BEGIN
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,175,316,11
     CONTROL         "Close all Explorer windows of volume being dismounted",IDC_PREF_CLOSE_DISMOUNTED_WINDOWS,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,187,316,10
-    CONTROL         "Preserve timestamps of file containers and keyfiles",IDC_PRESERVE_TIMESTAMPS,
+    CONTROL         "Preserve timestamps of file containers",IDC_PRESERVE_TIMESTAMPS,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,199,316,10
     CONTROL         "Cache passwords in driver memory",IDC_PREF_CACHE_PASSWORDS,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,228,146,11
@@ -149,7 +149,7 @@ BEGIN
     PUSHBUTTON      "&Auto-Mount Devices",IDC_MOUNTALL,100,243,84,18
     PUSHBUTTON      "Di&smount All",IDC_UNMOUNTALL,192,243,84,18,WS_GROUP
     PUSHBUTTON      "E&xit",IDC_EXIT,284,243,84,18,WS_GROUP
-    CONTROL         20,IDB_LOGO,"Static",SS_BITMAP | SS_NOTIFY | WS_BORDER,16,192,27,31
+    CONTROL         112,IDC_LOGO,"Static",SS_BITMAP | SS_NOTIFY | WS_BORDER,16,192,27,31
     GROUPBOX        "Volume",IDT_VOLUME,8,179,360,53
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDFRAME,1,0,373,147
     GROUPBOX        "",IDC_STATIC,282,238,88,24
@@ -303,8 +303,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 4,3,0,0
- PRODUCTVERSION 4,3,0,0
+ FILEVERSION 4,3,1,0
+ PRODUCTVERSION 4,3,1,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -321,13 +321,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt"
-            VALUE "FileVersion", "4.3"
+            VALUE "FileVersion", "4.3a"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "4.3"
-            VALUE "SpecialBuild", "2007-03-19"
+            VALUE "ProductVersion", "4.3a"
+            VALUE "SpecialBuild", "2007-05-03"
         END
     END
     BLOCK "VarFileInfo"
@@ -369,9 +369,10 @@ END
 // Bitmap
 //
 
-IDB_DRIVEICON           BITMAP                  "driveicon.bmp"
-IDB_DRIVEICON_MASK      BITMAP                  "driveicon_mask.bmp"
-IDB_LOGO                BITMAP                  "../common/logo.bmp"
+IDB_DRIVEICON           BITMAP                  "Drive_icon_96dpi.bmp"
+IDB_DRIVEICON_MASK      BITMAP                  "Drive_icon_mask_96dpi.bmp"
+IDB_LOGO_96DPI          BITMAP                  "Logo_96dpi.bmp"
+IDB_LOGO_288DPI         BITMAP                  "Logo_288dpi.bmp"
 
 /////////////////////////////////////////////////////////////////////////////
 //

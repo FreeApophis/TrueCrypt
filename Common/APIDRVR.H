@@ -4,7 +4,7 @@
  Paul Le Roux and which is covered by the 'License Agreement for Encryption
  for the Masses'. Modifications and additions to that source code contained
  in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.2 the full text of which is contained in the file
+ TrueCrypt License 2.3 the full text of which is contained in the file
  License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -61,7 +61,7 @@ etc... */
 /* Public driver interface codes */
 
 #define MOUNT			466944	/* Mount a volume or partition */
-#define MOUNT_LIST		466948	/* Return list of mounted volumes */
+#define MOUNT_LIST_ALL	466948	/* Return list of mounted volumes */
 #define OPEN_TEST		466952	/* Open a file at ring0 */
 #define UNMOUNT			466956	/* Unmount a volume */
 #define WIPE_CACHE		466960	/* Wipe the driver password cache */
@@ -73,6 +73,8 @@ etc... */
 #define DEVICE_REFCOUNT		467000	/* Return reference count of root device object */
 #define DISK_GET_PARTITION_INFO		467004
 #define DISK_GET_GEOMETRY			467008
+#define REFERENCED_DEV_DELETED		467012
+#define MOUNT_LIST					467016
 #define UNMOUNT_ALL			475112	/* Unmount all volumes */
 
 #define TC_FIRST_PRIVATE	MOUNT	/* First private control code */

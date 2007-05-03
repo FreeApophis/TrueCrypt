@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8,00"
+	Version="8.00"
 	Name="Driver"
 	ProjectGUID="{EF5EF444-18D0-40D7-8DFA-775EC4448602}"
 	RootNamespace="Driver"
@@ -71,14 +71,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\Ntfiledv.c"
-				>
-			</File>
-			<File
-				RelativePath=".\Ntrawdv.c"
-				>
-			</File>
-			<File
 				RelativePath=".\Ntvol.c"
 				>
 			</File>
@@ -99,6 +91,10 @@
 				</File>
 				<File
 					RelativePath="..\Common\Endian.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Common\GfMul.c"
 					>
 				</File>
 				<File
@@ -133,15 +129,11 @@
 				>
 			</File>
 			<File
+				RelativePath="..\Common\GfMul.h"
+				>
+			</File>
+			<File
 				RelativePath=".\Ntdriver.h"
-				>
-			</File>
-			<File
-				RelativePath=".\Ntfiledv.h"
-				>
-			</File>
-			<File
-				RelativePath=".\Ntrawdv.h"
 				>
 			</File>
 			<File

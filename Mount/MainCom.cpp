@@ -1,7 +1,7 @@
 /*
  Copyright (c) TrueCrypt Foundation. All rights reserved.
 
- Covered by the TrueCrypt License 2.2 the full text of which is contained
+ Covered by the TrueCrypt License 2.3 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -101,8 +101,11 @@ extern "C" BOOL ComServerMain ()
 		return FALSE;
 
 	MSG msg;
-	while (GetMessage (&msg, NULL, 0, 0))
+	while (int r = GetMessage (&msg, NULL, 0, 0))
 	{
+		if (r == -1)
+			return FALSE;
+
 		TranslateMessage (&msg);
 		DispatchMessage (&msg);
 

@@ -1,7 +1,7 @@
 /*
  Copyright (c) TrueCrypt Foundation. All rights reserved.
 
- Covered by the TrueCrypt License 2.2 the full text of which is contained
+ Covered by the TrueCrypt License 2.3 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -209,7 +209,7 @@ char *XmlQuoteText (char *textSrc, char *textDst, int textDstMaxSize)
 
 int XmlWriteHeader (FILE *file)
 {
-	return fputs ("<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n<TrueCrypt>", file);
+	return fputs ("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<TrueCrypt>", file);
 }
 
 

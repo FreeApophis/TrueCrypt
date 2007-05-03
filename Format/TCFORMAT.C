@@ -4,7 +4,7 @@
  Paul Le Roux and which is covered by the 'License Agreement for Encryption
  for the Masses'. Modifications and additions to that source code contained
  in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.2 the full text of which is contained in the file
+ TrueCrypt License 2.3 the full text of which is contained in the file
  License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -66,6 +66,7 @@ BOOL bHiddenVolHost = FALSE;	/* If true, we are (or will be) creating the host v
 BOOL bHiddenVolDirect = FALSE;	/* If true, the wizard omits creating a host volume in the course of the process of hidden volume creation. */
 BOOL bHiddenVolFinished = FALSE;
 int hiddenVolHostDriveNo = -1;	/* Drive letter for the volume intended to host a hidden volume. */
+BOOL bRemovableHostDevice = FALSE;	/* TRUE when creating a device/partition-hosted volume on a removable device. State undefined when creating file-hosted volumes. */
 int realClusterSize;		/* Parameter used when determining the maximum possible size of a hidden volume. */
 int hash_algo = DEFAULT_HASH_ALGORITHM;	/* Which PRF to use in header key derivation (PKCS #5) and in the RNG. */
 unsigned __int64 nUIVolumeSize = 0;		/* The volume size. Important: This value is not in bytes. It has to be multiplied by nMultiplier. Do not use this value when actually creating the volume (it may chop off 512 bytes, if it is not a multiple of 1024 bytes). */
@@ -85,6 +86,10 @@ BOOL bDevice = FALSE;		/* Is this a partition volume ? */
 BOOL showKeys = TRUE;
 HWND hDiskKey = NULL;		/* Text box showing hex dump of disk key */
 HWND hHeaderKey = NULL;		/* Text box showing hex dump of header key */
+
+HBITMAP hbmWizardBitmapRescaled = NULL;
+
+BOOL bWarnDeviceFormatAdvanced = TRUE;
 
 Password volumePassword;			/* Users password */
 char szVerify[MAX_PASSWORD + 1];	/* Tmp password buffer */
@@ -114,6 +119,13 @@ localcleanup (void)
 	KeyFileRemoveAll (&defaultKeyFilesParam.FirstKeyFile);
 	
 	UnregisterRedTick (hInst);
+
+	/* Delete buffered bitmaps (if any) */
+	if (hbmWizardBitmapRescaled != NULL)
+	{
+		DeleteObject ((HGDIOBJ) hbmWizardBitmapRescaled);
+		hbmWizardBitmapRescaled = NULL;
+	}
 
 	/* Cleanup common code resources */
 	cleanup ();
@@ -192,6 +204,7 @@ ComboSelChangeEA (HWND hwndDlg)
 	{
 		char name[100];
 		wchar_t auxLine[4096];
+		wchar_t hyperLink[256] = { 0 };
 		char cipherIDs[5];
 		int i, cnt = 0;
 
@@ -200,14 +213,20 @@ ComboSelChangeEA (HWND hwndDlg)
 
 		if (strcmp (name, "AES") == 0)
 		{
+			swprintf_s (hyperLink, sizeof(hyperLink) / 2, GetString ("MORE_INFO_ABOUT"), name);
+
 			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("AES_HELP"));
 		}
 		else if (strcmp (name, "Serpent") == 0)
 		{
+			swprintf_s (hyperLink, sizeof(hyperLink) / 2, GetString ("MORE_INFO_ABOUT"), name);
+				
 			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("SERPENT_HELP"));
 		}
 		else if (strcmp (name, "Twofish") == 0)
 		{
+			swprintf_s (hyperLink, sizeof(hyperLink) / 2, GetString ("MORE_INFO_ABOUT"), name);
+
 			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("TWOFISH_HELP"));
 		}
 		else if (EAGetCipherCount (nIndex) > 1)
@@ -241,6 +260,7 @@ ComboSelChangeEA (HWND hwndDlg)
 				break;
 			}
 
+			wcscpy_s (hyperLink, sizeof(hyperLink) / 2, GetString ("IDC_LINK_MORE_INFO_ABOUT_CIPHER"));
 
 			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), auxLine);
 		}
@@ -249,8 +269,12 @@ ComboSelChangeEA (HWND hwndDlg)
 			// No info available for this encryption algorithm
 			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), L"");
 		}
-	}
 
+
+		// Update hyperlink
+		SetWindowTextW (GetDlgItem (hwndDlg, IDC_LINK_MORE_INFO_ABOUT_CIPHER), hyperLink);
+		AccommodateTextField (hwndDlg, IDC_LINK_MORE_INFO_ABOUT_CIPHER, FALSE);
+	}
 }
 
 void
@@ -517,6 +541,29 @@ formatThreadFunction (void *hwndDlg)
 	else
 	{
 		/* Volume successfully created */
+
+		if (bDevice)
+		{
+			// Handle assigned drive letter (if any)
+
+			WCHAR deviceName[MAX_PATH];
+			int driveLetter = -1;
+
+			strcpy ((char *)deviceName, szDiskFile);
+			ToUNICODE ((char *)deviceName);
+			driveLetter = GetDiskDeviceDriveLetter (deviceName);
+
+			if (!bHiddenVolHost
+				&& driveLetter > 1)		// If a drive letter is assigned to the device, but not A: or B:
+			{
+				char rootPath[] = { driveLetter + 'A', ':', '\\', 0 };
+				wchar_t szTmp[8192];
+
+				swprintf (szTmp, GetString ("AFTER_FORMAT_DRIVE_LETTER_WARN"), rootPath[0], rootPath[0], rootPath[0], rootPath[0]);
+				MessageBoxW (hwndDlg, szTmp, lpszTitle, MB_ICONWARNING);
+			}
+		}
+
 		if (!bHiddenVolHost)
 		{
 			if (bHiddenVol)
@@ -575,12 +622,14 @@ cancel:
 void
 LoadPage (HWND hwndDlg, int nPageNo)
 {
-	RECT rD;
+	RECT rD, rW;
 
 	if (hCurPage != NULL)
 	{
 		DestroyWindow (hCurPage);
 	}
+
+	GetWindowRect (GetDlgItem (hwndDlg, IDC_POS_BOX), &rW);
 
 	nCurPageNo = nPageNo;
 
@@ -649,7 +698,7 @@ LoadPage (HWND hwndDlg, int nPageNo)
 
 	if (hCurPage != NULL)
 	{
-		MoveWindow (hCurPage, rD.left, rD.top, 349, 253, TRUE);
+		MoveWindow (hCurPage, rD.left, rD.top, rW.right - rW.left, rW.bottom - rW.top, TRUE);
 		ShowWindow (hCurPage, SW_SHOWNORMAL);
 		switch (nPageNo)
 		{
@@ -906,14 +955,23 @@ QueryFreeSpace (HWND hwndDlg, HWND hwndTextBox, BOOL display)
 		DISK_GEOMETRY driveInfo;
 		PARTITION_INFORMATION diskInfo;
 		BOOL piValid = FALSE;
+		BOOL gValid = FALSE;
 
 		// Query partition size
 		piValid = GetPartitionInfo (szDiskFile, &diskInfo);
-		if (!piValid && !GetDriveGeometry (szDiskFile, &driveInfo))
+		gValid = GetDriveGeometry (szDiskFile, &driveInfo);
+
+		if (!piValid && !gValid)
 		{
 			if (display)
 				DisplaySizingErrorText (hwndTextBox);
 
+			return FALSE;
+		}
+
+		if (gValid && driveInfo.BytesPerSector != 512)
+		{
+			Error ("LARGE_SECTOR_UNSUPPORTED");
 			return FALSE;
 		}
 
@@ -1102,7 +1160,7 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				ComboSelChangeEA (hwndDlg);
 				SetFocus (GetDlgItem (hwndDlg, IDC_COMBO_BOX));
 
-				ToHyperlink (hwndDlg, IDC_LINK_CIPHER_INFO);
+				ToHyperlink (hwndDlg, IDC_LINK_MORE_INFO_ABOUT_CIPHER);
 
 				// Hash algorithms
 				hash_algo = RandGetHashFunction();
@@ -1335,9 +1393,9 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				}
 
 				SendMessage (GetDlgItem (hwndDlg, IDC_SHOW_KEYS), BM_SETCHECK, showKeys ? BST_CHECKED : BST_UNCHECKED, 0);
-				SetWindowText (GetDlgItem (hwndDlg, IDC_RANDOM_BYTES), showKeys ? "" : "********************************");
-				SetWindowText (GetDlgItem (hwndDlg, IDC_HEADER_KEY), showKeys ? "" : "********************************");
-				SetWindowText (GetDlgItem (hwndDlg, IDC_DISK_KEY), showKeys ? "" : "********************************");
+				SetWindowText (GetDlgItem (hwndDlg, IDC_RANDOM_BYTES), showKeys ? "" : "********************************                                              ");
+				SetWindowText (GetDlgItem (hwndDlg, IDC_HEADER_KEY), showKeys ? "" : "********************************                                              ");
+				SetWindowText (GetDlgItem (hwndDlg, IDC_DISK_KEY), showKeys ? "" : "********************************                                              ");
 
 				SendMessage (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), CB_RESETCONTENT, 0, 0);
 				AddComboPairW (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), GetString ("DEFAULT"), 0);
@@ -1490,7 +1548,7 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			return 1;
 		}
 
-		if (lw == IDC_LINK_CIPHER_INFO && nCurPageNo == CIPHER_PAGE)
+		if (lw == IDC_LINK_MORE_INFO_ABOUT_CIPHER && nCurPageNo == CIPHER_PAGE)
 		{
 			char name[100];
 
@@ -1499,11 +1557,11 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			EAGetName (name, nIndex);
 
 			if (strcmp (name, "AES") == 0)
-				Applink ("aes", TRUE, "");
+				Applink ("aes", FALSE, "");
 			else if (strcmp (name, "Serpent") == 0)
-				Applink ("serpent", TRUE, "");
+				Applink ("serpent", FALSE, "");
 			else if (strcmp (name, "Twofish") == 0)
-				Applink ("twofish", TRUE, "");
+				Applink ("twofish", FALSE, "");
 			else if (EAGetCipherCount (nIndex) > 1)
 				Applink ("cascades", TRUE, "");
 		}
@@ -1720,9 +1778,9 @@ PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		{
 			showKeys = IsButtonChecked (GetDlgItem (hCurPage, IDC_SHOW_KEYS));
 
-			SetWindowText (GetDlgItem (hCurPage, IDC_RANDOM_BYTES), showKeys ? "                                " : "********************************");
-			SetWindowText (GetDlgItem (hCurPage, IDC_HEADER_KEY), showKeys ? "" : "********************************");
-			SetWindowText (GetDlgItem (hCurPage, IDC_DISK_KEY), showKeys ? "" : "********************************");
+			SetWindowText (GetDlgItem (hCurPage, IDC_RANDOM_BYTES), showKeys ? "                                                                              " : "********************************                                              ");
+			SetWindowText (GetDlgItem (hCurPage, IDC_HEADER_KEY), showKeys ? "" : "********************************                                              ");
+			SetWindowText (GetDlgItem (hCurPage, IDC_DISK_KEY), showKeys ? "" : "********************************                                              ");
 			return 1;
 		}
 		
@@ -1757,6 +1815,15 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			MainDlg = hwndDlg;
 			InitDialog (hwndDlg);
 			LocalizeDialog (hwndDlg, "IDD_MKFS_DLG");
+
+			// Resize the bitmap if the user has a non-default DPI 
+			if (ScreenDPI != USER_DEFAULT_SCREEN_DPI)
+			{
+				hbmWizardBitmapRescaled = RenderBitmap (MAKEINTRESOURCE (IDB_WIZARD),
+					GetDlgItem (hwndDlg, IDC_BITMAP_WIZARD),
+					0, 0, 0, 0, FALSE, FALSE);
+			}
+
 			LoadSettings (hwndDlg);
 			LoadDefaultKeyFilesParam ();
 			RestoreDefaultKeyFilesParam ();
@@ -1807,7 +1874,7 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				strcat (tmp2, tmp3);
 			}
 
-			tmp2[42] = 0;
+			tmp2[32] = 0;
 
             SetWindowText (GetDlgItem (hCurPage, IDC_RANDOM_BYTES), tmp2);
 
@@ -2056,7 +2123,11 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				GetWindowText (GetDlgItem (hCurPage, IDC_PASSWORD), szRawPassword, sizeof (szRawPassword));
 
 				if (KeyFilesEnable)
-					KeyFilesApply (&volumePassword, FirstKeyFile, bPreserveTimestamp);
+				{
+					WaitCursor ();
+					KeyFilesApply (&volumePassword, FirstKeyFile);
+					NormalCursor ();
+				}
 			}
 
 			else if (nCurPageNo == HIDVOL_HOST_PASSWORD_PAGE)
@@ -2069,7 +2140,11 @@ MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				GetWindowText (GetDlgItem (hCurPage, IDC_PASSWORD_DIRECT), szRawPassword, sizeof (szRawPassword));
 
 				if (KeyFilesEnable)
-					KeyFilesApply (&volumePassword, FirstKeyFile, bPreserveTimestamp);
+				{
+					WaitCursor ();
+					KeyFilesApply (&volumePassword, FirstKeyFile);
+					NormalCursor ();
+				}
 
 
 				/* Mount the volume which is to host the new hidden volume */
@@ -2364,14 +2439,12 @@ ovf_end:
 		return 0;
 
 	case WM_CLOSE:
+		if (bThreadRunning && MessageBoxW (hwndDlg, GetString ("FORMAT_ABORT"), lpszTitle, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2 ) == IDYES)
 		{
-			if (bThreadRunning && MessageBoxW (hwndDlg, GetString ("FORMAT_ABORT"), lpszTitle, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2 ) == IDYES)
-			{
-				bThreadCancel = TRUE;
-				return 1;
-			}
-			return 0;
+			bThreadCancel = TRUE;
+			return 1;
 		}
+		return 0;
 
 	}
 

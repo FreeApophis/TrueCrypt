@@ -3,7 +3,6 @@
 // Used by Format.rc
 //
 #define IDR_FORMAT_TLB                  1
-#define IDB_TRUECRYPT                   20
 #define IDD_MKFS_DLG                    101
 #define IDD_CIPHER_PAGE_DLG             102
 #define IDD_SIZE_PAGE_DLG               103
@@ -17,6 +16,7 @@
 #define IDD_HIDVOL_HOST_PASSWORD_PAGE_DLG 111
 #define IDS_UACSTRING_FMT               112
 #define IDR_FORMAT_RSRC_HEADER          113
+#define IDB_WIZARD                      114
 #define IDC_BOX_TITLE                   1000
 #define IDC_COMBO_BOX                   1001
 #define IDC_BOX_HELP                    1002
@@ -70,17 +70,19 @@
 #define IDT_PASSWORD                    1050
 #define IDC_SHOW_PASSWORD_HIDVOL_HOST   1051
 #define IDC_SHOW_PASSWORD               1052
-#define IDC_LINK_CIPHER_INFO            1053
+#define IDC_LINK_MORE_INFO_ABOUT_CIPHER 1053
 #define IDC_LINK_HASH_INFO              1054
+#define IDC_POS_BOX                     1055
+#define IDC_BITMAP_WIZARD               1056
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
-#define _APS_NEXT_RESOURCE_VALUE        114
+#define _APS_NEXT_RESOURCE_VALUE        115
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1055
+#define _APS_NEXT_CONTROL_VALUE         1057
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

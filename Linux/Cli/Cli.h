@@ -1,7 +1,7 @@
 /*
  Copyright (c) TrueCrypt Foundation. All rights reserved.
 
- Covered by the TrueCrypt License 2.2 the full text of which is contained
+ Covered by the TrueCrypt License 2.3 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -43,8 +43,7 @@ typedef struct
 	int Flags;
 } MountListEntry;
 
-static BOOL CheckAdminPrivileges ();
-static void DropEffectiveUserId ();
+static BOOL CheckAdminPrivileges (int argc, char **argv);
 static BOOL LockMemory ();
 static BOOL WaitChild (BOOL quiet, char *execName);
 static BOOL Execute (BOOL quiet, char *execName, ...);
@@ -63,7 +62,7 @@ static BOOL DeleteLoopDevice (int loopDeviceNo);
 static int AskSelection (int defaultChoice, int min, int max);
 static BOOL AskYesNo (char *prompt, BOOL defaultNo);
 static char *AskString (char *prompt, char *buf, int maxSize);
-static void AskPassword (char *prompt, char *volumePath, Password *password);
+static void AskPassword (char *prompt, char *volumePath, Password *password, BOOL requireAscii);
 static char *AskVolumePath (char *volumePath, char *prompt);
 static BOOL AskKeyFiles (char *prompt, KeyFile **firstKeyFile);
 static BOOL OpenVolume (char *volumePath, char *prompt, char *promptArg, BOOL secondaryPassword, PCRYPTO_INFO *cryptoInfo, unsigned long long *startSector, unsigned long long *totalSectors, time_t *modTime, time_t *acTime);
@@ -89,4 +88,4 @@ static BOOL DismountFileSystem (char *device);
 static BOOL DismountVolume (int devNo);
 static BOOL EnumMountPoints (char *device, char *mountPoint);
 static BOOL ToDeviceNumber (char *text, int *deviceNumber);
-static BOOL ValidatePassword (Password *password);
+static BOOL ValidatePassword (Password *password, BOOL requireAscii);

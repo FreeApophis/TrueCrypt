@@ -36,12 +36,14 @@ BEGIN
     DEFPUSHBUTTON   "OK",IDOK,233,178,50,14
     LTEXT           "",IDC_HOMEPAGE,18,87,117,9,SS_NOTIFY
     LTEXT           "Copyright © 2003-2007 TrueCrypt Foundation",IDC_STATIC,18,71,207,8
-    CONTROL         50,IDC_ABOUT_IMG,"Static",SS_BITMAP,0,0,293,49,WS_EX_STATICEDGE
+    CONTROL         518,IDC_ABOUT_BKG,"Static",SS_BITMAP,0,0,12,11,WS_EX_STATICEDGE
     LTEXT           "",IDT_ABOUT_VERSION,18,61,161,8
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,167,291,1,WS_EX_STATICEDGE
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,169,291,1,WS_EX_STATICEDGE
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,107,291,1,WS_EX_STATICEDGE
     PUSHBUTTON      "Donations...",IDC_DONATIONS,164,178,61,14
+    CONTROL         "",IDC_ABOUT_LOGO_AREA,"Static",SS_GRAYRECT | NOT WS_VISIBLE,0,0,293,50,WS_EX_TRANSPARENT | WS_EX_STATICEDGE
+    CONTROL         519,IDC_TEXTUAL_LOGO_IMG,"Static",SS_BITMAP,12,26,155,15
 END
 
 IDD_COMMANDHELP_DLG DIALOGEX 0, 0, 249, 166
@@ -113,7 +115,7 @@ FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     LISTBOX         IDC_LANGLIST,6,7,197,67,LBS_SORT | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
     EDITTEXT        IDC_LANGPACK_CREDITS,6,108,197,28,ES_MULTILINE | ES_READONLY | WS_VSCROLL | NOT WS_TABSTOP
-    CTEXT           "Download language pack",IDC_GET_LANG_PACKS,13,146,183,10,SS_NOTIFY
+    CTEXT           "Download language pack",IDC_GET_LANG_PACKS,2,146,205,10,SS_NOTIFY
     DEFPUSHBUTTON   "OK",IDOK,97,165,50,14
     PUSHBUTTON      "Cancel",IDCANCEL,153,165,50,14
     LTEXT           "Translated by:",IDT_LANGPACK_AUTHORS,6,99,101,9,SS_NOTIFY,WS_EX_TRANSPARENT
@@ -217,6 +219,14 @@ BEGIN
     CONTROL         "",IDC_MC_DLG_HR1,"Static",SS_ETCHEDHORZ,0,1,168,1,WS_EX_STATICEDGE
 END
 
+IDD_AUXILIARY_DLG DIALOGEX 0, 0, 426, 296
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_NOFAILCREATE | WS_POPUP
+EXSTYLE WS_EX_TRANSPARENT
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LTEXT           "",IDC_ASPECT_RATIO_CALIBRATION_BOX,3,2,282,282,WS_DISABLED
+END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -301,6 +311,14 @@ BEGIN
         TOPMARGIN, 7
         BOTTOMMARGIN, 316
     END
+
+    IDD_AUXILIARY_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 419
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 289
+    END
 END
 #endif    // APSTUDIO_INVOKED
 
@@ -359,28 +377,18 @@ END
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-IDI_TRUECRYPT_ICON      ICON                    "..\\common\\TrueCrypt.ico"
-IDI_TRUECRYPT_ICON_B    ICON                    "..\\common\\TrueCrypt_Volume.ico"
-#endif    // English (U.S.) resources
-/////////////////////////////////////////////////////////////////////////////
-
-
-/////////////////////////////////////////////////////////////////////////////
-// English (U.K.) resources
-
-#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENG)
-#ifdef _WIN32
-LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_UK
-#pragma code_page(1252)
-#endif //_WIN32
+IDI_TRUECRYPT_ICON      ICON                    "..\\Common\\TrueCrypt.ico"
+IDI_TRUECRYPT_VOL_ICON  ICON                    "..\\Common\\TrueCrypt_volume.ico"
 
 /////////////////////////////////////////////////////////////////////////////
 //
 // Bitmap
 //
 
-IDB_ABOUT               BITMAP                  "..\\common\\about.bmp"
-#endif    // English (U.K.) resources
+IDB_TEXTUAL_LOGO_BKG    BITMAP                  "..\\Common\\Textual_logo_background.bmp"
+IDB_TEXTUAL_LOGO_96DPI  BITMAP                  "..\\Common\\Textual_logo_96dpi.bmp"
+IDB_TEXTUAL_LOGO_288DPI BITMAP                  "..\\Common\\Textual_logo_288dpi.bmp"
+#endif    // English (U.S.) resources
 /////////////////////////////////////////////////////////////////////////////
 
 

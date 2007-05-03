@@ -1,3 +1,5 @@
+/* Deprecated/legacy */
+
 /* crypto/des/set_key.c */
 /* Copyright (C) 1995-1997 Eric Young (eay@cryptsoft.com)
  * All rights reserved.
