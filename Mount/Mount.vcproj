@@ -71,10 +71,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="libcmtd.lib comctl32.lib atlsd.lib ..\Crypto\Debug\crypto.lib"
+				AdditionalDependencies="comctl32.lib atlsd.lib setupapi.lib ..\Crypto\Debug\crypto.lib"
 				OutputFile="$(OutDir)/TrueCrypt.exe"
 				LinkIncremental="2"
-				IgnoreAllDefaultLibraries="true"
+				IgnoreAllDefaultLibraries="false"
 				GenerateDebugInformation="true"
 				ProgramDatabaseFile="$(OutDir)/Mount.pdb"
 				SubSystem="2"
@@ -104,6 +104,7 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
+				CommandLine="md &quot;..\Debug\Setup Files&quot; 2&gt;NUL:&#x0D;&#x0A;copy Debug\TrueCrypt.exe &quot;..\Debug\Setup Files&quot; &gt;NUL:&#x0D;&#x0A;"
 			/>
 		</Configuration>
 		<Configuration
@@ -158,10 +159,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="LIBCMT.LIB comctl32.lib atls.lib ..\Crypto\Release\crypto.lib"
+				AdditionalDependencies="comctl32.lib atls.lib setupapi.lib ..\Crypto\Release\crypto.lib"
 				OutputFile="$(OutDir)/TrueCrypt.exe"
 				LinkIncremental="1"
-				IgnoreAllDefaultLibraries="true"
+				IgnoreAllDefaultLibraries="false"
 				GenerateDebugInformation="false"
 				GenerateMapFile="true"
 				SubSystem="2"
@@ -220,12 +221,32 @@
 			<File
 				RelativePath=".\Mount.c"
 				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						CompileAs="2"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						CompileAs="2"
+					/>
+				</FileConfiguration>
 			</File>
 			<Filter
 				Name="Common"
 				>
 				<File
 					RelativePath="..\Common\BaseCom.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\Common\BootEncryption.cpp"
 					>
 				</File>
 				<File
@@ -293,7 +314,15 @@
 					>
 				</File>
 				<File
+					RelativePath="..\Common\Wipe.h"
+					>
+				</File>
+				<File
 					RelativePath="..\Common\Xml.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Common\Xts.c"
 					>
 				</File>
 			</Filter>
@@ -309,6 +338,10 @@
 			</File>
 			<File
 				RelativePath="..\Common\BaseCom.h"
+				>
+			</File>
+			<File
+				RelativePath="..\Common\BootEncryption.h"
 				>
 			</File>
 			<File
@@ -380,7 +413,7 @@
 				>
 			</File>
 			<File
-				RelativePath="..\Common\resource.h"
+				RelativePath="..\Common\Resource.h"
 				>
 			</File>
 			<File
@@ -401,6 +434,10 @@
 			</File>
 			<File
 				RelativePath="..\Common\Xml.h"
+				>
+			</File>
+			<File
+				RelativePath="..\Common\Xts.h"
 				>
 			</File>
 		</Filter>
@@ -427,6 +464,18 @@
 			</File>
 			<File
 				RelativePath=".\Mount.rc"
+				>
+			</File>
+			<File
+				RelativePath=".\System_drive_icon_96dpi.bmp"
+				>
+			</File>
+			<File
+				RelativePath=".\System_drive_icon_mask_96dpi.bmp"
+				>
+			</File>
+			<File
+				RelativePath="..\Common\TrueCrypt_volume.ico"
 				>
 			</File>
 			<Filter
@@ -474,10 +523,6 @@
 				</File>
 				<File
 					RelativePath="..\Common\TrueCrypt.ico"
-					>
-				</File>
-				<File
-					RelativePath="..\Common\TrueCrypt_volume.ico"
 					>
 				</File>
 			</Filter>

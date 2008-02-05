@@ -65,10 +65,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="LIBCMTD.LIB comctl32.lib atlsd.lib ..\Crypto\Debug\crypto.lib"
+				AdditionalDependencies="comctl32.lib atlsd.lib setupapi.lib ..\Crypto\Debug\crypto.lib"
 				OutputFile="$(OutDir)/TrueCryptFormat.exe"
 				LinkIncremental="2"
-				IgnoreAllDefaultLibraries="true"
+				IgnoreAllDefaultLibraries="false"
 				GenerateDebugInformation="true"
 				ProgramDatabaseFile="$(OutDir)/Format.pdb"
 				SubSystem="2"
@@ -98,6 +98,7 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
+				CommandLine="md &quot;..\Debug\Setup Files&quot; 2&gt;NUL:&#x0D;&#x0A;copy Debug\TrueCryptFormat.exe &quot;..\Debug\Setup Files\TrueCrypt Format.exe&quot; &gt;NUL:&#x0D;&#x0A;"
 			/>
 		</Configuration>
 		<Configuration
@@ -150,10 +151,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="LIBCMT.LIB comctl32.lib atls.lib ..\Crypto\Release\crypto.lib"
+				AdditionalDependencies="comctl32.lib atls.lib setupapi.lib ..\Crypto\Release\crypto.lib"
 				OutputFile="$(OutDir)/TrueCryptFormat.exe"
 				LinkIncremental="1"
-				IgnoreAllDefaultLibraries="true"
+				IgnoreAllDefaultLibraries="false"
 				GenerateDebugInformation="false"
 				GenerateMapFile="true"
 				SubSystem="2"
@@ -208,12 +209,32 @@
 			<File
 				RelativePath=".\Tcformat.c"
 				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						CompileAs="2"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						CompileAs="2"
+					/>
+				</FileConfiguration>
 			</File>
 			<Filter
 				Name="Common"
 				>
 				<File
 					RelativePath="..\Common\BaseCom.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\Common\BootEncryption.cpp"
 					>
 				</File>
 				<File
@@ -312,6 +333,10 @@
 					RelativePath="..\Common\Xml.c"
 					>
 				</File>
+				<File
+					RelativePath="..\Common\Xts.c"
+					>
+				</File>
 			</Filter>
 		</Filter>
 		<Filter
@@ -392,7 +417,7 @@
 				>
 			</File>
 			<File
-				RelativePath="..\Common\resource.h"
+				RelativePath="..\Common\Resource.h"
 				>
 			</File>
 			<File
@@ -412,15 +437,19 @@
 				>
 			</File>
 			<File
-				RelativePath=".\Uncroot.h"
-				>
-			</File>
-			<File
 				RelativePath="..\Common\Volumes.h"
 				>
 			</File>
 			<File
+				RelativePath="..\Common\Wipe.h"
+				>
+			</File>
+			<File
 				RelativePath="..\Common\Xml.h"
+				>
+			</File>
+			<File
+				RelativePath="..\Common\Xts.h"
 				>
 			</File>
 		</Filter>
@@ -436,6 +465,10 @@
 			<File
 				RelativePath=".\Format.tlb"
 				SubType="Designer"
+				>
+			</File>
+			<File
+				RelativePath="..\Common\TrueCrypt_Volume.ico"
 				>
 			</File>
 			<File

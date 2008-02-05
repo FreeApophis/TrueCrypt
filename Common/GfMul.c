@@ -34,7 +34,7 @@
 */
 
 /* 
- Portions Copyright (c) TrueCrypt Foundation
+ Portions Copyright (c) 2005 TrueCrypt Foundation
 
  TrueCrypt Foundation made the following changes:
 
@@ -55,6 +55,7 @@
 #include <linux/string.h>
 #else
 #include <memory.h>
+#include <stdlib.h>
 #endif
 
 #include "GfMul.h"

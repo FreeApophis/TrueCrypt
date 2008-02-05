@@ -1,10 +1,13 @@
 /*
- Copyright (c) TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2007-2008 TrueCrypt Foundation. All rights reserved.
 
- Covered by the TrueCrypt License 2.3 the full text of which is contained
+ Governed by the TrueCrypt License 2.4 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
+
+#ifndef TC_HEADER_BASE_COM
+#define TC_HEADER_BASE_COM
 
 #include <guiddef.h>
 
@@ -91,5 +94,17 @@ protected:
 };
 
 
+class BaseCom
+{
+public:
+	static DWORD CallDriver (DWORD ioctl, BSTR input, BSTR *output);
+	static DWORD ReadWriteFile (BOOL write, BOOL device, BSTR filePath, BSTR *bufferBstr, unsigned __int64 offset, unsigned __int32 size, DWORD *sizeDone);
+	static DWORD RegisterFilterDriver (BOOL registerDriver);
+	static DWORD SetDriverServiceStartType (DWORD startType);
+};
+
+
 BOOL ComGetInstanceBase (HWND hWnd, REFCLSID clsid, REFIID iid, void **tcServer);
 HRESULT CreateElevatedComObject (HWND hwnd, REFGUID guid, REFIID iid, void **ppv);
+
+#endif // TC_HEADER_BASE_COM

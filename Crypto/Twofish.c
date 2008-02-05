@@ -405,6 +405,8 @@ u4byte *twofish_set_key(TwofishInstance *instance, const u4byte in_key[], const 
 
 /* encrypt a block of text  */
 
+#ifndef TC_MINIMIZE_CODE_SIZE
+
 #define f_rnd(i)                                                    \
     t1 = g1_fun(blk[1]); t0 = g0_fun(blk[0]);                       \
     blk[2] = rotr(blk[2] ^ (t0 + t1 + l_key[4 * (i) + 8]), 1);      \
@@ -434,7 +436,50 @@ void twofish_encrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte o
     out_blk[3] = LE32(blk[1] ^ l_key[7]); 
 };
 
+#else // TC_MINIMIZE_CODE_SIZE
+
+void f_rnd (int i, TwofishInstance *instance, u4byte *t0, u4byte *t1, u4byte *blk)
+{
+	u4byte *mk_tab = instance->mk_tab;
+	u4byte *l_key = instance->l_key;
+
+	*t1 = g1_fun(blk[1]); *t0 = g0_fun(blk[0]);
+	blk[2] = rotr(blk[2] ^ (*t0 + *t1 + l_key[4 * (i) + 8]), 1);
+	blk[3] = rotl(blk[3], 1) ^ (*t0 + 2 * *t1 + l_key[4 * (i) + 9]);
+	*t1 = g1_fun(blk[3]); *t0 = g0_fun(blk[2]);
+	blk[0] = rotr(blk[0] ^ (*t0 + *t1 + l_key[4 * (i) + 10]), 1);
+	blk[1] = rotl(blk[1], 1) ^ (*t0 + 2 * *t1 + l_key[4 * (i) + 11]);
+}
+
+void twofish_encrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte out_blk[])
+{   u4byte  t0, t1, blk[4];
+
+	u4byte *l_key = instance->l_key;
+//	u4byte *s_key = instance->s_key;
+	u4byte *mk_tab = instance->mk_tab;
+	int i;
+
+	blk[0] = LE32(in_blk[0]) ^ l_key[0];
+    blk[1] = LE32(in_blk[1]) ^ l_key[1];
+    blk[2] = LE32(in_blk[2]) ^ l_key[2];
+    blk[3] = LE32(in_blk[3]) ^ l_key[3];
+
+	for (i = 0; i <= 7; ++i)
+	{
+		f_rnd (i, instance, &t0, &t1, blk);
+	}
+
+    out_blk[0] = LE32(blk[2] ^ l_key[4]);
+    out_blk[1] = LE32(blk[3] ^ l_key[5]);
+    out_blk[2] = LE32(blk[0] ^ l_key[6]);
+    out_blk[3] = LE32(blk[1] ^ l_key[7]); 
+};
+
+#endif // TC_MINIMIZE_CODE_SIZE
+
 /* decrypt a block of text  */
+
+#ifndef TC_MINIMIZE_CODE_SIZE
 
 #define i_rnd(i)                                                        \
         t1 = g1_fun(blk[1]); t0 = g0_fun(blk[0]);                       \
@@ -464,3 +509,43 @@ void twofish_decrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte o
     out_blk[2] = LE32(blk[0] ^ l_key[2]);
     out_blk[3] = LE32(blk[1] ^ l_key[3]); 
 };
+
+#else // TC_MINIMIZE_CODE_SIZE
+
+void i_rnd (int i, TwofishInstance *instance, u4byte *t0, u4byte *t1, u4byte *blk)
+{
+	u4byte *mk_tab = instance->mk_tab;
+	u4byte *l_key = instance->l_key;
+
+    *t1 = g1_fun(blk[1]); *t0 = g0_fun(blk[0]);
+    blk[2] = rotl(blk[2], 1) ^ (*t0 + *t1 + l_key[4 * (i) + 10]);
+    blk[3] = rotr(blk[3] ^ (*t0 + 2 * *t1 + l_key[4 * (i) + 11]), 1);
+    *t1 = g1_fun(blk[3]); *t0 = g0_fun(blk[2]);
+    blk[0] = rotl(blk[0], 1) ^ (*t0 + *t1 + l_key[4 * (i) +  8]);
+    blk[1] = rotr(blk[1] ^ (*t0 + 2 * *t1 + l_key[4 * (i) +  9]), 1);
+}
+
+void twofish_decrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte out_blk[4])
+{   u4byte  t0, t1, blk[4];
+
+	u4byte *l_key = instance->l_key;
+	u4byte *mk_tab = instance->mk_tab;
+	int i;
+
+    blk[0] = LE32(in_blk[0]) ^ l_key[4];
+    blk[1] = LE32(in_blk[1]) ^ l_key[5];
+    blk[2] = LE32(in_blk[2]) ^ l_key[6];
+    blk[3] = LE32(in_blk[3]) ^ l_key[7];
+
+	for (i = 7; i >= 0; --i)
+	{
+		i_rnd (i, instance, &t0, &t1, blk);
+	}
+
+    out_blk[0] = LE32(blk[2] ^ l_key[0]);
+    out_blk[1] = LE32(blk[3] ^ l_key[1]);
+    out_blk[2] = LE32(blk[0] ^ l_key[2]);
+    out_blk[3] = LE32(blk[1] ^ l_key[3]); 
+};
+
+#endif // TC_MINIMIZE_CODE_SIZE

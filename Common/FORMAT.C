@@ -1,11 +1,12 @@
 /*
- Legal Notice: The source code contained in this file has been derived from
- the source code of Encryption for the Masses 2.02a, which is Copyright (c)
- Paul Le Roux and which is covered by the 'License Agreement for Encryption
- for the Masses'. Modifications and additions to that source code contained
- in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.3 the full text of which is contained in the file
- License.txt included in TrueCrypt binary and source code distribution
+ Legal Notice: Some portions of the source code contained in this file were
+ derived from the source code of Encryption for the Masses 2.02a, which is
+ Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
+ Agreement for Encryption for the Masses'. Modifications and additions to
+ the original source code (contained in this file) and all other portions of
+ this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ by the TrueCrypt License 2.4 the full text of which is contained in the
+ file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
 #include <stdlib.h>
@@ -28,8 +29,7 @@
 #include "Resource.h"
 #include "../Format/FormatCom.h"
 
-int
-FormatVolume (char *volumePath,
+int FormatVolume (char *volumePath,
 	      BOOL bDevice,
 	      unsigned __int64 size,
 		  unsigned __int64 hiddenVolHostSize,
@@ -46,7 +46,7 @@ FormatVolume (char *volumePath,
 		  BOOL uac)
 {
 	int nStatus;
-	PCRYPTO_INFO cryptoInfo;
+	PCRYPTO_INFO cryptoInfo = NULL;
 	HANDLE dev = INVALID_HANDLE_VALUE;
 	DWORD dwError;
 	char header[HEADER_SIZE];
@@ -56,10 +56,20 @@ FormatVolume (char *volumePath,
 	FILETIME ftLastWriteTime;
 	FILETIME ftLastAccessTime;
 	BOOL bTimeStampValid = FALSE;
+	BOOL bInstantRetryOtherFilesys = FALSE;
 	char dosDev[TC_MAX_PATH] = { 0 };
 	char devName[MAX_PATH] = { 0 };
 	int driveLetter = -1;
 	WCHAR deviceName[MAX_PATH];
+
+	/* WARNING: Note that if Windows fails to format the volume as NTFS and the volume size is
+	less than MAX_FAT_VOLUME_SIZE, the user is asked within this function whether he wants to instantly
+	retry FAT format instead (to avoid having to re-create the whole container again). If the user
+	answers yes, some of the input parameters are modified, the code below 'begin_format' is re-executed 
+	and some destructive operations that were performed during the first attempt must be (and are) skipped. 
+	Therefore, whenever adding or modifying any potentially destructive operations below 'begin_format',
+	determine whether they (or their portions) need to be skipped during such a second attempt; if so, 
+	use the 'bInstantRetryOtherFilesys' flag to skip them. */
 
 	if (!hiddenVol)
 		size -= HEADER_SIZE;	
@@ -76,17 +86,20 @@ FormatVolume (char *volumePath,
 
 	VirtualLock (header, sizeof (header));
 
-	/* Copies any header structures into header, but does not do any
-	   disk io */
-	nStatus = VolumeWriteHeader (header,
+	/* Copies any header structures into header, but does not do any disk I/O */
+	nStatus = VolumeWriteHeader (FALSE,
+				     header,
 				     ea,
-					 LRW, // The only supported mode of operation when creating new volumes
+					 FIRST_MODE_OF_OPERATION_ID,
 				     password,
 				     pkcs5,
-					 0,
+					 NULL,
 					 0,
 				     &cryptoInfo,
+					 size,
 					 hiddenVol ? size : 0,
+					 0,
+					 size,
 					 FALSE);
 
 	if (nStatus != 0)
@@ -95,6 +108,8 @@ FormatVolume (char *volumePath,
 		VirtualUnlock (header, sizeof (header));
 		return nStatus;
 	}
+
+begin_format:
 
 	if (bDevice)
 	{
@@ -181,7 +196,7 @@ FormatVolume (char *volumePath,
 				}
 			}
 
-			if (hiddenVol)
+			if (hiddenVol || bInstantRetryOtherFilesys)
 				break;	// The following "quick format" operation would damage the outer volume
 
 			if (nPass == 0)
@@ -213,8 +228,8 @@ FormatVolume (char *volumePath,
 		// (Now if the container has hidden or system file attribute, the OS will not allow
 		// overwritting it; so the user will have to delete it manually).
 		dev = CreateFile (volumePath, GENERIC_WRITE,
-			hiddenVol ? (FILE_SHARE_READ | FILE_SHARE_WRITE) : 0,
-			NULL, hiddenVol ? OPEN_EXISTING : CREATE_ALWAYS, 0, NULL);
+			(hiddenVol || bInstantRetryOtherFilesys) ? (FILE_SHARE_READ | FILE_SHARE_WRITE) : 0,
+			NULL, (hiddenVol || bInstantRetryOtherFilesys) ? OPEN_EXISTING : CREATE_ALWAYS, 0, NULL);
 
 		if (dev == INVALID_HANDLE_VALUE)
 		{
@@ -223,7 +238,7 @@ FormatVolume (char *volumePath,
 			goto error;
 		}
 
-		if (!hiddenVol)
+		if (!hiddenVol && !bInstantRetryOtherFilesys)
 		{
 			LARGE_INTEGER volumeSize;
 			volumeSize.QuadPart = size + HEADER_SIZE;
@@ -287,13 +302,32 @@ FormatVolume (char *volumePath,
 		}
 
 	}
-
-	// Write the volume header
-	if (_lwrite ((HFILE) dev, header, HEADER_SIZE) == HFILE_ERROR)
+	else if (bInstantRetryOtherFilesys)
 	{
-		handleWin32Error (hwndDlg);
-		nStatus = ERR_DONT_REPORT;
-		goto error;
+		// The previous file system format failed and the user wants to try again with a different file system.
+		// The volume header had been written successfully so we need to seek to the byte after the header.
+
+		LARGE_INTEGER offset, offsetNew;
+
+		offset.QuadPart = HEADER_SIZE;
+
+		if (SetFilePointerEx ((HANDLE) dev, offset, &offsetNew, FILE_BEGIN) == 0
+			|| offsetNew.QuadPart != offset.QuadPart)
+		{
+			nStatus = ERR_VOL_SEEKING;
+			goto error;
+		}
+	}
+
+	if (!bInstantRetryOtherFilesys)
+	{
+		// Write the volume header
+		if (_lwrite ((HFILE) dev, header, HEADER_SIZE) == HFILE_ERROR)
+		{
+			handleWin32Error (hwndDlg);
+			nStatus = ERR_DONT_REPORT;
+			goto error;
+		}
 	}
 
 	/* Data area */
@@ -350,8 +384,6 @@ error:
 	burn (header, sizeof (header));
 	VirtualUnlock (header, sizeof (header));
 
-	crypto_close (cryptoInfo);
-
 	if (dev != INVALID_HANDLE_VALUE)
 	{
 		if (!bDevice && !hiddenVol && nStatus != 0)
@@ -374,13 +406,10 @@ error:
 		dev = INVALID_HANDLE_VALUE;
 	}
 
-	if (dosDev[0])
-		RemoveFakeDosName (volumePath, dosDev);
-
 	if (nStatus != 0)
 	{
 		SetLastError(dwError);
-		return nStatus;
+		goto fv_end;
 	}
 
 	if (fileSystem == FILESYS_NTFS)
@@ -397,7 +426,8 @@ error:
 			MessageBoxW (hwndDlg, GetString ("NO_FREE_DRIVES"), lpszTitle, ICON_HAND);
 			MessageBoxW (hwndDlg, GetString ("FORMAT_NTFS_STOP"), lpszTitle, ICON_HAND);
 
-			return ERR_NO_FREE_DRIVES;
+			nStatus = ERR_NO_FREE_DRIVES;
+			goto fv_end;
 		}
 
 		mountOptions.ReadOnly = FALSE;
@@ -409,7 +439,8 @@ error:
 		{
 			MessageBoxW (hwndDlg, GetString ("CANT_MOUNT_VOLUME"), lpszTitle, ICON_HAND);
 			MessageBoxW (hwndDlg, GetString ("FORMAT_NTFS_STOP"), lpszTitle, ICON_HAND);
-			return ERR_VOL_MOUNT_FAILED;
+			nStatus = ERR_VOL_MOUNT_FAILED;
+			goto fv_end;
 		}
 
 		if (!IsAdmin () && IsUacSupported ())
@@ -422,26 +453,49 @@ error:
 			if (!UnmountVolume (hwndDlg, driveNo, FALSE))
 				MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_VOLUME"), lpszTitle, ICON_HAND);
 
-			Error ("FORMAT_NTFS_FAILED");
-			return ERR_DONT_REPORT;
+			if (size <= MAX_FAT_VOLUME_SIZE)
+			{
+				if (AskErrYesNo ("FORMAT_NTFS_FAILED_ASK_FAT") == IDYES)
+				{
+					// NTFS format failed and the user wants to try FAT format immediately
+					fileSystem = FILESYS_FAT;
+					bInstantRetryOtherFilesys = TRUE;
+					quickFormat = TRUE;		// Volume has already been successfully TC-formatted
+					clusterSize = 0;		// Default cluster size
+					goto begin_format;
+				}
+			}
+			else
+				Error ("FORMAT_NTFS_FAILED");
+
+			nStatus = ERR_DONT_REPORT;
+			goto fv_end;
 		}
 
 		if (!UnmountVolume (hwndDlg, driveNo, FALSE))
 			MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_VOLUME"), lpszTitle, ICON_HAND);
 	}
 
+fv_end:
+
+	if (dosDev[0])
+		RemoveFakeDosName (volumePath, dosDev);
+
+	crypto_close (cryptoInfo);
+
 	return nStatus;
 }
 
-#endif
+#endif	// _WIN32
 
 int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, PCRYPTO_INFO cryptoInfo, BOOL quickFormat)
 {
 	int write_buf_cnt = 0;
 	char sector[SECTOR_SIZE], *write_buf;
 	unsigned __int64 nSecNo = startSector;
-	int retVal;
-	char temporaryKey[DISKKEY_SIZE];
+	int retVal = 0;
+	char temporaryKey[MASTER_KEYDATA_SIZE];
+	char originalK2[MASTER_KEYDATA_SIZE];
 
 #ifdef _WIN32
 	LARGE_INTEGER startOffset;
@@ -454,10 +508,16 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, P
 	{
 		return ERR_VOL_SEEKING;
 	}
+
+	VirtualLock (temporaryKey, sizeof (temporaryKey));
+	VirtualLock (originalK2, sizeof (originalK2));
 #endif
 
 	write_buf = (char *) TCalloc (WRITE_BUF_SIZE);
 	memset (sector, 0, sizeof (sector));
+
+	// Remember the original secondary key (XTS mode) before generating a temporary one
+	memcpy (originalK2, cryptoInfo->k2, sizeof (cryptoInfo->k2));
 
 	/* Fill the rest of the data area with random data */
 
@@ -465,48 +525,44 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, P
 	{
 		/* Generate a random temporary key set to be used for "dummy" encryption that will fill
 		the free disk space (data area) with random data.  This is necessary for plausible
-		deniability of hidden volumes (and also reduces the amount of predictable plaintext
-		within the volume). */
+		deniability of hidden volumes. */
 
 		// Temporary master key
 		if (!RandgetBytes (temporaryKey, EAGetKeySize (cryptoInfo->ea), FALSE))
 			goto fail;
-		// Secondary key (LRW mode)
-		if (!RandgetBytes (cryptoInfo->iv, sizeof cryptoInfo->iv, FALSE))
+
+		// Temporary secondary key (XTS mode)
+		if (!RandgetBytes (cryptoInfo->k2, sizeof cryptoInfo->k2, FALSE))
 			goto fail;
 
 		retVal = EAInit (cryptoInfo->ea, temporaryKey, cryptoInfo->ks);
-		if (retVal != 0)
-		{
-			burn (temporaryKey, sizeof(temporaryKey));
-			return retVal;
-		}
+		if (retVal != ERR_SUCCESS)
+			goto fail;
+
 		if (!EAInitMode (cryptoInfo))
 		{
-			burn (temporaryKey, sizeof(temporaryKey));
-			return ERR_MODE_INIT_FAILED;
+			retVal = ERR_MODE_INIT_FAILED;
+			goto fail;
 		}
 
 		while (num_sectors--)
 		{
-			/* Generate random plaintext. Note that reused plaintext blocks are not a concern
-			here since LRW mode is designed to hide patterns. Furthermore, patterns in plaintext
-			do occur commonly on media in the "real world", so it might actually be a fatal
-			mistake to try to avoid them completely. */
+			/* Generate random plaintext. Note that reused plaintext blocks are not a concern here
+			since XTS mode is designed to hide patterns. Furthermore, patterns in plaintext do 
+			occur commonly on media in the "real world", so it might actually be a fatal mistake
+			to try to avoid them completely. */
 
-#if RNG_POOL_SIZE > SECTOR_SIZE
-#error RNG_POOL_SIZE > SECTOR_SIZE
+#if RNG_POOL_SIZE < SECTOR_SIZE
+#error RNG_POOL_SIZE < SECTOR_SIZE
 #endif
 
 #ifdef _WIN32
-			if (!RandpeekBytes (sector, RNG_POOL_SIZE)
-				|| !RandpeekBytes (sector + RNG_POOL_SIZE, SECTOR_SIZE - RNG_POOL_SIZE))
+			if (!RandpeekBytes (sector, SECTOR_SIZE))
 				goto fail;
 #else
 			if ((nSecNo & 0x3fff) == 0)
 			{
-				if (!RandgetBytes (sector, RNG_POOL_SIZE, FALSE)
-					|| !RandgetBytes (sector + RNG_POOL_SIZE, SECTOR_SIZE - RNG_POOL_SIZE, FALSE))
+				if (!RandgetBytes (sector, SECTOR_SIZE, FALSE))
 					goto fail;
 			}
 #endif
@@ -528,15 +584,42 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, P
 
 	UpdateProgressBar (nSecNo);
 
-	TCfree (write_buf);
+	// Restore the original secondary key (XTS mode) in case NTFS format fails and the user wants to try FAT immediately
+	memcpy (cryptoInfo->k2, originalK2, sizeof (cryptoInfo->k2));
+
+	// Reinitialize the encryption algorithm and mode in case NTFS format fails and the user wants to try FAT immediately
+	retVal = EAInit (cryptoInfo->ea, cryptoInfo->master_keydata, cryptoInfo->ks);
+	if (retVal != ERR_SUCCESS)
+		goto fail;
+	if (!EAInitMode (cryptoInfo))
+	{
+		retVal = ERR_MODE_INIT_FAILED;
+		goto fail;
+	}
+
+	if (write_buf != NULL)
+		TCfree (write_buf);
+
 	burn (temporaryKey, sizeof(temporaryKey));
+	burn (originalK2, sizeof(originalK2));
+#ifdef _WIN32
+	VirtualUnlock (temporaryKey, sizeof (temporaryKey));
+	VirtualUnlock (originalK2, sizeof (originalK2));
+#endif
 	return 0;
 
 fail:
 
-	TCfree (write_buf);
+	if (write_buf != NULL)
+		TCfree (write_buf);
+
 	burn (temporaryKey, sizeof(temporaryKey));
-	return ERR_OS_ERROR;
+	burn (originalK2, sizeof(originalK2));
+#ifdef _WIN32
+	VirtualUnlock (temporaryKey, sizeof (temporaryKey));
+	VirtualUnlock (originalK2, sizeof (originalK2));
+#endif
+	return (retVal ? retVal : ERR_OS_ERROR);
 }
 
 #ifdef _WIN32
@@ -570,7 +653,7 @@ BOOL FormatNtfs (int driveNo, int clusterSize)
 
 	FormatExResult = FALSE;
 
-	// Windows sometimes fail to format a volume (hosted on a removable medium) as NTFS.
+	// Windows sometimes fails to format a volume (hosted on a removable medium) as NTFS.
 	// It often helps to retry several times.
 	for (i = 0; i < 10 && FormatExResult != TRUE; i++)
 	{
@@ -583,15 +666,18 @@ BOOL FormatNtfs (int driveNo, int clusterSize)
 
 #endif
 
-BOOL
-WriteSector (void *dev, char *sector,
+BOOL WriteSector (void *dev, char *sector,
 	     char *write_buf, int *write_buf_cnt,
 	     __int64 *nSecNo, PCRYPTO_INFO cryptoInfo)
 {
 	static __int32 updateTime = 0;
+	UINT64_STRUCT unitNo;
 
-	EncryptSectors ((unsigned __int32 *) sector,
-		(*nSecNo)++, 1, cryptoInfo);
+	unitNo.Value = *nSecNo * SECTOR_SIZE / ENCRYPTION_DATA_UNIT_SIZE;
+
+	EncryptDataUnits (sector, &unitNo, SECTOR_SIZE / ENCRYPTION_DATA_UNIT_SIZE, cryptoInfo);
+
+	(*nSecNo)++;
 
 	memcpy (write_buf + *write_buf_cnt, sector, SECTOR_SIZE);
 	(*write_buf_cnt) += SECTOR_SIZE;

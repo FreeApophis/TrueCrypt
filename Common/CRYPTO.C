@@ -1,15 +1,17 @@
 /*
- Legal Notice: The source code contained in this file has been derived from
- the source code of Encryption for the Masses 2.02a, which is Copyright (c)
- Paul Le Roux and which is covered by the 'License Agreement for Encryption
- for the Masses'. Modifications and additions to that source code contained
- in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.3 the full text of which is contained in the file
- License.txt included in TrueCrypt binary and source code distribution
+ Legal Notice: Some portions of the source code contained in this file were
+ derived from the source code of Encryption for the Masses 2.02a, which is
+ Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
+ Agreement for Encryption for the Masses'. Modifications and additions to
+ the original source code (contained in this file) and all other portions of
+ this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ by the TrueCrypt License 2.4 the full text of which is contained in the
+ file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
 #include "Tcdefs.h"
 #include "Crypto.h"
+#include "Xts.h"
 #include "Crc.h"
 #include "Common/Endian.h"
 
@@ -40,45 +42,73 @@ static Cipher Ciphers[] =
 {
 //								Block Size	Key Size	Key Schedule Size
 //	  ID		Name			(Bytes)		(Bytes)		(Bytes)
-	{ AES,		"AES",			16,			32,			sizeof(aes_encrypt_ctx)+sizeof(aes_decrypt_ctx)	},
+	{ AES,		"AES",			16,			32,			AES_KS				},
+	{ SERPENT,	"Serpent",		16,			32,			140*4				},
+	{ TWOFISH,	"Twofish",		16,			32,			TWOFISH_KS			},
+#ifndef TC_WINDOWS_BOOT
 	{ BLOWFISH,	"Blowfish",		8,			56,			4168				},	// Deprecated/legacy
 	{ CAST,		"CAST5",		8,			16,			128					},	// Deprecated/legacy
 	{ DES56,	"DES",			8,			7,			128					},	// Deprecated/legacy
-	{ SERPENT,	"Serpent",		16,			32,			140*4				},
 	{ TRIPLEDES,"Triple DES",	8,			8*3,		128*3				},	// Deprecated/legacy
-	{ TWOFISH,	"Twofish",		16,			32,			TWOFISH_KS			},
+#endif
 	{ 0,		0,				0,			0,			0					}
 };
 
+
 // Encryption algorithm configuration
-// The following modes have been deprecated (legacy): CBC, INNER_CBC, OUTER_CBC
+// The following modes have been deprecated (legacy): LRW, CBC, INNER_CBC, OUTER_CBC
 static EncryptionAlgorithm EncryptionAlgorithms[] =
 {
-	//  Cipher(s)                     Modes
-	{ { 0,						0 }, { 0, 0, 0 },			0 },	// Must be all-zero
-	{ { AES,					0 }, { LRW, CBC, 0 },		1 },
-	{ { BLOWFISH,				0 }, { LRW, CBC, 0 },		0 },	// Deprecated/legacy
-	{ { CAST,					0 }, { LRW, CBC, 0 },		0 },	// Deprecated/legacy
-	{ { SERPENT,				0 }, { LRW, CBC, 0 },		1 },
-	{ { TRIPLEDES,				0 }, { LRW, CBC, 0 },		0 },	// Deprecated/legacy
-	{ { TWOFISH,				0 }, { LRW, CBC, 0 },		1 },
-	{ { TWOFISH, AES,			0 }, { LRW, OUTER_CBC, 0 },	1 },
-	{ { SERPENT, TWOFISH, AES,	0 }, { LRW, OUTER_CBC, 0 },	1 },
-	{ { AES, SERPENT,			0 }, { LRW, OUTER_CBC, 0 },	1 },
-	{ { AES, TWOFISH, SERPENT,	0 }, { LRW, OUTER_CBC, 0 },	1 },
-	{ { SERPENT, TWOFISH,		0 }, { LRW, OUTER_CBC, 0 },	1 },
-	{ { BLOWFISH, AES,			0 }, { INNER_CBC, 0, 0 },	0 },	// Deprecated/legacy
-	{ { SERPENT, BLOWFISH, AES,	0 }, { INNER_CBC, 0, 0 },	0 },	// Deprecated/legacy
-	{ { 0,						0 }, { 0, 0, 0 },			0 }		// Must be all-zero
+	//  Cipher(s)                     Modes						FormatEnabled
+
+#ifndef TC_WINDOWS_BOOT
+
+	{ { 0,						0 }, { 0, 0, 0, 0 },				0 },	// Must be all-zero
+	{ { AES,					0 }, { XTS, LRW, CBC, 0 },			1 },
+	{ { SERPENT,				0 }, { XTS, LRW, CBC, 0 },			1 },
+	{ { TWOFISH,				0 }, { XTS, LRW, CBC, 0 },			1 },
+	{ { TWOFISH, AES,			0 }, { XTS, LRW, OUTER_CBC, 0 },	1 },
+	{ { SERPENT, TWOFISH, AES,	0 }, { XTS, LRW, OUTER_CBC, 0 },	1 },
+	{ { AES, SERPENT,			0 }, { XTS, LRW, OUTER_CBC, 0 },	1 },
+	{ { AES, TWOFISH, SERPENT,	0 }, { XTS, LRW, OUTER_CBC, 0 },	1 },
+	{ { SERPENT, TWOFISH,		0 }, { XTS, LRW, OUTER_CBC, 0 },	1 },
+	{ { BLOWFISH,				0 }, { LRW, CBC, 0, 0 },			0 },	// Deprecated/legacy
+	{ { CAST,					0 }, { LRW, CBC, 0, 0 },			0 },	// Deprecated/legacy
+	{ { TRIPLEDES,				0 }, { LRW, CBC, 0, 0 },			0 },	// Deprecated/legacy
+	{ { BLOWFISH, AES,			0 }, { INNER_CBC, 0, 0, 0 },		0 },	// Deprecated/legacy
+	{ { SERPENT, BLOWFISH, AES,	0 }, { INNER_CBC, 0, 0, 0 },		0 },	// Deprecated/legacy
+	{ { 0,						0 }, { 0, 0, 0, 0 },				0 }		// Must be all-zero
+
+#else // TC_WINDOWS_BOOT
+
+	// Encryption algorithms available for boot drive encryption
+	{ { 0,						0 }, { 0, 0 },		0 },	// Must be all-zero
+	{ { AES,					0 }, { XTS, 0 },	1 },
+	{ { SERPENT,				0 }, { XTS, 0 },	1 },
+	{ { TWOFISH,				0 }, { XTS, 0 },	1 },
+	{ { TWOFISH, AES,			0 }, { XTS, 0 },	1 },
+	{ { SERPENT, TWOFISH, AES,	0 }, { XTS, 0 },	1 },
+	{ { AES, SERPENT,			0 }, { XTS, 0 },	1 },
+	{ { AES, TWOFISH, SERPENT,	0 }, { XTS, 0 },	1 },
+	{ { SERPENT, TWOFISH,		0 }, { XTS, 0 },	1 },
+	{ { 0,						0 }, { 0, 0 },		0 },	// Must be all-zero
+
+#endif
+
 };
+
+
 
 // Hash algorithms
 static Hash Hashes[] =
-{
-	{ RIPEMD160, "RIPEMD-160" },
-	{ SHA1, "SHA-1" },
-	{ WHIRLPOOL, "Whirlpool" },
-	{ 0, 0 }
+{	// ID			Name			Deprecated		System Encryption
+	{ RIPEMD160,	"RIPEMD-160",	FALSE,			TRUE },
+#ifndef TC_WINDOWS_BOOT
+	{ SHA512,		"SHA-512",		FALSE,			FALSE },
+	{ WHIRLPOOL,	"Whirlpool",	FALSE,			FALSE },
+	{ SHA1,			"SHA-1",		TRUE,			FALSE },	// Deprecated/legacy
+#endif
+	{ 0, 0, 0 }
 };
 
 /* Return values: 0 = success, ERR_CIPHER_INIT_FAILURE (fatal), ERR_CIPHER_INIT_WEAK_KEY (non-fatal) */
@@ -88,18 +118,33 @@ int CipherInit (int cipher, unsigned char *key, unsigned __int8 *ks)
 
 	switch (cipher)
 	{
-	case BLOWFISH:
-		/* Deprecated/legacy */
-		BF_set_key ((BF_KEY *)ks, CipherGetKeySize(BLOWFISH), key);
-		break;
-
 	case AES:
+#ifndef TC_WINDOWS_BOOT
 		if (aes_encrypt_key(key, CipherGetKeySize(AES), (aes_encrypt_ctx *) ks) != EXIT_SUCCESS)
 			return ERR_CIPHER_INIT_FAILURE;
 
 		if (aes_decrypt_key(key, CipherGetKeySize(AES), (aes_decrypt_ctx *) (ks + sizeof(aes_encrypt_ctx))) != EXIT_SUCCESS)
 			return ERR_CIPHER_INIT_FAILURE;
+#else
+		if (aes_set_key (key, (length_type) CipherGetKeySize(AES), (aes_context *) ks) != 0)
+			return ERR_CIPHER_INIT_FAILURE;
+#endif
 
+		break;
+
+	case SERPENT:
+		serpent_set_key (key, CipherGetKeySize(SERPENT) * 8, ks);
+		break;
+		
+	case TWOFISH:
+		twofish_set_key ((TwofishInstance *)ks, (const u4byte *)key, CipherGetKeySize(TWOFISH) * 8);
+		break;
+
+#ifndef TC_WINDOWS_BOOT
+		
+	case BLOWFISH:
+		/* Deprecated/legacy */
+		BF_set_key ((BF_KEY *)ks, CipherGetKeySize(BLOWFISH), key);
 		break;
 
 	case DES56:		
@@ -117,10 +162,6 @@ int CipherInit (int cipher, unsigned char *key, unsigned __int8 *ks)
 	case CAST:
 		/* Deprecated/legacy */
 		CAST_set_key((CAST_KEY *) ks, CipherGetKeySize(CAST), key);
-		break;
-
-	case SERPENT:
-		serpent_set_key (key, CipherGetKeySize(SERPENT) * 8, ks);
 		break;
 
 	case TRIPLEDES:
@@ -158,11 +199,13 @@ int CipherInit (int cipher, unsigned char *key, unsigned __int8 *ks)
 
 		break;
 
-	case TWOFISH:
-		twofish_set_key ((TwofishInstance *)ks, (const u4byte *)key, CipherGetKeySize(TWOFISH) * 8);
-		break;
+#endif	// TC_WINDOWS_BOOT
 
+	default:
+		// Unknown/wrong cipher ID
+		return ERR_CIPHER_INIT_FAILURE;
 	}
+
 	return retVal;
 }
 
@@ -170,14 +213,17 @@ void EncipherBlock(int cipher, void *data, void *ks)
 {
 	switch (cipher)
 	{
-	case BLOWFISH:		BF_ecb_le_encrypt (data, data, ks, 1); break;	// Deprecated/legacy
 	case AES:			aes_encrypt (data, data, ks); break;
+	case TWOFISH:		twofish_encrypt (ks, data, data); break;
+	case SERPENT:		serpent_encrypt (data, data, ks); break;
+#ifndef TC_WINDOWS_BOOT
+	case BLOWFISH:		BF_ecb_le_encrypt (data, data, ks, 1); break;	// Deprecated/legacy
 	case DES56:			des_encrypt (data, ks, 1); break;				// Deprecated/legacy
 	case CAST:			CAST_ecb_encrypt (data, data, ks, 1); break;	// Deprecated/legacy
-	case SERPENT:		serpent_encrypt (data, data, ks); break;
 	case TRIPLEDES:		des_ecb3_encrypt (data, data, ks,				// Deprecated/legacy
 						(void*)((char*) ks + CipherGetKeyScheduleSize (DES56)), (void*)((char*) ks + CipherGetKeyScheduleSize (DES56) * 2), 1); break;
-	case TWOFISH:		twofish_encrypt (ks, data, data); break;
+#endif
+	default:			TC_THROW_FATAL_EXCEPTION;	// Unknown/wrong ID
 	}
 }
 
@@ -185,15 +231,20 @@ void DecipherBlock(int cipher, void *data, void *ks)
 {
 	switch (cipher)
 	{
-	case BLOWFISH:	BF_ecb_le_encrypt (data, data, ks, 0); break;	// Deprecated/legacy
+	case SERPENT:	serpent_decrypt (data, data, ks); break;
+	case TWOFISH:	twofish_decrypt (ks, data, data); break;
+#ifndef TC_WINDOWS_BOOT
 	case AES:		aes_decrypt (data, data, (void *) ((char *) ks + sizeof(aes_encrypt_ctx))); break;
+	case BLOWFISH:	BF_ecb_le_encrypt (data, data, ks, 0); break;	// Deprecated/legacy
 	case DES56:		des_encrypt (data, ks, 0); break;				// Deprecated/legacy
 	case CAST:		CAST_ecb_encrypt (data, data, ks,0); break;		// Deprecated/legacy
-	case SERPENT:	serpent_decrypt (data, data, ks); break;
 	case TRIPLEDES:	des_ecb3_encrypt (data, data, ks,				// Deprecated/legacy
 					(void*)((char*) ks + CipherGetKeyScheduleSize (DES56)),
 					(void*)((char*) ks + CipherGetKeyScheduleSize (DES56) * 2), 0); break;
-	case TWOFISH:	twofish_decrypt (ks, data, data); break;
+#else
+	case AES:		aes_decrypt (data, data, ks); break;
+#endif
+	default:		TC_THROW_FATAL_EXCEPTION;	// Unknown/wrong ID
 	}
 }
 
@@ -206,7 +257,7 @@ Cipher *CipherGet (int id)
 		if (Ciphers[i].Id == id)
 			return &Ciphers[i];
 
-	return 0;
+	return NULL;
 }
 
 char *CipherGetName (int cipherId)
@@ -288,24 +339,50 @@ int EAInitMode (PCRYPTO_INFO ci)
 {
 	switch (ci->mode)
 	{
+	case XTS:
+		// Secondary key schedule
+		if (EAInit (ci->ea, ci->k2, ci->ks2) != ERR_SUCCESS)
+			return FALSE;
+
+		/* Note: XTS mode could potentially be initialized with a weak key causing all blocks in one data unit
+		on the volume to be tweaked with zero tweaks (i.e. 512 bytes of the volume would be encrypted in ECB
+		mode). However, to create a TrueCrypt volume with such a weak key, each human being on Earth would have
+		to create approximately 11,378,125,361,078,862 (about eleven quadrillion) TrueCrypt volumes (provided 
+		that the size of each of the volumes is 1024 terabytes). */
+		break;
+
+#ifndef TC_WINDOWS_BOOT
 	case LRW:
 		switch (CipherGetBlockSize (EAGetFirstCipher (ci->ea)))
 		{
 		case 8:
 			/* Deprecated/legacy */
-			return Gf64TabInit (ci->iv, &ci->gf_ctx);
+			return Gf64TabInit (ci->k2, &ci->gf_ctx);
 
 		case 16:
-			return Gf128Tab64Init (ci->iv, &ci->gf_ctx);
+			return Gf128Tab64Init (ci->k2, &ci->gf_ctx);
 
 		default:
-			return FALSE;
+			TC_THROW_FATAL_EXCEPTION;
 		}
-	}
 
+		break;
+
+	case CBC:
+	case INNER_CBC:
+	case OUTER_CBC:
+		// The mode does not need to be initialized or is initialized elsewhere 
+		return TRUE;
+#endif	// TC_WINDOWS_BOOT
+
+	default:		
+		// Unknown/wrong ID
+		TC_THROW_FATAL_EXCEPTION;
+	}
 	return TRUE;
 }
 
+#ifndef TC_WINDOWS_BOOT
 
 // Returns name of EA, cascaded cipher names are separated by hyphens
 char *EAGetName (char *buf, int ea)
@@ -339,8 +416,9 @@ int EAGetByName (char *name)
 	return 0;
 }
 
+#endif // TC_WINDOWS_BOOT
 
-// Returns sum of key sizes of all EA ciphers
+// Returns sum of key sizes of all ciphers of the EA (in bytes)
 int EAGetKeySize (int ea)
 {
 	int i = EAGetFirstCipher (ea);
@@ -375,12 +453,21 @@ int EAGetNextMode (int ea, int previousModeId)
 }
 
 
+#ifndef TC_WINDOWS_BOOT
+
 // Returns the name of the mode of operation of the whole EA
 char *EAGetModeName (int ea, int mode, BOOL capitalLetters)
 {
 	switch (mode)
 	{
+	case XTS:
+
+		return "XTS";
+
 	case LRW:
+
+		/* Deprecated/legacy */
+
 		return "LRW";
 
 	case CBC:
@@ -412,8 +499,10 @@ char *EAGetModeName (int ea, int mode, BOOL capitalLetters)
 	return "[unknown]";
 }
 
+#endif // TC_WINDOWS_BOOT
 
-// Returns sum of key schedule sizes of all EA ciphers
+
+// Returns sum of key schedule sizes of all ciphers of the EA
 int EAGetKeyScheduleSize (int ea)
 {
 	int i = EAGetFirstCipher(ea);
@@ -428,12 +517,29 @@ int EAGetKeyScheduleSize (int ea)
 }
 
 
-// Returns largest key needed by all EAs
+// Returns the largest key size needed by an EA for the specified mode of operation
+int EAGetLargestKeyForMode (int mode)
+{
+	int ea, key = 0;
+
+	for (ea = EAGetFirst (); ea != 0; ea = EAGetNext (ea))
+	{
+		if (!EAIsModeSupported (ea, mode))
+			continue;
+
+		if (EAGetKeySize (ea) >= key)
+			key = EAGetKeySize (ea);
+	}
+	return key;
+}
+
+
+// Returns the largest key needed by any EA for any mode
 int EAGetLargestKey ()
 {
 	int ea, key = 0;
 
-	for (ea = EAGetFirst (); ea != 0 ; ea = EAGetNext (ea))
+	for (ea = EAGetFirst (); ea != 0; ea = EAGetNext (ea))
 	{
 		if (EAGetKeySize (ea) >= key)
 			key = EAGetKeySize (ea);
@@ -504,6 +610,20 @@ int EAIsFormatEnabled (int ea)
 }
 
 
+// Returns TRUE if the mode of operation is supported for the encryption algorithm
+BOOL EAIsModeSupported (int ea, int testedMode)
+{
+	int mode;
+
+	for (mode = EAGetFirstMode (ea); mode != 0; mode = EAGetNextMode (ea, mode))
+	{
+		if (mode == testedMode)
+			return TRUE;
+	}
+	return FALSE;
+}
+
+
 Hash *HashGet (int id)
 {
 	int i;
@@ -532,9 +652,23 @@ char *HashGetName (int hashId)
 }
 
 
-PCRYPTO_INFO
-crypto_open ()
+BOOL HashIsDeprecated (int hashId)
 {
+	return HashGet (hashId) -> Deprecated;
+}
+
+
+#ifdef TC_WINDOWS_BOOT
+
+static byte CryptoInfoBufferInUse = 0;
+CRYPTO_INFO CryptoInfoBuffer;
+
+#endif
+
+PCRYPTO_INFO crypto_open ()
+{
+#ifndef TC_WINDOWS_BOOT
+
 	/* Do the crt allocation */
 	PCRYPTO_INFO cryptoInfo = (PCRYPTO_INFO) TCalloc (sizeof (CRYPTO_INFO));
 	memset (cryptoInfo, 0, sizeof (CRYPTO_INFO));
@@ -550,19 +684,30 @@ crypto_open ()
 
 	cryptoInfo->ea = -1;
 	return cryptoInfo;
+
+#else // TC_WINDOWS_BOOT
+
+#if 0
+	if (CryptoInfoBufferInUse)
+		TC_THROW_FATAL_EXCEPTION;
+#endif
+	CryptoInfoBufferInUse = 1;
+	return &CryptoInfoBuffer;
+
+#endif // TC_WINDOWS_BOOT
 }
 
-void
-crypto_loadkey (PKEY_INFO keyInfo, char *lpszUserKey, int nUserKeyLen)
+void crypto_loadkey (PKEY_INFO keyInfo, char *lpszUserKey, int nUserKeyLen)
 {
 	keyInfo->keyLength = nUserKeyLen;
 	burn (keyInfo->userKey, sizeof (keyInfo->userKey));
 	memcpy (keyInfo->userKey, lpszUserKey, nUserKeyLen);
 }
 
-void
-crypto_close (PCRYPTO_INFO cryptoInfo)
+void crypto_close (PCRYPTO_INFO cryptoInfo)
 {
+#ifndef TC_WINDOWS_BOOT
+
 	if (cryptoInfo != NULL)
 	{
 		burn (cryptoInfo, sizeof (CRYPTO_INFO));
@@ -573,55 +718,220 @@ crypto_close (PCRYPTO_INFO cryptoInfo)
 #endif
 		TCfree (cryptoInfo);
 	}
+
+#else // TC_WINDOWS_BOOT
+
+	burn (&CryptoInfoBuffer, sizeof (CryptoInfoBuffer));
+	CryptoInfoBufferInUse = FALSE;
+
+#endif // TC_WINDOWS_BOOT
 }
 
 
-// Detect weak and potentially weak secondary LRW keys.
-// Remark: These tests reduce the key search space by approximately 0.001%
-BOOL DetectWeakSecondaryKey (unsigned char *key, int len)
+#ifndef TC_NO_COMPILER_INT64
+void Xor128 (unsigned __int64 *a, unsigned __int64 *b)
 {
-#define LRW_MAX_SUCCESSIVE_IDENTICAL_BITS	24
-#define LRW_MIN_HAMMING_WEIGHT_16			39
-#define LRW_MIN_HAMMING_WEIGHT_8			15
+	*a++ ^= *b++;
+	*a ^= *b;
+}
 
-	int minWeight = (len == 16 ? LRW_MIN_HAMMING_WEIGHT_16 : LRW_MIN_HAMMING_WEIGHT_8);
-	int i, b, zero = 0, one = 0, zeroTotal = 0, oneTotal = 0;
 
-	for (i = 0; i < len; i++)
+void Xor64 (unsigned __int64 *a, unsigned __int64 *b)
+{
+	*a ^= *b;
+}
+
+
+void EncryptBufferLRW128 (unsigned __int8 *buffer, unsigned __int64 length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo)
+{
+	/* Deprecated/legacy */
+
+	int cipher = EAGetFirstCipher (cryptoInfo->ea);
+	int cipherCount = EAGetCipherCount (cryptoInfo->ea);
+	unsigned __int8 *p = buffer;
+	unsigned __int8 *ks = cryptoInfo->ks;
+	unsigned __int8 i[8];
+	unsigned __int8 t[16];
+	unsigned __int64 b;
+
+	*(unsigned __int64 *)i = BE64(blockIndex);
+
+	if (length % 16)
+		TC_THROW_FATAL_EXCEPTION;
+
+	// Note that the maximum supported volume size is 8589934592 GB  (i.e., 2^63 bytes).
+
+	for (b = 0; b < length >> 4; b++)
 	{
-		for (b = 7; b >= 0; b--)
-		{
-			if ((key[i] & (1 << b)) == 0)
-			{
-				zeroTotal++;
-				zero++;
-				one = 0;
-			}
-			else
-			{
-				oneTotal++;
-				one++;
-				zero = 0;
-			}
+		Gf128MulBy64Tab (i, t, &cryptoInfo->gf_ctx);
+		Xor128 ((unsigned __int64 *)p, (unsigned __int64 *)t);
 
-			// Maximum number of consecutive identical bit values
-			if (one >= LRW_MAX_SUCCESSIVE_IDENTICAL_BITS || zero >= LRW_MAX_SUCCESSIVE_IDENTICAL_BITS)
-				return TRUE;
+		if (cipherCount > 1)
+		{
+			// Cipher cascade
+			for (cipher = EAGetFirstCipher (cryptoInfo->ea);
+				cipher != 0;
+				cipher = EAGetNextCipher (cryptoInfo->ea, cipher))
+			{
+				EncipherBlock (cipher, p, ks);
+				ks += CipherGetKeyScheduleSize (cipher);
+			}
+			ks = cryptoInfo->ks;
 		}
+		else
+		{
+			EncipherBlock (cipher, p, ks);
+		}
+
+		Xor128 ((unsigned __int64 *)p, (unsigned __int64 *)t);
+
+		p += 16;
+
+		if (i[7] != 0xff)
+			i[7]++;
+		else
+			*(unsigned __int64 *)i = BE64 ( BE64(*(unsigned __int64 *)i) + 1 );
 	}
 
-	// Minimum and maximum Hamming weight
-	if (zeroTotal < minWeight || oneTotal < minWeight)
-		return TRUE;
+	FAST_ERASE64 (t, sizeof(t));
+}
 
-	return FALSE;
+
+void EncryptBufferLRW64 (unsigned __int8 *buffer, unsigned __int64 length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo)
+{
+	/* Deprecated/legacy */
+
+	int cipher = EAGetFirstCipher (cryptoInfo->ea);
+	unsigned __int8 *p = buffer;
+	unsigned __int8 *ks = cryptoInfo->ks;
+	unsigned __int8 i[8];
+	unsigned __int8 t[8];
+	unsigned __int64 b;
+
+	*(unsigned __int64 *)i = BE64(blockIndex);
+
+	if (length % 8)
+		TC_THROW_FATAL_EXCEPTION;
+
+	for (b = 0; b < length >> 3; b++)
+	{
+		Gf64MulTab (i, t, &cryptoInfo->gf_ctx);
+		Xor64 ((unsigned __int64 *)p, (unsigned __int64 *)t);
+
+		EncipherBlock (cipher, p, ks);
+
+		Xor64 ((unsigned __int64 *)p, (unsigned __int64 *)t);
+
+		p += 8;
+
+		if (i[7] != 0xff)
+			i[7]++;
+		else
+			*(unsigned __int64 *)i = BE64 ( BE64(*(unsigned __int64 *)i) + 1 );
+	}
+
+	FAST_ERASE64 (t, sizeof(t));
+}
+
+
+void DecryptBufferLRW128 (unsigned __int8 *buffer, unsigned __int64 length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo)
+{
+	/* Deprecated/legacy */
+
+	int cipher = EAGetFirstCipher (cryptoInfo->ea);
+	int cipherCount = EAGetCipherCount (cryptoInfo->ea);
+	unsigned __int8 *p = buffer;
+	unsigned __int8 *ks = cryptoInfo->ks;
+	unsigned __int8 i[8];
+	unsigned __int8 t[16];
+	unsigned __int64 b;
+
+	*(unsigned __int64 *)i = BE64(blockIndex);
+
+	if (length % 16)
+		TC_THROW_FATAL_EXCEPTION;
+
+	// Note that the maximum supported volume size is 8589934592 GB  (i.e., 2^63 bytes).
+
+	for (b = 0; b < length >> 4; b++)
+	{
+		Gf128MulBy64Tab (i, t, &cryptoInfo->gf_ctx);
+		Xor128 ((unsigned __int64 *)p, (unsigned __int64 *)t);
+
+		if (cipherCount > 1)
+		{
+			// Cipher cascade
+			ks = cryptoInfo->ks + EAGetKeyScheduleSize (cryptoInfo->ea);
+
+			for (cipher = EAGetLastCipher (cryptoInfo->ea);
+				cipher != 0;
+				cipher = EAGetPreviousCipher (cryptoInfo->ea, cipher))
+			{
+				ks -= CipherGetKeyScheduleSize (cipher);
+				DecipherBlock (cipher, p, ks);
+			}
+		}
+		else
+		{
+			DecipherBlock (cipher, p, ks);
+		}
+
+		Xor128 ((unsigned __int64 *)p, (unsigned __int64 *)t);
+
+		p += 16;
+
+		if (i[7] != 0xff)
+			i[7]++;
+		else
+			*(unsigned __int64 *)i = BE64 ( BE64(*(unsigned __int64 *)i) + 1 );
+	}
+
+	FAST_ERASE64 (t, sizeof(t));
+}
+
+
+
+void DecryptBufferLRW64 (unsigned __int8 *buffer, unsigned __int64 length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo)
+{
+	/* Deprecated/legacy */
+
+	int cipher = EAGetFirstCipher (cryptoInfo->ea);
+	unsigned __int8 *p = buffer;
+	unsigned __int8 *ks = cryptoInfo->ks;
+	unsigned __int8 i[8];
+	unsigned __int8 t[8];
+	unsigned __int64 b;
+
+	*(unsigned __int64 *)i = BE64(blockIndex);
+
+	if (length % 8)
+		TC_THROW_FATAL_EXCEPTION;
+
+	for (b = 0; b < length >> 3; b++)
+	{
+		Gf64MulTab (i, t, &cryptoInfo->gf_ctx);
+		Xor64 ((unsigned __int64 *)p, (unsigned __int64 *)t);
+
+		DecipherBlock (cipher, p, ks);
+
+		Xor64 ((unsigned __int64 *)p, (unsigned __int64 *)t);
+
+		p += 8;
+
+		if (i[7] != 0xff)
+			i[7]++;
+		else
+			*(unsigned __int64 *)i = BE64 ( BE64(*(unsigned __int64 *)i) + 1 );
+	}
+
+	FAST_ERASE64 (t, sizeof(t));
 }
 
 
 // Initializes IV and whitening values for sector encryption/decryption in CBC mode.
 // IMPORTANT: This function has been deprecated (legacy).
 static void 
-InitSectorIVAndWhitening (unsigned __int64 secNo,
+InitSectorIVAndWhitening (unsigned __int64 unitNo,
 	int blockSize,
 	unsigned __int32 *iv,
 	unsigned __int64 *ivSeed,
@@ -633,12 +943,12 @@ InitSectorIVAndWhitening (unsigned __int64 secNo,
 	unsigned __int64 iv64[4];
 	unsigned __int32 *iv32 = (unsigned __int32 *) iv64;
 
-	iv64[0] = ivSeed[0] ^ LE64(secNo);
-	iv64[1] = ivSeed[1] ^ LE64(secNo);
-	iv64[2] = ivSeed[2] ^ LE64(secNo);
+	iv64[0] = ivSeed[0] ^ LE64(unitNo);
+	iv64[1] = ivSeed[1] ^ LE64(unitNo);
+	iv64[2] = ivSeed[2] ^ LE64(unitNo);
 	if (blockSize == 16)
 	{
-		iv64[3] = ivSeed[3] ^ LE64(secNo);
+		iv64[3] = ivSeed[3] ^ LE64(unitNo);
 	}
 
 	iv[0] = iv32[0];
@@ -659,11 +969,14 @@ InitSectorIVAndWhitening (unsigned __int64 secNo,
 
 	case 8:
 
-		// 64-bit block - deprecated/legacy
+		// 64-bit block
 
 		whitening[0] = LE32( crc32int ( &iv32[2] ) ^ crc32int ( &iv32[5] ) );
 		whitening[1] = LE32( crc32int ( &iv32[3] ) ^ crc32int ( &iv32[4] ) );
 		break;
+
+	default:
+		TC_THROW_FATAL_EXCEPTION;
 	}
 }
 
@@ -692,6 +1005,9 @@ EncryptBufferCBC (unsigned __int32 *data,
 	unsigned __int32 bufIV[4];
 	unsigned __int64 i;
 	int blockSize = CipherGetBlockSize (ea != 0 ? EAGetFirstCipher (ea) : cipher);
+
+	if (len % blockSize)
+		TC_THROW_FATAL_EXCEPTION;
 
 	//  IV
 	bufIV[0] = iv[0];
@@ -780,6 +1096,9 @@ DecryptBufferCBC (unsigned __int32 *data,
 	unsigned __int32 ct[4];
 	int blockSize = CipherGetBlockSize (ea != 0 ? EAGetFirstCipher (ea) : cipher);
 
+	if (len % blockSize)
+		TC_THROW_FATAL_EXCEPTION;
+
 	//  IV
 	bufIV[0] = iv[0];
 	bufIV[1] = iv[1];
@@ -842,189 +1161,7 @@ DecryptBufferCBC (unsigned __int32 *data,
 		data += blockSize / sizeof(*data);
 	}
 }
-
-
-void Xor128 (unsigned __int64 *a, unsigned __int64 *b)
-{
-	*a++ ^= *b++;
-	*a ^= *b;
-}
-
-
-void Xor64 (unsigned __int64 *a, unsigned __int64 *b)
-{
-	*a ^= *b;
-}
-
-
-void EncryptBufferLRW128 (unsigned __int8 *plainText, unsigned int length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo)
-{
-	int cipher = EAGetFirstCipher (cryptoInfo->ea);
-	int cipherCount = EAGetCipherCount (cryptoInfo->ea);
-	unsigned __int8 *p = plainText;
-	unsigned __int8 *ks = cryptoInfo->ks;
-	unsigned __int8 i[8];
-	unsigned __int8 t[16];
-	unsigned int b;
-
-	*(unsigned __int64 *)i = BE64(blockIndex);
-
-	// Note that the maximum supported volume size is 8589934592 GB  (i.e., 2^63 bytes).
-
-	for (b = 0; b < length >> 4; b++)
-	{
-		Gf128MulBy64Tab (i, t, &cryptoInfo->gf_ctx);
-		Xor128 ((unsigned __int64 *)p, (unsigned __int64 *)t);
-
-		if (cipherCount > 1)
-		{
-			// Cipher cascade
-			for (cipher = EAGetFirstCipher (cryptoInfo->ea);
-				cipher != 0;
-				cipher = EAGetNextCipher (cryptoInfo->ea, cipher))
-			{
-				EncipherBlock (cipher, p, ks);
-				ks += CipherGetKeyScheduleSize (cipher);
-			}
-			ks = cryptoInfo->ks;
-		}
-		else
-		{
-			EncipherBlock (cipher, p, ks);
-		}
-
-		Xor128 ((unsigned __int64 *)p, (unsigned __int64 *)t);
-
-		p += 16;
-
-		if (i[7] != 0xff)
-			i[7]++;
-		else
-			*(unsigned __int64 *)i = BE64 ( BE64(*(unsigned __int64 *)i) + 1 );
-	}
-
-	memset (t, 0, sizeof (t));
-}
-
-
-void EncryptBufferLRW64 (unsigned __int8 *plainText, unsigned int length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo)
-{
-	/* Deprecated/legacy */
-
-	int cipher = EAGetFirstCipher (cryptoInfo->ea);
-	unsigned __int8 *p = plainText;
-	unsigned __int8 *ks = cryptoInfo->ks;
-	unsigned __int8 i[8];
-	unsigned __int8 t[8];
-	unsigned int b;
-
-	*(unsigned __int64 *)i = BE64(blockIndex);
-
-	for (b = 0; b < length >> 3; b++)
-	{
-		Gf64MulTab (i, t, &cryptoInfo->gf_ctx);
-		Xor64 ((unsigned __int64 *)p, (unsigned __int64 *)t);
-
-		EncipherBlock (cipher, p, ks);
-
-		Xor64 ((unsigned __int64 *)p, (unsigned __int64 *)t);
-
-		p += 8;
-
-		if (i[7] != 0xff)
-			i[7]++;
-		else
-			*(unsigned __int64 *)i = BE64 ( BE64(*(unsigned __int64 *)i) + 1 );
-	}
-
-	memset (t, 0, sizeof (t));
-}
-
-
-void DecryptBufferLRW128 (unsigned __int8 *plainText, int length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo)
-{
-	int cipher = EAGetFirstCipher (cryptoInfo->ea);
-	int cipherCount = EAGetCipherCount (cryptoInfo->ea);
-	unsigned __int8 *p = plainText;
-	unsigned __int8 *ks = cryptoInfo->ks;
-	unsigned __int8 i[8];
-	unsigned __int8 t[16];
-	int b;
-
-	*(unsigned __int64 *)i = BE64(blockIndex);
-
-	// Note that the maximum supported volume size is 8589934592 GB  (i.e., 2^63 bytes).
-
-	for (b = 0; b < length >> 4; b++)
-	{
-		Gf128MulBy64Tab (i, t, &cryptoInfo->gf_ctx);
-		Xor128 ((unsigned __int64 *)p, (unsigned __int64 *)t);
-
-		if (cipherCount > 1)
-		{
-			// Cipher cascade
-			ks = cryptoInfo->ks + EAGetKeyScheduleSize (cryptoInfo->ea);
-
-			for (cipher = EAGetLastCipher (cryptoInfo->ea);
-				cipher != 0;
-				cipher = EAGetPreviousCipher (cryptoInfo->ea, cipher))
-			{
-				ks -= CipherGetKeyScheduleSize (cipher);
-				DecipherBlock (cipher, p, ks);
-			}
-		}
-		else
-		{
-			DecipherBlock (cipher, p, ks);
-		}
-
-		Xor128 ((unsigned __int64 *)p, (unsigned __int64 *)t);
-
-		p += 16;
-
-		if (i[7] != 0xff)
-			i[7]++;
-		else
-			*(unsigned __int64 *)i = BE64 ( BE64(*(unsigned __int64 *)i) + 1 );
-	}
-
-	memset (t, 0, sizeof (t));
-}
-
-
-
-void DecryptBufferLRW64 (unsigned __int8 *plainText, int length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo)
-{
-	/* Deprecated/legacy */
-
-	int cipher = EAGetFirstCipher (cryptoInfo->ea);
-	unsigned __int8 *p = plainText;
-	unsigned __int8 *ks = cryptoInfo->ks;
-	unsigned __int8 i[8];
-	unsigned __int8 t[8];
-	int b;
-
-	*(unsigned __int64 *)i = BE64(blockIndex);
-
-	for (b = 0; b < length >> 3; b++)
-	{
-		Gf64MulTab (i, t, &cryptoInfo->gf_ctx);
-		Xor64 ((unsigned __int64 *)p, (unsigned __int64 *)t);
-
-		DecipherBlock (cipher, p, ks);
-
-		Xor64 ((unsigned __int64 *)p, (unsigned __int64 *)t);
-
-		p += 8;
-
-		if (i[7] != 0xff)
-			i[7]++;
-		else
-			*(unsigned __int64 *)i = BE64 ( BE64(*(unsigned __int64 *)i) + 1 );
-	}
-
-	memset (t, 0, sizeof (t));
-}
+#endif	// #ifndef TC_NO_COMPILER_INT64
 
 
 // EncryptBuffer
@@ -1032,26 +1169,54 @@ void DecryptBufferLRW64 (unsigned __int8 *plainText, int length, unsigned __int6
 // buf:			data to be encrypted
 // len:			number of bytes to encrypt; must be divisible by the block size (for cascaded
 //              ciphers divisible by the largest block size used within the cascade)
-
-void 
-EncryptBuffer (unsigned __int32 *buf,
-			   unsigned __int64 len,
+void EncryptBuffer (unsigned __int8 *buf,
+			   TC_LARGEST_COMPILER_UINT len,
 			   PCRYPTO_INFO cryptoInfo)
 {
-
 	switch (cryptoInfo->mode)
 	{
+	case XTS:
+		{
+			unsigned __int8 *ks = cryptoInfo->ks;
+			unsigned __int8 *ks2 = cryptoInfo->ks2;
+			UINT64_STRUCT dataUnitNo;
+			int cipher;
+
+			// When encrypting/decrypting a buffer (typically a volume header) the sequential number
+			// of the first XTS data unit in the buffer is always 0 and the start of the buffer is
+			// always considered aligned with the start of a data unit.
+			dataUnitNo.LowPart = 0;
+			dataUnitNo.HighPart = 0;
+
+			for (cipher = EAGetFirstCipher (cryptoInfo->ea);
+				cipher != 0;
+				cipher = EAGetNextCipher (cryptoInfo->ea, cipher))
+			{
+				EncryptBufferXTS (buf, len, &dataUnitNo, 0, ks, ks2, cipher);
+
+				ks += CipherGetKeyScheduleSize (cipher);
+				ks2 += CipherGetKeyScheduleSize (cipher);
+			}
+		}
+		break;
+
+#ifndef TC_NO_COMPILER_INT64
 	case LRW:
+
+		/* Deprecated/legacy */
+
 		switch (CipherGetBlockSize (EAGetFirstCipher (cryptoInfo->ea)))
 		{
 		case 8:
-			/* Deprecated/legacy */
-			EncryptBufferLRW64 ((unsigned __int8 *)buf, (unsigned int) len, 1, cryptoInfo);
+			EncryptBufferLRW64 ((unsigned __int8 *)buf, (unsigned __int64) len, 1, cryptoInfo);
 			break;
 
 		case 16:
-			EncryptBufferLRW128 ((unsigned __int8 *)buf, (unsigned int) len, 1, cryptoInfo);
+			EncryptBufferLRW128 ((unsigned __int8 *)buf, (unsigned __int64) len, 1, cryptoInfo);
 			break;
+
+		default:
+			TC_THROW_FATAL_EXCEPTION;
 		}
 		break;
 
@@ -1062,15 +1227,16 @@ EncryptBuffer (unsigned __int32 *buf,
 
 			unsigned __int8 *ks = cryptoInfo->ks;
 			int cipher;
+
 			for (cipher = EAGetFirstCipher (cryptoInfo->ea);
 				cipher != 0;
 				cipher = EAGetNextCipher (cryptoInfo->ea, cipher))
 			{
-				EncryptBufferCBC (buf,
+				EncryptBufferCBC ((unsigned __int32 *) buf,
 					(unsigned int) len,
 					ks,
-					(unsigned __int32 *) cryptoInfo->iv,
-					(unsigned __int32 *) &cryptoInfo->iv[8],
+					(unsigned __int32 *) cryptoInfo->k2,
+					(unsigned __int32 *) &cryptoInfo->k2[8],
 					0,
 					cipher);
 
@@ -1083,85 +1249,111 @@ EncryptBuffer (unsigned __int32 *buf,
 
 		/* Deprecated/legacy */
 
-		EncryptBufferCBC (buf,
+		EncryptBufferCBC ((unsigned __int32 *) buf,
 			(unsigned int) len,
 			cryptoInfo->ks,
-			(unsigned __int32 *) cryptoInfo->iv,
-			(unsigned __int32 *) &cryptoInfo->iv[8],
+			(unsigned __int32 *) cryptoInfo->k2,
+			(unsigned __int32 *) &cryptoInfo->k2[8],
 			cryptoInfo->ea,
 			0);
 
 		break;
+#endif	// #ifndef TC_NO_COMPILER_INT64
+
+	default:		
+		// Unknown/wrong ID
+		TC_THROW_FATAL_EXCEPTION;
 	}
 }
 
-// Convert sector number to the index of the first LRW block in the sector.
+#ifndef TC_NO_COMPILER_INT64
+// Converts a data unit number to the index of the first LRW block in the data unit.
 // Note that the maximum supported volume size is 8589934592 GB  (i.e., 2^63 bytes).
-unsigned __int64 LRWSector2Index (unsigned __int64 sector, int blockSize, PCRYPTO_INFO ci)
+unsigned __int64 DataUnit2LRWIndex (unsigned __int64 dataUnit, int blockSize, PCRYPTO_INFO ci)
 {
+	/* Deprecated/legacy */
+
 	if (ci->hiddenVolume)
-		sector -= ci->hiddenVolumeOffset / SECTOR_SIZE;
+		dataUnit -= ci->hiddenVolumeOffset / ENCRYPTION_DATA_UNIT_SIZE;
 	else
-		sector -= HEADER_SIZE / SECTOR_SIZE;	// Compensate for the volume header size
+		dataUnit -= HEADER_SIZE / ENCRYPTION_DATA_UNIT_SIZE;	// Compensate for the volume header size
 
 	switch (blockSize)
 	{
 	case 8:
-		// Deprecated/legacy
-		return (sector << 6) | 1;
+		return (dataUnit << 6) | 1;
 
 	case 16:
-		return (sector << 5) | 1;
+		return (dataUnit << 5) | 1;
+
+	default:
+		TC_THROW_FATAL_EXCEPTION;
 	}
 
 	return 0;
 }
+#endif	// #ifndef TC_NO_COMPILER_INT64
 
 
-// EncryptSectors
-//
 // buf:			data to be encrypted
-// secNo:		sector number relative to volume start
-// noSectors:	number of sectors in buffer
-// ks:			scheduled key
-// iv:			IV
-// ea:			encryption algorithm
-
-void 
-EncryptSectors (unsigned __int32 *buf,
-		unsigned __int64 secNo,
-		unsigned __int64 noSectors,
-		PCRYPTO_INFO ci)
+// unitNo:		sequential number of the data unit with which the buffer starts
+// nbrUnits:	number of data units in the buffer
+void EncryptDataUnits (unsigned __int8 *buf, const UINT64_STRUCT *structUnitNo, TC_LARGEST_COMPILER_UINT nbrUnits, PCRYPTO_INFO ci)
 {
 	int ea = ci->ea;
-	void *iv = ci->iv;					// Deprecated/legacy
 	unsigned __int8 *ks = ci->ks;
-	unsigned __int64 *iv64 = (unsigned __int64 *) iv;	// Deprecated/legacy
-	unsigned __int32 sectorIV[4];		// Deprecated/legacy
-	unsigned __int32 secWhitening[2];	// Deprecated/legacy
+	unsigned __int8 *ks2 = ci->ks2;
 	int cipher;
+
+#ifndef TC_NO_COMPILER_INT64
+	void *iv = ci->k2;									// Deprecated/legacy
+	unsigned __int64 unitNo = structUnitNo->Value;
+	unsigned __int64 *iv64 = (unsigned __int64 *) iv;	// Deprecated/legacy
+	unsigned __int32 sectorIV[4];						// Deprecated/legacy
+	unsigned __int32 secWhitening[2];					// Deprecated/legacy
+#endif
 
 	switch (ci->mode)
 	{
-	case LRW:
+	case XTS:
+		for (cipher = EAGetFirstCipher (ea); cipher != 0; cipher = EAGetNextCipher (ea, cipher))
 		{
-			switch (CipherGetBlockSize (EAGetFirstCipher (ea)))
-			{
-			case 8:
-				/* Deprecated/legacy */
-				EncryptBufferLRW64 ((unsigned __int8 *)buf,
-					(unsigned int) noSectors * SECTOR_SIZE,
-					LRWSector2Index (secNo, 8, ci),
-					ci);
-				break;
+			EncryptBufferXTS (buf,
+				nbrUnits * ENCRYPTION_DATA_UNIT_SIZE,
+				structUnitNo,
+				0,
+				ks,
+				ks2,
+				cipher);
 
-			case 16:
-				EncryptBufferLRW128 ((unsigned __int8 *)buf,
-					(unsigned int) noSectors * SECTOR_SIZE,
-					LRWSector2Index (secNo, 16, ci),
-					ci);
-				break;
-			}
+			ks += CipherGetKeyScheduleSize (cipher);
+			ks2 += CipherGetKeyScheduleSize (cipher);
+		}
+		break;
+
+#ifndef TC_NO_COMPILER_INT64
+	case LRW:
+
+		/* Deprecated/legacy */
+
+		switch (CipherGetBlockSize (EAGetFirstCipher (ea)))
+		{
+		case 8:
+			EncryptBufferLRW64 (buf,
+				(unsigned __int64) nbrUnits * ENCRYPTION_DATA_UNIT_SIZE,
+				DataUnit2LRWIndex (unitNo, 8, ci),
+				ci);
+			break;
+
+		case 16:
+			EncryptBufferLRW128 (buf,
+				(unsigned __int64) nbrUnits * ENCRYPTION_DATA_UNIT_SIZE,
+				DataUnit2LRWIndex (unitNo, 16, ci),
+				ci);
+			break;
+
+		default:
+			TC_THROW_FATAL_EXCEPTION;
 		}
 		break;
 
@@ -1170,14 +1362,14 @@ EncryptSectors (unsigned __int32 *buf,
 
 		/* Deprecated/legacy */
 
-		while (noSectors--)
+		while (nbrUnits--)
 		{
 			for (cipher = EAGetFirstCipher (ea); cipher != 0; cipher = EAGetNextCipher (ea, cipher))
 			{
-				InitSectorIVAndWhitening (secNo, CipherGetBlockSize (cipher), sectorIV, iv64, secWhitening);
+				InitSectorIVAndWhitening (unitNo, CipherGetBlockSize (cipher), sectorIV, iv64, secWhitening);
 
-				EncryptBufferCBC (buf,
-					SECTOR_SIZE,
+				EncryptBufferCBC ((unsigned __int32 *) buf,
+					ENCRYPTION_DATA_UNIT_SIZE,
 					ks,
 					sectorIV,
 					secWhitening,
@@ -1187,8 +1379,8 @@ EncryptSectors (unsigned __int32 *buf,
 				ks += CipherGetKeyScheduleSize (cipher);
 			}
 			ks -= EAGetKeyScheduleSize (ea);
-			buf += SECTOR_SIZE / sizeof(*buf);
-			secNo++;
+			buf += ENCRYPTION_DATA_UNIT_SIZE;
+			unitNo++;
 		}
 		break;
 
@@ -1196,22 +1388,27 @@ EncryptSectors (unsigned __int32 *buf,
 
 		/* Deprecated/legacy */
 
-		while (noSectors--)
+		while (nbrUnits--)
 		{
-			InitSectorIVAndWhitening (secNo, CipherGetBlockSize (EAGetFirstCipher (ea)), sectorIV, iv64, secWhitening);
+			InitSectorIVAndWhitening (unitNo, CipherGetBlockSize (EAGetFirstCipher (ea)), sectorIV, iv64, secWhitening);
 
-			EncryptBufferCBC (buf,
-				SECTOR_SIZE,
+			EncryptBufferCBC ((unsigned __int32 *) buf,
+				ENCRYPTION_DATA_UNIT_SIZE,
 				ks,
 				sectorIV,
 				secWhitening,
 				ea,
 				0);
 
-			buf += SECTOR_SIZE / sizeof(*buf);
-			secNo++;
+			buf += ENCRYPTION_DATA_UNIT_SIZE;
+			unitNo++;
 		}
 		break;
+#endif	// #ifndef TC_NO_COMPILER_INT64
+
+	default:		
+		// Unknown/wrong ID
+		TC_THROW_FATAL_EXCEPTION;
 	}
 }
 
@@ -1220,31 +1417,60 @@ EncryptSectors (unsigned __int32 *buf,
 // buf:			data to be decrypted
 // len:			number of bytes to decrypt; must be divisible by the block size (for cascaded
 //              ciphers divisible by the largest block size used within the cascade)
-void 
-DecryptBuffer (unsigned __int32 *buf,
-		unsigned __int64 len,
+void DecryptBuffer (unsigned __int8 *buf,
+		TC_LARGEST_COMPILER_UINT len,
 		PCRYPTO_INFO cryptoInfo)
 {
 	switch (cryptoInfo->mode)
 	{
+	case XTS:
+		{
+			unsigned __int8 *ks = cryptoInfo->ks + EAGetKeyScheduleSize (cryptoInfo->ea);
+			unsigned __int8 *ks2 = cryptoInfo->ks2 + EAGetKeyScheduleSize (cryptoInfo->ea);
+			UINT64_STRUCT dataUnitNo;
+			int cipher;
+
+			// When encrypting/decrypting a buffer (typically a volume header) the sequential number
+			// of the first XTS data unit in the buffer is always 0 and the start of the buffer is
+			// always considered aligned with the start of the data unit 0.
+			dataUnitNo.LowPart = 0;
+			dataUnitNo.HighPart = 0;
+
+			for (cipher = EAGetLastCipher (cryptoInfo->ea);
+				cipher != 0;
+				cipher = EAGetPreviousCipher (cryptoInfo->ea, cipher))
+			{
+				ks -= CipherGetKeyScheduleSize (cipher);
+				ks2 -= CipherGetKeyScheduleSize (cipher);
+
+				DecryptBufferXTS (buf, len, &dataUnitNo, 0, ks, ks2, cipher);
+			}
+		}
+		break;
+
+#ifndef TC_NO_COMPILER_INT64
 	case LRW:
+
+		/* Deprecated/legacy */
+
 		switch (CipherGetBlockSize (EAGetFirstCipher (cryptoInfo->ea)))
 		{
 		case 8:
-			/* Deprecated/legacy */
-			DecryptBufferLRW64 ((unsigned __int8 *)buf, (unsigned int) len, 1, cryptoInfo);
+			DecryptBufferLRW64 (buf, (unsigned __int64) len, 1, cryptoInfo);
 			break;
 
 		case 16:
-			DecryptBufferLRW128 ((unsigned __int8 *)buf, (unsigned int) len, 1, cryptoInfo);
+			DecryptBufferLRW128 (buf, (unsigned __int64) len, 1, cryptoInfo);
 			break;
+
+		default:
+			TC_THROW_FATAL_EXCEPTION;
 		}
 		break;
 
 	case CBC:
 	case INNER_CBC:
 		{
-
 			/* Deprecated/legacy */
 
 			unsigned __int8 *ks = cryptoInfo->ks + EAGetKeyScheduleSize (cryptoInfo->ea);
@@ -1255,11 +1481,11 @@ DecryptBuffer (unsigned __int32 *buf,
 			{
 				ks -= CipherGetKeyScheduleSize (cipher);
 
-				DecryptBufferCBC (buf,
+				DecryptBufferCBC ((unsigned __int32 *) buf,
 					(unsigned int) len,
 					ks,
-					(unsigned __int32 *) cryptoInfo->iv,
-					(unsigned __int32 *) &cryptoInfo->iv[8],
+					(unsigned __int32 *) cryptoInfo->k2,
+					(unsigned __int32 *) &cryptoInfo->k2[8],
 					0,
 					cipher);
 			}
@@ -1270,63 +1496,86 @@ DecryptBuffer (unsigned __int32 *buf,
 
 		/* Deprecated/legacy */
 
-		DecryptBufferCBC (buf,
+		DecryptBufferCBC ((unsigned __int32 *) buf,
 			(unsigned int) len,
 			cryptoInfo->ks,
-			(unsigned __int32 *) cryptoInfo->iv,
-			(unsigned __int32 *) &cryptoInfo->iv[8],
+			(unsigned __int32 *) cryptoInfo->k2,
+			(unsigned __int32 *) &cryptoInfo->k2[8],
 			cryptoInfo->ea,
 			0);
 
 		break;
+#endif	// #ifndef TC_NO_COMPILER_INT64
+
+	default:		
+		// Unknown/wrong ID
+		TC_THROW_FATAL_EXCEPTION;
 	}
 }
 
-// DecryptSectors
-//
 // buf:			data to be decrypted
-// secNo:		sector number relative to volume start
-// noSectors:	number of sectors in buffer
-// ks:			scheduled key
-// iv:			IV
-// ea:			encryption algorithm
-
-void 
-DecryptSectors (unsigned __int32 *buf,
-		unsigned __int64 secNo,
-		unsigned __int64 noSectors,
-		PCRYPTO_INFO ci
-)
+// unitNo:		sequential number of the data unit with which the buffer starts
+// nbrUnits:	number of data units in the buffer
+void DecryptDataUnits (unsigned __int8 *buf, const UINT64_STRUCT *structUnitNo, TC_LARGEST_COMPILER_UINT nbrUnits, PCRYPTO_INFO ci)
 {
 	int ea = ci->ea;
-	void *iv = ci->iv;						// Deprecated/legacy
 	unsigned __int8 *ks = ci->ks;
-	unsigned __int64 *iv64 = (unsigned __int64 *) iv;	// Deprecated/legacy
-	unsigned __int32 sectorIV[4];			// Deprecated/legacy
-	unsigned __int32 secWhitening[2];		// Deprecated/legacy
+	unsigned __int8 *ks2 = ci->ks2;
 	int cipher;
+
+#ifndef TC_NO_COMPILER_INT64
+	void *iv = ci->k2;									// Deprecated/legacy
+	unsigned __int64 unitNo = structUnitNo->Value;
+	unsigned __int64 *iv64 = (unsigned __int64 *) iv;	// Deprecated/legacy
+	unsigned __int32 sectorIV[4];						// Deprecated/legacy
+	unsigned __int32 secWhitening[2];					// Deprecated/legacy
+#endif	// #ifndef TC_NO_COMPILER_INT64
+
 
 	switch (ci->mode)
 	{
-	case LRW:
-		{
-			switch (CipherGetBlockSize (EAGetFirstCipher (ea)))
-			{
-			case 8:
-				/* Deprecated/legacy */
-				DecryptBufferLRW64 ((unsigned __int8 *)buf,
-					(unsigned int) noSectors * SECTOR_SIZE,
-					LRWSector2Index (secNo, 8, ci),
-					ci);
-				break;
+	case XTS:
+		ks += EAGetKeyScheduleSize (ea);
+		ks2 += EAGetKeyScheduleSize (ea);
 
-			case 16:
-				DecryptBufferLRW128 ((unsigned __int8 *)buf,
-					(unsigned int) noSectors * SECTOR_SIZE,
-					LRWSector2Index (secNo, 16, ci),
-					ci);
-				break;
-			}
+		for (cipher = EAGetLastCipher (ea); cipher != 0; cipher = EAGetPreviousCipher (ea, cipher))
+		{
+			ks -= CipherGetKeyScheduleSize (cipher);
+			ks2 -= CipherGetKeyScheduleSize (cipher);
+
+			DecryptBufferXTS (buf,
+				nbrUnits * ENCRYPTION_DATA_UNIT_SIZE,
+				structUnitNo,
+				0,
+				ks,
+				ks2,
+				cipher);
+		}
+		break;
+
+#ifndef TC_NO_COMPILER_INT64
+	case LRW:
+
+		/* Deprecated/legacy */
+
+		switch (CipherGetBlockSize (EAGetFirstCipher (ea)))
+		{
+		case 8:
+			DecryptBufferLRW64 (buf,
+				(unsigned __int64) nbrUnits * ENCRYPTION_DATA_UNIT_SIZE,
+				DataUnit2LRWIndex (unitNo, 8, ci),
+				ci);
+			break;
+
+		case 16:
+			DecryptBufferLRW128 (buf,
+				(unsigned __int64) nbrUnits * ENCRYPTION_DATA_UNIT_SIZE,
+				DataUnit2LRWIndex (unitNo, 16, ci),
+				ci);
+			break;
+
+		default:
+			TC_THROW_FATAL_EXCEPTION;
 		}
 		break;
 
@@ -1335,25 +1584,25 @@ DecryptSectors (unsigned __int32 *buf,
 
 		/* Deprecated/legacy */
 
-		while (noSectors--)
+		while (nbrUnits--)
 		{
 			ks += EAGetKeyScheduleSize (ea);
 			for (cipher = EAGetLastCipher (ea); cipher != 0; cipher = EAGetPreviousCipher (ea, cipher))
 			{
-				InitSectorIVAndWhitening (secNo, CipherGetBlockSize (cipher), sectorIV, iv64, secWhitening);
+				InitSectorIVAndWhitening (unitNo, CipherGetBlockSize (cipher), sectorIV, iv64, secWhitening);
 
 				ks -= CipherGetKeyScheduleSize (cipher);
 
-				DecryptBufferCBC (buf,
-					SECTOR_SIZE,
+				DecryptBufferCBC ((unsigned __int32 *) buf,
+					ENCRYPTION_DATA_UNIT_SIZE,
 					ks,
 					sectorIV,
 					secWhitening,
 					0,
 					cipher);
 			}
-			buf += SECTOR_SIZE / sizeof(*buf);
-			secNo++;
+			buf += ENCRYPTION_DATA_UNIT_SIZE;
+			unitNo++;
 		}
 		break;
 
@@ -1361,22 +1610,48 @@ DecryptSectors (unsigned __int32 *buf,
 
 		/* Deprecated/legacy */
 
-		while (noSectors--)
+		while (nbrUnits--)
 		{
-			InitSectorIVAndWhitening (secNo, CipherGetBlockSize (EAGetFirstCipher (ea)), sectorIV, iv64, secWhitening);
+			InitSectorIVAndWhitening (unitNo, CipherGetBlockSize (EAGetFirstCipher (ea)), sectorIV, iv64, secWhitening);
 
-			DecryptBufferCBC (buf,
-				SECTOR_SIZE,
+			DecryptBufferCBC ((unsigned __int32 *) buf,
+				ENCRYPTION_DATA_UNIT_SIZE,
 				ks,
 				sectorIV,
 				secWhitening,
 				ea,
 				0);
 
-			buf += SECTOR_SIZE / sizeof(*buf);
-			secNo++;
+			buf += ENCRYPTION_DATA_UNIT_SIZE;
+			unitNo++;
 		}
 		break;
+#endif // #ifndef TC_NO_COMPILER_INT64
+
+	default:		
+		// Unknown/wrong ID
+		TC_THROW_FATAL_EXCEPTION;
 	}
 }
 
+
+// Returns the maximum number of bytes necessary to be generated by the PBKDF2 (PKCS #5)
+int GetMaxPkcs5OutSize (void)
+{
+	int size = 32;
+
+#ifndef max
+#define max(a,b) (((a) > (b)) ? (a) : (b))
+#endif
+
+	size = max (size, EAGetLargestKeyForMode (XTS) * 2);	// Sizes of primary + secondary keys
+
+#ifndef TC_WINDOWS_BOOT
+	size = max (size, LEGACY_VOL_IV_SIZE + EAGetLargestKeyForMode (LRW));		// Deprecated/legacy
+	size = max (size, LEGACY_VOL_IV_SIZE + EAGetLargestKeyForMode (CBC));		// Deprecated/legacy
+	size = max (size, LEGACY_VOL_IV_SIZE + EAGetLargestKeyForMode (OUTER_CBC));	// Deprecated/legacy
+	size = max (size, LEGACY_VOL_IV_SIZE + EAGetLargestKeyForMode (INNER_CBC));	// Deprecated/legacy
+#endif
+
+	return size;
+}

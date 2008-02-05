@@ -1,10 +1,14 @@
 /*
- Copyright (c) TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2005 TrueCrypt Foundation. All rights reserved.
 
- Covered by the TrueCrypt License 2.3 the full text of which is contained
+ Governed by the TrueCrypt License 2.4 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 enum
 {
@@ -37,3 +41,6 @@ BOOL GetKeyName (UINT vKey, wchar_t *keyName);
 void UnregisterAllHotkeys (HWND hwndDlg, TCHOTKEY hotkeys[]);
 BOOL RegisterAllHotkeys (HWND hwndDlg, TCHOTKEY hotkeys[]);
 
+#ifdef __cplusplus
+}
+#endif

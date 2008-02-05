@@ -1,0 +1,93 @@
+/*
+ Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+
+ Governed by the TrueCrypt License 2.4 the full text of which is contained
+ in the file License.txt included in TrueCrypt binary and source code
+ distribution packages.
+*/
+
+#ifndef TC_HEADER_Volume_VolumeCreator
+#define TC_HEADER_Volume_VolumeCreator
+
+#include "Platform/Platform.h"
+#include "Volume/Volume.h"
+#include "RandomNumberGenerator.h"
+
+namespace TrueCrypt
+{
+	
+	struct VolumeCreationOptions
+	{
+		VolumePath Path;
+		VolumeType::Enum Type;
+		uint64 Size;
+		shared_ptr <VolumePassword> Password;
+		shared_ptr <KeyfileList> Keyfiles;
+		shared_ptr <Pkcs5Kdf> VolumeHeaderKdf;
+		shared_ptr <EncryptionAlgorithm> EA;
+		bool Quick;
+
+		struct FilesystemType
+		{
+			enum Enum
+			{
+				None = 0,
+				FAT
+			};
+		};
+
+		FilesystemType::Enum Filesystem;
+		uint32 FilesystemClusterSize;
+	};
+
+	class VolumeCreator
+	{
+	public:
+
+		struct ProgressInfo
+		{
+			bool CreationInProgress;
+			uint64 TotalSize;
+			uint64 SizeDone;
+		};
+
+		struct KeyInfo
+		{
+			ConstBufferPtr HeaderKey;
+			ConstBufferPtr MasterKey;
+		};
+
+		VolumeCreator ();
+		virtual ~VolumeCreator ();
+
+		void Abort ();
+		void CheckResult ();
+		void CreateVolume (shared_ptr <VolumeCreationOptions> options);
+		KeyInfo GetKeyInfo () const;
+		ProgressInfo GetProgressInfo ();
+
+	protected:
+		void CreationThread ();
+
+		volatile bool AbortRequested;
+		volatile bool CreationInProgress;
+		shared_ptr <VolumeCreationOptions> Options;
+		shared_ptr <Exception> ThreadException;
+		uint64 VolumeSize;
+
+		shared_ptr <VolumeLayout> Layout;
+		shared_ptr <File> VolumeFile;
+		SharedVal <uint64> SizeDone;
+		uint64 WriteOffset;
+		ProgressInfo mProgressInfo;
+
+		SecureBuffer HeaderKey;
+		SecureBuffer MasterKey;
+
+	private:
+		VolumeCreator (const VolumeCreator &);
+		VolumeCreator &operator= (const VolumeCreator &);
+	};
+}
+
+#endif // TC_HEADER_Volume_VolumeCreator

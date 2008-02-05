@@ -24,12 +24,12 @@
 			>
 			<Tool
 				Name="VCNMakeTool"
-				BuildCommandLine="md Debug Debug64 2&gt;NUL:&#x0D;&#x0A;cd Debug&#x0D;&#x0A;nmake -nologo ..\Makefile DEBUG=1&#x0D;&#x0A;if errorlevel 1 exit 1&#x0D;&#x0A;cd ..\Debug64&#x0D;&#x0A;nmake -nologo ..\Makefile DEBUG=1 AMD64=1"
-				ReBuildCommandLine="rd /s /q Debug Debug64 2&gt;NUL:&#x0D;&#x0A;md Debug Debug64 2&gt;NUL:&#x0D;&#x0A;cd Debug&#x0D;&#x0A;nmake -nologo ..\Makefile DEBUG=1&#x0D;&#x0A;if errorlevel 1 exit 1&#x0D;&#x0A;cd ..\Debug64&#x0D;&#x0A;nmake -nologo ..\Makefile DEBUG=1 AMD64=1"
-				CleanCommandLine="rd /s /q Debug Debug64 2&gt;NUL:"
-				Output="Debug64/truecrypt-x64.sys"
-				PreprocessorDefinitions=""
-				IncludeSearchPath=""
+				BuildCommandLine="echo ------ Building truecrypt.sys: Debug x86 ------&#x0D;&#x0A;cmd.exe /c BuildDriver.cmd -build -debug -x86 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;&#x0D;&#x0A;if errorlevel 1 exit %errorlevel%&#x0D;&#x0A;echo ------ Building truecrypt.sys: Debug x64 ------&#x0D;&#x0A;BuildDriver.cmd -build -debug -x64 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				ReBuildCommandLine="echo ------ Rebuilding truecrypt.sys: Debug x86 ------&#x0D;&#x0A;cmd.exe /c BuildDriver.cmd -rebuild -debug -x86 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;&#x0D;&#x0A;if errorlevel 1 exit %errorlevel%&#x0D;&#x0A;echo ------ Rebuilding truecrypt.sys: Debug x64 ------&#x0D;&#x0A;BuildDriver.cmd -rebuild -debug -x64 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				CleanCommandLine="echo ------ Cleaning truecrypt.sys: Debug x86 ------&#x0D;&#x0A;cmd.exe /c BuildDriver.cmd -clean -debug -x86 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;&#x0D;&#x0A;if errorlevel 1 exit %errorlevel%&#x0D;&#x0A;echo ------ Cleaning truecrypt.sys: Debug x64 ------&#x0D;&#x0A;BuildDriver.cmd -clean -debug -x64 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				Output=""
+				PreprocessorDefinitions="DEBUG;_DEBUG"
+				IncludeSearchPath="&quot;$(ProjectDir)&quot;;&quot;$(SolutionDir)&quot;;&quot;$(SolutionDir)\Common&quot;;&quot;$(SolutionDir)\Crypto&quot;;&quot;$(WINDDK_ROOT)\inc\ddk&quot;"
 				ForcedIncludes=""
 				AssemblySearchPath=""
 				ForcedUsingAssemblies=""
@@ -45,12 +45,96 @@
 			>
 			<Tool
 				Name="VCNMakeTool"
-				BuildCommandLine="md Release Release64 2&gt;NUL:&#x0D;&#x0A;cd Release&#x0D;&#x0A;nmake -nologo ..\Makefile RELEASE=1&#x0D;&#x0A;if errorlevel 1 exit 1&#x0D;&#x0A;cd ..\Release64&#x0D;&#x0A;nmake -nologo ..\Makefile RELEASE=1 AMD64=1"
-				ReBuildCommandLine="rd /s /q Release Release64 2&gt;NUL:&#x0D;&#x0A;md Release Release64 2&gt;NUL:&#x0D;&#x0A;cd Release&#x0D;&#x0A;nmake -nologo ..\Makefile RELEASE=1&#x0D;&#x0A;if errorlevel 1 exit 1&#x0D;&#x0A;cd ..\Release64&#x0D;&#x0A;nmake -nologo ..\Makefile RELEASE=1 AMD64=1"
-				CleanCommandLine="rd /s /q Release Release64 2&gt;NUL:"
-				Output="Release64/truecrypt-x64.sys"
+				BuildCommandLine="echo ------ Building truecrypt.sys: Release x86 ------&#x0D;&#x0A;cmd.exe /c BuildDriver.cmd -build -release -x86 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;&#x0D;&#x0A;if errorlevel 1 exit %errorlevel%&#x0D;&#x0A;echo ------ Building truecrypt.sys: Release x64 ------&#x0D;&#x0A;BuildDriver.cmd -build -release -x64 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				ReBuildCommandLine="echo ------ Rebuilding truecrypt.sys: Release x86 ------&#x0D;&#x0A;cmd.exe /c BuildDriver.cmd -rebuild -release -x86 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;&#x0D;&#x0A;if errorlevel 1 exit %errorlevel%&#x0D;&#x0A;echo ------ Rebuilding truecrypt.sys: Release x64 ------&#x0D;&#x0A;BuildDriver.cmd -rebuild -release -x64 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				CleanCommandLine="echo ------ Cleaning truecrypt.sys: Release x86 ------&#x0D;&#x0A;cmd.exe /c BuildDriver.cmd -clean -release -x86 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;&#x0D;&#x0A;if errorlevel 1 exit %errorlevel%&#x0D;&#x0A;echo ------ Cleaning truecrypt.sys: Release x64 ------&#x0D;&#x0A;BuildDriver.cmd -clean -release -x64 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				Output=""
 				PreprocessorDefinitions=""
-				IncludeSearchPath=""
+				IncludeSearchPath="&quot;$(ProjectDir)&quot;;&quot;$(SolutionDir)&quot;;&quot;$(SolutionDir)\Common&quot;;&quot;$(SolutionDir)\Crypto&quot;;&quot;$(WINDDK_ROOT)\inc\ddk&quot;"
+				ForcedIncludes=""
+				AssemblySearchPath=""
+				ForcedUsingAssemblies=""
+				CompileAsManaged=""
+			/>
+		</Configuration>
+		<Configuration
+			Name="Release x86|Win32"
+			OutputDirectory="$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
+			ConfigurationType="0"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			>
+			<Tool
+				Name="VCNMakeTool"
+				BuildCommandLine="BuildDriver.cmd -build -release -x86 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				ReBuildCommandLine="BuildDriver.cmd -rebuild -release -x86 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				CleanCommandLine="BuildDriver.cmd -clean -release -x86 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				Output=""
+				PreprocessorDefinitions=""
+				IncludeSearchPath="&quot;$(ProjectDir)&quot;;&quot;$(SolutionDir)&quot;;&quot;$(SolutionDir)\Common&quot;;&quot;$(SolutionDir)\Crypto&quot;;&quot;$(WINDDK_ROOT)\inc\ddk&quot;"
+				ForcedIncludes=""
+				AssemblySearchPath=""
+				ForcedUsingAssemblies=""
+				CompileAsManaged=""
+			/>
+		</Configuration>
+		<Configuration
+			Name="Debug x86|Win32"
+			OutputDirectory="$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
+			ConfigurationType="0"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			>
+			<Tool
+				Name="VCNMakeTool"
+				BuildCommandLine="if exist $(SolutionDir)\Mount\Debug\TrueCrypt.exe ( copy $(SolutionDir)\Mount\Debug\TrueCrypt.exe $(ProjectDir)\obj_driver_debug\i386\TrueCrypt.exe &gt;NUL:&#x0D;&#x0A;) else ( copy $(SolutionDir)\Mount\Release\TrueCrypt.exe $(ProjectDir)\obj_driver_debug\i386\TrueCrypt.exe &gt;NUL: )&#x0D;&#x0A;&#x0D;&#x0A;BuildDriver.cmd -build -debug -x86 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				ReBuildCommandLine="if exist $(SolutionDir)\Mount\Debug\TrueCrypt.exe ( copy $(SolutionDir)\Mount\Debug\TrueCrypt.exe $(ProjectDir)\obj_driver_debug\i386\TrueCrypt.exe &gt;NUL:&#x0D;&#x0A;) else ( copy $(SolutionDir)\Mount\Release\TrueCrypt.exe $(ProjectDir)\obj_driver_debug\i386\TrueCrypt.exe &gt;NUL: )&#x0D;&#x0A;&#x0D;&#x0A;BuildDriver.cmd -rebuild -debug -x86 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				CleanCommandLine="BuildDriver.cmd -clean -debug -x86 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				Output="$(ProjectDir)\obj_driver_debug\i386\TrueCrypt.exe"
+				PreprocessorDefinitions="DEBUG;_DEBUG"
+				IncludeSearchPath="&quot;$(ProjectDir)&quot;;&quot;$(SolutionDir)&quot;;&quot;$(SolutionDir)\Common&quot;;&quot;$(SolutionDir)\Crypto&quot;;&quot;$(WINDDK_ROOT)\inc\ddk&quot;"
+				ForcedIncludes=""
+				AssemblySearchPath=""
+				ForcedUsingAssemblies=""
+				CompileAsManaged=""
+			/>
+		</Configuration>
+		<Configuration
+			Name="Release x64|Win32"
+			OutputDirectory="$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
+			ConfigurationType="0"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			>
+			<Tool
+				Name="VCNMakeTool"
+				BuildCommandLine="BuildDriver.cmd -build -release -x64 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				ReBuildCommandLine="BuildDriver.cmd -rebuild -release -x64 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				CleanCommandLine="BuildDriver.cmd -clean -release -x64 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				Output=""
+				PreprocessorDefinitions=""
+				IncludeSearchPath="&quot;$(ProjectDir)&quot;;&quot;$(SolutionDir)&quot;;&quot;$(SolutionDir)\Common&quot;;&quot;$(SolutionDir)\Crypto&quot;;&quot;$(WINDDK_ROOT)\inc\ddk&quot;"
+				ForcedIncludes=""
+				AssemblySearchPath=""
+				ForcedUsingAssemblies=""
+				CompileAsManaged=""
+			/>
+		</Configuration>
+		<Configuration
+			Name="Debug x64|Win32"
+			OutputDirectory="$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
+			ConfigurationType="0"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			>
+			<Tool
+				Name="VCNMakeTool"
+				BuildCommandLine="if exist $(SolutionDir)\Mount\Debug\TrueCrypt.exe ( copy $(SolutionDir)\Mount\Debug\TrueCrypt.exe $(ProjectDir)\obj_driver_debug\amd64\TrueCrypt.exe &gt;NUL:&#x0D;&#x0A;) else ( copy $(SolutionDir)\Mount\Release\TrueCrypt.exe $(ProjectDir)\obj_driver_debug\amd64\TrueCrypt.exe &gt;NUL: )&#x0D;&#x0A;&#x0D;&#x0A;BuildDriver.cmd -build -debug -x64 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				ReBuildCommandLine="if exist $(SolutionDir)\Mount\Debug\TrueCrypt.exe ( copy $(SolutionDir)\Mount\Debug\TrueCrypt.exe $(ProjectDir)\obj_driver_debug\amd64\TrueCrypt.exe &gt;NUL:&#x0D;&#x0A;) else ( copy $(SolutionDir)\Mount\Release\TrueCrypt.exe $(ProjectDir)\obj_driver_debug\amd64\TrueCrypt.exe &gt;NUL: )&#x0D;&#x0A;&#x0D;&#x0A;BuildDriver.cmd -rebuild -debug -x64 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				CleanCommandLine="BuildDriver.cmd -clean -debug -x64 &quot;$(SolutionDir)\Common&quot; &quot;$(SolutionDir)\Crypto&quot; &quot;$(ProjectDir)&quot;"
+				Output="$(ProjectDir)\obj_driver_debug\amd64\TrueCrypt.exe"
+				PreprocessorDefinitions="DEBUG;_DEBUG"
+				IncludeSearchPath="&quot;$(ProjectDir)&quot;;&quot;$(SolutionDir)&quot;;&quot;$(SolutionDir)\Common&quot;;&quot;$(SolutionDir)\Crypto&quot;;&quot;$(WINDDK_ROOT)\inc\ddk&quot;"
 				ForcedIncludes=""
 				AssemblySearchPath=""
 				ForcedUsingAssemblies=""
@@ -66,6 +150,14 @@
 			Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx"
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
+			<File
+				RelativePath=".\DriveFilter.c"
+				>
+			</File>
+			<File
+				RelativePath=".\EncryptedIoQueue.c"
+				>
+			</File>
 			<File
 				RelativePath=".\Ntdriver.c"
 				>
@@ -109,6 +201,14 @@
 					RelativePath="..\Common\Volumes.c"
 					>
 				</File>
+				<File
+					RelativePath="..\Common\Wipe.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Common\Xts.c"
+					>
+				</File>
 			</Filter>
 		</Filter>
 		<Filter
@@ -126,6 +226,14 @@
 			</File>
 			<File
 				RelativePath="..\Common\Common.h"
+				>
+			</File>
+			<File
+				RelativePath=".\DriveFilter.h"
+				>
+			</File>
+			<File
+				RelativePath=".\EncryptedIoQueue.h"
 				>
 			</File>
 			<File
@@ -152,6 +260,14 @@
 				RelativePath="..\Common\Volumes.h"
 				>
 			</File>
+			<File
+				RelativePath="..\Common\Wipe.h"
+				>
+			</File>
+			<File
+				RelativePath="..\Common\Xts.h"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"
@@ -163,10 +279,34 @@
 				>
 			</File>
 		</Filter>
-		<File
-			RelativePath=".\Makefile"
+		<Filter
+			Name="Build Files"
 			>
-		</File>
+			<File
+				RelativePath=".\BuildDriver.cmd"
+				>
+			</File>
+			<File
+				RelativePath=".\Sources"
+				>
+			</File>
+			<Filter
+				Name="Common"
+				>
+				<File
+					RelativePath="..\Common\Sources"
+					>
+				</File>
+			</Filter>
+			<Filter
+				Name="Crypto"
+				>
+				<File
+					RelativePath="..\Crypto\Sources"
+					>
+				</File>
+			</Filter>
+		</Filter>
 	</Files>
 	<Globals>
 	</Globals>

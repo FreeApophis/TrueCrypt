@@ -1,7 +1,7 @@
 /*
- Copyright (c) TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2007-2008 TrueCrypt Foundation. All rights reserved.
 
- Covered by the TrueCrypt License 2.3 the full text of which is contained
+ Governed by the TrueCrypt License 2.4 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -11,33 +11,33 @@ import "..\Common\Password.h";
 
 [
 	uuid(A7DF958C-0716-49E9-8C3E-53A775797576),
-	helpstring("TrueCrypt Format"),
-	version(1.0)
+	helpstring("TrueCrypt Format UAC Support Library"),
+	version(2.0)
 ]
-library TrueCryptFormat
+library TrueCryptFormatCom
 {
 	[
 		uuid(9EE02955-174A-48F1-820C-022F327BE109),
 		object,
 		oleautomation,
-		helpstring("TrueCrypt Format Interface")
+		helpstring("TrueCrypt Format UAC Support Interface")
 	]
-	interface ITrueCryptFormat : IUnknown
+	interface ITrueCryptFormatCom : IUnknown
 	{
 		int AnalyzeHiddenVolumeHost (LONG_PTR hwndDlg, int *driveNo, __int64 hiddenVolHostSize, int *realClusterSize, __int64 *nbrFreeClusters);
+		DWORD CallDriver (DWORD ioctl, BSTR input, BSTR *output);
 		BOOL FormatNtfs (int driveNo, int clusterSize);
-		int FormatVolume (BSTR volumePath, BOOL bDevice, unsigned __int64 size, unsigned __int64 hiddenVolHostSize, Password *password, int cipher, int pkcs5, BOOL quickFormat, BOOL sparseFileSwitch, int fileSystem, int clusterSize, LONG_PTR hwndDlg, LONG_PTR hDiskKey, LONG_PTR hHeaderKey, BOOL showKeys, BOOL hiddenVol, int *realClusterSize);
-		void SetCallBack (ITrueCryptFormat *callBack);
-		BOOL UpdateProgressBarCallBack (__int64 secNo);
-		BOOL UpdateProgressBar (__int64 secNo, BOOL *bThreadCancel);
+		DWORD ReadWriteFile (BOOL write, BOOL device, BSTR filePath, BSTR *bufferBstr, unsigned __int64 offset, unsigned __int32 size, DWORD *sizeDone);
+		DWORD RegisterFilterDriver (BOOL registerDriver);
+		DWORD SetDriverServiceStartType (DWORD startType);
 	};
 
 	[
 		uuid(777DCDFD-C330-480B-B582-B02B57580CC9),
-		helpstring("TrueCrypt Format Coclass")
+		helpstring("TrueCrypt Format UAC Support Coclass")
 	]
-	coclass TrueCryptFormat
+	coclass TrueCryptFormatCom
 	{
-		[default] interface ITrueCryptFormat;
+		[default] interface ITrueCryptFormatCom;
 	}
 }

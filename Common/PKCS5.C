@@ -1,23 +1,27 @@
 /*
- Legal Notice: The source code contained in this file has been derived from
- the source code of Encryption for the Masses 2.02a, which is Copyright (c)
- Paul Le Roux and which is covered by the 'License Agreement for Encryption
- for the Masses'. Modifications and additions to that source code contained
- in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.3 the full text of which is contained in the file
- License.txt included in TrueCrypt binary and source code distribution
+ Legal Notice: Some portions of the source code contained in this file were
+ derived from the source code of Encryption for the Masses 2.02a, which is
+ Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
+ Agreement for Encryption for the Masses'. Modifications and additions to
+ the original source code (contained in this file) and all other portions of
+ this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ by the TrueCrypt License 2.4 the full text of which is contained in the
+ file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
 #include "Tcdefs.h"
 
 #include <memory.h>
-#include "Sha1.h"
 #include "Rmd160.h"
+#ifndef TC_WINDOWS_BOOT
+#include "Sha1.h"
+#include "Sha2.h"
 #include "Whirlpool.h"
+#endif
 #include "Pkcs5.h"
 #include "Crypto.h"
 
-void truncate
+void hmac_truncate
   (
 	  char *d1,		/* data to be truncated */
 	  char *d2,		/* truncated data */
@@ -29,6 +33,150 @@ void truncate
 		d2[i] = d1[i];
 }
 
+#ifndef TC_WINDOWS_BOOT
+
+void hmac_sha512
+(
+	  char *k,		/* secret key */
+	  int lk,		/* length of the key in bytes */
+	  char *d,		/* data */
+	  int ld,		/* length of data in bytes */
+	  char *out,		/* output buffer, at least "t" bytes */
+	  int t
+)
+{
+	sha512_ctx ictx, octx;
+	char isha[SHA512_DIGESTSIZE], osha[SHA512_DIGESTSIZE];
+	char key[SHA512_DIGESTSIZE];
+	char buf[SHA512_BLOCKSIZE];
+	int i;
+
+    /* If the key is longer than the hash algorithm block size,
+	   let key = sha512(key), as per HMAC specifications. */
+	if (lk > SHA512_BLOCKSIZE)
+	{
+		sha512_ctx tctx;
+
+		sha512_begin (&tctx);
+		sha512_hash ((unsigned char *) k, lk, &tctx);
+		sha512_end ((unsigned char *) key, &tctx);
+
+		k = key;
+		lk = SHA512_DIGESTSIZE;
+
+		burn (&tctx, sizeof(tctx));		// Prevent leaks
+	}
+
+	/**** Inner Digest ****/
+
+	sha512_begin (&ictx);
+
+	/* Pad the key for inner digest */
+	for (i = 0; i < lk; ++i)
+		buf[i] = (char) (k[i] ^ 0x36);
+	for (i = lk; i < SHA512_BLOCKSIZE; ++i)
+		buf[i] = 0x36;
+
+	sha512_hash ((unsigned char *) buf, SHA512_BLOCKSIZE, &ictx);
+	sha512_hash ((unsigned char *) d, ld, &ictx);
+
+	sha512_end ((unsigned char *) isha, &ictx);
+
+	/**** Outer Digest ****/
+
+	sha512_begin (&octx);
+
+	for (i = 0; i < lk; ++i)
+		buf[i] = (char) (k[i] ^ 0x5C);
+	for (i = lk; i < SHA512_BLOCKSIZE; ++i)
+		buf[i] = 0x5C;
+
+	sha512_hash ((unsigned char *) buf, SHA512_BLOCKSIZE, &octx);
+	sha512_hash ((unsigned char *) isha, SHA512_DIGESTSIZE, &octx);
+
+	sha512_end ((unsigned char *) osha, &octx);
+
+	/* truncate and print the results */
+	t = t > SHA512_DIGESTSIZE ? SHA512_DIGESTSIZE : t;
+	hmac_truncate (osha, out, t);
+
+	/* Prevent leaks */
+	burn (&ictx, sizeof(ictx));
+	burn (&octx, sizeof(octx));
+	burn (isha, sizeof(isha));
+	burn (osha, sizeof(osha));
+	burn (buf, sizeof(buf));
+	burn (key, sizeof(key));
+}
+
+
+void derive_u_sha512 (char *pwd, int pwd_len, char *salt, int salt_len, int iterations, char *u, int b)
+{
+	char j[SHA512_DIGESTSIZE], k[SHA512_DIGESTSIZE];
+	char init[128];
+	char counter[4];
+	int c, i;
+
+	/* iteration 1 */
+	memset (counter, 0, 4);
+	counter[3] = (char) b;
+	memcpy (init, salt, salt_len);	/* salt */
+	memcpy (&init[salt_len], counter, 4);	/* big-endian block number */
+	hmac_sha512 (pwd, pwd_len, init, salt_len + 4, j, SHA512_DIGESTSIZE);
+	memcpy (u, j, SHA512_DIGESTSIZE);
+
+	/* remaining iterations */
+	for (c = 1; c < iterations; c++)
+	{
+		hmac_sha512 (pwd, pwd_len, j, SHA512_DIGESTSIZE, k, SHA512_DIGESTSIZE);
+		for (i = 0; i < SHA512_DIGESTSIZE; i++)
+		{
+			u[i] ^= k[i];
+			j[i] = k[i];
+		}
+	}
+
+	/* Prevent possible leaks. */
+	burn (j, sizeof(j));
+	burn (k, sizeof(k));
+}
+
+
+void derive_key_sha512 (char *pwd, int pwd_len, char *salt, int salt_len, int iterations, char *dk, int dklen)
+{
+	char u[SHA512_DIGESTSIZE];
+	int b, l, r;
+
+	if (dklen % SHA512_DIGESTSIZE)
+	{
+		l = 1 + dklen / SHA512_DIGESTSIZE;
+	}
+	else
+	{
+		l = dklen / SHA512_DIGESTSIZE;
+	}
+
+	r = dklen - (l - 1) * SHA512_DIGESTSIZE;
+
+	/* first l - 1 blocks */
+	for (b = 1; b < l; b++)
+	{
+		derive_u_sha512 (pwd, pwd_len, salt, salt_len, iterations, u, b);
+		memcpy (dk, u, SHA512_DIGESTSIZE);
+		dk += SHA512_DIGESTSIZE;
+	}
+
+	/* last block */
+	derive_u_sha512 (pwd, pwd_len, salt, salt_len, iterations, u, b);
+	memcpy (dk, u, r);
+
+
+	/* Prevent possible leaks. */
+	burn (u, sizeof(u));
+}
+
+
+/* Deprecated/legacy */
 void hmac_sha1
 (
 	  char *k,		/* secret key */
@@ -58,7 +206,7 @@ void hmac_sha1
 		k = key;
 		lk = SHA1_DIGESTSIZE;
 
-		memset (&tctx, 0, sizeof(tctx));		// Prevent leaks
+		burn (&tctx, sizeof(tctx));		// Prevent leaks
 	}
 
 	/**** Inner Digest ****/
@@ -76,7 +224,7 @@ void hmac_sha1
 
 	sha1_end ((unsigned char *) isha, &ictx);
 
-	/**** Outter Digest ****/
+	/**** Outer Digest ****/
 
 	sha1_begin (&octx);
 
@@ -92,18 +240,19 @@ void hmac_sha1
 
 	/* truncate and print the results */
 	t = t > SHA1_DIGESTSIZE ? SHA1_DIGESTSIZE : t;
-	truncate (osha, out, t);
+	hmac_truncate (osha, out, t);
 
 	/* Prevent leaks */
-	memset (&ictx, 0, sizeof(ictx));
-	memset (&octx, 0, sizeof(octx));
-	memset (isha, 0, sizeof(isha));
-	memset (osha, 0, sizeof(osha));
-	memset (buf, 0, sizeof(buf));
-	memset (key, 0, sizeof(key));
+	burn (&ictx, sizeof(ictx));
+	burn (&octx, sizeof(octx));
+	burn (isha, sizeof(isha));
+	burn (osha, sizeof(osha));
+	burn (buf, sizeof(buf));
+	burn (key, sizeof(key));
 }
 
 
+/* Deprecated/legacy */
 void derive_u_sha1 (char *pwd, int pwd_len, char *salt, int salt_len, int iterations, char *u, int b)
 {
 	char j[SHA1_DIGESTSIZE], k[SHA1_DIGESTSIZE];
@@ -131,10 +280,12 @@ void derive_u_sha1 (char *pwd, int pwd_len, char *salt, int salt_len, int iterat
 	}
 
 	/* Prevent possible leaks. */
-	memset (j, 0, sizeof(j));
-	memset (k, 0, sizeof(k));
+	burn (j, sizeof(j));
+	burn (k, sizeof(k));
 }
 
+
+/* Deprecated/legacy */
 void derive_key_sha1 (char *pwd, int pwd_len, char *salt, int salt_len, int iterations, char *dk, int dklen)
 {
 	char u[SHA1_DIGESTSIZE];
@@ -165,8 +316,10 @@ void derive_key_sha1 (char *pwd, int pwd_len, char *salt, int salt_len, int iter
 
 
 	/* Prevent possible leaks. */
-	memset (u, 0, sizeof(u));
+	burn (u, sizeof(u));
 }
+
+#endif // TC_WINDOWS_BOOT
 
 void hmac_ripemd160 (char *key, int keylen, char *input, int len, char *digest)
 {
@@ -189,7 +342,7 @@ void hmac_ripemd160 (char *key, int keylen, char *input, int len, char *digest)
         key = tk;
         keylen = RIPEMD160_DIGESTSIZE;
 
-		memset (&tctx, 0, sizeof(tctx));	// Prevent leaks
+		burn (&tctx, sizeof(tctx));	// Prevent leaks
     }
 
 	/*
@@ -228,10 +381,10 @@ void hmac_ripemd160 (char *key, int keylen, char *input, int len, char *digest)
     RMD160Final(digest, &context);         /* finish up 2nd pass */
 
 	/* Prevent possible leaks. */
-    memset(k_ipad, 0, sizeof(k_ipad));
-    memset(k_opad, 0, sizeof(k_opad));
-	memset (tk, 0, sizeof(tk));
-	memset (&context, 0, sizeof(context));
+    burn (k_ipad, sizeof(k_ipad));
+    burn (k_opad, sizeof(k_opad));
+	burn (tk, sizeof(tk));
+	burn (&context, sizeof(context));
 }
 
 void derive_u_ripemd160 (char *pwd, int pwd_len, char *salt, int salt_len, int iterations, char *u, int b)
@@ -261,8 +414,8 @@ void derive_u_ripemd160 (char *pwd, int pwd_len, char *salt, int salt_len, int i
 	}
 
 	/* Prevent possible leaks. */
-	memset (j, 0, sizeof(j));
-	memset (k, 0, sizeof(k));
+	burn (j, sizeof(j));
+	burn (k, sizeof(k));
 }
 
 void derive_key_ripemd160 (char *pwd, int pwd_len, char *salt, int salt_len, int iterations, char *dk, int dklen)
@@ -295,8 +448,10 @@ void derive_key_ripemd160 (char *pwd, int pwd_len, char *salt, int salt_len, int
 
 
 	/* Prevent possible leaks. */
-	memset (u, 0, sizeof(u));
+	burn (u, sizeof(u));
 }
+
+#ifndef TC_WINDOWS_BOOT
 
 void hmac_whirlpool
 (
@@ -327,7 +482,7 @@ void hmac_whirlpool
 		k = key;
 		lk = WHIRLPOOL_DIGESTSIZE;
 
-		memset (&tctx, 0, sizeof(tctx));		// Prevent leaks
+		burn (&tctx, sizeof(tctx));		// Prevent leaks
 	}
 
 	/**** Inner Digest ****/
@@ -345,7 +500,7 @@ void hmac_whirlpool
 
 	WHIRLPOOL_finalize (&ictx, (unsigned char *) iwhi);
 
-	/**** Outter Digest ****/
+	/**** Outer Digest ****/
 
 	WHIRLPOOL_init (&octx);
 
@@ -361,15 +516,15 @@ void hmac_whirlpool
 
 	/* truncate and print the results */
 	t = t > WHIRLPOOL_DIGESTSIZE ? WHIRLPOOL_DIGESTSIZE : t;
-	truncate (owhi, out, t);
+	hmac_truncate (owhi, out, t);
 
 	/* Prevent possible leaks. */
-	memset (&ictx, 0, sizeof(ictx));
-	memset (&octx, 0, sizeof(octx));
-	memset (owhi, 0, sizeof(owhi));
-	memset (iwhi, 0, sizeof(iwhi));
-	memset (buf, 0, sizeof(buf));
-	memset (key, 0, sizeof(key));
+	burn (&ictx, sizeof(ictx));
+	burn (&octx, sizeof(octx));
+	burn (owhi, sizeof(owhi));
+	burn (iwhi, sizeof(iwhi));
+	burn (buf, sizeof(buf));
+	burn (key, sizeof(key));
 }
 
 void derive_u_whirlpool (char *pwd, int pwd_len, char *salt, int salt_len, int iterations, char *u, int b)
@@ -399,8 +554,8 @@ void derive_u_whirlpool (char *pwd, int pwd_len, char *salt, int salt_len, int i
 	}
 
 	/* Prevent possible leaks. */
-	memset (j, 0, sizeof(j));
-	memset (k, 0, sizeof(k));
+	burn (j, sizeof(j));
+	burn (k, sizeof(k));
 }
 
 void derive_key_whirlpool (char *pwd, int pwd_len, char *salt, int salt_len, int iterations, char *dk, int dklen)
@@ -433,28 +588,55 @@ void derive_key_whirlpool (char *pwd, int pwd_len, char *salt, int salt_len, int
 
 
 	/* Prevent possible leaks. */
-	memset (u, 0, sizeof(u));
+	burn (u, sizeof(u));
 }
 
-
-int get_pkcs5_iteration_count (int pkcs5_prf_id)
-{
-	switch (pkcs5_prf_id)
-	{
-	case SHA1:		return 2000;
-	case RIPEMD160:	return 2000;
-	case WHIRLPOOL:	return 1000;
-	default:		return 0;
-	}
-}
 
 char *get_pkcs5_prf_name (int pkcs5_prf_id)
 {
 	switch (pkcs5_prf_id)
 	{
-	case SHA1:		return "HMAC-SHA-1";
-	case RIPEMD160:	return "HMAC-RIPEMD-160";
-	case WHIRLPOOL:	return "HMAC-Whirlpool";
-	default:		return "Unknown";
+	case SHA512:	
+		return "HMAC-SHA-512";
+
+	case SHA1:	// Deprecated/legacy
+		return "HMAC-SHA-1";
+
+	case RIPEMD160:	
+		return "HMAC-RIPEMD-160";
+
+	case WHIRLPOOL:	
+		return "HMAC-Whirlpool";
+
+	default:		
+		return "(Unknown)";
 	}
+}
+
+#endif //!TC_WINDOWS_BOOT
+
+
+int get_pkcs5_iteration_count (int pkcs5_prf_id, BOOL bBoot)
+{
+	switch (pkcs5_prf_id)
+	{
+	case RIPEMD160:	
+		return (bBoot ? 1000 : 2000);
+
+#ifndef TC_WINDOWS_BOOT
+
+	case SHA512:	
+		return 1000;			
+
+	case SHA1:		// Deprecated/legacy		
+		return 2000;			
+
+	case WHIRLPOOL:	
+		return 1000;
+#endif
+
+	default:		
+		TC_THROW_FATAL_EXCEPTION;	// Unknown/wrong ID
+	}
+	return 0;
 }

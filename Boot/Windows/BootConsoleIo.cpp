@@ -1,0 +1,261 @@
+/*
+ Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+
+ Governed by the TrueCrypt License 2.4 the full text of which is contained
+ in the file License.txt included in TrueCrypt binary and source code
+ distribution packages.
+*/
+
+#include "Platform.h"
+#include "Bios.h"
+#include "BootConsoleIo.h"
+#include "BootDebug.h"
+
+
+static int ScreenOutputDisabled = 0;
+
+void DisableScreenOutput ()
+{
+	++ScreenOutputDisabled;
+}
+
+
+void EnableScreenOutput ()
+{
+	--ScreenOutputDisabled;
+}
+
+
+void PrintChar (char c)
+{
+#ifdef TC_TRACING_ENABLED
+	WriteDebugPort (c);
+#endif
+
+	if (ScreenOutputDisabled)
+		return;
+
+	__asm
+	{
+		xor bx, bx
+		mov al, c
+		mov ah, 0xe
+		int 0x10
+	}
+}
+
+
+void PrintCharAtCusor (char c)
+{
+	__asm
+	{
+		xor bx, bx
+		mov al, c
+		mov cx, 1
+		mov ah, 0xa
+		int 0x10
+	}
+}
+
+
+void Print (const char *str)
+{
+	char c;
+	while (c = *str++)
+		PrintChar (c);
+}
+
+
+void Print (uint32 number)
+{
+	char str[12];
+	int pos = 0;
+	while (number >= 10)
+	{
+		str[pos++] = (number % 10) + '0';
+		number /= 10;
+	}
+	str[pos] = (number % 10) + '0';
+	
+	while (pos >= 0)
+		PrintChar (str[pos--]);
+}
+
+
+void Print (const uint64 &number)
+{
+	if (number.HighPart == 0)
+		Print (number.LowPart);
+	else
+		PrintHex (number);
+}
+
+
+void PrintHex (byte b)
+{
+	PrintChar (((b >> 4) >= 0xA ? 'A' - 0xA : '0') + (b >> 4));
+	PrintChar (((b & 0xF) >= 0xA ? 'A' - 0xA : '0') + (b & 0xF));
+}
+
+
+void PrintHex (uint16 data)
+{
+	PrintHex (byte (data >> 8));
+	PrintHex (byte (data));
+}
+
+
+void PrintHex (uint32 data)
+{
+	PrintHex (uint16 (data >> 16));
+	PrintHex (uint16 (data));
+}
+
+
+void PrintHex (const uint64 &data)
+{
+	PrintHex (data.HighPart);
+	PrintHex (data.LowPart);
+}
+
+void PrintRepeatedChar (char c, int n)
+{
+	while (n-- > 0)
+		PrintChar (c);
+}
+
+
+void PrintEndl ()
+{
+	Print ("\r\n");
+}
+
+
+void PrintEndl (int cnt)
+{
+	while (cnt-- > 0)
+		PrintEndl ();
+}
+
+
+void Beep ()
+{
+	PrintChar (7);
+}
+
+
+void ClearScreen ()
+{
+	__asm
+	{
+		mov bh, 7
+		xor cx, cx
+		mov dx, 0x184f
+		mov ax, 0x600
+		int 0x10
+
+		xor bh, bh
+		xor dx, dx
+		mov ah, 2
+		int 0x10
+	}
+}
+
+
+void PrintBackspace ()
+{
+	PrintChar (TC_BIOS_CHAR_BACKSPACE);
+	PrintCharAtCusor (' ');
+}
+
+
+void PrintError (const char *message, bool beep, bool newLine)
+{
+	Print ("Error: ");
+	Print (message);
+	
+	if (newLine)
+		PrintEndl();
+
+	if (beep)
+		Beep();
+}
+
+
+byte GetShiftFlags ()
+{
+	byte flags;
+	__asm
+	{
+		mov ah, 2
+		int 0x16
+		mov flags, al
+	}
+
+	return flags;
+}
+
+
+byte GetKeyboardChar (byte *scanCode)
+{
+	byte asciiCode;
+	byte scan;
+	__asm
+	{
+		mov ah, 0
+		int 0x16
+		mov asciiCode, al
+		mov scan, ah
+	}
+	
+	if (scanCode)
+		*scanCode = scan;
+
+	return asciiCode;
+}
+
+
+bool IsKeyboardCharAvailable ()
+{
+	bool available = false;
+	__asm
+	{
+		mov ah, 1
+		int 0x16
+		jz not_avail
+		mov available, true
+	not_avail:
+	}
+
+	return available;
+}
+
+
+bool IsPrintable (char c)
+{
+	return c >= ' ' && c <= '~';
+}
+
+
+int GetString (char *buffer, size_t bufferSize)
+{
+	byte c;
+	byte scanCode;
+	size_t pos = 0;
+
+	while (pos < bufferSize)
+	{
+		c = GetKeyboardChar (&scanCode);
+
+		if (scanCode == TC_BIOS_KEY_ENTER)
+			break;
+		
+		if (scanCode == TC_BIOS_KEY_ESC)
+			return 0;
+
+		buffer[pos++] = c;
+		PrintChar (IsPrintable (c) ? c : ' ');
+	}
+
+	return pos;
+}

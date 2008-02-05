@@ -1,11 +1,12 @@
 /*
- Legal Notice: The source code contained in this file has been derived from
- the source code of Encryption for the Masses 2.02a, which is Copyright (c)
- Paul Le Roux and which is covered by the 'License Agreement for Encryption
- for the Masses'. Modifications and additions to that source code contained
- in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.3 the full text of which is contained in the file
- License.txt included in TrueCrypt binary and source code distribution
+ Legal Notice: Some portions of the source code contained in this file were
+ derived from the source code of Encryption for the Masses 2.02a, which is
+ Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
+ Agreement for Encryption for the Masses'. Modifications and additions to
+ the original source code (contained in this file) and all other portions of
+ this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ by the TrueCrypt License 2.4 the full text of which is contained in the
+ file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
 #include "Tcdefs.h"
@@ -14,6 +15,7 @@
 #include <sys/stat.h>
 
 #include "Apidrvr.h"
+#include "BootEncryption.h"
 #include "Combo.h"
 #include "ComSetup.h"
 #include "Dlgcode.h"
@@ -23,9 +25,13 @@
 
 #include "Dir.h"
 #include "Setup.h"
+#include "SelfExtract.h"
+#include "Wizard.h"
 
 #include "../Common/Resource.h"
 #include "../Mount/Mount.h"
+
+using namespace TrueCrypt;
 
 #pragma warning( disable : 4201 )
 #pragma warning( disable : 4115 )
@@ -35,18 +41,28 @@
 #pragma warning( default : 4201 )
 #pragma warning( default : 4115 )
 
-char dlg_file_name[TC_MAX_PATH];
+char InstallationPath[TC_MAX_PATH];
 char SetupFilesDir[TC_MAX_PATH];
 char UninstallBatch[MAX_PATH];
 
 BOOL bUninstall = FALSE;
+BOOL bMakePackage = FALSE;
 BOOL bDone = FALSE;
 BOOL Rollback = FALSE;
 BOOL bUpgrade = FALSE;
+BOOL bRepairMode = FALSE;
+BOOL bChangeMode = FALSE;
+BOOL bDevm = FALSE;
 BOOL bFirstTimeInstall = FALSE;
-char *UninstallPath;
+BOOL bUninstallInProgress = FALSE;
 
-HMODULE SystemRestoreDll = 0;
+BOOL bSystemRestore = TRUE;
+BOOL bForAllUsers = TRUE;
+BOOL bRegisterFileExt = TRUE;
+BOOL bAddToStartMenu = TRUE;
+BOOL bDesktopIcon = TRUE;
+
+HMODULE volatile SystemRestoreDll = 0;
 
 BOOL
 StatDeleteFile (char *lpszFile)
@@ -78,35 +94,35 @@ CreateLink (char *lpszPathObj, char *lpszArguments,
 	IShellLink *psl;
 
 	/* Get a pointer to the IShellLink interface.  */
-	hres = CoCreateInstance (&CLSID_ShellLink, NULL,
-			       CLSCTX_INPROC_SERVER, &IID_IShellLink, &psl);
+	hres = CoCreateInstance (CLSID_ShellLink, NULL,
+			       CLSCTX_INPROC_SERVER, IID_IShellLink, (LPVOID *) &psl);
 	if (SUCCEEDED (hres))
 	{
 		IPersistFile *ppf;
 
 		/* Set the path to the shortcut target, and add the
 		   description.  */
-		psl->lpVtbl->SetPath (psl, lpszPathObj);
-		psl->lpVtbl->SetArguments (psl, lpszArguments);
+		psl->SetPath (lpszPathObj);
+		psl->SetArguments (lpszArguments);
 
 		/* Query IShellLink for the IPersistFile interface for saving
 		   the shortcut in persistent storage.  */
-		hres = psl->lpVtbl->QueryInterface (psl, &IID_IPersistFile,
-						    &ppf);
+		hres = psl->QueryInterface (IID_IPersistFile,
+						    (void **) &ppf);
 
 		if (SUCCEEDED (hres))
 		{
-			WORD wsz[TC_MAX_PATH];
+			wchar_t wsz[TC_MAX_PATH];
 
 			/* Ensure that the string is ANSI.  */
 			MultiByteToWideChar (CP_ACP, 0, lpszPathLink, -1,
 					     wsz, TC_MAX_PATH);
 
 			/* Save the link by calling IPersistFile::Save.  */
-			hres = ppf->lpVtbl->Save (ppf, wsz, TRUE);
-			ppf->lpVtbl->Release (ppf);
+			hres = ppf->Save (wsz, TRUE);
+			ppf->Release ();
 		}
-		psl->lpVtbl->Release (psl);
+		psl->Release ();
 	}
 	return hres;
 }
@@ -117,7 +133,7 @@ GetProgramPath (HWND hwndDlg, char *path)
 	ITEMIDLIST *i;
 	HRESULT res;
 
-	if (IsDlgButtonChecked (hwndDlg, IDC_ALL_USERS))
+	if (bForAllUsers)
         res = SHGetSpecialFolderLocation (hwndDlg, CSIDL_COMMON_PROGRAMS, &i);
 	else
         res = SHGetSpecialFolderLocation (hwndDlg, CSIDL_PROGRAMS, &i);
@@ -125,19 +141,19 @@ GetProgramPath (HWND hwndDlg, char *path)
 	SHGetPathFromIDList (i, path);
 }
 
-void
-StatusMessage (HWND hwndDlg , char *stringId)
+void 
+StatusMessage (HWND hwndDlg, char *stringId)
 {
 	if (Rollback)
 		return;
 
-	SendMessageW (GetDlgItem (hwndDlg, IDC_FILES), LB_ADDSTRING, 0, (LPARAM) GetString (stringId));
+	SendMessageW (GetDlgItem (hwndDlg, IDC_LOG_WINDOW), LB_ADDSTRING, 0, (LPARAM) GetString (stringId));
 
-	SendDlgItemMessage (hwndDlg, IDC_FILES, LB_SETTOPINDEX, 
-		SendDlgItemMessage (hwndDlg, IDC_FILES, LB_GETCOUNT, 0, 0) - 1, 0);
+	SendDlgItemMessage (hwndDlg, IDC_LOG_WINDOW, LB_SETTOPINDEX, 
+		SendDlgItemMessage (hwndDlg, IDC_LOG_WINDOW, LB_GETCOUNT, 0, 0) - 1, 0);
 }
 
-void
+void 
 StatusMessageParam (HWND hwndDlg, char *stringId, char *param)
 {
 	wchar_t szTmp[1024];
@@ -146,10 +162,16 @@ StatusMessageParam (HWND hwndDlg, char *stringId, char *param)
 		return;
 
 	wsprintfW (szTmp, L"%s %hs", GetString (stringId), param);
-	SendMessageW (GetDlgItem (hwndDlg, IDC_FILES), LB_ADDSTRING, 0, (LPARAM) szTmp);
+	SendMessageW (GetDlgItem (hwndDlg, IDC_LOG_WINDOW), LB_ADDSTRING, 0, (LPARAM) szTmp);
 		
-	SendDlgItemMessage (hwndDlg, IDC_FILES, LB_SETTOPINDEX, 
-		SendDlgItemMessage (hwndDlg, IDC_FILES, LB_GETCOUNT, 0, 0) - 1, 0);
+	SendDlgItemMessage (hwndDlg, IDC_LOG_WINDOW, LB_SETTOPINDEX, 
+		SendDlgItemMessage (hwndDlg, IDC_LOG_WINDOW, LB_GETCOUNT, 0, 0) - 1, 0);
+}
+
+void
+ClearLogWindow (HWND hwndDlg)
+{
+	SendMessage (GetDlgItem (hwndDlg, IDC_LOG_WINDOW), LB_RESETCONTENT, 0, 0);
 }
 
 void
@@ -178,27 +200,27 @@ IconMessage (HWND hwndDlg, char *txt)
 }
 
 
-BOOL
-DoFilesInstall (HWND hwndDlg, char *szDestDir)
+BOOL DoFilesInstall (HWND hwndDlg, char *szDestDir)
 {
-	char *szFiles[]=
-	{
-		"ATrueCrypt.exe",
-		"ATrueCrypt Format.exe",
-		"ATrueCrypt User Guide.pdf",
-		"ATrueCrypt Setup.exe",
-		"Atruecrypt.sys",
-		"Atruecrypt-x64.sys",
-		"ALicense.txt",
-		"Dtruecrypt.sys"
-	};
+	/* WARNING: Note that, despite its name, this function is used during UNinstallation as well. */
 
 	char szTmp[TC_MAX_PATH];
 	BOOL bOK = TRUE;
-	int i, x;
+	int i, x, fileNo;
+	char curFileName [TC_MAX_PATH] = {0};
+
+	if (!bUninstall && !bDevm)
+	{
+		// Self-extract all files to memory
+
+		GetModuleFileName (NULL, szTmp, sizeof (szTmp));
+
+		if (!SelfExtractInMemory (szTmp))
+			return FALSE;
+	}
 
 	x = strlen (szDestDir);
-	if (x < 1)
+	if (x < 2)
 		return FALSE;
 
 	if (szDestDir[x - 1] != '\\')
@@ -209,8 +231,14 @@ DoFilesInstall (HWND hwndDlg, char *szDestDir)
 		BOOL bResult;
 		char szDir[TC_MAX_PATH];
 
-		if (bUninstall && strstr (szFiles[i], "TrueCrypt Setup") != 0)
-			continue;
+		if (strstr (szFiles[i], "TrueCrypt Setup") != 0)
+		{
+			if (bUninstall)
+				continue;	// Prevent 'access denied' error
+
+			if (bRepairMode)
+				continue;	// Destination = target
+		}
 
 		if (*szFiles[i] == 'A')
 			strcpy (szDir, szDestDir);
@@ -241,16 +269,54 @@ DoFilesInstall (HWND hwndDlg, char *szDestDir)
 		{
 			SetCurrentDirectory (SetupFilesDir);
 
-			bResult = TCCopyFile (szFiles[i] + 1, szTmp);
-			if (!bResult)
+			if (strstr (szFiles[i], "TrueCrypt Setup") != 0)
 			{
-				char s[256];
+				// Copy ourselves (the distribution package) to the destination location as 'TrueCrypt Setup.exe'
 
-				sprintf (s, "Setup Files\\%s", 
-					(strcmp (szFiles[i], "Dtruecrypt.sys") == 0 && Is64BitOs ()) ? 
-					"truecrypt-x64.sys" : szFiles[i] + 1);
+				char mp[MAX_PATH];
 
-				bResult = TCCopyFile (s, szTmp);
+				GetModuleFileName (NULL, mp, sizeof (mp));
+				bResult = TCCopyFile (mp, szTmp);
+			}
+			else
+			{
+				strncpy (curFileName, szFiles[i] + 1, strlen (szFiles[i]) - 1);
+				curFileName [strlen (szFiles[i]) - 1] = 0;
+
+				if (Is64BitOs ()
+					&& strcmp (szFiles[i], "Dtruecrypt.sys") == 0)
+				{
+					strncpy (curFileName, FILENAME_64BIT_DRIVER, sizeof (FILENAME_64BIT_DRIVER));
+				}
+
+				if (!bDevm)
+				{
+					bResult = FALSE;
+
+					// Find the correct decompressed file in memory
+					for (fileNo = 0; fileNo < NBR_COMPRESSED_FILES; fileNo++)
+					{
+						// Write the file (stored in memory) directly to the destination location 
+						// (there will be no temporary files).
+						if (memcmp (
+							curFileName, 
+							Decompressed_Files[fileNo].fileName, 
+							min (strlen (curFileName), (size_t) Decompressed_Files[fileNo].fileNameLength)) == 0)
+						{
+							bResult = SaveBufferToFile (
+								(char *) Decompressed_Files[fileNo].fileContent,
+								szTmp,
+								Decompressed_Files[fileNo].fileLength, 
+								FALSE);
+
+							break;
+						}
+					}
+				}
+				else
+				{
+					bResult = TCCopyFile (curFileName, szTmp);
+				}
 			}
 		}
 		else
@@ -409,14 +475,23 @@ DoRegInstall (HWND hwndDlg, char *szDestDir, BOOL bInstallType)
 		0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hkey, &dw) != ERROR_SUCCESS)
 		goto error;
 
-	sprintf (szTmp, "\"%sTrueCrypt Setup.exe\" /u %s", szDir, szDestDir);
+	/* IMPORTANT: IF YOU CHANGE THIS IN ANY WAY, REVISE AND UPDATE SetInstallationPath() ACCORDINGLY! */ 
+	sprintf (szTmp, "\"%sTrueCrypt Setup.exe\" /u", szDir);
 	if (RegSetValueEx (hkey, "UninstallString", 0, REG_SZ, (BYTE *) szTmp, strlen (szTmp) + 1) != ERROR_SUCCESS)
+		goto error;
+
+	sprintf (szTmp, "\"%sTrueCrypt Setup.exe\" /c", szDir);
+	if (RegSetValueEx (hkey, "ModifyPath", 0, REG_SZ, (BYTE *) szTmp, strlen (szTmp) + 1) != ERROR_SUCCESS)
 		goto error;
 
 	sprintf (szTmp, "\"%sTrueCrypt Setup.exe\"", szDir);
 	if (RegSetValueEx (hkey, "DisplayIcon", 0, REG_SZ, (BYTE *) szTmp, strlen (szTmp) + 1) != ERROR_SUCCESS)
 		goto error;
 
+	strcpy (szTmp, VERSION_STRING);
+	if (RegSetValueEx (hkey, "DisplayVersion", 0, REG_SZ, (BYTE *) szTmp, strlen (szTmp) + 1) != ERROR_SUCCESS)
+		goto error;
+		
 	strcpy (szTmp, "TrueCrypt");
 	if (RegSetValueEx (hkey, "DisplayName", 0, REG_SZ, (BYTE *) szTmp, strlen (szTmp) + 1) != ERROR_SUCCESS)
 		goto error;
@@ -425,7 +500,7 @@ DoRegInstall (HWND hwndDlg, char *szDestDir, BOOL bInstallType)
 	if (RegSetValueEx (hkey, "Publisher", 0, REG_SZ, (BYTE *) szTmp, strlen (szTmp) + 1) != ERROR_SUCCESS)
 		goto error;
 
-	strcpy (szTmp, "http://www.truecrypt.org/");
+	sprintf (szTmp, "%s&dest=index\n", TC_APPLINK);
 	if (RegSetValueEx (hkey, "URLInfoAbout", 0, REG_SZ, (BYTE *) szTmp, strlen (szTmp) + 1) != ERROR_SUCCESS)
 		goto error;
 		
@@ -486,6 +561,11 @@ DoApplicationDataUninstall (HWND hwndDlg)
 	RemoveMessage (hwndDlg, path2);
 	StatDeleteFile (path2);
 
+	// Delete system encryption configuration file
+	sprintf (path2, "%s%s", path, FILE_SYSTEM_ENCRYPTION_CFG);
+	RemoveMessage (hwndDlg, path2);
+	StatDeleteFile (path2);
+
 	SHGetFolderPath (NULL, CSIDL_APPDATA, NULL, 0, path);
 	strcat (path, "\\TrueCrypt");
 	RemoveMessage (hwndDlg, path);
@@ -507,7 +587,7 @@ DoRegUninstall (HWND hwndDlg, BOOL bRemoveDeprecated)
 	// Unregister COM servers
 	if (!bRemoveDeprecated && nCurrentOS == WIN_VISTA_OR_LATER)
 	{
-		if (!UnregisterComServers (dlg_file_name))
+		if (!UnregisterComServers (InstallationPath))
 			StatusMessage (hwndDlg, "COM_DEREG_FAILED");
 	}
 
@@ -701,17 +781,41 @@ DoDriverUnload (HWND hwndDlg)
 		int refCount;
 		DWORD dwResult;
 		BOOL bResult;
+		int volumesMounted;
+
+		// Test for encrypted boot drive
+		try
+		{
+			BootEncryption bootEnc (hwndDlg);
+			if (bootEnc.GetDriverServiceStartType() == SERVICE_BOOT_START)
+			{
+				Error ("SETUP_FAILED_BOOT_DRIVE_ENCRYPTED");
+				return FALSE;
+			}
+		}
+		catch (...)	{ }
 
 		// Try to determine if it's upgrade (and not reinstall, downgrade, or first-time install).
-		bUpgrade = (DeviceIoControl (hDriver, DRIVER_VERSION, &driverVersion, 4, &driverVersion, 4, &dwResult, NULL) 
-					&& driverVersion < VERSION_NUM);
+		bResult = DeviceIoControl (hDriver, TC_IOCTL_GET_DRIVER_VERSION, NULL, 0, &driverVersion, sizeof (driverVersion), &dwResult, NULL);
 
-		bResult = DeviceIoControl (hDriver, MOUNT_LIST_ALL, &driver, sizeof (driver), &driver,
-			sizeof (driver), &dwResult, NULL);
+		if (!bResult)
+			bResult = DeviceIoControl (hDriver, TC_IOCTL_LEGACY_GET_DRIVER_VERSION, NULL, 0, &driverVersion, sizeof (driverVersion), &dwResult, NULL);
+
+		bUpgrade = bResult && driverVersion < VERSION_NUM;
+
+		// Check mounted volumes
+		bResult = DeviceIoControl (hDriver, TC_IOCTL_IS_ANY_VOLUME_MOUNTED, NULL, 0, &volumesMounted, sizeof (volumesMounted), &dwResult, NULL);
+
+		if (!bResult)
+		{
+			bResult = DeviceIoControl (hDriver, TC_IOCTL_LEGACY_GET_MOUNTED_VOLUMES, NULL, 0, &driver, sizeof (driver), &dwResult, NULL);
+			if (bResult)
+				volumesMounted = driver.ulMountedDrives;
+		}
 
 		if (bResult)
 		{
-			if (driver.ulMountedDrives != 0)
+			if (volumesMounted != 0)
 			{
 				bOK = FALSE;
 				MessageBoxW (hwndDlg, GetString ("DISMOUNT_ALL_FIRST"), lpszTitle, MB_ICONHAND);
@@ -735,7 +839,7 @@ DoDriverUnload (HWND hwndDlg)
 		}
 
 		// Test for any applications attached to driver
-		bResult = DeviceIoControl (hDriver, DEVICE_REFCOUNT, &refCount, sizeof (refCount), &refCount,
+		bResult = DeviceIoControl (hDriver, TC_IOCTL_GET_DEVICE_REFCOUNT, &refCount, sizeof (refCount), &refCount,
 			sizeof (refCount), &dwResult, NULL);
 
 		if (bOK && bResult && refCount > 1)
@@ -936,10 +1040,10 @@ DoShortcutsInstall (HWND hwndDlg, char *szDestDir, BOOL bProgGroup, BOOL bDeskto
 
 		if (mkfulldir (szLinkDir, TRUE) != 0)
 		{
-			wchar_t szTmp[TC_MAX_PATH];
-
 			if (mkfulldir (szLinkDir, FALSE) != 0)
 			{
+				wchar_t szTmp[TC_MAX_PATH];
+
 				handleWin32Error (hwndDlg);
 				wsprintfW (szTmp, GetString ("CANT_CREATE_FOLDER"), szLinkDir);
 				MessageBoxW (hwndDlg, szTmp, lpszTitle, MB_ICONHAND);
@@ -967,7 +1071,7 @@ DoShortcutsInstall (HWND hwndDlg, char *szDestDir, BOOL bProgGroup, BOOL bDeskto
 
 		sprintf (szTmp, "%s%s", szDir, "TrueCrypt Setup.exe");
 		sprintf (szTmp2, "%s%s", szLinkDir, "\\Uninstall TrueCrypt.lnk");
-		sprintf (szTmp3, "/u %s", szDestDir);
+		strcpy (szTmp3, "/u");
 
 		IconMessage (hwndDlg, szTmp2);
 		if (CreateLink (szTmp, szTmp3, szTmp2) != S_OK)
@@ -989,7 +1093,7 @@ DoShortcutsInstall (HWND hwndDlg, char *szDestDir, BOOL bProgGroup, BOOL bDeskto
 		if (bSlash == FALSE)
 			strcat (szDir, "\\");
 
-		if (IsDlgButtonChecked (hwndDlg, IDC_ALL_USERS))
+		if (bForAllUsers)
 			SHGetSpecialFolderPath (hwndDlg, szLinkDir, CSIDL_COMMON_DESKTOPDIRECTORY, 0);
 		else
 			SHGetSpecialFolderPath (hwndDlg, szLinkDir, CSIDL_DESKTOPDIRECTORY, 0);
@@ -1022,12 +1126,17 @@ OutcomePrompt (HWND hwndDlg, BOOL bOK)
 		bDone = TRUE;
 
 		if (bUninstall == FALSE)
-			Info ("INSTALL_OK");
+		{
+			if (bDevm)
+				PostMessage (MainDlg, WM_CLOSE, 0, 0);
+			else
+				Info ("INSTALL_OK");
+		}
 		else
 		{
 			wchar_t str[4096];
 
-			swprintf (str, GetString ("UNINSTALL_OK"), dlg_file_name);
+			swprintf (str, GetString ("UNINSTALL_OK"), InstallationPath);
 			MessageBoxW (hwndDlg, str, lpszTitle, MB_ICONASTERISK);
 		}
 	}
@@ -1040,7 +1149,7 @@ OutcomePrompt (HWND hwndDlg, BOOL bOK)
 	}
 }
 
-static void SetSystemRestorePoint (void *hwndDlg, BOOL finalize)
+static void SetSystemRestorePoint (HWND hwndDlg, BOOL finalize)
 {
 	static RESTOREPOINTINFO RestPtInfo;
 	static STATEMGRSTATUS SMgrStatus;
@@ -1064,7 +1173,7 @@ static void SetSystemRestorePoint (void *hwndDlg, BOOL finalize)
 		RestPtInfo.dwEventType = BEGIN_SYSTEM_CHANGE;
 		RestPtInfo.dwRestorePtType = APPLICATION_INSTALL;
 		RestPtInfo.llSequenceNumber = 0;
-		strcpy (RestPtInfo.szDescription, "TrueCrypt installation");
+		strcpy (RestPtInfo.szDescription, bUninstall ? "TrueCrypt uninstallation" : "TrueCrypt installation");
 
 		if(!_SRSetRestorePoint (&RestPtInfo, &SMgrStatus)) 
 		{
@@ -1076,7 +1185,6 @@ static void SetSystemRestorePoint (void *hwndDlg, BOOL finalize)
 	{
 		RestPtInfo.dwEventType = END_SYSTEM_CHANGE;
 		RestPtInfo.llSequenceNumber = SMgrStatus.llSequenceNumber;
-		RestPtInfo.dwRestorePtType = CANCELLED_OPERATION;
 
 		if(!_SRSetRestorePoint(&RestPtInfo, &SMgrStatus)) 
 		{
@@ -1088,9 +1196,11 @@ static void SetSystemRestorePoint (void *hwndDlg, BOOL finalize)
 }
 
 void
-DoUninstall (void *hwndDlg)
+DoUninstall (void *arg)
 {
+	HWND hwndDlg = (HWND) arg;
 	BOOL bOK = TRUE;
+	BOOL bTempSkipSysRestore = FALSE;
 
 	if (!Rollback)
 		EnableWindow (GetDlgItem ((HWND) hwndDlg, IDC_UNINSTALL), FALSE);
@@ -1098,60 +1208,69 @@ DoUninstall (void *hwndDlg)
 	WaitCursor ();
 
 	if (!Rollback)
-		SendMessage (GetDlgItem ((HWND) hwndDlg, IDC_FILES), LB_RESETCONTENT, 0, 0);
+	{
+		ClearLogWindow (hwndDlg);
+	}
 
 	if (DoDriverUnload (hwndDlg) == FALSE)
 	{
 		bOK = FALSE;
-	}
-	else if (DoServiceUninstall (hwndDlg, "truecrypt") == FALSE)
-	{
-		bOK = FALSE;
-	}
-	else if (DoRegUninstall ((HWND) hwndDlg, FALSE) == FALSE)
-	{
-		bOK = FALSE;
-	}
-	else if (DoFilesInstall ((HWND) hwndDlg, dlg_file_name) == FALSE)
-	{
-		bOK = FALSE;
-	}
-	else if (DoShortcutsUninstall (hwndDlg, dlg_file_name) == FALSE)
-	{
-		bOK = FALSE;
-	}
-	else if (!DoApplicationDataUninstall (hwndDlg))
-	{
-		bOK = FALSE;
+		bTempSkipSysRestore = TRUE;		// Volumes are possibly mounted; defer System Restore point creation for this uninstall attempt.
 	}
 	else
 	{
-		char temp[MAX_PATH];
-		FILE *f;
+		if (!Rollback && bSystemRestore && !bTempSkipSysRestore)
+			SetSystemRestorePoint (hwndDlg, FALSE);
 
-		// Deprecated service
-		DoServiceUninstall (hwndDlg, "TrueCryptService");
-
-		GetTempPath (sizeof (temp), temp);
-		_snprintf (UninstallBatch, sizeof (UninstallBatch), "%s\\TrueCrypt-Uninstall.bat", temp);
-
-		// Create uninstall batch
-		f = fopen (UninstallBatch, "w");
-		if (!f)
+		if (DoServiceUninstall (hwndDlg, "truecrypt") == FALSE)
+		{
 			bOK = FALSE;
+		}
+		else if (DoRegUninstall ((HWND) hwndDlg, FALSE) == FALSE)
+		{
+			bOK = FALSE;
+		}
+		else if (DoFilesInstall ((HWND) hwndDlg, InstallationPath) == FALSE)
+		{
+			bOK = FALSE;
+		}
+		else if (DoShortcutsUninstall (hwndDlg, InstallationPath) == FALSE)
+		{
+			bOK = FALSE;
+		}
+		else if (!DoApplicationDataUninstall (hwndDlg))
+		{
+			bOK = FALSE;
+		}
 		else
 		{
-			fprintf (f, ":loop\n"
-				"del \"%s\\%s\"\n"
-				"if exist \"%s\\%s\" goto loop\n"
-				"rmdir \"%s\"\n"
-				"del \"%s\"",
-				dlg_file_name, "TrueCrypt Setup.exe",
-				dlg_file_name, "TrueCrypt Setup.exe",
-				dlg_file_name,
-				UninstallBatch
-				);
-			fclose (f);
+			char temp[MAX_PATH];
+			FILE *f;
+
+			// Deprecated service
+			DoServiceUninstall (hwndDlg, "TrueCryptService");
+
+			GetTempPath (sizeof (temp), temp);
+			_snprintf (UninstallBatch, sizeof (UninstallBatch), "%s\\TrueCrypt-Uninstall.bat", temp);
+
+			// Create uninstall batch
+			f = fopen (UninstallBatch, "w");
+			if (!f)
+				bOK = FALSE;
+			else
+			{
+				fprintf (f, ":loop\n"
+					"del \"%s%s\"\n"
+					"if exist \"%s%s\" goto loop\n"
+					"rmdir \"%s\"\n"
+					"del \"%s\"",
+					InstallationPath, "TrueCrypt Setup.exe",
+					InstallationPath, "TrueCrypt Setup.exe",
+					InstallationPath,
+					UninstallBatch
+					);
+				fclose (f);
+			}
 		}
 	}
 
@@ -1160,76 +1279,111 @@ DoUninstall (void *hwndDlg)
 	if (Rollback)
 		return;
 
+	if (bSystemRestore && !bTempSkipSysRestore)
+		SetSystemRestorePoint (hwndDlg, TRUE);
+
 	if (bOK)
-		PostMessage (hwndDlg, WM_APP + 2, 0, 0);
-		
+		PostMessage (hwndDlg, TC_APPMSG_UNINSTALL_SUCCESS, 0, 0);
+	else
+		bUninstallInProgress = FALSE;
+
 	EnableWindow (GetDlgItem ((HWND) hwndDlg, IDC_UNINSTALL), TRUE);
 	OutcomePrompt (hwndDlg, bOK);
 }
 
 void
-DoInstall (void *hwndDlg)
+DoInstall (void *arg)
 {
+	HWND hwndDlg = (HWND) arg;
 	BOOL bOK = TRUE;
 	char path[MAX_PATH];
 
-	EnableWindow (GetDlgItem ((HWND) hwndDlg, IDC_INSTALL), FALSE);
-	SendMessage (GetDlgItem ((HWND) hwndDlg, IDC_FILES), LB_RESETCONTENT, 0, 0);
+	// Refresh the main GUI (wizard thread)
+	InvalidateRect (GetDlgItem (MainDlg, IDD_INSTL_DLG), NULL, TRUE);
+
+	ClearLogWindow(hwndDlg);
+
+	if (mkfulldir (InstallationPath, TRUE) != 0)
+	{
+		if (mkfulldir (InstallationPath, FALSE) != 0)
+		{
+			wchar_t szTmp[TC_MAX_PATH];
+
+			handleWin32Error (hwndDlg);
+			wsprintfW (szTmp, GetString ("CANT_CREATE_FOLDER"), InstallationPath);
+			MessageBoxW (hwndDlg, szTmp, lpszTitle, MB_ICONHAND);
+			Error ("INSTALL_FAILED");
+			PostMessage (MainDlg, TC_APPMSG_INSTALL_FAILURE, 0, 0);
+			return;
+		}
+	}
+
+	UpdateProgressBarProc(2);
 
 	if (DoDriverUnload (hwndDlg) == FALSE)
 	{
 		NormalCursor ();
-		EnableWindow (GetDlgItem ((HWND) hwndDlg, IDC_INSTALL), TRUE);
+		PostMessage (MainDlg, TC_APPMSG_INSTALL_FAILURE, 0, 0);
 		return;
 	}
+
+	UpdateProgressBarProc(12);
 	
-	if (IsButtonChecked (GetDlgItem ((HWND) hwndDlg, IDC_SYSTEM_RESTORE)))
+	if (bSystemRestore)
 		SetSystemRestorePoint (hwndDlg, FALSE);
+
+	UpdateProgressBarProc(50);
 
 	// Remove deprecated
 	DoServiceUninstall (hwndDlg, "TrueCryptService");
 	
+	UpdateProgressBarProc(55);
+
 	DoRegUninstall ((HWND) hwndDlg, TRUE);
+
+	UpdateProgressBarProc(62);
 
 	GetWindowsDirectory (path, sizeof (path));
 	strcat_s (path, sizeof (path), "\\TrueCrypt Setup.exe");
 	DeleteFile (path);
 
-	if (DoServiceUninstall (hwndDlg, "truecrypt") == FALSE)
+	if (UpdateProgressBarProc(63) && DoServiceUninstall (hwndDlg, "truecrypt") == FALSE)
 	{
 		bOK = FALSE;
 	}
-	else if (DoFilesInstall ((HWND) hwndDlg, dlg_file_name) == FALSE)
+	else if (UpdateProgressBarProc(72) && DoFilesInstall ((HWND) hwndDlg, InstallationPath) == FALSE)
 	{
 		bOK = FALSE;
 	}
-	else if (DoRegInstall ((HWND) hwndDlg, dlg_file_name,
-		IsButtonChecked (GetDlgItem ((HWND) hwndDlg, IDC_FILE_TYPE))) == FALSE)
+	else if (UpdateProgressBarProc(80) && DoRegInstall ((HWND) hwndDlg, InstallationPath, bRegisterFileExt ) == FALSE)
 	{
 		bOK = FALSE;
 	}
-	else if (DoDriverInstall (hwndDlg) == FALSE)
+	else if (UpdateProgressBarProc(85) && DoDriverInstall (hwndDlg) == FALSE)
 	{
 		bOK = FALSE;
 	}
-	else if (DoShortcutsInstall (hwndDlg, dlg_file_name,
-				     IsButtonChecked (GetDlgItem ((HWND) hwndDlg, IDC_PROG_GROUP)),
-					 IsButtonChecked (GetDlgItem ((HWND) hwndDlg, IDC_DESKTOP_ICON))) == FALSE)
+	else if (UpdateProgressBarProc(93) && DoShortcutsInstall (hwndDlg, InstallationPath, bAddToStartMenu, bDesktopIcon) == FALSE)
 	{
 		bOK = FALSE;
 	}
 
-	if (IsButtonChecked (GetDlgItem ((HWND) hwndDlg, IDC_SYSTEM_RESTORE)))
+	if (bOK)
+		UpdateProgressBarProc(97);
+
+	if (bSystemRestore)
 		SetSystemRestorePoint (hwndDlg, TRUE);
 
 	if (bOK)
 	{
+		UpdateProgressBarProc(100);
 		UninstallBatch[0] = 0;
 		StatusMessage (hwndDlg, "INSTALL_COMPLETED");
-		EnableWindow (GetDlgItem ((HWND) hwndDlg, IDC_INSTALL), TRUE);
+		PostMessage (MainDlg, TC_APPMSG_INSTALL_SUCCESS, 0, 0);
 	}
 	else
 	{
+		UpdateProgressBarProc(0);
 		bUninstall = TRUE;
 		Rollback = TRUE;
 		Silent = TRUE;
@@ -1243,10 +1397,13 @@ DoInstall (void *hwndDlg)
 		StatusMessage (hwndDlg, "ROLLBACK");
 	}
 
-	PostMessage (hwndDlg,  WM_APP + 1, 0, 0);
 	OutcomePrompt (hwndDlg, bOK);
 
-	if (bOK && !bUninstall)
+	if (!bOK)
+	{
+		PostMessage (MainDlg, TC_APPMSG_INSTALL_FAILURE, 0, 0);
+	}
+	else if (!bUninstall && !bDevm)
 	{
 		if (bUpgrade && (AskYesNo ("AFTER_UPGRADE_RELEASE_NOTES") == IDYES))
 		{
@@ -1260,11 +1417,139 @@ DoInstall (void *hwndDlg)
 }
 
 
+void SetInstallationPath (HWND hwndDlg)
+{
+	HKEY hkey;
+	BOOL bInstallPathDetermined = FALSE;
+	char path[MAX_PATH+20];
+	ITEMIDLIST *itemList;
+
+	memset (InstallationPath, 0, sizeof (InstallationPath));
+
+	// Determine if TrueCrypt is already installed and try to determine its "Program Files" location
+	if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\TrueCrypt", 0, KEY_READ, &hkey) == ERROR_SUCCESS)
+	{
+		/* Default 'UninstallString' registry strings written by past versions of TrueCrypt:
+		------------------------------------------------------------------------------------
+		1.0		C:\WINDOWS\TrueCrypt Setup.exe /u			[optional]
+		1.0a	C:\WINDOWS\TrueCrypt Setup.exe /u			[optional]
+		2.0		C:\WINDOWS\TrueCrypt Setup.exe /u			[optional]
+		2.1		C:\WINDOWS\TrueCrypt Setup.exe /u			[optional]
+		2.1a	C:\WINDOWS\TrueCrypt Setup.exe /u			[optional]
+		3.0		C:\WINDOWS\TrueCrypt Setup.exe /u			[optional]
+		3.0a	C:\WINDOWS\TrueCrypt Setup.exe /u			[optional]
+		3.1		The UninstallString was NEVER written (fortunately, 3.1a replaced 3.1 after 2 weeks)
+		3.1a	C:\WINDOWS\TrueCrypt Setup.exe /u
+		4.0		C:\WINDOWS\TrueCrypt Setup.exe /u C:\Program Files\TrueCrypt
+		4.1		C:\WINDOWS\TrueCrypt Setup.exe /u C:\Program Files\TrueCrypt
+		4.2		C:\WINDOWS\TrueCrypt Setup.exe /u C:\Program Files\TrueCrypt
+		4.2a	C:\WINDOWS\TrueCrypt Setup.exe /u C:\Program Files\TrueCrypt
+		4.3		"C:\Program Files\TrueCrypt\TrueCrypt Setup.exe" /u C:\Program Files\TrueCrypt\
+		4.3a	"C:\Program Files\TrueCrypt\TrueCrypt Setup.exe" /u C:\Program Files\TrueCrypt\
+		5.0		"C:\Program Files\TrueCrypt\TrueCrypt Setup.exe" /u
+
+		Note: In versions 1.0-3.0a the user was able to choose whether to install the uninstaller.
+			  The default was to install it. If it wasn't installed, there was no UninstallString.
+		*/
+
+		char rv[MAX_PATH*4];
+		DWORD size = sizeof (rv);
+		if (RegQueryValueEx (hkey, "UninstallString", 0, 0, (LPBYTE) &rv, &size) == ERROR_SUCCESS)
+		{
+			size_t len = 0;
+
+			// Cut and paste the location (path) where TrueCrypt is installed to InstallationPath
+			if (rv[0] == '"')
+			{
+				// 4.3 or later
+
+				len = strrchr (rv, '/') - rv - 2;
+				strncpy (InstallationPath, rv + 1, len);
+				InstallationPath [len] = 0;
+				bInstallPathDetermined = TRUE;
+
+				if (InstallationPath [strlen (InstallationPath) - 1] != '\\')
+				{
+					len = strrchr (InstallationPath, '\\') - InstallationPath;
+					InstallationPath [len] = 0;
+				}
+			}
+			else
+			{
+				// 1.0-4.2a (except 3.1)
+
+				len = strrchr (rv, '/') - rv;
+				if (rv[len+2] == ' ')
+				{
+					// 4.0-4.2a
+
+					strncpy (InstallationPath, rv + len + 3, strlen (rv) - len - 3);
+					InstallationPath [strlen (rv) - len - 3] = 0;
+					bInstallPathDetermined = TRUE;
+				}
+				else
+				{
+					// 1.0-3.1a (except 3.1)
+
+					// We know that TrueCrypt is installed but don't know where. It's not safe to continue installing
+					// over the old version.
+
+					Error ("UNINSTALL_OLD_VERSION_FIRST");
+
+					len = strrchr (rv, '/') - rv - 1;
+					strncpy (InstallationPath, rv, len);	// Path and filename of the uninstaller
+					InstallationPath [len] = 0;
+					bInstallPathDetermined = FALSE;
+
+					ShellExecute (NULL, "open", InstallationPath, "/u", NULL, SW_SHOWNORMAL);
+					RegCloseKey (hkey);
+					cleanup ();
+					exit (1);
+				}
+			}
+
+		}
+		RegCloseKey (hkey);
+	}
+
+	if (bInstallPathDetermined)
+	{
+		char mp[MAX_PATH];
+
+		// Determine whether we were launched from the folder where TrueCrypt is installed
+		GetModuleFileName (NULL, mp, sizeof (mp));
+		if (strncmp (InstallationPath, mp, min (strlen(InstallationPath), strlen(mp))) == 0)
+		{
+			// We were launched from the folder where TrueCrypt is installed
+
+			if (!IsNonInstallMode() && !bDevm)
+				bChangeMode = TRUE;
+		}
+	}
+	else
+	{
+		/* TrueCypt is not installed or it wasn't possible to determine where it is installed. */
+
+		// Default "Program Files" path. 
+		SHGetSpecialFolderLocation (hwndDlg, CSIDL_PROGRAM_FILES, &itemList);
+		SHGetPathFromIDList (itemList, path);
+		strcat (path, "\\TrueCrypt\\");
+		strcpy (InstallationPath, path);
+	}
+
+	// Make sure the path ends with a backslash
+	if (InstallationPath [strlen (InstallationPath) - 1] != '\\')
+	{
+		strcat (InstallationPath, "\\");
+	}
+}
+
+
+// Handler for uninstall only (install is handled by the wizard)
 BOOL CALLBACK
-InstallDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+UninstallDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	WORD lw = LOWORD (wParam);
-	if (lParam);		/* remove warning */
 
 	switch (msg)
 	{
@@ -1273,44 +1558,17 @@ InstallDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 		InitDialog (hwndDlg);
 		LocalizeDialog (hwndDlg, NULL);
 
-		if (UninstallPath == NULL)
-		{
-			char path[MAX_PATH+20];
-			ITEMIDLIST *i;
-			SHGetSpecialFolderLocation (hwndDlg, CSIDL_PROGRAM_FILES, &i);
-			SHGetPathFromIDList (i, path);
-			strcat (path, "\\TrueCrypt");
-			SetWindowText (GetDlgItem (hwndDlg, IDC_DESTINATION), path);
-		}
-		else
-			SetWindowText (GetDlgItem (hwndDlg, IDC_DESTINATION), UninstallPath);
-
-		if (bUninstall == FALSE)
-		{
-			char *licenseText;
-
-			licenseText = GetLegalNotices ();
-			if (licenseText != NULL)
-			{
-				SetWindowText (GetDlgItem (hwndDlg, IDC_LICENSE), licenseText);
-				free (licenseText);
-			}
-		}
-
-		SendMessage (GetDlgItem (hwndDlg, IDC_ALL_USERS), BM_SETCHECK, BST_CHECKED, 0);
-		SendMessage (GetDlgItem (hwndDlg, IDC_FILE_TYPE), BM_SETCHECK, BST_CHECKED, 0);
-		SendMessage (GetDlgItem (hwndDlg, IDC_PROG_GROUP), BM_SETCHECK, BST_CHECKED, 0);
-		SendMessage (GetDlgItem (hwndDlg, IDC_DESKTOP_ICON), BM_SETCHECK, BST_CHECKED, 0);
+		SetWindowTextW (hwndDlg, lpszTitle);
 
 		// System Restore
-		SystemRestoreDll = LoadLibrary ("srclient.dll");
+		SetCheckBox (hwndDlg, IDC_SYSTEM_RESTORE, bSystemRestore);
+		if (SystemRestoreDll == 0)
+		{
+			SetCheckBox (hwndDlg, IDC_SYSTEM_RESTORE, FALSE);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_SYSTEM_RESTORE), FALSE);
+		}
 
-		if (SystemRestoreDll != 0)
-			SendMessage (GetDlgItem (hwndDlg, IDC_SYSTEM_RESTORE), BM_SETCHECK, BST_CHECKED, 0);
-		else
-			EnableWindow (GetDlgItem ((HWND) hwndDlg, IDC_SYSTEM_RESTORE), FALSE);
-
-		SetWindowTextW (hwndDlg, lpszTitle);
+		SetFocus (GetDlgItem (hwndDlg, IDC_UNINSTALL));
 
 		return 1;
 
@@ -1323,86 +1581,54 @@ InstallDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 		return 0;
 
 	case WM_COMMAND:
-		if (lw == IDC_INSTALL || lw == IDC_UNINSTALL)
+		if (lw == IDC_UNINSTALL)
 		{
-			char szDirname[TC_MAX_PATH];
-
 			if (bDone)
 			{
-				EndDialog (hwndDlg, IDC_INSTALL);
+				bUninstallInProgress = FALSE;
+				PostMessage (hwndDlg, WM_CLOSE, 0, 0);
 				return 1;
 			}
 
-			GetWindowText (GetDlgItem (hwndDlg, IDC_DESTINATION), szDirname, sizeof (szDirname));
-
-			if (bUninstall == FALSE)
-			{
-				if (mkfulldir (szDirname, TRUE) != 0)
-				{
-					wchar_t szTmp[TC_MAX_PATH];
-
-					if (mkfulldir (szDirname, FALSE) != 0)
-					{
-						handleWin32Error (hwndDlg);
-						wsprintfW (szTmp, GetString ("CANT_CREATE_FOLDER"), szDirname);
-						MessageBoxW (hwndDlg, szTmp, lpszTitle, MB_ICONHAND);
-						return 1;
-					}
-				}
-			}
-
-			strcpy (dlg_file_name, szDirname);
+			bUninstallInProgress = TRUE;
 
 			WaitCursor ();
 
-			if (bUninstall == FALSE)
-				_beginthread (DoInstall, 16384, (void *) hwndDlg);
-			else
+			if (bUninstall)
 				_beginthread (DoUninstall, 16384, (void *) hwndDlg);
 
 			return 1;
 		}
 
+		if (lw == IDC_SYSTEM_RESTORE)
+		{
+			bSystemRestore = IsButtonChecked (GetDlgItem (hwndDlg, IDC_SYSTEM_RESTORE));
+			return 1;
+		}
+
 		if (lw == IDCANCEL)
 		{
-			EndDialog (hwndDlg, IDCANCEL);
-			return 1;
-		}
-
-		if (lw == IDC_BROWSE)
-		{
-			char szDirname[TC_MAX_PATH];
-
-			GetWindowText (GetDlgItem (hwndDlg, IDC_DESTINATION), szDirname, sizeof (szDirname));
-
-			if (BrowseDirectories (hwndDlg, "SELECT_INSTALL_DIR", szDirname))
-				SetWindowText (GetDlgItem (hwndDlg, IDC_DESTINATION), szDirname);
-			
-			return 1;
-		}
-
-		if (lw == IDC_DESTINATION && HIWORD (wParam) == EN_CHANGE && bDone == FALSE)
-		{
-			if (GetWindowTextLength (GetDlgItem (hwndDlg, IDC_DESTINATION)) <= 0)
-				EnableWindow (GetDlgItem (hwndDlg, IDC_INSTALL), FALSE);
-			else
-				EnableWindow (GetDlgItem (hwndDlg, IDC_INSTALL), TRUE);
+			PostMessage (hwndDlg, WM_CLOSE, 0, 0);
 			return 1;
 		}
 
 		return 0;
 
-	case WM_APP + 1:
-		SetWindowTextW (GetDlgItem ((HWND) hwndDlg, IDC_INSTALL), GetString ("EXIT"));
-		NormalCursor ();
-		break;
-
-	case WM_APP + 2:
+	case TC_APPMSG_UNINSTALL_SUCCESS:
 		SetWindowTextW (GetDlgItem ((HWND) hwndDlg, IDC_UNINSTALL), GetString ("FINALIZE"));
 		NormalCursor ();
-		break;
+		return 1;
 
 	case WM_CLOSE:
+		if (bUninstallInProgress)
+		{
+			NormalCursor();
+			if (AskNoYes("CONFIRM_EXIT_UNIVERSAL") == IDNO)
+			{
+				return 1;
+			}
+			WaitCursor ();
+		}
 		EndDialog (hwndDlg, IDCANCEL);
 		return 1;
 	}
@@ -1415,7 +1641,7 @@ int WINAPI
 WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine,
 	 int nCmdShow)
 {
-	if (nCmdShow && hPrevInstance);	/* Remove unused parameter warning */
+	SelfExtractStartupInit();
 
 	lpszTitle = L"TrueCrypt Setup";
 
@@ -1424,7 +1650,10 @@ WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine,
 
 	if (IsAdmin () != TRUE)
 		if (MessageBoxW (NULL, GetString ("SETUP_ADMIN"), lpszTitle, MB_YESNO | MB_ICONQUESTION) != IDYES)
+		{
+			cleanup ();
 			exit (1);
+		}
 
 	/* Setup directory */
 	{
@@ -1435,77 +1664,115 @@ WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine,
 			s[1] = 0;
 	}
 
-	if (lpszCommandLine[0] == '/' && lpszCommandLine[1] == 'u')
+	/* Parse command line arguments */
+
+	if (lpszCommandLine[0] == '/')
 	{
-		bUninstall = TRUE;
-		if (lpszCommandLine[2] == ' ')
-			UninstallPath = &lpszCommandLine[3];
-	}
-
-	// Force uninstall or stop setup when files are missing
-	if (!bUninstall)
-	{
-		WIN32_FIND_DATA fd;
-		HANDLE fh;
-
-		SetCurrentDirectory (SetupFilesDir);
-
-		fh = FindFirstFile ("Setup Files", &fd);
-		if (fh == INVALID_HANDLE_VALUE)
+		if (lpszCommandLine[1] == 'u')
 		{
-			HKEY hkey;
-			if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\TrueCrypt", 0, KEY_READ, &hkey) == ERROR_SUCCESS)
-			{
-				char rv[MAX_PATH*4];
-				DWORD size = sizeof (rv);
-				if (RegQueryValueEx (hkey, "UninstallString", 0, 0, (LPBYTE) &rv, &size) == ERROR_SUCCESS)
-				{
-					char mp[MAX_PATH];
+			// Uninstall:	/u
 
-					GetModuleFileName (NULL, mp, sizeof (mp));
-					_strupr (mp);
-					_strupr (rv);
-					if (strstr (rv, mp))
-					{
-						bUninstall = TRUE;
-						UninstallPath = SetupFilesDir;
-					}
-				}
-				RegCloseKey (hkey);
-			}
-
-			if (!bUninstall)
-			{
-				Error ("SETUP_INCOMPLETE");
-				exit (1);
-			}
+			bUninstall = TRUE;
 		}
-		else
-			FindClose (fh);
-	}
+		else if (lpszCommandLine[1] == 'c')
+		{
+			// Change:	/c
 
-	if (bUninstall == FALSE)
+			bChangeMode = TRUE;
+		}
+		else if (lpszCommandLine[1] == 'p')
+		{
+			// Create self-extracting package:	/p
+
+			bMakePackage = TRUE;
+		}
+		else if (lpszCommandLine[1] == 'd')
+		{
+			// Dev mode:	/d
+			bDevm = TRUE;
+		}
+	}
+ 
+	if (bMakePackage)
 	{
-		/* Create the main dialog box */
-		DialogBoxW (hInstance, MAKEINTRESOURCEW (IDD_INSTALL), NULL, (DLGPROC) InstallDlgProc);
+		/* Create self-extracting package */
+
+		MakeSelfExtractingPackage (NULL, SetupFilesDir);
 	}
 	else
 	{
-		/* Create the main dialog box */
-		DialogBoxW (hInstance, MAKEINTRESOURCEW (IDD_UNINSTALL), NULL, (DLGPROC) InstallDlgProc);
-		
-		if (UninstallBatch[0])
+		SetInstallationPath (NULL);
+
+		if (!bUninstall)
 		{
-			STARTUPINFO si;
-			PROCESS_INFORMATION pi;
+			if (IsSelfExtractingPackage())
+			{
+				if (!VerifyPackageIntegrity())
+				{
+					// Package corrupted 
+					cleanup ();
+					exit (1);
+				}
+				bDevm = FALSE;
+			}
+			else if (!bDevm)
+			{
+				MessageBox (NULL, "Error: This installer file does not contain any compressed files.\n\nTo create a self-extracting installer package (with embedded compressed files), run 'TrueCrypt Setup.exe /p'.", "TrueCrypt", MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST);
+				cleanup ();
+				exit (1);
+			}
 
-			ZeroMemory (&si, sizeof (si));
-			si.cb = sizeof (si);
-			si.dwFlags = STARTF_USESHOWWINDOW;
-			si.wShowWindow = SW_HIDE;
+			if (bChangeMode)
+			{
+				/* TrueCrypt is already installed on this system and we were launched from the Program Files folder */
 
-			if (!CreateProcess (UninstallBatch, NULL, NULL, NULL, FALSE, IDLE_PRIORITY_CLASS, NULL, NULL, &si, &pi))
-				DeleteFile (UninstallBatch);
+				char *tmpStr[] = {0, "SELECT_AN_ACTION", "REPAIR_REINSTALL", "UNINSTALL", "EXIT", 0};
+
+				// Ask the user to select either Repair or Unistallation
+				switch (AskMultiChoice ((void **) tmpStr))
+				{
+				case 1:
+					bRepairMode = TRUE;
+					break;
+				case 2:
+					bUninstall = TRUE;
+					break;
+				default:
+					cleanup ();
+					exit (1);
+				}
+			}
+		}
+
+		// System Restore
+		SystemRestoreDll = LoadLibrary ("srclient.dll");
+
+		if (!bUninstall)
+		{
+			/* Create the main dialog for install */
+
+			DialogBoxParamW (hInstance, MAKEINTRESOURCEW (IDD_INSTL_DLG), NULL, (DLGPROC) MainDialogProc, 
+				(LPARAM)lpszCommandLine);
+		}
+		else
+		{
+			/* Create the main dialog for uninstall  */
+
+			DialogBoxW (hInstance, MAKEINTRESOURCEW (IDD_UNINSTALL), NULL, (DLGPROC) UninstallDlgProc);
+
+			if (UninstallBatch[0])
+			{
+				STARTUPINFO si;
+				PROCESS_INFORMATION pi;
+
+				ZeroMemory (&si, sizeof (si));
+				si.cb = sizeof (si);
+				si.dwFlags = STARTF_USESHOWWINDOW;
+				si.wShowWindow = SW_HIDE;
+
+				if (!CreateProcess (UninstallBatch, NULL, NULL, NULL, FALSE, IDLE_PRIORITY_CLASS, NULL, NULL, &si, &pi))
+					DeleteFile (UninstallBatch);
+			}
 		}
 	}
 

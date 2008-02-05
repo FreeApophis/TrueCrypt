@@ -1,20 +1,23 @@
 /*
- Legal Notice: The source code contained in this file has been derived from
- the source code of Encryption for the Masses 2.02a, which is Copyright (c)
- Paul Le Roux and which is covered by the 'License Agreement for Encryption
- for the Masses'. Modifications and additions to that source code contained
- in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.3 the full text of which is contained in the file
- License.txt included in TrueCrypt binary and source code distribution
+ Legal Notice: Some portions of the source code contained in this file were
+ derived from the source code of Encryption for the Masses 2.02a, which is
+ Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
+ Agreement for Encryption for the Masses'. Modifications and additions to
+ the original source code (contained in this file) and all other portions of
+ this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ by the TrueCrypt License 2.4 the full text of which is contained in the
+ file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
 #include "Tcdefs.h"
 
+#ifndef TC_WINDOWS_BOOT
 #include <fcntl.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <time.h>
+#endif
 
 #ifdef _WIN32
 #include <io.h>
@@ -29,10 +32,29 @@
 #include "Crc.h"
 
 
-#define NBR_KEY_BYTES_TO_DISPLAY	16
+
+/* Volume header v3 structure: */
+//
+// Offset	Length	Description
+// ------------------------------------------
+// Unencrypted:
+// 0		64		Salt
+// Encrypted:
+// 64		4		ASCII string 'TRUE'
+// 68		2		Header version
+// 70		2		Required program version
+// 72		4		CRC-32 checksum of the (decrypted) bytes 256-511
+// 76		8		Volume creation time
+// 84		8		Header creation time
+// 92		8		Size of hidden volume in bytes (0 = normal volume)
+// 100		8		Size of the volume in bytes (identical with field 92 for hidden volumes)
+// 108		8		Start byte offset of the encrypted area of the volume
+// 116		8		Size of the encrypted area of the volume in bytes
+// 124		132		Reserved (set to zero)
+// 256		256		Concatenated primary master key(s) and secondary master key(s) (XTS mode)
 
 
-// Volume header structure:
+/* Deprecated/legacy volume header v2 structure (used before TrueCrypt 5.0): */
 //
 // Offset	Length	Description
 // ------------------------------------------
@@ -47,114 +69,202 @@
 // 84		8		Header creation time
 // 92		8		Size of hidden volume in bytes (0 = normal volume)
 // 100		156		Reserved (set to zero)
-// 256		32		Secondary key (LRW mode)
+// 256		32		For LRW (deprecated/legacy), secondary key
+//					For CBC (deprecated/legacy), data used to generate IV and whitening values
 // 288		224		Master key(s)
 
-int
-VolumeReadHeader (char *encryptedHeader, Password *password, PCRYPTO_INFO *retInfo)
+
+
+uint16 GetHeaderField16 (byte *header, size_t offset)
+{
+	return BE16 (*(uint16 *) (header + offset));
+}
+
+
+uint32 GetHeaderField32 (byte *header, size_t offset)
+{
+	return BE32 (*(uint32 *) (header + offset));
+}
+
+
+UINT64_STRUCT GetHeaderField64 (byte *header, size_t offset)
+{
+	UINT64_STRUCT uint64Struct;
+
+#ifndef TC_NO_COMPILER_INT64
+	uint64Struct.Value = BE64 (*(uint64 *) (header + offset));
+#else
+	uint64Struct.HighPart = BE32 (*(uint32 *) (header + offset));
+	uint64Struct.LowPart = BE32 (*(uint32 *) (header + offset + 4));
+#endif
+	return uint64Struct;
+}
+
+
+int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCRYPTO_INFO *retInfo, CRYPTO_INFO *retHeaderCryptoInfo)
 {
 	char header[HEADER_SIZE];
-	unsigned char *input = (unsigned char *) header;
 	KEY_INFO keyInfo;
 	PCRYPTO_INFO cryptoInfo;
-	int nKeyLen;
-	char dk[DISKKEY_SIZE];
-	int pkcs5;
+	char dk[MASTER_KEYDATA_SIZE];
+	int pkcs5_prf;
 	int headerVersion, requiredVersion;
 	int status;
+	int primaryKeyOffset;
 
+#ifdef _WIN32
+#ifndef DEVICE_DRIVER
+	VirtualLock (&keyInfo, sizeof (keyInfo));
+	VirtualLock (&dk, sizeof (dk));
+#endif
+#endif
 
-	cryptoInfo = *retInfo = crypto_open ();
-	if (cryptoInfo == NULL)
-		return ERR_OUTOFMEMORY;
+	if (retHeaderCryptoInfo != NULL)
+	{
+		cryptoInfo = retHeaderCryptoInfo;
+	}
+	else
+	{
+		cryptoInfo = *retInfo = crypto_open ();
+		if (cryptoInfo == NULL)
+			return ERR_OUTOFMEMORY;
+	}
 
-	crypto_loadkey (&keyInfo, password->Text, password->Length);
+	crypto_loadkey (&keyInfo, password->Text, (int) password->Length);
 
-	// PKCS5 is used to derive the header key and the secondary header key (LRW mode) from the user password
-	memcpy (keyInfo.key_salt, encryptedHeader + HEADER_USERKEY_SALT, PKCS5_SALT_SIZE);
+	// PKCS5 is used to derive the primary header key(s) and secondary header key(s) (XTS mode) from the password
+	memcpy (keyInfo.salt, encryptedHeader + HEADER_SALT_OFFSET, PKCS5_SALT_SIZE);
 
 	// Test all available PKCS5 PRFs
-	for (pkcs5 = 1; pkcs5 <= LAST_PRF_ID; pkcs5++)
+	for (pkcs5_prf = FIRST_PRF_ID; pkcs5_prf <= LAST_PRF_ID; pkcs5_prf++)
 	{
-		BOOL lrw64InitDone = FALSE;
-		BOOL lrw128InitDone = FALSE;
+		BOOL lrw64InitDone = FALSE;		// Deprecated/legacy
+		BOOL lrw128InitDone = FALSE;	// Deprecated/legacy
 
-		keyInfo.noIterations = get_pkcs5_iteration_count (pkcs5);
+		keyInfo.noIterations = get_pkcs5_iteration_count (pkcs5_prf, bBoot);
 
-		switch (pkcs5)
+		switch (pkcs5_prf)
 		{
-		case SHA1:
-			derive_key_sha1 (keyInfo.userKey, keyInfo.keyLength, keyInfo.key_salt,
-				PKCS5_SALT_SIZE, keyInfo.noIterations, dk, DISK_IV_SIZE + EAGetLargestKey());
+		case RIPEMD160:
+			derive_key_ripemd160 (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
+				PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
 			break;
 
-		case RIPEMD160:
-			derive_key_ripemd160 (keyInfo.userKey, keyInfo.keyLength, keyInfo.key_salt,
-				PKCS5_SALT_SIZE, keyInfo.noIterations, dk, DISK_IV_SIZE + EAGetLargestKey());
+#ifndef TC_WINDOWS_BOOT
+
+		case SHA512:
+			derive_key_sha512 (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
+				PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
+			break;
+
+		case SHA1:
+			// Deprecated/legacy
+			derive_key_sha1 (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
+				PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
 			break;
 
 		case WHIRLPOOL:
-			derive_key_whirlpool (keyInfo.userKey, keyInfo.keyLength, keyInfo.key_salt,
-				PKCS5_SALT_SIZE, keyInfo.noIterations, dk, DISK_IV_SIZE + EAGetLargestKey());
+			derive_key_whirlpool (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
+				PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
 			break;
+#endif
+
+		default:		
+			// Unknown/wrong ID
+			TC_THROW_FATAL_EXCEPTION;
 		} 
 
-		// Test all available encryption algorithms
-		for (cryptoInfo->ea = EAGetFirst ();
-			cryptoInfo->ea != 0;
-			cryptoInfo->ea = EAGetNext (cryptoInfo->ea))
+		// Test all available modes of operation
+		for (cryptoInfo->mode = FIRST_MODE_OF_OPERATION_ID;
+			cryptoInfo->mode <= LAST_MODE_OF_OPERATION;
+			cryptoInfo->mode++)
 		{
-			int blockSize = CipherGetBlockSize (EAGetFirstCipher (cryptoInfo->ea));
-
-			status = EAInit (cryptoInfo->ea, dk + DISK_IV_SIZE, cryptoInfo->ks);
-			if (status == ERR_CIPHER_INIT_FAILURE)
-				goto err;
-
-			// Test all available modes of operation
-			for (cryptoInfo->mode = EAGetFirstMode (cryptoInfo->ea);
-				cryptoInfo->mode != 0;
-				cryptoInfo->mode = EAGetNextMode (cryptoInfo->ea, cryptoInfo->mode))
+			switch (cryptoInfo->mode)
 			{
-				// Copy header for decryption and init an encryption algorithm
-				memcpy (header, encryptedHeader, SECTOR_SIZE);  
-				memcpy (cryptoInfo->iv, dk, DISK_IV_SIZE);
+#ifndef TC_WINDOWS_BOOT
+			case LRW:
+			case CBC:
+			case INNER_CBC:
+			case OUTER_CBC:
 
-				if (cryptoInfo->mode == LRW
+				// For LRW (deprecated/legacy), copy the tweak key 
+				// For CBC (deprecated/legacy), copy the IV/whitening seed 
+				memcpy (cryptoInfo->k2, dk, LEGACY_VOL_IV_SIZE);
+				primaryKeyOffset = LEGACY_VOL_IV_SIZE;
+				break;
+#endif
+			default:
+				primaryKeyOffset = 0;
+			}
+
+			// Test all available encryption algorithms
+			for (cryptoInfo->ea = EAGetFirst ();
+				cryptoInfo->ea != 0;
+				cryptoInfo->ea = EAGetNext (cryptoInfo->ea))
+			{
+				int blockSize;
+
+				if (!EAIsModeSupported (cryptoInfo->ea, cryptoInfo->mode))
+					continue;	// This encryption algorithm has never been available with this mode of operation
+
+				blockSize = CipherGetBlockSize (EAGetFirstCipher (cryptoInfo->ea));
+
+				status = EAInit (cryptoInfo->ea, dk + primaryKeyOffset, cryptoInfo->ks);
+				if (status == ERR_CIPHER_INIT_FAILURE)
+					goto err;
+
+				// Init objects related to the mode of operation
+
+				if (cryptoInfo->mode == XTS)
+				{
+					// Copy the secondary key (if cascade, multiple concatenated)
+					memcpy (cryptoInfo->k2, dk + EAGetKeySize (cryptoInfo->ea), EAGetKeySize (cryptoInfo->ea));
+
+					// Secondary key schedule
+					if (!EAInitMode (cryptoInfo))
+					{
+						status = ERR_MODE_INIT_FAILED;
+						goto err;
+					}
+				}
+#ifndef TC_WINDOWS_BOOT
+				else if (cryptoInfo->mode == LRW
 					&& (blockSize == 8 && !lrw64InitDone || blockSize == 16 && !lrw128InitDone))
 				{
+					// Deprecated/legacy
+
 					if (!EAInitMode (cryptoInfo))
 					{
 						status = ERR_MODE_INIT_FAILED;
 						goto err;
 					}
 
-					if (blockSize == 8)	// Deprecated/legacy
+					if (blockSize == 8)
 						lrw64InitDone = TRUE;
 					else if (blockSize == 16)
 						lrw128InitDone = TRUE;
 				}
+#endif
 
-				input = header;
+				// Copy the header for decryption
+				memcpy (header, encryptedHeader, HEADER_SIZE);
 
 				// Try to decrypt header 
 
-				DecryptBuffer ((unsigned __int32 *) (header + HEADER_ENCRYPTEDDATA), HEADER_ENCRYPTEDDATASIZE,
-					cryptoInfo);
-
-				input += HEADER_ENCRYPTEDDATA;
+				DecryptBuffer (header + HEADER_ENCRYPTED_DATA_OFFSET, HEADER_ENCRYPTED_DATA_SIZE, cryptoInfo);
 
 				// Magic 'TRUE'
-				if (mgetLong (input) != 0x54525545)
+				if (GetHeaderField32 (header, TC_HEADER_OFFSET_MAGIC) != 0x54525545)
 					continue;
 
 				// Header version
-				headerVersion = mgetWord (input);
+				headerVersion = GetHeaderField16 (header, TC_HEADER_OFFSET_VERSION);
 
 				// Required program version
-				requiredVersion = mgetWord (input);
+				requiredVersion = GetHeaderField16 (header, TC_HEADER_OFFSET_REQUIRED_VERSION);
 
 				// Check CRC of the key set
-				if (mgetLong (input) != crc32 (header + HEADER_DISKKEY, DISKKEY_SIZE))
+				if (GetHeaderField32 (header, TC_HEADER_OFFSET_KEY_AREA_CRC) != GetCrc32 (header + HEADER_MASTER_KEYDATA_OFFSET, MASTER_KEYDATA_SIZE))
 					continue;
 
 				// Now we have the correct password, cipher, hash algorithm, and volume type
@@ -166,82 +276,133 @@ VolumeReadHeader (char *encryptedHeader, Password *password, PCRYPTO_INFO *retIn
 					goto err;
 				}
 
+#ifndef TC_WINDOWS_BOOT
 				// Volume creation time
-				cryptoInfo->volume_creation_time = mgetInt64 (input);
+				cryptoInfo->volume_creation_time = GetHeaderField64 (header, TC_HEADER_OFFSET_VOLUME_CREATION_TIME).Value;
 
 				// Header creation time
-				cryptoInfo->header_creation_time = mgetInt64 (input);
+				cryptoInfo->header_creation_time = GetHeaderField64 (header, TC_HEADER_OFFSET_MODIFICATION_TIME).Value;
 
 				// Hidden volume size (if any)
-				cryptoInfo->hiddenVolumeSize = mgetInt64 (input);
+				cryptoInfo->hiddenVolumeSize = GetHeaderField64 (header, TC_HEADER_OFFSET_HIDDEN_VOLUME_SIZE).Value;
+#endif
+				// Volume size
+				cryptoInfo->VolumeSize = GetHeaderField64 (header, TC_HEADER_OFFSET_VOLUME_SIZE);
+				
+				// Encrypted area size and length
+				cryptoInfo->EncryptedAreaStart = GetHeaderField64 (header, TC_HEADER_OFFSET_ENCRYPTED_AREA_START);
+				cryptoInfo->EncryptedAreaLength = GetHeaderField64 (header, TC_HEADER_OFFSET_ENCRYPTED_AREA_LENGTH);
 
-				// Disk key
-				nKeyLen = DISKKEY_SIZE;
-				memcpy (keyInfo.key, header + HEADER_DISKKEY, nKeyLen);
+				// Preserve scheduled header keys if requested			
+				if (retHeaderCryptoInfo)
+				{
+					if (retInfo == NULL)
+					{
+						cryptoInfo->pkcs5 = pkcs5_prf;
+						cryptoInfo->noIterations = keyInfo.noIterations;
+						goto ret;
+					}
 
-				memcpy (cryptoInfo->master_key, keyInfo.key, nKeyLen);
-				memcpy (cryptoInfo->key_salt, keyInfo.key_salt, PKCS5_SALT_SIZE);
-				cryptoInfo->pkcs5 = pkcs5;
+					cryptoInfo = *retInfo = crypto_open ();
+					if (cryptoInfo == NULL)
+					{
+						status = ERR_OUTOFMEMORY;
+						goto err;
+					}
+
+					memcpy (cryptoInfo, retHeaderCryptoInfo, sizeof (*cryptoInfo));
+				}
+
+				// Master key data
+				memcpy (keyInfo.master_keydata, header + HEADER_MASTER_KEYDATA_OFFSET, MASTER_KEYDATA_SIZE);
+				memcpy (cryptoInfo->master_keydata, keyInfo.master_keydata, MASTER_KEYDATA_SIZE);
+
+#ifndef TC_WINDOWS_BOOT
+				// PKCS #5
+				memcpy (cryptoInfo->salt, keyInfo.salt, PKCS5_SALT_SIZE);
+				cryptoInfo->pkcs5 = pkcs5_prf;
 				cryptoInfo->noIterations = keyInfo.noIterations;
+#endif
 
 				// Init the encryption algorithm with the decrypted master key
-				status = EAInit (cryptoInfo->ea, keyInfo.key + DISK_IV_SIZE, cryptoInfo->ks);
+				status = EAInit (cryptoInfo->ea, keyInfo.master_keydata + primaryKeyOffset, cryptoInfo->ks);
 				if (status == ERR_CIPHER_INIT_FAILURE)
 					goto err;
 
-				// The secondary key (LRW mode) for the data area
-				memcpy (cryptoInfo->iv, keyInfo.key, DISK_IV_SIZE);
+				switch (cryptoInfo->mode)
+				{
+#ifndef TC_WINDOWS_BOOT
+				case LRW:
+				case CBC:
+				case INNER_CBC:
+				case OUTER_CBC:
 
-				// Mode of operation
+					// For LRW (deprecated/legacy), the tweak key
+					// For CBC (deprecated/legacy), the IV/whitening seed
+					memcpy (cryptoInfo->k2, keyInfo.master_keydata, LEGACY_VOL_IV_SIZE);
+					break;
+#endif
+				default:
+					// The secondary master key (if cascade, multiple concatenated)
+					memcpy (cryptoInfo->k2, keyInfo.master_keydata + EAGetKeySize (cryptoInfo->ea), EAGetKeySize (cryptoInfo->ea));
+
+				}
+
 				if (!EAInitMode (cryptoInfo))
 				{
 					status = ERR_MODE_INIT_FAILED;
 					goto err;
 				}
 
-				// Clear out the temp. key buffers
+				// Clear out the temporary key buffers
+ret:
 				burn (dk, sizeof(dk));
+				burn (&keyInfo, sizeof (keyInfo));
 
 				return 0;
-
 			}
 		}
 	}
 	status = ERR_PASSWORD_WRONG;
 
 err:
-	crypto_close(cryptoInfo);
-	*retInfo = NULL; 
+	if (cryptoInfo != retHeaderCryptoInfo)
+	{
+		crypto_close(cryptoInfo);
+		*retInfo = NULL; 
+	}
+
 	burn (&keyInfo, sizeof (keyInfo));
+	burn (dk, sizeof(dk));
 	return status;
 }
 
-#ifndef DEVICE_DRIVER
+#if !defined (DEVICE_DRIVER) && !defined (TC_WINDOWS_BOOT)
 
 #ifdef VOLFORMAT
 #include "../Format/TcFormat.h"
 #endif
 
-// VolumeWriteHeader:
-// Creates volume header in memory
-int
-VolumeWriteHeader (char *header, int ea, int mode, Password *password,
-		   int pkcs5, char *masterKey, unsigned __int64 volumeCreationTime, PCRYPTO_INFO * retInfo,
-		   unsigned __int64 hiddenVolumeSize, BOOL bWipeMode)
+// Creates a volume header in memory
+int VolumeWriteHeader (BOOL bBoot, char *header, int ea, int mode, Password *password,
+		   int pkcs5_prf, char *masterKeydata, unsigned __int64 volumeCreationTime, PCRYPTO_INFO *retInfo,
+		   unsigned __int64 volumeSize, unsigned __int64 hiddenVolumeSize,
+		   unsigned __int64 encryptedAreaStart, unsigned __int64 encryptedAreaLength, BOOL bWipeMode)
 {
 	unsigned char *p = (unsigned char *) header;
 	static KEY_INFO keyInfo;
 
 	int nUserKeyLen = password->Length;
 	PCRYPTO_INFO cryptoInfo = crypto_open ();
-	static char dk[DISKKEY_SIZE];
+	static char dk[MASTER_KEYDATA_SIZE];
 	int x;
 	int retVal = 0;
+	int primaryKeyOffset;
 
 	if (cryptoInfo == NULL)
 		return ERR_OUTOFMEMORY;
 
-	memset (header, 0, SECTOR_SIZE);
+	memset (header, 0, HEADER_SIZE);
 
 #ifdef _WIN32
 	VirtualLock (&keyInfo, sizeof (keyInfo));
@@ -250,23 +411,43 @@ VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 
 	/* Encryption setup */
 
-	// If necessary, generate the master key and the secondary key (LRW mode)
-	if(masterKey == 0)
+	if (masterKeydata == NULL)
 	{
-		if (!RandgetBytes (keyInfo.key, DISK_IV_SIZE + EAGetKeySize (ea), TRUE))
-			return ERR_CIPHER_INIT_WEAK_KEY;
+		// We have no master key data (creating a new volume) so we'll use the TrueCrypt RNG to generate them
 
-		// Verify that the secondary key is not weak
-		if (DetectWeakSecondaryKey (keyInfo.key, CipherGetBlockSize (EAGetFirstCipher (ea))))
+		int bytesNeeded;
+
+		switch (mode)
+		{
+		case LRW:
+		case CBC:
+		case INNER_CBC:
+		case OUTER_CBC:
+
+			// Deprecated/legacy modes of operation
+			bytesNeeded = LEGACY_VOL_IV_SIZE + EAGetKeySize (ea);
+
+			/* In fact, this should never be the case since new volumes are not supposed to use
+			   any deprecated mode of operation. */
+			return ERR_VOL_FORMAT_BAD;
+
+		default:
+			bytesNeeded = EAGetKeySize (ea) * 2;	// Size of primary + secondary key(s)
+		}
+
+		if (!RandgetBytes (keyInfo.master_keydata, bytesNeeded, TRUE))
 			return ERR_CIPHER_INIT_WEAK_KEY;
 	}
 	else
-		memcpy (keyInfo.key, masterKey, DISKKEY_SIZE);
+	{
+		// We already have existing master key data (the header is being re-encrypted)
+		memcpy (keyInfo.master_keydata, masterKeydata, MASTER_KEYDATA_SIZE);
+	}
 
 	// User key 
 	memcpy (keyInfo.userKey, password->Text, nUserKeyLen);
 	keyInfo.keyLength = nUserKeyLen;
-	keyInfo.noIterations = get_pkcs5_iteration_count (pkcs5);
+	keyInfo.noIterations = get_pkcs5_iteration_count (pkcs5_prf, bBoot);
 
 	// User selected encryption algorithm
 	cryptoInfo->ea = ea;
@@ -275,48 +456,82 @@ VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 	cryptoInfo->mode = mode;
 
 	// Salt for header key derivation
-	if (!RandgetBytes (keyInfo.key_salt, PKCS5_SALT_SIZE, !bWipeMode))
+	if (!RandgetBytes (keyInfo.salt, PKCS5_SALT_SIZE, !bWipeMode))
 		return ERR_CIPHER_INIT_WEAK_KEY; 
 
-	// PKCS5 is used to derive the header key and the secondary header key (LRW mode) from the password
-	switch (pkcs5)
+	// PBKDF2 (PKCS5) is used to derive primary header key(s) and secondary header key(s) (XTS) from the password/keyfiles
+	switch (pkcs5_prf)
 	{
+	case SHA512:
+		derive_key_sha512 (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
+			PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
+		break;
+
 	case SHA1:
-		derive_key_sha1 (keyInfo.userKey, keyInfo.keyLength, keyInfo.key_salt,
-			PKCS5_SALT_SIZE, keyInfo.noIterations, dk, DISK_IV_SIZE + EAGetLargestKey());
+		// Deprecated/legacy
+		derive_key_sha1 (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
+			PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
 		break;
 
 	case RIPEMD160:
-		derive_key_ripemd160 (keyInfo.userKey, keyInfo.keyLength, keyInfo.key_salt,
-			PKCS5_SALT_SIZE, keyInfo.noIterations, dk, DISK_IV_SIZE + EAGetLargestKey());
+		derive_key_ripemd160 (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
+			PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
 		break;
 
 	case WHIRLPOOL:
-		derive_key_whirlpool (keyInfo.userKey, keyInfo.keyLength, keyInfo.key_salt,
-			PKCS5_SALT_SIZE, keyInfo.noIterations, dk, DISK_IV_SIZE + EAGetLargestKey());
+		derive_key_whirlpool (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
+			PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
 		break;
-	} 
-	// Verify that the secondary key is not weak
-	if (DetectWeakSecondaryKey (dk, CipherGetBlockSize (EAGetFirstCipher (ea))))
-		return ERR_CIPHER_INIT_WEAK_KEY; 
 
+	default:		
+		// Unknown/wrong ID
+		TC_THROW_FATAL_EXCEPTION;
+	} 
 
 	/* Header setup */
 
 	// Salt
-	mputBytes (p, keyInfo.key_salt, PKCS5_SALT_SIZE);	
+	mputBytes (p, keyInfo.salt, PKCS5_SALT_SIZE);	
 
 	// Magic
 	mputLong (p, 0x54525545);
 
 	// Header version
-	mputWord (p, VOLUME_HEADER_VERSION);
+	switch (mode)
+	{
+	case LRW:
+	case CBC:
+	case OUTER_CBC:
+	case INNER_CBC:
+		// Deprecated/legacy modes (used before TrueCrypt 5.0)
+		mputWord (p, 0x0002);
+		break;
+	default:
+		mputWord (p, VOLUME_HEADER_VERSION);
+	}
 
 	// Required program version to handle this volume
-	mputWord (p, VOL_REQ_PROG_VERSION);
+	switch (mode)
+	{
+	case LRW:
+		// Deprecated/legacy
+		mputWord (p, 0x0410);
+		break;
+	case OUTER_CBC:
+	case INNER_CBC:
+		// Deprecated/legacy
+		mputWord (p, 0x0300);
+		break;
+	case CBC:
+		// Deprecated/legacy
+		mputWord (p, hiddenVolumeSize > 0 ? 0x0300 : 0x0100);
+		break;
+	default:
+		mputWord (p, VOL_REQ_PROG_VERSION);
+	}
 
-	// CRC of the key set
-	x = crc32(keyInfo.key, DISKKEY_SIZE);
+	// CRC of the master key data
+	x = GetCrc32(keyInfo.master_keydata, MASTER_KEYDATA_SIZE);
 	mputLong (p, x);
 
 	// Time
@@ -364,41 +579,89 @@ VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 
 	}
 
-	// Hidden volume size
+	// Size of hidden volume (if any)
 	cryptoInfo->hiddenVolumeSize = hiddenVolumeSize;
 	mputInt64 (p, cryptoInfo->hiddenVolumeSize);
+
 	cryptoInfo->hiddenVolume = cryptoInfo->hiddenVolumeSize != 0;
 
-	// The key set
-	memcpy (header + HEADER_DISKKEY, keyInfo.key, DISKKEY_SIZE);
+	// Volume size
+	cryptoInfo->VolumeSize.Value = volumeSize;
+	mputInt64 (p, volumeSize);
+
+	// Encrypted area start
+	cryptoInfo->EncryptedAreaStart.Value = encryptedAreaStart;
+	mputInt64 (p, encryptedAreaStart);
+
+	// Encrypted area size
+	cryptoInfo->EncryptedAreaLength.Value = encryptedAreaLength;
+	mputInt64 (p, encryptedAreaLength);
+
+	// The master key data
+	memcpy (header + HEADER_MASTER_KEYDATA_OFFSET, keyInfo.master_keydata, MASTER_KEYDATA_SIZE);
 
 
 	/* Header encryption */
 
-	memcpy (cryptoInfo->iv, dk, DISK_IV_SIZE);
-	retVal = EAInit (cryptoInfo->ea, dk + DISK_IV_SIZE, cryptoInfo->ks);
-	if (retVal != 0)
+	switch (mode)
+	{
+	case LRW:
+	case CBC:
+	case INNER_CBC:
+	case OUTER_CBC:
+
+		// For LRW (deprecated/legacy), the tweak key
+		// For CBC (deprecated/legacy), the IV/whitening seed
+		memcpy (cryptoInfo->k2, dk, LEGACY_VOL_IV_SIZE);
+		primaryKeyOffset = LEGACY_VOL_IV_SIZE;
+		break;
+
+	default:
+		// The secondary key (if cascade, multiple concatenated)
+		memcpy (cryptoInfo->k2, dk + EAGetKeySize (cryptoInfo->ea), EAGetKeySize (cryptoInfo->ea));
+		primaryKeyOffset = 0;
+	}
+
+	retVal = EAInit (cryptoInfo->ea, dk + primaryKeyOffset, cryptoInfo->ks);
+	if (retVal != ERR_SUCCESS)
 		return retVal;
 
 	// Mode of operation
 	if (!EAInitMode (cryptoInfo))
 		return ERR_OUTOFMEMORY;
 
-	EncryptBuffer ((unsigned __int32 *) (header + HEADER_ENCRYPTEDDATA),
-		HEADER_ENCRYPTEDDATASIZE,
+
+	// Encrypt the entire header (except the salt)
+	EncryptBuffer (header + HEADER_ENCRYPTED_DATA_OFFSET,
+		HEADER_ENCRYPTED_DATA_SIZE,
 		cryptoInfo);
 
 
 	/* cryptoInfo setup for further use (disk format) */
 
-	// Init with the master key 
-	retVal = EAInit (cryptoInfo->ea, keyInfo.key + DISK_IV_SIZE, cryptoInfo->ks);
-	if (retVal != 0)
+	// Init with the master key(s) 
+	retVal = EAInit (cryptoInfo->ea, keyInfo.master_keydata + primaryKeyOffset, cryptoInfo->ks);
+	if (retVal != ERR_SUCCESS)
 		return retVal;
-	memcpy (cryptoInfo->master_key, keyInfo.key + DISK_IV_SIZE, sizeof (keyInfo.key) - DISK_IV_SIZE);
 
-	// The secondary key (LRW mode)
-	memcpy (cryptoInfo->iv, keyInfo.key, DISK_IV_SIZE);
+	memcpy (cryptoInfo->master_keydata, keyInfo.master_keydata, MASTER_KEYDATA_SIZE);
+
+	switch (cryptoInfo->mode)
+	{
+	case LRW:
+	case CBC:
+	case INNER_CBC:
+	case OUTER_CBC:
+
+		// For LRW (deprecated/legacy), the tweak key
+		// For CBC (deprecated/legacy), the IV/whitening seed
+		memcpy (cryptoInfo->k2, keyInfo.master_keydata, LEGACY_VOL_IV_SIZE);
+		break;
+
+	default:
+		// The secondary master key (if cascade, multiple concatenated)
+		memcpy (cryptoInfo->k2, keyInfo.master_keydata + EAGetKeySize (cryptoInfo->ea), EAGetKeySize (cryptoInfo->ea));
+	}
 
 	// Mode of operation
 	if (!EAInitMode (cryptoInfo))
@@ -408,7 +671,6 @@ VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 #ifdef VOLFORMAT
 	if (showKeys)
 	{
-		char tmp[64];
 		BOOL dots3 = FALSE;
 		int i, j;
 
@@ -420,38 +682,37 @@ VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 			j = NBR_KEY_BYTES_TO_DISPLAY;
 		}
 
-		tmp[0] = 0;
+		MasterKeyGUIView[0] = 0;
 		for (i = 0; i < j; i++)
 		{
-			char tmp2[8] =
-			{0};
-			sprintf (tmp2, "%02X", (int) (unsigned char) keyInfo.key[i + DISK_IV_SIZE]);
-			strcat (tmp, tmp2);
+			char tmp2[8] = {0};
+			sprintf (tmp2, "%02X", (int) (unsigned char) keyInfo.master_keydata[i + primaryKeyOffset]);
+			strcat (MasterKeyGUIView, tmp2);
 		}
 
 		if (dots3)
 		{
-			strcat (tmp, "...");
+			strcat (MasterKeyGUIView, "...");
 		}
 
-		SendMessage (hDiskKey, WM_SETTEXT, 0, (LPARAM) tmp);
+		SendMessage (hMasterKey, WM_SETTEXT, 0, (LPARAM) MasterKeyGUIView);
 
-		tmp[0] = 0;
+		HeaderKeyGUIView[0] = 0;
 		for (i = 0; i < NBR_KEY_BYTES_TO_DISPLAY; i++)
 		{
 			char tmp2[8];
-			sprintf (tmp2, "%02X", (int) (unsigned char) dk[DISK_IV_SIZE + i]);
-			strcat (tmp, tmp2);
+			sprintf (tmp2, "%02X", (int) (unsigned char) dk[primaryKeyOffset + i]);
+			strcat (HeaderKeyGUIView, tmp2);
 		}
 
 		if (dots3)
 		{
-			strcat (tmp, "...");
+			strcat (HeaderKeyGUIView, "...");
 		}
 
-		SendMessage (hHeaderKey, WM_SETTEXT, 0, (LPARAM) tmp);
+		SendMessage (hHeaderKey, WM_SETTEXT, 0, (LPARAM) HeaderKeyGUIView);
 	}
-#endif
+#endif	// #ifdef VOLFORMAT
 
 	burn (dk, sizeof(dk));
 	burn (&keyInfo, sizeof (keyInfo));
@@ -460,4 +721,4 @@ VolumeWriteHeader (char *header, int ea, int mode, Password *password,
 	return 0;
 }
 
-#endif				/* !NT4_DRIVER */
+#endif // !defined (DEVICE_DRIVER) && !defined (TC_WINDOWS_BOOT)

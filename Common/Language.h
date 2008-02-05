@@ -1,5 +1,9 @@
 #include <windows.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define UNKNOWN_STRING_ID L"[?]"
 
 extern BOOL LocalizationActive;
@@ -19,3 +23,7 @@ BOOL LoadLanguageFile ();
 char *GetPreferredLangId ();
 void SetPreferredLangId (char *langId);
 char *GetActiveLangPackVersion ();
+
+#ifdef __cplusplus
+}
+#endif

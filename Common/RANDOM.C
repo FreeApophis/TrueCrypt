@@ -1,11 +1,12 @@
 /*
- Legal Notice: The source code contained in this file has been derived from
- the source code of Encryption for the Masses 2.02a, which is Copyright (c)
- Paul Le Roux and which is covered by the 'License Agreement for Encryption
- for the Masses'. Modifications and additions to that source code contained
- in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.3 the full text of which is contained in the file
- License.txt included in TrueCrypt binary and source code distribution
+ Legal Notice: Some portions of the source code contained in this file were
+ derived from the source code of Encryption for the Masses 2.02a, which is
+ Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
+ Agreement for Encryption for the Masses'. Modifications and additions to
+ the original source code (contained in this file) and all other portions of
+ this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ by the TrueCrypt License 2.4 the full text of which is contained in the
+ file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
 #include <stdlib.h>
@@ -30,7 +31,7 @@ BOOL volatile bRandmixEnabled = TRUE;	/* Used to reduce CPU load when performing
 #define RandaddByte(x) {\
 	if (nRandIndex == RNG_POOL_SIZE) nRandIndex = 0;\
 	pRandPool[nRandIndex] = (unsigned char) ((unsigned char)x + pRandPool[nRandIndex]); \
-	if (nRandIndex % 8 == 0) Randmix();\
+	if (nRandIndex % RANDMIX_BYTE_INTERVAL == 0) Randmix();\
 	nRandIndex++; \
 	}
 
@@ -188,25 +189,24 @@ int RandGetHashFunction (void)
 }
 
 /* The random pool mixing function */
-BOOL
-Randmix ()
+BOOL Randmix ()
 {
 	if (bRandmixEnabled)
 	{
 		unsigned char hashOutputBuffer [MAX_DIGESTSIZE];
 		WHIRLPOOL_CTX	wctx;
 		RMD160_CTX		rctx;
-		sha1_ctx		sctx;
+		sha512_ctx		sctx;
 		int poolIndex, digestIndex, digestSize;
 
 		switch (HashFunction)
 		{
-		case SHA1:
-			digestSize = SHA1_DIGESTSIZE;
-			break;
-
 		case RIPEMD160:
 			digestSize = RIPEMD160_DIGESTSIZE;
+			break;
+
+		case SHA512:
+			digestSize = SHA512_DIGESTSIZE;
 			break;
 
 		case WHIRLPOOL:
@@ -217,21 +217,24 @@ Randmix ()
 			return FALSE;
 		}
 
+		if (RNG_POOL_SIZE % digestSize)
+			TC_THROW_FATAL_EXCEPTION;
+
 		for (poolIndex = 0; poolIndex < RNG_POOL_SIZE; poolIndex += digestSize)		
 		{
 			/* Compute the message digest of the entire pool using the selected hash function. */
 			switch (HashFunction)
 			{
-			case SHA1:
-				sha1_begin (&sctx);
-				sha1_hash (pRandPool, RNG_POOL_SIZE, &sctx);
-				sha1_end (hashOutputBuffer, &sctx);
-				break;
-
 			case RIPEMD160:
 				RMD160Init(&rctx);
 				RMD160Update(&rctx, pRandPool, RNG_POOL_SIZE);
 				RMD160Final(hashOutputBuffer, &rctx);
+				break;
+
+			case SHA512:
+				sha512_begin (&sctx);
+				sha512_hash (pRandPool, RNG_POOL_SIZE, &sctx);
+				sha512_end (hashOutputBuffer, &sctx);
 				break;
 
 			case WHIRLPOOL:
@@ -239,6 +242,10 @@ Randmix ()
 				WHIRLPOOL_add (pRandPool, RNG_POOL_SIZE * 8, &wctx);
 				WHIRLPOOL_finalize (&wctx, hashOutputBuffer);
 				break;
+
+			default:		
+				// Unknown/wrong ID
+				TC_THROW_FATAL_EXCEPTION;
 			}
 
 			/* XOR the resultant message digest to the pool at the poolIndex position. */
@@ -249,20 +256,24 @@ Randmix ()
 		}
 
 		/* Prevent leaks */
-		memset (hashOutputBuffer, 0, MAX_DIGESTSIZE);	
+		burn (hashOutputBuffer, MAX_DIGESTSIZE);	
 		switch (HashFunction)
 		{
-		case SHA1:
-			memset (&sctx, 0, sizeof(sctx));		
+		case RIPEMD160:
+			burn (&rctx, sizeof(rctx));		
 			break;
 
-		case RIPEMD160:
-			memset (&rctx, 0, sizeof(rctx));		
+		case SHA512:
+			burn (&sctx, sizeof(sctx));		
 			break;
 
 		case WHIRLPOOL:
-			memset (&wctx, 0, sizeof(wctx));		
+			burn (&wctx, sizeof(wctx));		
 			break;
+
+		default:		
+			// Unknown/wrong ID
+			TC_THROW_FATAL_EXCEPTION;
 		}
 	}
 	return TRUE;
@@ -496,7 +507,7 @@ ThreadSafeThreadFunction (void *dummy)
 
 		LeaveCriticalSection (&critRandProt);
 
-		Sleep (500);
+		Sleep (FASTPOLL_INTERVAL);
 	}
 }
 

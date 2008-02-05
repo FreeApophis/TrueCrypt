@@ -1,14 +1,21 @@
 /*
- Copyright (c) TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2007-2008 TrueCrypt Foundation. All rights reserved.
 
- Covered by the TrueCrypt License 2.3 the full text of which is contained
+ Governed by the TrueCrypt License 2.4 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
 
+#ifndef TC_HEADER_FORMAT_COM
+#define TC_HEADER_FORMAT_COM
+
 #include <windows.h>
 
 #ifdef __cplusplus
+
+#include "FormatCom_h.h"
+ITrueCryptFormatCom *GetElevatedInstance (HWND parent);
+
 extern "C" {
 #endif
 
@@ -21,3 +28,5 @@ BOOL UacUpdateProgressBar (__int64 nSecNo, BOOL *bThreadCancel);
 #ifdef __cplusplus
 }
 #endif
+
+#endif // TC_HEADER_FORMAT_COM

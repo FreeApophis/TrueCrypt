@@ -38,15 +38,12 @@
 #ifndef _AES_H
 #define _AES_H
 
+#include "Common/Tcdefs.h"
+
 #ifndef EXIT_SUCCESS
 #define EXIT_SUCCESS    0
 #define EXIT_FAILURE    1
 #endif
-
-typedef unsigned __int8 uint_8t;
-typedef unsigned __int16 uint_16t;
-typedef unsigned __int32 uint_32t;
-typedef unsigned __int64 uint_64t;
 
 #ifndef RETURN_VALUES
 #  define RETURN_VALUES

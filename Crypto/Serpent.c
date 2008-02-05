@@ -480,6 +480,7 @@ void serpent_set_key(const unsigned __int8 userKey[], int keylen, unsigned __int
 	afterS2(LK); afterS2(S3); afterS3(SK);
 }
 
+#ifndef TC_MINIMIZE_CODE_SIZE
 
 void serpent_encrypt(const unsigned __int8 *inBlock, unsigned __int8 *outBlock, unsigned __int8 *ks)
 {
@@ -527,6 +528,81 @@ void serpent_encrypt(const unsigned __int8 *inBlock, unsigned __int8 *outBlock, 
 	out[3] = LE32(a);
 }
 
+#else // TC_MINIMIZE_CODE_SIZE
+
+typedef unsigned __int32 uint32;
+
+void LTf (uint32 *a, uint32 *b, uint32 *c, uint32 *d)
+{
+	*a = rotlFixed(*a, 13);
+	*c = rotlFixed(*c, 3);
+	*d = rotlFixed(*d ^ *c ^ (*a << 3), 7);
+	*b = rotlFixed(*b ^ *a ^ *c, 1);
+	*a = rotlFixed(*a ^ *b ^ *d, 5);
+	*c = rotlFixed(*c ^ *d ^ (*b << 7), 22);
+}
+
+// order of output from S-box functions
+#define beforeS0LT LTf (&a,&b,&c,&d)
+#define afterS0LT LTf (&b,&e,&c,&a)
+#define afterS1LT LTf (&c,&b,&a,&e)
+#define afterS2LT LTf (&a,&e,&b,&d)
+#define afterS3LT LTf (&e,&b,&d,&c)
+#define afterS4LT LTf (&b,&a,&e,&c)
+#define afterS5LT LTf (&a,&c,&b,&e)
+#define afterS6LT LTf (&a,&c,&d,&b)
+#define afterS7LT LTf (&d,&e,&b,&a)
+
+
+void serpent_encrypt(const unsigned __int8 *inBlock, unsigned __int8 *outBlock, unsigned __int8 *ks)
+{
+	unsigned __int32 a, b, c, d, e;
+	unsigned int i=1;
+	const unsigned __int32 *k = (unsigned __int32 *)ks + 8;
+	unsigned __int32 *in = (unsigned __int32 *) inBlock;
+	unsigned __int32 *out = (unsigned __int32 *) outBlock;
+
+    a = LE32(in[0]);
+	b = LE32(in[1]);
+	c = LE32(in[2]);
+	d = LE32(in[3]);
+
+	do
+	{
+		beforeS0(KX); beforeS0(S0); afterS0LT;
+		afterS0(KX); afterS0(S1); afterS1LT;
+		afterS1(KX); afterS1(S2); afterS2LT;
+		afterS2(KX); afterS2(S3); afterS3LT;
+		afterS3(KX); afterS3(S4); afterS4LT;
+		afterS4(KX); afterS4(S5); afterS5LT;
+		afterS5(KX); afterS5(S6); afterS6LT;
+		afterS6(KX); afterS6(S7);
+
+		if (i == 4)
+			break;
+
+		++i;
+		c = b;
+		b = e;
+		e = d;
+		d = a;
+		a = e;
+		k += 32;
+		beforeS0LT;
+	}
+	while (1);
+
+	afterS7(KX);
+	
+    out[0] = LE32(d);
+	out[1] = LE32(e);
+	out[2] = LE32(b);
+	out[3] = LE32(a);
+}
+
+#endif // TC_MINIMIZE_CODE_SIZE
+
+#ifndef TC_MINIMIZE_CODE_SIZE
 
 void serpent_decrypt(const unsigned __int8 *inBlock, unsigned __int8 *outBlock, unsigned __int8 *ks)
 {
@@ -568,3 +644,71 @@ start:
 	out[2] = LE32(b);
 	out[3] = LE32(e);
 }
+
+#else // TC_MINIMIZE_CODE_SIZE
+
+void ILTf (uint32 *a, uint32 *b, uint32 *c, uint32 *d)
+{ 
+	*c = rotrFixed(*c, 22);
+	*a = rotrFixed(*a, 5);
+	*c ^= *d ^ (*b << 7);
+	*a ^= *b ^ *d;
+	*b = rotrFixed(*b, 1);
+	*d = rotrFixed(*d, 7) ^ *c ^ (*a << 3);
+	*b ^= *a ^ *c;
+	*c = rotrFixed(*c, 3);
+	*a = rotrFixed(*a, 13);
+}
+
+#define beforeI7ILT ILTf (&a,&b,&c,&d)
+#define afterI7ILT ILTf (&d,&a,&b,&e)
+#define afterI6ILT ILTf (&a,&b,&c,&e)
+#define afterI5ILT ILTf (&b,&d,&e,&c)
+#define afterI4ILT ILTf (&b,&c,&e,&a)
+#define afterI3ILT ILTf (&a,&b,&e,&c)
+#define afterI2ILT ILTf (&b,&d,&e,&c)
+#define afterI1ILT ILTf (&a,&b,&c,&e)
+#define afterI0ILT ILTf (&a,&d,&b,&e)
+
+void serpent_decrypt(const unsigned __int8 *inBlock, unsigned __int8 *outBlock, unsigned __int8 *ks)
+{
+	unsigned __int32 a, b, c, d, e;
+	const unsigned __int32 *k = (unsigned __int32 *)ks + 104;
+	unsigned int i=4;
+	unsigned __int32 *in = (unsigned __int32 *) inBlock;
+	unsigned __int32 *out = (unsigned __int32 *) outBlock;
+
+    a = LE32(in[0]);
+	b = LE32(in[1]);
+	c = LE32(in[2]);
+	d = LE32(in[3]);
+
+	beforeI7(KX);
+	goto start;
+
+	do
+	{
+		c = b;
+		b = d;
+		d = e;
+		k -= 32;
+		beforeI7(ILT);
+start:
+		beforeI7(I7); afterI7(KX); 
+		afterI7ILT; afterI7(I6); afterI6(KX); 
+		afterI6ILT; afterI6(I5); afterI5(KX); 
+		afterI5ILT; afterI5(I4); afterI4(KX); 
+		afterI4ILT; afterI4(I3); afterI3(KX); 
+		afterI3ILT; afterI3(I2); afterI2(KX); 
+		afterI2ILT; afterI2(I1); afterI1(KX); 
+		afterI1ILT; afterI1(I0); afterI0(KX);
+	}
+	while (--i != 0);
+	
+    out[0] = LE32(a);
+	out[1] = LE32(d);
+	out[2] = LE32(b);
+	out[3] = LE32(e);
+}
+
+#endif // TC_MINIMIZE_CODE_SIZE

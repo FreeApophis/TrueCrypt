@@ -1,13 +1,31 @@
 /*
- Copyright (c) TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2004-2008 TrueCrypt Foundation. All rights reserved.
 
- Covered by the TrueCrypt License 2.3 the full text of which is contained
+ Governed by the TrueCrypt License 2.4 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
 
 #include "Tcdefs.h"
 #include "Registry.h"
+
+BOOL ReadLocalMachineRegistryDword (char *subKey, char *name, DWORD *value)
+{
+	HKEY hkey = 0;
+	DWORD size = sizeof (*value);
+
+	if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, subKey, 0, KEY_READ, &hkey) != ERROR_SUCCESS)
+		return FALSE;
+
+	if (RegQueryValueEx (hkey, name, NULL, NULL, (BYTE *) value, &size) != ERROR_SUCCESS)
+	{
+		RegCloseKey (hkey);
+		return FALSE;
+	}
+
+	RegCloseKey (hkey);
+	return TRUE;
+}
 
 int ReadRegistryInt (char *subKey, char *name, int defaultValue)
 {
@@ -69,6 +87,25 @@ void WriteRegistryInt (char *subKey, char *name, int value)
 
 	RegSetValueEx (hkey, name, 0, REG_DWORD, (BYTE *) &value, sizeof value);
 	RegCloseKey (hkey);
+}
+
+BOOL WriteLocalMachineRegistryDword (char *subKey, char *name, DWORD value)
+{
+	HKEY hkey = 0;
+	DWORD disp;
+
+	if (RegCreateKeyEx (HKEY_LOCAL_MACHINE, subKey,
+		0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hkey, &disp) != ERROR_SUCCESS)
+		return FALSE;
+
+	if (RegSetValueEx (hkey, name, 0, REG_DWORD, (BYTE *) &value, sizeof value) != ERROR_SUCCESS)
+	{
+		RegCloseKey (hkey);
+		return FALSE;
+	}
+
+	RegCloseKey (hkey);
+	return TRUE;
 }
 
 void WriteRegistryString (char *subKey, char *name, char *str)

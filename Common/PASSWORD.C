@@ -1,11 +1,12 @@
 /*
- Legal Notice: The source code contained in this file has been derived from
- the source code of Encryption for the Masses 2.02a, which is Copyright (c)
- Paul Le Roux and which is covered by the 'License Agreement for Encryption
- for the Masses'. Modifications and additions to that source code contained
- in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.3 the full text of which is contained in the file
- License.txt included in TrueCrypt binary and source code distribution
+ Legal Notice: Some portions of the source code contained in this file were
+ derived from the source code of Encryption for the Masses 2.02a, which is
+ Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
+ Agreement for Encryption for the Masses'. Modifications and additions to
+ the original source code (contained in this file) and all other portions of
+ this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ by the TrueCrypt License 2.4 the full text of which is contained in the
+ file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
 #include "Tcdefs.h"
@@ -27,7 +28,7 @@
 
 void
 VerifyPasswordAndUpdate (HWND hwndDlg, HWND hButton, HWND hPassword,
-			 HWND hVerify, char *szPassword,
+			 HWND hVerify, unsigned char *szPassword,
 			 char *szVerify,
 			 BOOL keyFilesEnabled)
 {
@@ -241,7 +242,7 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 
 		/* Try to decrypt the header */
 
-		nStatus = VolumeReadHeader (buffer, oldPassword, &cryptoInfo);
+		nStatus = VolumeReadHeader (FALSE, buffer, oldPassword, &cryptoInfo, NULL);
 		if (nStatus == ERR_CIPHER_INIT_WEAK_KEY)
 			nStatus = 0;	// We can ignore this error here
 
@@ -271,16 +272,18 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 
 	/* Re-encrypt the volume header */ 
 
-	/* The header will be re-encrypted DISK_WIPE_PASSES times to prevent adversaries from using 
-	   techniques such as magnetic force microscopy or magnetic force scanning tunnelling microscopy
-	   to recover the overwritten header. According to Peter Gutmann, data should be overwritten 22
-	   times (ideally, 35 times). As users might impatiently interupt the process (e.g. on slow media)
-	   we will not wipe with just random data. Instead, during each pass we will write a valid working
-	   header. Each pass will use the same master key, and also the same header key, secondary key (LRW),
-	   etc. derived from the new password. The only item that will be different for each pass will be
-	   the salt. This is sufficient to cause each "version" of the header to differ substantially and
-	   in a random manner from the versions written during the other passes. */
-	for (wipePass = 0; wipePass < DISK_WIPE_PASSES; wipePass++)
+	/* The header will be re-encrypted PRAND_DISK_WIPE_PASSES times to prevent adversaries from using 
+	techniques such as magnetic force microscopy or magnetic force scanning tunnelling microscopy
+	to recover the overwritten header. According to Peter Gutmann, data should be overwritten 22
+	times (ideally, 35 times) using non-random patterns and pseudorandom data. However, as users might
+	impatiently interupt the process (etc.) we will not use the Gutmann's patterns but will write the
+	valid re-encrypted header, i.e. pseudorandom data, and there will be many more passes than Guttman
+	recommends. During each pass we will write a valid working header. Each pass will use the same master
+	key, and also the same header key, secondary key (XTS), etc., derived from the new password. The only
+	item that will be different for each pass will be the salt. This is sufficient to cause each "version"
+	of the header to differ substantially and in a random manner from the versions written during the
+	other passes. */
+	for (wipePass = 0; wipePass < PRAND_DISK_WIPE_PASSES; wipePass++)
 	{
 		// Seek the volume header
 		if (volumeType == VOLUME_TYPE_HIDDEN)
@@ -303,16 +306,20 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 		}
 
 		// Prepare new volume header
-		nStatus = VolumeWriteHeader (buffer,
+		nStatus = VolumeWriteHeader (FALSE,
+			buffer,
 			cryptoInfo->ea,
 			cryptoInfo->mode,
 			newPassword,
 			cryptoInfo->pkcs5,
-			cryptoInfo->master_key,
+			cryptoInfo->master_keydata,
 			cryptoInfo->volume_creation_time,
 			&ci,
+			cryptoInfo->VolumeSize.Value,
 			volumeType == VOLUME_TYPE_HIDDEN ? cryptoInfo->hiddenVolumeSize : 0,
-			wipePass < DISK_WIPE_PASSES - 1);
+			cryptoInfo->EncryptedAreaStart.Value,
+			cryptoInfo->EncryptedAreaLength.Value,
+			wipePass < PRAND_DISK_WIPE_PASSES - 1);
 
 		if (ci != NULL)
 			crypto_close (ci);

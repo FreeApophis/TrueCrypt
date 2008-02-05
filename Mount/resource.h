@@ -15,6 +15,8 @@
 #define IDS_UACSTRING                   110
 #define IDB_LOGO_288DPI                 111
 #define IDB_LOGO_96DPI                  112
+#define IDB_SYS_DRIVEICON               113
+#define IDB_SYS_DRIVEICON_MASK          114
 #define IDC_PREF_MOUNT_READONLY         1000
 #define IDC_PREF_MOUNT_REMOVABLE        1001
 #define IDC_VERIFY                      1002
@@ -42,7 +44,7 @@
 #define IDC_VOLUME_NAME                 1024
 #define IDC_COPY_WIZARD                 1025
 #define IDC_MOUNT_OPTIONS               1026
-#define IDT_TRAVELLER_MOUNT             1027
+#define IDT_TRAVELER_MOUNT              1027
 #define IDT_MOUNT_LETTER                1028
 #define IDT_MOUNT_SETTINGS              1029
 #define IDC_KEY_FILES                   1030
@@ -56,7 +58,7 @@
 #define IDC_VOLUME_TOOLS                1038
 #define IDC_WIPE_CACHE                  1039
 #define IDC_MOUNTALL                    1040
-#define IDD_TRAVELLER_DLG               1041
+#define IDD_TRAVELER_DLG                1041
 #define IDC_SELECT_FILE                 1042
 #define IDD_HOTKEYS_DLG                 1043
 #define IDC_VOLUME_PROPERTIES           1044
@@ -119,7 +121,7 @@
 #define IDM_CLEAR_HISTORY               40004
 #define IDM_FORUMS                      40005
 #define IDM_BENCHMARK                   40006
-#define IDM_TRAVELLER                   40007
+#define IDM_TRAVELER                    40007
 #define IDM_MOUNT_VOLUME_OPTIONS        40008
 #define IDM_FAQ                         40009
 #define IDM_REFRESH_DRIVE_LETTERS       40010
@@ -134,40 +136,49 @@
 #define IDM_WIPE_CACHE                  40019
 #define IDM_PREFERENCES                 40020
 #define IDM_LICENSE                     40021
-#define IDM_EXIT                        40022
-#define IDM_SELECT_FILE                 40023
-#define IDM_SELECT_DEVICE               40024
-#define IDM_VOLUME_PROPERTIES           40025
-#define IDM_LANGUAGE                    40026
-#define IDM_MOUNT_FAVORITE_VOLUMES      40027
-#define IDM_SAVE_FAVORITE_VOLUMES       40028
-#define IDM_BACKUP_VOL_HEADER           40029
-#define IDM_RESTORE_VOL_HEADER          40030
-#define IDM_HOTKEY_SETTINGS             40031
-#define IDM_TC_DOWNLOADS                40032
-#define IDM_NEWS                        40033
-#define IDM_BUGREPORT                   40034
-#define IDM_CONTACT                     40035
-#define IDM_VERSION_HISTORY             40036
-#define IDM_HOMEPAGE                    40037
-#define IDM_TEST_VECTORS                40038
-#define IDM_ADD_REMOVE_VOL_KEYFILES     40039
-#define IDM_REMOVE_ALL_KEYFILES_FROM_VOL 40040
-#define IDM_GENERATE_KEYFILE            40041
-#define IDM_CHANGE_HEADER_KEY_DERIV_ALGO 40042
-#define IDM_KEYFILE_GENERATOR           40043
-#define IDM_SET_DEFAULT_KEYFILES        40044
-#define IDM_ONLINE_TUTORIAL             40045
-#define IDM_ONLINE_HELP                 40046
-#define IDM_DONATIONS                   40047
+#define IDM_SELECT_FILE                 40022
+#define IDM_SELECT_DEVICE               40023
+#define IDM_VOLUME_PROPERTIES           40024
+#define IDM_LANGUAGE                    40025
+#define IDM_MOUNT_FAVORITE_VOLUMES      40026
+#define IDM_SAVE_FAVORITE_VOLUMES       40027
+#define IDM_BACKUP_VOL_HEADER           40028
+#define IDM_RESTORE_VOL_HEADER          40029
+#define IDM_HOTKEY_SETTINGS             40030
+#define IDM_TC_DOWNLOADS                40031
+#define IDM_NEWS                        40032
+#define IDM_BUGREPORT                   40033
+#define IDM_CONTACT                     40034
+#define IDM_VERSION_HISTORY             40035
+#define IDM_HOMEPAGE                    40036
+#define IDM_TEST_VECTORS                40037
+#define IDM_ADD_REMOVE_VOL_KEYFILES     40038
+#define IDM_REMOVE_ALL_KEYFILES_FROM_VOL 40039
+#define IDM_GENERATE_KEYFILE            40040
+#define IDM_CHANGE_HEADER_KEY_DERIV_ALGO 40041
+#define IDM_KEYFILE_GENERATOR           40042
+#define IDM_SET_DEFAULT_KEYFILES        40043
+#define IDM_ONLINE_TUTORIAL             40044
+#define IDM_ONLINE_HELP                 40045
+#define IDM_DONATIONS                   40046
+#define IDM_PERMANENTLY_DECRYPT         40047
+#define IDM_CHANGE_SYS_HEADER_KEY_DERIV_ALGO 40048
+#define IDM_CHANGE_SYS_PASSWORD         40049
+#define IDM_CREATE_RESCUE_DISK          40050
+#define IDM_PERMANENTLY_DECRYPT_SYS     40051
+#define IDM_ENCRYPT_SYS                 40052
+#define IDM_VERIFY_RESCUE_DISK          40053
+#define IDM_SYSTEM_ENCRYPTION_STATUS    40054
+#define IDM_ENCRYPT_SYSTEM_DEVICE       40055
+#define IDM_SYSENC_RESUME               40056
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
-#define _APS_NEXT_RESOURCE_VALUE        113
-#define _APS_NEXT_COMMAND_VALUE         40048
+#define _APS_NEXT_RESOURCE_VALUE        115
+#define _APS_NEXT_COMMAND_VALUE         40057
 #define _APS_NEXT_CONTROL_VALUE         1098
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

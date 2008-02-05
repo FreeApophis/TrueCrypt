@@ -1,84 +1,55 @@
 /*
- Legal Notice: The source code contained in this file has been derived from
- the source code of Encryption for the Masses 2.02a, which is Copyright (c)
- Paul Le Roux and which is covered by the 'License Agreement for Encryption
- for the Masses'. Modifications and additions to that source code contained
- in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.3 the full text of which is contained in the file
- License.txt included in TrueCrypt binary and source code distribution
+ Legal Notice: Some portions of the source code contained in this file were
+ derived from the source code of Encryption for the Masses 2.02a, which is
+ Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
+ Agreement for Encryption for the Masses'. Modifications and additions to
+ the original source code (contained in this file) and all other portions of
+ this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ by the TrueCrypt License 2.4 the full text of which is contained in the
+ file License.txt included in TrueCrypt binary and source code distribution
  packages. */
-
-/* DeviceIoControl values.
-
-*/
 
 #pragma once
 
 #include "Tcdefs.h"
 #include "Common.h"
 #include "Crypto.h"
+#include "Wipe.h"
 
 #ifdef _WIN32
 
-#ifndef CTL_CODE
+// Modifying the following values can introduce incompatibility with previous versions
 
-/* A macro from the NT DDK */
+#define TC_IOCTL(CODE) (CTL_CODE (FILE_DEVICE_UNKNOWN, 0x800 + (CODE), METHOD_BUFFERED, FILE_ANY_ACCESS))
 
-#define CTL_CODE( DeviceType, Function, Method, Access ) ( \
-    ((DeviceType) << 16) | ((Access) << 14) | ((Function) << 2) | (Method) \
-)
+#define TC_IOCTL_GET_DRIVER_VERSION						TC_IOCTL (1)
+#define TC_IOCTL_GET_BOOT_LOADER_VERSION				TC_IOCTL (2)
+#define TC_IOCTL_MOUNT_VOLUME							TC_IOCTL (3)
+#define TC_IOCTL_DISMOUNT_VOLUME						TC_IOCTL (4)
+#define TC_IOCTL_DISMOUNT_ALL_VOLUMES					TC_IOCTL (5)
+#define TC_IOCTL_GET_MOUNTED_VOLUMES					TC_IOCTL (6)
+#define TC_IOCTL_GET_VOLUME_PROPERTIES					TC_IOCTL (7)
+#define TC_IOCTL_GET_DEVICE_REFCOUNT					TC_IOCTL (8)
+#define TC_IOCTL_WAS_REFERENCED_DEVICE_DELETED			TC_IOCTL (9)
+#define TC_IOCTL_IS_ANY_VOLUME_MOUNTED					TC_IOCTL (10)
+#define TC_IOCTL_GET_PASSWORD_CACHE_STATUS				TC_IOCTL (11)
+#define TC_IOCTL_WIPE_PASSWORD_CACHE					TC_IOCTL (12)
+#define TC_IOCTL_OPEN_TEST								TC_IOCTL (13)
+#define TC_IOCTL_GET_DRIVE_PARTITION_INFO				TC_IOCTL (14)
+#define TC_IOCTL_GET_DRIVE_GEOMETRY						TC_IOCTL (15)
+#define TC_IOCTL_PROBE_REAL_DRIVE_SIZE					TC_IOCTL (16)
+#define TC_IOCTL_GET_RESOLVED_SYMLINK					TC_IOCTL (17)
+#define TC_IOCTL_GET_BOOT_ENCRYPTION_STATUS				TC_IOCTL (18)
+#define TC_IOCTL_BOOT_ENCRYPTION_SETUP					TC_IOCTL (19)
+#define TC_IOCTL_ABORT_BOOT_ENCRYPTION_SETUP			TC_IOCTL (20)
+#define TC_IOCTL_GET_BOOT_ENCRYPTION_SETUP_RESULT		TC_IOCTL (21)
+#define TC_IOCTL_GET_BOOT_DRIVE_VOLUME_PROPERTIES		TC_IOCTL (22)
+#define TC_IOCTL_REOPEN_BOOT_VOLUME_HEADER				TC_IOCTL (23)
 
-#endif
+// Legacy IOCTLs used before version 5.0
+#define TC_IOCTL_LEGACY_GET_DRIVER_VERSION		466968
+#define TC_IOCTL_LEGACY_GET_MOUNTED_VOLUMES		466948
 
-/* More macros from the NT DDK */
-
-#ifndef METHOD_BUFFERED
-#define METHOD_BUFFERED 0
-#endif
-
-#ifndef FILE_ANY_ACCESS
-#define FILE_ANY_ACCESS 0
-#endif
-
-#ifndef FILE_DEVICE_DISK
-#define FILE_DEVICE_DISK 0x00000007
-#endif
-
-#ifndef IOCTL_DISK_BASE
-#define IOCTL_DISK_BASE FILE_DEVICE_DISK
-#endif
-
-/* These values originate from the following NT DDK macro :
-
-#define ANYNAME CTL_CODE(IOCTL_DISK_BASE, 0x800, METHOD_BUFFERED, \
-   FILE_ANY_ACCESS)
-
-#define ANYNAME2 CTL_CODE(IOCTL_DISK_BASE, 0x801, METHOD_BUFFERED, \
-   FILE_ANY_ACCESS)
-
-etc... */
-
-/* Public driver interface codes */
-
-#define MOUNT			466944	/* Mount a volume or partition */
-#define MOUNT_LIST_ALL	466948	/* Return list of mounted volumes */
-#define OPEN_TEST		466952	/* Open a file at ring0 */
-#define UNMOUNT			466956	/* Unmount a volume */
-#define WIPE_CACHE		466960	/* Wipe the driver password cache */
-#define HALT_SYSTEM		466964	/* Halt system; (only NT when compiled with debug) */
-#define DRIVER_VERSION		466968	/* Current driver version */
-#define CACHE_STATUS		466988	/* Get password cache status */
-#define VOLUME_PROPERTIES	466992	/* Get mounted volume properties */
-#define RESOLVE_SYMLINK		466996	/* Resolve symbolic link to target */
-#define DEVICE_REFCOUNT		467000	/* Return reference count of root device object */
-#define DISK_GET_PARTITION_INFO		467004
-#define DISK_GET_GEOMETRY			467008
-#define REFERENCED_DEV_DELETED		467012
-#define MOUNT_LIST					467016
-#define UNMOUNT_ALL			475112	/* Unmount all volumes */
-
-#define TC_FIRST_PRIVATE	MOUNT	/* First private control code */
-#define TC_LAST_PRIVATE	UNMOUNT_ALL	/* Last private control code */
 
 /* Start of driver interface structures, the size of these structures may
    change between versions; so make sure you first send DRIVER_VERSION to
@@ -95,8 +66,6 @@ typedef struct
 	BOOL bCache;						/* Cache passwords in driver */
 	int nDosDriveNo;					/* Drive number to mount */
 	int BytesPerSector;
-	BOOL bSystemVolume;					/* Volume is used by system and hidden from user */
-	BOOL bPersistentVolume;				/* Volume is hidden from user */
 	BOOL bMountReadOnly;				/* Mount volume in read-only mode */
 	BOOL bMountRemovable;				/* Mount volume as removable media */
 	BOOL bExclusiveAccess;				/* Open host file/device in exclusive access mode */
@@ -136,8 +105,6 @@ typedef struct
 	int pkcs5Iterations;
 	BOOL hiddenVolume;
 	BOOL readOnly;
-	BOOL systemVolume;
-	BOOL persistentVolume;
 	unsigned __int64 volumeCreationTime;
 	unsigned __int64 headerCreationTime;
 	unsigned __int64 totalBytesRead;
@@ -155,6 +122,7 @@ typedef struct
 {
 	WCHAR deviceName[TC_MAX_PATH];
 	PARTITION_INFORMATION partInfo;
+	BOOL IsGPT;
 }
 DISK_PARTITION_INFO_STRUCT;
 
@@ -167,8 +135,63 @@ DISK_GEOMETRY_STRUCT;
 
 typedef struct
 {
+	WCHAR DeviceName[TC_MAX_PATH];
+	LARGE_INTEGER RealDriveSize;
+} ProbeRealDriveSizeRequest;
+
+typedef struct
+{
 	short wszFileName[TC_MAX_PATH];	/* Volume to be "open tested" */
 } OPEN_TEST_STRUCT;
+
+
+typedef enum
+{
+	SetupNone = 0,
+	SetupEncryption,
+	SetupDecryption
+} BootEncryptionSetupMode;
+
+
+typedef struct
+{
+	BOOL DeviceFilterActive;
+
+	uint16 BootLoaderVersion;
+
+	BOOL DriveMounted;
+	BOOL VolumeHeaderPresent;
+	BOOL DriveEncrypted;
+
+	LARGE_INTEGER BootDriveLength;
+
+	int64 ConfiguredEncryptedAreaStart;
+	int64 ConfiguredEncryptedAreaEnd;
+	int64 EncryptedAreaStart;
+	int64 EncryptedAreaEnd;
+
+	uint32 VolumeHeaderSaltCrc32;
+
+	BOOL SetupInProgress;
+	BootEncryptionSetupMode SetupMode;
+	BOOL TransformWaitingForIdle;
+
+	uint32 HibernationPreventionCount;
+
+} BootEncryptionStatus;
+
+
+typedef struct
+{
+	BootEncryptionSetupMode SetupMode;
+	WipeAlgorithmId WipeAlgorithm;
+} BootEncryptionSetupRequest;
+
+
+typedef struct
+{
+	Password VolumePassword;
+} ReopenBootVolumeHeaderRequest;
 
 
 #pragma pack (pop)

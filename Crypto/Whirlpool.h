@@ -1,6 +1,11 @@
 #ifndef WHIRLPOOL_H
 #define WHIRLPOOL_H 1
 
+#if defined(__cplusplus)
+extern "C"
+{
+#endif
+
 #ifndef PORTABLE_C__
 #define PORTABLE_C__
 
@@ -136,5 +141,9 @@ typedef NESSIEstruct WHIRLPOOL_CTX;
 void WHIRLPOOL_add(const unsigned char * const source, unsigned __int32 sourceBits, struct NESSIEstruct * const structpointer);
 void WHIRLPOOL_finalize(struct NESSIEstruct * const structpointer, unsigned char * const result);
 void WHIRLPOOL_init(struct NESSIEstruct * const structpointer); 
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif /* WHIRLPOOL_H */

@@ -80,6 +80,7 @@
 			<Tool
 				Name="VCManifestTool"
 				AdditionalManifestFiles="Setup.manifest"
+				EmbedManifest="false"
 			/>
 			<Tool
 				Name="VCXDCMakeTool"
@@ -98,6 +99,7 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
+				CommandLine="md &quot;..\Debug\Setup Files&quot; 2&gt;NUL:&#x0D;&#x0A;copy Debug\TrueCryptSetup.exe &quot;..\Debug\Setup Files\TrueCrypt Setup.exe&quot; &gt;NUL:&#x0D;&#x0A;copy Debug\TrueCryptSetup.exe.manifest &quot;..\Debug\Setup Files\TrueCrypt Setup.exe.manifest&quot; &gt;NUL:&#x0D;&#x0A;"
 			/>
 		</Configuration>
 		<Configuration
@@ -150,10 +152,9 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalOptions="/IGNORE:4089"
-				AdditionalDependencies="LIBCMT.LIB atls.lib"
+				AdditionalDependencies="atls.lib"
 				OutputFile="$(OutDir)/TrueCryptSetup.exe"
 				LinkIncremental="1"
-				IgnoreAllDefaultLibraries="true"
 				GenerateDebugInformation="false"
 				GenerateMapFile="true"
 				SubSystem="2"
@@ -186,7 +187,7 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				CommandLine="copy Release\TrueCryptSetup.exe &quot;..\Release\TrueCrypt Setup.exe&quot;"
+				CommandLine="copy Release\TrueCryptSetup.exe &quot;..\Release\Setup Files\TrueCrypt Setup.exe&quot;"
 			/>
 		</Configuration>
 	</Configurations>
@@ -211,12 +212,44 @@
 				>
 			</File>
 			<File
+				RelativePath=".\SelfExtract.c"
+				>
+			</File>
+			<File
 				RelativePath=".\Setup.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						CompileAs="2"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						CompileAs="2"
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\Wizard.c"
+				>
+			</File>
+			<File
+				RelativePath="..\Common\Xml.c"
 				>
 			</File>
 			<Filter
 				Name="Common"
 				>
+				<File
+					RelativePath="..\Common\BootEncryption.cpp"
+					>
+				</File>
 				<File
 					RelativePath="..\Common\Crc.c"
 					>
@@ -230,15 +263,15 @@
 					>
 				</File>
 				<File
+					RelativePath="..\Common\Inflate.c"
+					>
+				</File>
+				<File
 					RelativePath="..\Common\Language.c"
 					>
 				</File>
 				<File
 					RelativePath="..\Common\Registry.c"
-					>
-				</File>
-				<File
-					RelativePath="..\Common\Xml.c"
 					>
 				</File>
 			</Filter>
@@ -261,11 +294,19 @@
 				>
 			</File>
 			<File
+				RelativePath="..\Common\Crc.h"
+				>
+			</File>
+			<File
 				RelativePath=".\Dir.h"
 				>
 			</File>
 			<File
 				RelativePath="..\Common\Dlgcode.h"
+				>
+			</File>
+			<File
+				RelativePath="..\Common\Inflate.h"
 				>
 			</File>
 			<File
@@ -277,11 +318,15 @@
 				>
 			</File>
 			<File
+				RelativePath="..\Common\Resource.h"
+				>
+			</File>
+			<File
 				RelativePath=".\Resource.h"
 				>
 			</File>
 			<File
-				RelativePath="..\Common\Resource.h"
+				RelativePath=".\SelfExtract.h"
 				>
 			</File>
 			<File
@@ -290,6 +335,10 @@
 			</File>
 			<File
 				RelativePath="..\Common\Tcdefs.h"
+				>
+			</File>
+			<File
+				RelativePath=".\Wizard.h"
 				>
 			</File>
 		</Filter>
@@ -304,6 +353,22 @@
 			</File>
 			<File
 				RelativePath=".\Setup.rc"
+				>
+			</File>
+			<File
+				RelativePath="..\Common\TrueCrypt.ico"
+				>
+			</File>
+			<File
+				RelativePath=".\TrueCrypt_setup.bmp"
+				>
+			</File>
+			<File
+				RelativePath=".\TrueCrypt_setup_background.bmp"
+				>
+			</File>
+			<File
+				RelativePath="..\Common\TrueCrypt_Volume.ico"
 				>
 			</File>
 			<Filter

@@ -41,7 +41,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\Common;..\"
+				AdditionalIncludeDirectories="&quot;$(ProjectDir)\..&quot;;&quot;$(ProjectDir)\..\Common&quot;"
 				PreprocessorDefinitions="WIN32;_DEBUG;_LIB;_CRT_SECURE_NO_DEPRECATE;_CRT_NON_CONFORMING_SWPRINTFS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="0"
@@ -106,7 +106,7 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalIncludeDirectories="..\Common;..\"
+				AdditionalIncludeDirectories="&quot;$(ProjectDir)\..&quot;;&quot;$(ProjectDir)\..\Common&quot;"
 				PreprocessorDefinitions="WIN32;NDEBUG;_LIB;_CRT_SECURE_NO_DEPRECATE;_CRT_NON_CONFORMING_SWPRINTFS"
 				RuntimeLibrary="0"
 				BufferSecurityCheck="true"
@@ -220,6 +220,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Sha2.c"
+				>
+			</File>
+			<File
 				RelativePath=".\Twofish.c"
 				>
 			</File>
@@ -295,6 +299,10 @@
 			</File>
 			<File
 				RelativePath=".\Sha1.h"
+				>
+			</File>
+			<File
+				RelativePath=".\Sha2.h"
 				>
 			</File>
 			<File

@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 4,3,1,0
- PRODUCTVERSION 4,3,1,0
+ FILEVERSION 5,0,0,0
+ PRODUCTVERSION 5,0,0,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -46,13 +46,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Setup"
-            VALUE "FileVersion", "4.3a"
+            VALUE "FileVersion", "5.0"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt Setup.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "4.3a"
-            VALUE "SpecialBuild", "2007-05-03"
+            VALUE "ProductVersion", "5.0"
+            VALUE "SpecialBuild", "2008-02-05"
         END
     END
     BLOCK "VarFileInfo"
@@ -87,34 +87,96 @@ CAPTION "Uninstall TrueCrypt"
 CLASS "CustomDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    LTEXT           "Uninstall TrueCrypt fr&om:",IDT_UNINSTALL_DIR,8,10,166,8
-    EDITTEXT        IDC_DESTINATION,7,21,277,14,ES_AUTOHSCROLL
-    PUSHBUTTON      "&Browse...",IDC_BROWSE,292,21,50,14
-    LISTBOX         IDC_FILES,7,44,335,159,LBS_NOINTEGRALHEIGHT | LBS_NOSEL | WS_VSCROLL
+    LTEXT           "Click Uninstall to remove TrueCrypt from this system.",IDT_UNINSTALL_DIR,8,8,334,8
+    LISTBOX         IDC_LOG_WINDOW,7,21,335,179,LBS_NOINTEGRALHEIGHT | LBS_NOSEL | WS_VSCROLL
     DEFPUSHBUTTON   "&Uninstall",IDC_UNINSTALL,236,213,50,14
     PUSHBUTTON      "Cancel",IDCANCEL,292,213,50,14
+    CONTROL         "Create System &Restore point",IDC_SYSTEM_RESTORE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,10,215,194,10
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,2,206,347,1,WS_EX_STATICEDGE
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,1,348,1,WS_EX_STATICEDGE
 END
 
-IDD_INSTALL DIALOGEX 0, 0, 393, 258
-STYLE DS_SETFONT | DS_SETFOREGROUND | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "TrueCrypt Setup"
+IDD_INSTALL_OPTIONS_PAGE_DLG DIALOGEX 0, 0, 346, 152
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    EDITTEXT        IDC_DESTINATION,11,41,260,13,ES_AUTOHSCROLL
+    PUSHBUTTON      "Bro&wse...",IDC_BROWSE,278,40,59,14
+    CONTROL         "Install &for all users",IDC_ALL_USERS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,77,168,11
+    CONTROL         "Associate the .tc file &extension with TrueCrypt",IDC_FILE_TYPE,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,113,232,11
+    CONTROL         "Add TrueCrypt to &Start menu",IDC_PROG_GROUP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,89,168,11
+    CONTROL         "Create System &Restore point",IDC_SYSTEM_RESTORE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,125,194,11
+    CONTROL         "Add TrueCrypt icon to &desktop",IDC_DESKTOP_ICON,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,101,168,11
+    LTEXT           "Please select or type the location where you want to install the TrueCrypt program files. If the specified folder does not exist, it will be automatically created.",IDT_INSTALL_DESTINATION,11,14,319,25
+END
+
+IDD_INFO_PAGE_DLG DIALOGEX 0, 0, 217, 156
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LTEXT           "",IDC_BOX_HELP,0,10,217,146
+END
+
+IDD_INTRO_PAGE_DLG DIALOGEX 0, 0, 346, 152
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    CONTROL         "",IDC_AGREE,"Button",BS_AUTORADIOBUTTON,1,129,304,10
+    CONTROL         "",IDC_DISAGREE,"Button",BS_AUTORADIOBUTTON,1,140,288,10
+    LTEXT           "",IDC_BOX_HELP,0,0,346,22
+    EDITTEXT        IDC_LICENSE_TEXT,0,23,345,100,ES_MULTILINE | WS_VSCROLL | NOT WS_TABSTOP
+END
+
+IDD_INSTL_DLG DIALOGEX 0, 0, 374, 231
+STYLE DS_SETFONT | DS_SETFOREGROUND | DS_FIXEDSYS | DS_CENTER | WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "TrueCrypt Setup Wizard"
 CLASS "CustomDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    EDITTEXT        IDC_DESTINATION,74,172,242,13,ES_AUTOHSCROLL
-    PUSHBUTTON      "&Browse...",IDC_BROWSE,322,171,50,14
-    CONTROL         "Install for all users",IDC_ALL_USERS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,13,191,168,10
-    CONTROL         "Associate '.tc' file &extension with TrueCrypt",IDC_FILE_TYPE,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,187,197,194,10
-    CONTROL         "Add TrueCrypt to &Start menu",IDC_PROG_GROUP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,13,203,168,10
-    CONTROL         "Create System &Restore point",IDC_SYSTEM_RESTORE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,187,209,194,10
-    CONTROL         "Add TrueCrypt icon to &desktop",IDC_DESKTOP_ICON,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,13,215,168,11
-    DEFPUSHBUTTON   "&Install",IDC_INSTALL,279,238,50,14
-    PUSHBUTTON      "Cancel",IDCANCEL,336,238,50,14
-    RTEXT           "Install &to:",IDT_INSTALL_DIR,6,174,66,8
-    EDITTEXT        IDC_LICENSE,6,6,381,84,ES_MULTILINE | ES_READONLY | WS_VSCROLL | NOT WS_TABSTOP
-    LISTBOX         IDC_FILES,6,95,381,60,LBS_NOINTEGRALHEIGHT | LBS_DISABLENOSCROLL | LBS_NOSEL | WS_VSCROLL
-    GROUPBOX        "Installation Options",IDT_INSTALL_OPTIONS,6,158,381,74
+    PUSHBUTTON      "&Help",IDHELP,150,211,50,14
+    PUSHBUTTON      "",IDC_PREV,209,211,50,14
+    DEFPUSHBUTTON   "",IDC_NEXT,259,211,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,317,211,50,14
+    LTEXT           "",IDC_BOX_TITLE,11,5,324,12,0,WS_EX_TRANSPARENT
+    LTEXT           "",IDC_POS_BOX,14,42,346,155,0,WS_EX_TRANSPARENT
+    CONTROL         107,IDC_BITMAP_SETUP_WIZARD,"Static",SS_BITMAP | SS_NOTIFY,139,3,228,30
+    CONTROL         109,IDC_SETUP_WIZARD_BKG,"Static",SS_BITMAP,0,0,11,10
+    CONTROL         "",IDC_SETUP_WIZARD_GFX_AREA,"Static",SS_GRAYRECT | NOT WS_VISIBLE,0,0,378,36,WS_EX_TRANSPARENT | WS_EX_STATICEDGE
+    CONTROL         "",IDC_HR_BOTTOM,"Static",SS_ETCHEDHORZ,67,204,306,1,WS_EX_STATICEDGE
+    CONTROL         "",IDC_HR,"Static",SS_ETCHEDHORZ,0,35,399,1,WS_EX_STATICEDGE
+    LTEXT           "TrueCrypt Installer",IDC_STATIC,4,200,62,8,WS_DISABLED
+    LTEXT           "",IDC_BOX_INFO,18,18,317,13,0,WS_EX_TRANSPARENT
+END
+
+IDD_EXTRACTION_OPTIONS_PAGE_DLG DIALOGEX 0, 0, 346, 152
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    PUSHBUTTON      "Bro&wse...",IDC_BROWSE,277,32,62,14
+    EDITTEXT        IDC_DESTINATION,6,33,264,12,ES_AUTOHSCROLL
+    LTEXT           "Please select or type the location where you want to place the extracted files:",IDT_EXTRACT_DESTINATION,6,15,333,17
+    CONTROL         "&Open the destination location when finished",IDC_OPEN_CONTAINING_FOLDER,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,91,318,16
+    LTEXT           "",IDC_BOX_HELP,6,56,333,32
+END
+
+IDD_WIZARD_MODE_PAGE_DLG DIALOGEX 0, 0, 346, 152
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    CONTROL         "&Install",IDC_WIZARD_MODE_INSTALL,"Button",BS_AUTORADIOBUTTON,6,14,232,10
+    CONTROL         "&Extract",IDC_WIZARD_MODE_EXTRACT_ONLY,"Button",BS_AUTORADIOBUTTON,6,60,232,10
+    LTEXT           "",IDC_BOX_HELP,42,77,286,64
+    LTEXT           "",IDC_BOX_HELP2,42,30,286,29
+END
+
+IDD_PROGRESS_PAGE_DLG DIALOGEX 0, 0, 346, 152
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LISTBOX         IDC_LOG_WINDOW,0,1,345,131,LBS_NOINTEGRALHEIGHT | LBS_DISABLENOSCROLL | LBS_NOSEL | WS_VSCROLL
+    CONTROL         "",IDC_PROGRESS_BAR,"msctls_progress32",WS_BORDER | 0x1,0,139,345,12
 END
 
 
@@ -170,16 +232,70 @@ BEGIN
         BOTTOMMARGIN, 229
     END
 
-    IDD_INSTALL, DIALOG
+    IDD_INSTALL_OPTIONS_PAGE_DLG, DIALOG
     BEGIN
         LEFTMARGIN, 7
-        RIGHTMARGIN, 386
+        RIGHTMARGIN, 339
         TOPMARGIN, 7
-        BOTTOMMARGIN, 253
+        BOTTOMMARGIN, 147
+    END
+
+    IDD_INFO_PAGE_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 210
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 149
+    END
+
+    IDD_INTRO_PAGE_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 339
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 145
+    END
+
+    IDD_INSTL_DLG, DIALOG
+    BEGIN
+        RIGHTMARGIN, 367
+        TOPMARGIN, 1
+        BOTTOMMARGIN, 229
+        HORZGUIDE, 196
+    END
+
+    IDD_EXTRACTION_OPTIONS_PAGE_DLG, DIALOG
+    BEGIN
+        RIGHTMARGIN, 343
+        BOTTOMMARGIN, 147
+    END
+
+    IDD_WIZARD_MODE_PAGE_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 339
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 145
+    END
+
+    IDD_PROGRESS_PAGE_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 339
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 145
     END
 END
 #endif    // APSTUDIO_INVOKED
 
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Bitmap
+//
+
+IDB_SETUP_WIZARD        BITMAP                  "TrueCrypt_setup.bmp"
+IDB_SETUP_WIZARD_BKG    BITMAP                  "TrueCrypt_setup_background.bmp"
 #endif    // English (U.S.) resources
 /////////////////////////////////////////////////////////////////////////////
 

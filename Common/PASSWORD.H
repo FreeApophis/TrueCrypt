@@ -1,21 +1,22 @@
 /*
- Legal Notice: The source code contained in this file has been derived from
- the source code of Encryption for the Masses 2.02a, which is Copyright (c)
- Paul Le Roux and which is covered by the 'License Agreement for Encryption
- for the Masses'. Modifications and additions to that source code contained
- in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.3 the full text of which is contained in the file
- License.txt included in TrueCrypt binary and source code distribution
+ Legal Notice: Some portions of the source code contained in this file were
+ derived from the source code of Encryption for the Masses 2.02a, which is
+ Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
+ Agreement for Encryption for the Masses'. Modifications and additions to
+ the original source code (contained in this file) and all other portions of
+ this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ by the TrueCrypt License 2.4 the full text of which is contained in the
+ file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
 #ifndef PASSWORD_H
-#define PASSWORD_H 1
+#define PASSWORD_H
 
 // User text input limits
 #define MIN_PASSWORD			1		// Minimum password length
 #define MAX_PASSWORD			64		// Maximum password length
 
-#define PASSWORD_LEN_WARNING	12		// Display a warning when a password is shorter than this
+#define PASSWORD_LEN_WARNING	20		// Display a warning when a password is shorter than this
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,21 +24,23 @@ extern "C" {
 
 typedef struct
 {
-	int Length;
+	// Modifying this structure can introduce incompatibility with previous versions
+	__int32 Length;
 	unsigned char Text[MAX_PASSWORD + 1];
+	char Pad[3]; // keep 64-bit alignment
 } Password;
 
 #if defined(_WIN32) && !defined(NT4_DRIVER)
 
-void VerifyPasswordAndUpdate ( HWND hwndDlg , HWND hButton , HWND hPassword , HWND hVerify , char *szPassword , char *szVerify, BOOL keyFilesEnabled );
+void VerifyPasswordAndUpdate ( HWND hwndDlg , HWND hButton , HWND hPassword , HWND hVerify , unsigned char *szPassword , char *szVerify, BOOL keyFilesEnabled );
 BOOL CheckPasswordLength (HWND hwndDlg, HWND hwndItem);		
 BOOL CheckPasswordCharEncoding (HWND hPassword, Password *ptrPw);			
 int ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int pkcs5, HWND hwndDlg);
 
-#endif
+#endif	// defined(_WIN32) && !defined(NT4_DRIVER)
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif	// PASSWORD_H

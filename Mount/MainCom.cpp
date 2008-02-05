@@ -1,34 +1,36 @@
 /*
- Copyright (c) TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2007-2008 TrueCrypt Foundation. All rights reserved.
 
- Covered by the TrueCrypt License 2.3 the full text of which is contained
+ Governed by the TrueCrypt License 2.4 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
 
 #include <atlcomcli.h>
 #include <atlconv.h>
-#include <strsafe.h>
 #include <windows.h>
 #include "BaseCom.h"
+#include "BootEncryption.h"
 #include "Dlgcode.h"
 #include "MainCom.h"
 #include "MainCom_h.h"
 #include "MainCom_i.c"
 #include "Password.h"
 
+using namespace TrueCrypt;
+
 static volatile LONG ObjectCount = 0;
 
-class TrueCrypt : public ITrueCrypt
+class TrueCryptMainCom : public ITrueCryptMainCom
 {
 
 public:
-	TrueCrypt (DWORD messageThreadId) : RefCount (0), MessageThreadId (messageThreadId)
+	TrueCryptMainCom (DWORD messageThreadId) : RefCount (0), MessageThreadId (messageThreadId)
 	{
 		InterlockedIncrement (&ObjectCount);
 	}
 
-	~TrueCrypt ()
+	~TrueCryptMainCom ()
 	{
 		if (InterlockedDecrement (&ObjectCount) == 0)
 			PostThreadMessage (MessageThreadId, WM_APP, 0, 0);
@@ -52,7 +54,7 @@ public:
 
 	virtual HRESULT STDMETHODCALLTYPE QueryInterface (REFIID riid, void **ppvObject)
 	{
-		if (riid == IID_IUnknown || riid == IID_ITrueCrypt)
+		if (riid == IID_IUnknown || riid == IID_ITrueCryptMainCom)
 			*ppvObject = this;
 		else
 		{
@@ -76,10 +78,30 @@ public:
 		return ::RestoreVolumeHeader ((HWND) hwndDlg, CW2A (lpszVolume));
 	}
 
+	virtual DWORD STDMETHODCALLTYPE CallDriver (DWORD ioctl, BSTR input, BSTR *output)
+	{
+		return BaseCom::CallDriver (ioctl, input, output);
+	}
+
 	virtual int STDMETHODCALLTYPE ChangePassword (BSTR volumePath, Password *oldPassword, Password *newPassword, int pkcs5, LONG_PTR hWnd)
 	{
 		USES_CONVERSION;
 		return ::ChangePwd (CW2A (volumePath), oldPassword, newPassword, pkcs5, (HWND) hWnd);
+	}
+
+	virtual DWORD STDMETHODCALLTYPE ReadWriteFile (BOOL write, BOOL device, BSTR filePath, BSTR *bufferBstr, unsigned __int64 offset, unsigned __int32 size, DWORD *sizeDone)
+	{
+		return BaseCom::ReadWriteFile (write, device, filePath, bufferBstr, offset, size, sizeDone);
+	}
+
+	virtual DWORD STDMETHODCALLTYPE RegisterFilterDriver (BOOL registerDriver)
+	{
+		return BaseCom::RegisterFilterDriver (registerDriver);
+	}
+
+	virtual DWORD STDMETHODCALLTYPE SetDriverServiceStartType (DWORD startType)
+	{
+		return BaseCom::SetDriverServiceStartType (startType);
 	}
 
 protected:
@@ -90,13 +112,13 @@ protected:
 
 extern "C" BOOL ComServerMain ()
 {
-	TrueCryptFactory<TrueCrypt> factory (GetCurrentThreadId ());
+	TrueCryptFactory<TrueCryptMainCom> factory (GetCurrentThreadId ());
 	DWORD cookie;
 
 	if (IsUacSupported ())
 		UacElevated = TRUE;
 
-	if (CoRegisterClassObject (CLSID_TrueCrypt, (LPUNKNOWN) &factory,
+	if (CoRegisterClassObject (CLSID_TrueCryptMainCom, (LPUNKNOWN) &factory,
 		CLSCTX_LOCAL_SERVER, REGCLS_SINGLEUSE, &cookie) != S_OK)
 		return FALSE;
 
@@ -120,15 +142,26 @@ extern "C" BOOL ComServerMain ()
 }
 
 
-static BOOL ComGetInstance (HWND hWnd, ITrueCrypt **tcServer)
+static BOOL ComGetInstance (HWND hWnd, ITrueCryptMainCom **tcServer)
 {
-	return ComGetInstanceBase (hWnd, CLSID_TrueCrypt, IID_ITrueCrypt, (void **) tcServer);
+	return ComGetInstanceBase (hWnd, CLSID_TrueCryptMainCom, IID_ITrueCryptMainCom, (void **) tcServer);
+}
+
+
+ITrueCryptMainCom *GetElevatedInstance (HWND parent)
+{
+	ITrueCryptMainCom *instance;
+
+	if (!ComGetInstance (parent, &instance))
+		throw UserAbort (SRC_POS);
+
+	return instance;
 }
 
 
 extern "C" int UacBackupVolumeHeader (HWND hwndDlg, BOOL bRequireConfirmation, char *lpszVolume)
 {
-	CComPtr<ITrueCrypt> tc;
+	CComPtr<ITrueCryptMainCom> tc;
 	int r;
 
 	CoInitialize (NULL);
@@ -146,7 +179,7 @@ extern "C" int UacBackupVolumeHeader (HWND hwndDlg, BOOL bRequireConfirmation, c
 
 extern "C" int UacRestoreVolumeHeader (HWND hwndDlg, char *lpszVolume)
 {
-	CComPtr<ITrueCrypt> tc;
+	CComPtr<ITrueCryptMainCom> tc;
 	int r;
 
 	CoInitialize (NULL);
@@ -164,7 +197,7 @@ extern "C" int UacRestoreVolumeHeader (HWND hwndDlg, char *lpszVolume)
 
 extern "C" int UacChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int pkcs5, HWND hwndDlg)
 {
-	CComPtr<ITrueCrypt> tc;
+	CComPtr<ITrueCryptMainCom> tc;
 	int r;
 
 	if (ComGetInstance (hwndDlg, &tc))

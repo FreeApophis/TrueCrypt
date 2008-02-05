@@ -1,16 +1,19 @@
 /*
- Legal Notice: The source code contained in this file has been derived from
- the source code of Encryption for the Masses 2.02a, which is Copyright (c)
- Paul Le Roux and which is covered by the 'License Agreement for Encryption
- for the Masses'. Modifications and additions to that source code contained
- in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.3 the full text of which is contained in the file
- License.txt included in TrueCrypt binary and source code distribution
+ Legal Notice: Some portions of the source code contained in this file were
+ derived from the source code of Encryption for the Masses 2.02a, which is
+ Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
+ Agreement for Encryption for the Masses'. Modifications and additions to
+ the original source code (contained in this file) and all other portions of
+ this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ by the TrueCrypt License 2.4 the full text of which is contained in the
+ file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
 #include "Tcdefs.h"
 #include "Crc.h"
 #include "Common/Endian.h"
+
+#ifndef TC_MINIMIZE_CODE_SIZE
 
 /* CRC polynomial 0x04c11db7 */
 unsigned __int32 crc_32_tab[]=
@@ -49,7 +52,7 @@ unsigned __int32 crc_32_tab[]=
 	0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94, 0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
-unsigned __int32 crc32 (unsigned char *data, int length)
+unsigned __int32 GetCrc32 (unsigned char *data, int length)
 {
 	unsigned __int32 CRC = 0xffffffff;
 
@@ -89,7 +92,42 @@ BOOL crc32_selftests (void)
 
 	bSuccess = CRC_SELFTEST == (crc ^ 0xffffffff);
 
-	bSuccess &= crc32 ((unsigned char *)crc_32_tab, sizeof crc_32_tab) == CRC_SELFTEST;
+	bSuccess &= GetCrc32 ((unsigned char *)crc_32_tab, sizeof crc_32_tab) == CRC_SELFTEST;
 
 	return bSuccess;
 }
+
+#else // TC_MINIMIZE_CODE_SIZE
+
+unsigned __int32 GetCrc32 (unsigned char *data, int length)
+{
+    unsigned __int32 r = 0xFFFFFFFFUL;
+	int i, b;
+
+    for (i = 0; i < length; ++i)
+    {
+        r ^= data[i];
+        for (b = 0; b < 8; ++b)
+        {
+            if ((unsigned __int8) r & 1)
+                r = (r >> 1) ^ 0xEDB88320UL;
+            else
+                r >>= 1;
+        }
+    }
+
+	return r ^ 0xFFFFFFFFUL;
+}
+
+BOOL crc32_selftests ()
+{
+	unsigned __int8 testData[32];
+	unsigned __int8 i;
+
+	for (i = 0; i < sizeof (testData); ++i)
+		testData[i] = i;
+
+	return GetCrc32 (testData, sizeof (testData)) == 0x91267E8AUL;
+}
+
+#endif // TC_MINIMIZE_CODE_SIZE

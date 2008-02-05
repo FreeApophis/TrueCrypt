@@ -1,7 +1,7 @@
 /*
- Copyright (c) TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2005 TrueCrypt Foundation. All rights reserved.
 
- Covered by the TrueCrypt License 2.3 the full text of which is contained
+ Governed by the TrueCrypt License 2.4 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -106,9 +106,9 @@ BOOL LoadLanguageFile ()
 	DWORD size;
 	BYTE *res;
 	char *xml, *header;
-	char langId[6] = "en", attr[2048], key[128];
+	char langId[6] = "en", attr[32768], key[128];
 	BOOL defaultLangParsed = FALSE, langFound = FALSE;
-	WCHAR wattr[2048];
+	WCHAR wattr[32768];
 	int i, intKey, len;
 
 	char *xmlElements[] = {"control", "string", 0};

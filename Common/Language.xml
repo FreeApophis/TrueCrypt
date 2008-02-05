@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <TrueCrypt>
-  <localization prog-version="4.3a">
+  <localization prog-version="5.0">
     <!-- Languages -->
     <language langid="en" name="English" en-name="English" version="0.0.0" translators="" />
     <!-- Fonts -->
@@ -10,55 +10,82 @@
     <font lang="en" class="title" size="21" face="Times New Roman" />
     <!-- Controls -->
     <control lang="en" key="IDCANCEL">Cancel</control>
-    <control lang="en" key="IDC_ALL_USERS">Install for all users</control>
-    <control lang="en" key="IDC_BROWSE">&amp;Browse...</control>
+    <control lang="en" key="IDC_ALL_USERS">Install &amp;for all users</control>
+    <control lang="en" key="IDC_BROWSE">Bro&amp;wse...</control>
     <control lang="en" key="IDC_DESKTOP_ICON">Add TrueCrypt icon to &amp;desktop</control>
-    <control lang="en" key="IDC_FILE_TYPE">Associate '.tc' file &amp;extension with TrueCrypt</control>
-    <control lang="en" key="IDC_INSTALL">&amp;Install</control>
+    <control lang="en" key="IDC_FILE_TYPE">Associate the .tc file &amp;extension with TrueCrypt</control>
+    <control lang="en" key="IDC_OPEN_CONTAINING_FOLDER">&amp;Open the destination location when finished</control>
     <control lang="en" key="IDC_PROG_GROUP">Add TrueCrypt to &amp;Start menu</control>
     <control lang="en" key="IDC_SYSTEM_RESTORE">Create System &amp;Restore point</control>
     <control lang="en" key="IDC_UNINSTALL">&amp;Uninstall</control>
-    <control lang="en" key="IDD_INSTALL">TrueCrypt Setup</control>
+    <control lang="en" key="IDC_WIZARD_MODE_EXTRACT_ONLY">&amp;Extract</control>
+    <control lang="en" key="IDC_WIZARD_MODE_INSTALL">&amp;Install</control>
+    <control lang="en" key="IDD_INSTL_DLG">TrueCrypt Setup Wizard</control>
     <control lang="en" key="IDD_UNINSTALL">Uninstall TrueCrypt</control>
-    <control lang="en" key="IDT_INSTALL_DIR">Install &amp;to:</control>
-    <control lang="en" key="IDT_INSTALL_OPTIONS">Installation Options</control>
-    <control lang="en" key="IDT_UNINSTALL_DIR">Uninstall TrueCrypt fr&amp;om:</control>
+    <control lang="en" key="IDHELP">&amp;Help</control>
+    <control lang="en" key="IDT_EXTRACT_DESTINATION">Please select or type the location where you want to place the extracted files:</control>
+    <control lang="en" key="IDT_INSTALL_DESTINATION">Please select or type the location where you want to install the TrueCrypt program files. If the specified folder does not exist, it will be automatically created.</control>
+    <control lang="en" key="IDT_UNINSTALL_DIR">Click Uninstall to remove TrueCrypt from this system.</control>
     <control lang="en" key="IDC_ABORT_BUTTON">Abort</control>
     <control lang="en" key="IDC_CIPHER_TEST">&amp;Test</control>
-    <control lang="en" key="IDC_HIDDEN_VOL">Create a hi&amp;dden TrueCrypt volume </control>
-    <control lang="en" key="IDC_HIDDEN_VOL_HELP">What is a hidden volume?</control>
-    <control lang="en" key="IDC_HIDVOL_WIZ_MODE_DIRECT">Create a hi&amp;dden volume within an existing TrueCrypt volume</control>
-    <control lang="en" key="IDC_HIDVOL_WIZ_MODE_FULL">Create a TrueCrypt volume and then a hidden volume within it</control>
+    <control lang="en" key="IDC_DISPLAY_KEYS">Display generated keys (their portions)</control>
+    <control lang="en" key="IDC_DISPLAY_POOL_CONTENTS">Display pool content</control>
+    <control lang="en" key="IDC_DOWNLOAD_CD_BURN_SOFTWARE">Download CD/DVD recording software</control>
+    <control lang="en" key="IDC_FILE_CONTAINER">Create a file container</control>
+    <control lang="en" key="IDC_HIDDEN_VOL">Hi&amp;dden TrueCrypt volume </control>
+    <control lang="en" key="IDC_HIDDEN_VOL_HELP">More information about hidden volumes</control>
+    <control lang="en" key="IDC_HIDVOL_WIZ_MODE_DIRECT">Direct mode</control>
+    <control lang="en" key="IDC_HIDVOL_WIZ_MODE_FULL">Normal mode</control>
     <control lang="en" key="IDC_KB">&amp;KB</control>
     <control lang="en" key="IDC_KEYFILES_ENABLE">U&amp;se keyfiles</control>
     <control lang="en" key="IDC_KEY_FILES">&amp;Keyfiles..</control>
     <control lang="en" key="IDC_LINK_HASH_INFO">Information on hash algorithms</control>
     <control lang="en" key="IDC_LINK_MORE_INFO_ABOUT_CIPHER">More information</control>
     <control lang="en" key="IDC_MB">&amp;MB</control>
+    <control lang="en" key="IDC_MORE_INFO_ON_CONTAINERS">More information</control>
+    <control lang="en" key="IDC_MORE_INFO_ON_SYS_ENCRYPTION">More information about system encryption</control>
+    <control lang="en" key="IDC_MORE_INFO_SYS_ENCRYPTION">More information</control>
+    <control lang="en" key="IDC_MULTI_BOOT">Multi-boot</control>
+    <control lang="en" key="IDC_NONSYS_DEVICE">Create a volume within a non-system partition/device</control>
     <control lang="en" key="IDC_NO_HISTORY">Never &amp;save history</control>
     <control lang="en" key="IDC_OPEN_OUTER_VOLUME">Open Outer Volume</control>
+    <control lang="en" key="IDC_PAUSE">&amp;Pause</control>
     <control lang="en" key="IDC_QUICKFORMAT">Quick Format</control>
-    <control lang="en" key="IDC_SELECT_DEVICE">Select D&amp;evice...</control>
-    <control lang="en" key="IDC_SELECT_FILE">Select &amp;File...</control>
     <control lang="en" key="IDC_SHOW_PASSWORD">&amp;Display password</control>
     <control lang="en" key="IDC_SHOW_PASSWORD_HIDVOL_HOST">&amp;Display password</control>
-    <control lang="en" key="IDC_STD_VOL">Create a standard TrueCrypt volume</control>
+    <control lang="en" key="IDC_SINGLE_BOOT">Single-boot</control>
+    <control lang="en" key="IDC_STD_VOL">Standard TrueCrypt volume</control>
+    <control lang="en" key="IDC_SYS_DEVICE">Encrypt the system partition or entire system drive</control>
+    <control lang="en" key="IDC_SYS_PARTITION">Encrypt the Windows system partition</control>
+    <control lang="en" key="IDC_WHOLE_SYS_DRIVE">Encrypt the whole drive</control>
     <control lang="en" key="IDC_WIZ_BENCHMARK">&amp;Benchmark</control>
-    <control lang="en" key="IDD_MKFS_DLG">TrueCrypt Volume Creation Wizard</control>
-    <control lang="en" key="IDHELP">&amp;Help</control>
+    <control lang="en" key="IDD_VOL_CREATION_WIZARD_DLG">TrueCrypt Volume Creation Wizard</control>
     <control lang="en" key="IDT_CLUSTER">Cluster </control>
+    <control lang="en" key="IDT_COLLECTING_RANDOM_DATA_NOTE">IMPORTANT: Move your mouse as randomly as possible within this window. The longer you move it, the better. This significantly increases the cryptographic strength of the encryption keys. Then click Next to continue.</control>
     <control lang="en" key="IDT_CONFIRM">&amp;Confirm:</control>
-    <control lang="en" key="IDT_DONE">Done </control>
+    <control lang="en" key="IDT_DONE">Done</control>
     <control lang="en" key="IDT_ENCRYPTION_ALGO">Encryption Algorithm</control>
     <control lang="en" key="IDT_FILESYSTEM">Filesystem </control>
+    <control lang="en" key="IDT_FILE_CONTAINER">Creates a virtual encrypted disk within a file. Recommended for inexperienced users.</control>
     <control lang="en" key="IDT_FORMAT_OPTIONS">Options</control>
     <control lang="en" key="IDT_HASH_ALGO">Hash Algorithm</control>
     <control lang="en" key="IDT_HEADER_KEY">Header Key: </control>
-    <control lang="en" key="IDT_LEFT">Left </control>
+    <control lang="en" key="IDT_LEFT">Left</control>
     <control lang="en" key="IDT_MASTER_KEY">Master Key: </control>
+    <control lang="en" key="IDT_MULTI_BOOT">Select this option if there are two or more operating systems installed on this computer.\n\nFor example:\n- Windows XP and Windows XP\n- Windows XP and Windows Vista\n- Windows and Mac OS X\n- Windows and Linux\n- Windows, Linux and Mac OS X</control>
+    <control lang="en" key="IDT_NON_SYS_DEVICE">Formats and encrypts a non-system partition, entire external or secondary drive, entire USB stick, etc.</control>
+    <control lang="en" key="IDT_PARTIAL_POOL_CONTENTS">Current pool content (partial)</control>
     <control lang="en" key="IDT_PASSWORD">Password:</control>
+    <control lang="en" key="IDT_PROGRESS">Progress:</control>
     <control lang="en" key="IDT_RANDOM_POOL">Random Pool: </control>
-    <control lang="en" key="IDT_SPEED">Speed </control>
+    <control lang="en" key="IDT_SINGLE_BOOT">Select this option if there is only one operating system installed on this computer (even if it has multiple users).</control>
+    <control lang="en" key="IDT_SPEED">Speed</control>
+    <control lang="en" key="IDT_STATUS">Status</control>
+    <control lang="en" key="IDT_SYSENC_DRIVE_ANALYSIS_INFO">Please wait while TrueCrypt is detecting possible hidden sectors at the end of the system drive. Note that it may take a long time to complete.</control>
+    <control lang="en" key="IDT_SYSENC_KEYS_GEN_INFO">The keys, salt, and other data have been successfully generated. If you want to generate new keys, click Back and then Next. Otherwise, click Next to continue.</control>
+    <control lang="en" key="IDT_SYS_DEVICE">Encrypts the partition/drive where Windows is installed. Anyone who wants to gain access and use the system, read and write files, etc., will need to enter the correct password each time before Windows boots (starts).</control>
+    <control lang="en" key="IDT_SYS_PARTITION">Select this option to encrypt the partition where your Windows is installed and from which it boots.</control>
+    <control lang="en" key="IDT_WIPE_MODE">Wipe mode:</control>
     <control lang="en" key="IDCLOSE">Close</control>
     <control lang="en" key="IDC_AUTORUN_DISABLE">Do nothing</control>
     <control lang="en" key="IDC_AUTORUN_MOUNT">&amp;Auto-mount TrueCrypt volume (specified below)</control>
@@ -106,6 +133,8 @@
     <control lang="en" key="IDC_PREF_WIPE_CACHE_ON_EXIT">Wipe cached passwords on exit</control>
     <control lang="en" key="IDC_PRESERVE_TIMESTAMPS">Preserve timestamps of file containers</control>
     <control lang="en" key="IDC_RESET_HOTKEYS">Reset</control>
+    <control lang="en" key="IDC_SELECT_DEVICE">Select D&amp;evice...</control>
+    <control lang="en" key="IDC_SELECT_FILE">Select &amp;File...</control>
     <control lang="en" key="IDC_SHOW_PASSWORD_CHPWD_NEW">Display password</control>
     <control lang="en" key="IDC_SHOW_PASSWORD_CHPWD_ORI">Display password</control>
     <control lang="en" key="IDC_TRAVEL_OPEN_EXPLORER">Open &amp;Explorer window for mounted volume</control>
@@ -116,10 +145,10 @@
     <control lang="en" key="IDC_WIPE_CACHE">&amp;Wipe Cache</control>
     <control lang="en" key="IDD_HOTKEYS_DLG">TrueCrypt - System-Wide Hot Keys</control>
     <control lang="en" key="IDD_MOUNT_DLG">TrueCrypt</control>
-    <control lang="en" key="IDD_PASSWORDCHANGE_DLG">Change Volume Password and Keyfiles</control>
+    <control lang="en" key="IDD_PASSWORDCHANGE_DLG">Change Password or Keyfiles</control>
     <control lang="en" key="IDD_PASSWORD_DLG">Enter TrueCrypt Volume Password</control>
     <control lang="en" key="IDD_PREFERENCES_DLG">TrueCrypt - Preferences</control>
-    <control lang="en" key="IDD_TRAVELLER_DLG">TrueCrypt Traveller Disk Setup</control>
+    <control lang="en" key="IDD_TRAVELER_DLG">TrueCrypt Traveler Disk Setup</control>
     <control lang="en" key="IDD_VOLUME_PROPERTIES">TrueCrypt Volume Properties</control>
     <control lang="en" key="IDM_ABOUT">About...</control>
     <control lang="en" key="IDM_ADD_REMOVE_VOL_KEYFILES">Add/Remove Keyfiles to/from Volume...</control>
@@ -128,12 +157,15 @@
     <control lang="en" key="IDM_BUGREPORT">Report a Bug...</control>
     <control lang="en" key="IDM_CHANGE_HEADER_KEY_DERIV_ALGO">Set Header Key Derivation Algorithm...</control>
     <control lang="en" key="IDM_CHANGE_PASSWORD">Change Volume Password...</control>
+    <control lang="en" key="IDM_CHANGE_SYS_HEADER_KEY_DERIV_ALGO">Set Header Key Derivation Algorithm...</control>
+    <control lang="en" key="IDM_CHANGE_SYS_PASSWORD">Change Password...</control>
     <control lang="en" key="IDM_CLEAR_HISTORY">Clear Volume History</control>
     <control lang="en" key="IDM_CONTACT">Contact...</control>
+    <control lang="en" key="IDM_CREATE_RESCUE_DISK">Create Rescue Disk...</control>
     <control lang="en" key="IDM_CREATE_VOLUME">Create New Volume...</control>
     <control lang="en" key="IDM_DEFAULT_KEYFILES">Default Keyfiles...</control>
     <control lang="en" key="IDM_DONATIONS">Donations...</control>
-    <control lang="en" key="IDM_EXIT">Exit</control>
+    <control lang="en" key="IDM_ENCRYPT_SYSTEM_DEVICE">Encrypt System Partition/Drive...</control>
     <control lang="en" key="IDM_FAQ">Frequently Asked Questions</control>
     <control lang="en" key="IDM_FORUMS">Forums</control>
     <control lang="en" key="IDM_GENERATE_KEYFILE">Generate Random Keyfile...</control>
@@ -150,6 +182,7 @@
     <control lang="en" key="IDM_NEWS">News</control>
     <control lang="en" key="IDM_ONLINE_HELP">Online Help</control>
     <control lang="en" key="IDM_ONLINE_TUTORIAL">Beginner's Tutorial</control>
+    <control lang="en" key="IDM_PERMANENTLY_DECRYPT_SYS">Permanently Decrypt System Partition/Drive</control>
     <control lang="en" key="IDM_PREFERENCES">Preferences...</control>
     <control lang="en" key="IDM_REFRESH_DRIVE_LETTERS">Refresh Drive Letters</control>
     <control lang="en" key="IDM_REMOVE_ALL_KEYFILES_FROM_VOL">Remove All Keyfiles from Volume...</control>
@@ -158,11 +191,14 @@
     <control lang="en" key="IDM_SELECT_DEVICE">Select Device...</control>
     <control lang="en" key="IDM_SELECT_FILE">Select File...</control>
     <control lang="en" key="IDM_SET_DEFAULT_KEYFILES">Set Default Keyfiles/Paths...</control>
+    <control lang="en" key="IDM_SYSENC_RESUME">Resume Interrupted Process</control>
+    <control lang="en" key="IDM_SYSTEM_ENCRYPTION_STATUS">Properties</control>
     <control lang="en" key="IDM_TC_DOWNLOADS">Downloads</control>
     <control lang="en" key="IDM_TEST_VECTORS">Test Vectors...</control>
-    <control lang="en" key="IDM_TRAVELLER">Traveller Disk Setup...</control>
+    <control lang="en" key="IDM_TRAVELER">Traveler Disk Setup...</control>
     <control lang="en" key="IDM_UNMOUNTALL">Dismount All Mounted Volumes</control>
     <control lang="en" key="IDM_UNMOUNT_VOLUME">Dismount Volume</control>
+    <control lang="en" key="IDM_VERIFY_RESCUE_DISK">Verify Rescue Disk</control>
     <control lang="en" key="IDM_VERSION_HISTORY">Version History</control>
     <control lang="en" key="IDM_VOLUME_PROPERTIES">Volume Properties</control>
     <control lang="en" key="IDM_VOLUME_WIZARD">Volume Creation Wizard</control>
@@ -188,15 +224,14 @@
     <control lang="en" key="IDT_PKCS5_PRF">PKCS-5 PRF:</control>
     <control lang="en" key="IDT_PW_CACHE_OPTIONS">Password Cache</control>
     <control lang="en" key="IDT_TASKBAR_ICON">TrueCrypt Background Task</control>
-    <control lang="en" key="IDT_TRAVELLER_MOUNT">TrueCrypt volume to mount (relative to traveller disk root):</control>
-    <control lang="en" key="IDT_TRAVEL_INSERTION">Upon insertion of traveller disk: </control>
-    <control lang="en" key="IDT_TRAVEL_ROOT">Create traveller disk files at (traveller disk root directory):</control>
+    <control lang="en" key="IDT_TRAVELER_MOUNT">TrueCrypt volume to mount (relative to traveler disk root):</control>
+    <control lang="en" key="IDT_TRAVEL_INSERTION">Upon insertion of traveler disk: </control>
+    <control lang="en" key="IDT_TRAVEL_ROOT">Create traveler disk files at (traveler disk root directory):</control>
     <control lang="en" key="IDT_VOLUME">Volume</control>
     <control lang="en" key="IDT_WINDOWS_RELATED_SETTING">Windows</control>
     <control lang="en" key="IDC_ADD_KEYFILE_PATH">Add &amp;Path...</control>
     <control lang="en" key="IDC_AUTO">&amp;Auto-Test All</control>
     <control lang="en" key="IDC_DECRYPT">&amp;Decrypt</control>
-    <control lang="en" key="IDC_DISPLAY_POOL_CONTENTS">Display pool content</control>
     <control lang="en" key="IDC_DONATIONS">Donations...</control>
     <control lang="en" key="IDC_ENCRYPT">&amp;Encrypt</control>
     <control lang="en" key="IDC_GENERATE_AND_SAVE_KEYFILE">Generate and Save Keyfile...</control>
@@ -209,13 +244,13 @@
     <control lang="en" key="IDC_KEYREMOVEALL">Remove &amp;All</control>
     <control lang="en" key="IDC_LINK_HIDVOL_PROTECTION_INFO">What is hidden volume protection?</control>
     <control lang="en" key="IDC_LINK_KEYFILES_INFO">What is a keyfile?</control>
-    <control lang="en" key="IDC_LRW_INDEX_LSB">Least significant bit first</control>
-    <control lang="en" key="IDC_LRW_MODE_ENABLED">LRW mode</control>
     <control lang="en" key="IDC_MOUNT_REMOVABLE">Mount volume as removable &amp;medium</control>
     <control lang="en" key="IDC_PERFORM_BENCHMARK">Benchmark</control>
+    <control lang="en" key="IDC_PRINT">&amp;Print</control>
     <control lang="en" key="IDC_PROTECT_HIDDEN_VOL">&amp;Protect hidden volume against damage caused by writing to outer volume</control>
     <control lang="en" key="IDC_RESET">&amp;Reset</control>
     <control lang="en" key="IDC_SHOW_PASSWORD_MO">&amp;Display password</control>
+    <control lang="en" key="IDC_XTS_MODE_ENABLED">XTS mode</control>
     <control lang="en" key="IDD_ABOUT_DLG">About TrueCrypt</control>
     <control lang="en" key="IDD_BENCHMARK_DLG">TrueCrypt - Encryption Algorithm Benchmark</control>
     <control lang="en" key="IDD_CIPHER_TEST_DLG">TrueCrypt - Test Vectors</control>
@@ -223,7 +258,6 @@
     <control lang="en" key="IDD_KEYFILES">TrueCrypt - Keyfiles</control>
     <control lang="en" key="IDD_KEYFILE_GENERATOR">TrueCrypt - Keyfile Generator</control>
     <control lang="en" key="IDD_LANGUAGE">TrueCrypt - Language</control>
-    <control lang="en" key="IDD_LEGAL_NOTICES_DLG">TrueCrypt - Legal Notices</control>
     <control lang="en" key="IDD_MOUNT_OPTIONS">TrueCrypt - Mount Options</control>
     <control lang="en" key="IDD_RAWDEVICES_DLG">Select a Partition or Device</control>
     <control lang="en" key="IDT_ACTIVE_LANG_PACK">Active language pack</control>
@@ -233,21 +267,23 @@
     <control lang="en" key="IDT_HIDDEN_PROT_PASSWD">P&amp;assword to hidden volume:\n(if empty, cache is used)</control>
     <control lang="en" key="IDT_HIDDEN_VOL_PROTECTION">Hidden Volume Protection</control>
     <control lang="en" key="IDT_KEY">Key size:</control>
-    <control lang="en" key="IDT_KEYFILE_GENERATOR_NOTE">Move the mouse randomly within this window. The longer you move the mouse, the better.</control>
+    <control lang="en" key="IDT_KEYFILE_GENERATOR_NOTE">IMPORTANT: Move your mouse as randomly as possible within this window. The longer you move it, the better. This significantly increases the cryptographic strength of the keyfile.</control>
     <control lang="en" key="IDT_KEYFILE_WARNING">WARNING: If you lose a keyfile or if any bit of its first 1024 kilobytes changes, it will be impossible to mount volumes that use the keyfile!</control>
     <control lang="en" key="IDT_KEY_UNIT">bits</control>
     <control lang="en" key="IDT_LANGPACK_AUTHORS">Translated by:</control>
-    <control lang="en" key="IDT_LRW_BLOCK_INDEX">Block index (hexadecimal)</control>
-    <control lang="en" key="IDT_LRW_KEY">Secondary key (hexadecimal)</control>
-    <control lang="en" key="IDT_LRW_MODE">LRW mode</control>
     <control lang="en" key="IDT_PLAINTEXT">Plaintext size:</control>
     <control lang="en" key="IDT_PLAINTEXT_SIZE_UNIT">bits</control>
-    <control lang="en" key="IDT_POOL_CONTENTS">Current Pool Content</control>
+    <control lang="en" key="IDT_POOL_CONTENTS">Current pool content</control>
     <control lang="en" key="IDT_PRF">Mixing PRF:</control>
+    <control lang="en" key="IDT_SECONDARY_KEY">Secondary key (hexadecimal)</control>
     <control lang="en" key="IDT_SORT_METHOD">Sort Method:</control>
+    <control lang="en" key="IDT_TEST_BLOCK_NUMBER">Block number:</control>
     <control lang="en" key="IDT_TEST_CIPHERTEXT">Ciphertext (hexadecimal)</control>
+    <control lang="en" key="IDT_TEST_DATA_UNIT_NUMBER">Data unit number (64-bit hexadecimal, data unit size is 512 bytes)</control>
     <control lang="en" key="IDT_TEST_KEY">Key (hexadecimal)</control>
     <control lang="en" key="IDT_TEST_PLAINTEXT">Plaintext (hexadecimal)</control>
+    <control lang="en" key="IDT_XTS_MODE">XTS mode</control>
+    <control lang="en" key="IDM_EXIT">Exit</control>
     <control lang="en" key="IDT_KEYFILES_NOTE">Any kind of file (for example, .mp3, .jpg, .zip, .avi) may be used as a TrueCrypt keyfile. Note that TrueCrypt never modifies the keyfile contents. You can select more than one keyfile (the order does not matter). If you add a folder, all files found in it will be used as keyfiles.</control>
     <control lang="en" key="IDT_TEST_CONFIG">Cipher Configuration (all sizes in bytes)</control>
     <control lang="en" key="IDD_PCDM_CHANGE_PKCS5_PRF">Set Header Key Derivation Algorithm</control>
@@ -256,9 +292,7 @@
     <control lang="en" key="IDT_EXPLORER_OPTIONS">Windows Explorer</control>
     <control lang="en" key="IDC_BROWSE_KEYFILES">Browse...</control>
     <control lang="en" key="IDD_KEYFILE_GENERATOR_DLG">TrueCrypt - Keyfile Generator</control>
-    <control lang="en" key="IDT_LICENSE">License Agreement:</control>
-    <control lang="en" key="IDT_UNINSTALL_INFO">No TrueCrypt volume will be deleted. The registry entries at HKLM\\SYSTEM\\ControlSet001\\Enum\\Root\\LEGACY_TRUECRYPT cannot be removed as Windows does not allow their deletion.</control>
-    <control lang="en" key="MENU_FILE">File</control>
+    <control lang="en" key="MENU_SYSTEM_ENCRYPTION">&amp;System</control>
     <control lang="en" key="MENU_VOLUMES">&amp;Volumes</control>
     <control lang="en" key="MENU_KEYFILES">&amp;Keyfiles</control>
     <control lang="en" key="MENU_TOOLS">T&amp;ools</control>
@@ -273,14 +307,19 @@
     <string lang="en" key="ADMIN_PRIVILEGES_WARN_DEVICES">Please note that in order to encrypt/format a partition/device you need to be logged into an account with administrator privileges.\n\nThis does not apply to file-hosted volumes.</string>
     <string lang="en" key="ADMIN_PRIVILEGES_WARN_HIDVOL">In order to create a hidden volume you need to be logged into an account with administrator privileges.\n\nContinue?</string>
     <string lang="en" key="ADMIN_PRIVILEGES_WARN_NTFS">Please note that in order to format the volume as NTFS you need to be logged into an account with administrator privileges.\n\nWithout administrator privileges, you can format the volume as FAT.</string>
-    <string lang="en" key="AES_HELP">FIPS-approved cipher (Rijndael, published in 1998) that may be used by U.S. government departments and agencies to protect classified information up to the Top Secret level. 256-bit key, 128-bit block, 14 rounds (AES-256). Mode of operation is LRW.</string>
+    <string lang="en" key="AES_HELP">FIPS-approved cipher (Rijndael, published in 1998) that may be used by U.S. government departments and agencies to protect classified information up to the Top Secret level. 256-bit key, 128-bit block, 14 rounds (AES-256). Mode of operation is XTS.</string>
     <string lang="en" key="ALREADY_MOUNTED">Volume is already mounted.</string>
     <string lang="en" key="ERR_SELF_TESTS_FAILED">CAUTION: At least one encryption or hash algorithm failed the built-in automatic self-tests!\n\nTrueCrypt installation may be corrupted.</string>
     <string lang="en" key="ERR_NOT_ENOUGH_RANDOM_DATA">CAUTION: There is not enough data in the Random Number Generator pool to provide the requested amount of random data.\n\nYou should not proceed any further. Please select 'Report a Bug' from the Help menu, and report this error.</string>
+    <string lang="en" key="ERR_CANNOT_DETERMINE_VOLUME_TYPE">Error: Cannot determine volume type.</string>
     <string lang="en" key="BAD_DRIVE_LETTER">Invalid drive letter.</string>
     <string lang="en" key="CANCEL">Cancel</string>
     <string lang="en" key="CANNOT_CALC_SPACE">Cannot access device. Make sure the selected device exists and is not used by system.</string>
     <string lang="en" key="CAPSLOCK_ON">Warning: Caps Lock is on. This may cause you to enter your password incorrectly.</string>
+    <string lang="en" key="VOLUME_TYPE_TITLE">Volume Type</string>
+    <string lang="en" key="HIDDEN_VOLUME_TYPE_HELP">It may happen that you are forced by somebody to reveal the password to an encrypted volume. There are many situations where you cannot refuse to reveal the password (for example, due to extortion). Using a so-called hidden volume allows you to solve such situations without revealing the password to your volume.</string>
+    <string lang="en" key="NORMAL_VOLUME_TYPE_HELP">Select this option if you want to create a normal TrueCrypt volume.</string>
+    <string lang="en" key="CANNOT_CREATE_HIDDEN_VOL_IN_SYS_DEVICE">TrueCrypt does not support creating a hidden TrueCrypt volume within a system partition/device.</string>
     <string lang="en" key="CIPHER_HIDVOL_HOST_TITLE">Outer Volume Encryption Options</string>
     <string lang="en" key="CIPHER_HIDVOL_TITLE">Hidden Volume Encryption Options</string>
     <string lang="en" key="CIPHER_TITLE">Encryption Options</string>
@@ -298,7 +337,7 @@
     <string lang="en" key="FORMAT_CANT_DISMOUNT_FILESYS">Error: The device/partition contains a file system that could not be dismounted. The file system may be in use by the operating system. Formatting the device/partition would very likely cause data corruption and system instability.\n\nTo solve this issue, we recommend that you first delete the partition and then recreate it without formatting. To do so, follow these steps:\n1) Right-click the 'Computer' (or 'My Computer') icon in the 'Start Menu' and select 'Manage'. The 'Computer Management' window should appear.\n2) In the 'Computer Management' window, select 'Storage' > 'Disk Management'.\n3) Right-click the partition you want to encrypt and select either 'Delete Partition', or 'Delete Volume', or 'Delete Logical Drive'.\n4) Click 'Yes'. If Windows asks you to restart the computer, do so. Then repeat the steps 1 and 2 and continue from the step 5.\n5) Right-click the unallocated/free space area and select either 'New Partition', or 'New Simple Volume', or 'New Logical Drive'.\n6) The 'New Partition Wizard' or 'New Simple Volume Wizard' window should appear now; follow its instructions. On the wizard page entitled 'Format Partition', select either 'Do not format this partition' or 'Do not format this volume'. In the same wizard, click 'Next' and then 'Finish'.\n7) Note that the device path you have selected in TrueCrypt may be wrong now. Therefore, exit the TrueCrypt Volume Creation Wizard (if it is still running) and then start it again.\n8) Try encrypting the device/partition again.\n\nIf TrueCrypt repeatedly fails to encrypt the device/partition, you may want to consider creating a file container instead.</string>
     <string lang="en" key="DEVICE_IN_USE_INFO">WARNING: Some of the mounted devices/partitions were already in use!\n\nIgnoring this can cause undesired results including system instability.\n\nWe strongly recommend that you close any application that might be using the devices/partitions.</string>
     <string lang="en" key="DEVICE_PARTITIONS_ERR">The selected device contains partitions.\n\nFormatting the device might cause system instability and/or data corruption. Please either select a partition on the device, or remove all partitions on the device to enable TrueCrypt to format it safely.</string>
-    <string lang="en" key="WHOLE_DEVICE_WARNING">IMPORTANT: If you encrypt the entire device, the operating system will consider the device as new and unformatted (as it will contain no partition table). This will make the volume susceptible to accidental initialization, which may cause it to be impossible to mount.\n\nIt is preferable to create a partition on the device and encrypt the partition instead.\n\nAre you sure want to encrypt the entire device?</string>
+    <string lang="en" key="WHOLE_DEVICE_WARNING">IMPORTANT: IF YOU ENCRYPT THE ENTIRE DEVICE (AS OPPOSED TO ENCRYPTING ONLY A PARTITION ON IT), OPERATING SYSTEMS WILL CONSIDER THE DEVICE AS NEW, EMPTY, AND UNFORMATTED (AS IT WILL CONTAIN NO PARTITION TABLE) AND MAY SPONTANEOUSLY INITIALIZE THE DEVICE, WHICH MAY CAUSE THE VOLUME TO BE IMPOSSIBLE TO MOUNT. THEREFORE, WE STRONGLY RECOMMEND THAT YOU CREATE A PARTITION ON THE DEVICE AND ENCRYPT THE PARTITION INSTEAD.\n\nAre you sure want to encrypt the entire device?</string>
     <string lang="en" key="WHOLE_DEVICE_NOTE">IMPORTANT: Keep in mind to answer 'No', whenever Windows asks you whether you want to initialize this device (even if Windows tells you that you must do so). Otherwise, you may damage the volume and make it impossible to mount.\n\nWe also recommend that you backup the volume header after the volume is created (Tools -&gt; Backup Volume Header).</string>
     <string lang="en" key="AFTER_FORMAT_DRIVE_LETTER_WARN">IMPORTANT: Please keep in mind that this partition/device can NOT be mounted using the drive letter %c:, which is currently assigned to it!\n\nTo mount this partition/device, click 'Auto-Mount Devices' in the main TrueCrypt window. Alternatively, in the main TrueCrypt window, click 'Select Device', then select this partition/device, and click 'Mount'. The partition/device will be mounted to a different drive letter, which you will select from the list in the main TrueCrypt window.\n\nThe original drive letter %c: should be used only in case you need to remove encryption from the partition/device (e.g., if you no longer need encryption). In such a case, right-click the drive letter %c: in the 'Computer' (or 'My Computer') list and select 'Format'. Otherwise, the drive letter %c: should never be used (unless you remove it and assign it to another partition/device).</string>
     <string lang="en" key="DISK_FREE_BYTES">Free space on drive %hs is %.2f bytes.</string>
@@ -315,22 +354,31 @@
     <string lang="en" key="EXCEPTION_REPORT">A critical error has occured and TrueCrypt must be terminated. If this is caused by a bug in TrueCrypt, we would like to fix it. To help us, you can send us an automatically generated error report containing the following items:\n\n- Program version\n- Operating system version\n- TrueCrypt component name\n- Checksum of TrueCrypt executable\n- TrueCrypt dialog identifier\n- Error category\n- Error address\n- TrueCrypt call stack\n\nIf you select 'Yes', the following URL (which contains the entire error report) will be opened in your default Internet browser (note that in some cases this may take up to 30 seconds).\n\n%hs\n\nDo you want to send us the above error report?</string>
     <string lang="en" key="EXCEPTION_REPORT_EXT">A critical error has occured in your system which caused that TrueCrypt must be terminated.\n\nNote that this error has not been caused by TrueCrypt (so the TrueCrypt developers cannot fix it). Please, check your system for possible problems (e.g., system configuration, network connection, failing hardware components).</string>
     <string lang="en" key="EXCEPTION_REPORT_TITLE">TrueCrypt Critical Error</string>
+    <string lang="en" key="ENCRYPT">&amp;Encrypt</string>
+    <string lang="en" key="DECRYPT">&amp;Decrypt</string>
+    <string lang="en" key="PERMANENTLY_DECRYPT">&amp;Permanently Decrypt</string>
     <string lang="en" key="EXIT">Exit</string>
     <string lang="en" key="EXT_PARTITION">Please create a logical drive for this extended partition, and then try again.</string>
-    <string lang="en" key="FILE_HELP">You can create file-hosted volumes or encrypt entire hard disk partitions, floppy disks, USB memory sticks, and other storage devices. Click 'Select File...' to specify the name and path of the file to be created to host the new volume, or click 'Select Device...' to choose a partition or device to encrypt.\n\nWarning: If you encrypt a partition or a device, all data currently stored on the partition or the device will be erased.</string>
-    <string lang="en" key="FILE_HELP_HIDDEN_HOST_VOL">Select the location of the outer volume to be created (within this volume the hidden volume will be created later on).\n\nYou can create file-hosted volumes or encrypt entire hard disk partitions, floppy disks, and other media. Click Select File to specify name and path of the file to be created to host the new volume, or click Select Device to choose a partition or device to encrypt.\n\nIf you encrypt a partition or device, all data currently stored on the partition or the device will be erased.</string>
-    <string lang="en" key="FILE_HELP_HIDDEN_HOST_VOL_DIRECT">Select the location of the TrueCrypt volume within which you wish to create a hidden volume.</string>
+    <string lang="en" key="FILE_HELP">A TrueCrypt volume can reside in a file (called TrueCrypt container), which can reside on a hard disk, on a USB flash drive, etc. A TrueCrypt container is just like any normal file (it can be, for example, moved, copied and deleted as any normal file). Click 'Select File' to choose a filename for the container and to select the location where you wish the container to be created.\n\nWARNING: If you select an existing file, TrueCrypt will NOT encrypt it; the file be deleted and replaced with the newly created TrueCrypt container. You will be able to encrypt existing files (later on) by moving them to the TrueCrypt container that you are about to create now.</string>
+    <string lang="en" key="FILE_HELP_HIDDEN_HOST_VOL">Select the location of the outer volume to be created (within this volume the hidden volume will be created later on).\n\nA TrueCrypt volume can reside in a file (called TrueCrypt container), which can reside on a hard disk, on a USB flash drive, etc. A TrueCrypt container can be moved, copied and deleted as any normal file. Click 'Select File' to choose a filename for the container and to select the location where you wish the container to be created. If you select an existing file, TrueCrypt will NOT encrypt it; it be deleted and replaced with the newly created container. You will be able to encrypt existing files (later on) by moving them to the TrueCrypt container you are about to create now.</string>
+    <string lang="en" key="DEVICE_HELP">\nA device-hosted TrueCrypt volume can be created within a hard disk partition, solid-state drive, USB memory stick, and other storage devices.\n\nWARNING: Note that the partition/device will be formatted and all data currently stored on it will be lost (you can prevent this only if you select the partition/drive where Windows is installed and from which it boots).</string>
+    <string lang="en" key="DEVICE_HELP_HIDDEN_HOST_VOL">\nSelect the location of the outer volume to be created (within this volume the hidden volume will be created later on).\n\nA device-hosted TrueCrypt volume can be created within a hard disk partition, solid-state drive, USB memory stick, and other storage devices.\n\nWARNING: Note that the partition/device will be formatted and all data currently stored on it will be lost (you can prevent this only if you select the partition/drive where Windows is installed and from which it boots).</string>
+    <string lang="en" key="FILE_HELP_HIDDEN_HOST_VOL_DIRECT">\nSelect the location of the TrueCrypt volume within which you wish to create a hidden volume.</string>
     <string lang="en" key="FILE_IN_USE">WARNING: The host file/device is already in use!\n\nIgnoring this can cause undesired results including system instability. All applications that might be using the host file/device should be closed before mounting the volume.\n\nContinue with mounting?</string>
     <string lang="en" key="FILE_IN_USE_FAILED">Error: Cannot mount volume. The host file/device is already in use. Attempt to mount without exclusive access failed as well.</string>
     <string lang="en" key="FILE_OPEN_FAILED">The file could not be opened.</string>
     <string lang="en" key="FILE_TITLE">Volume Location</string>
+    <string lang="en" key="RESUME">&amp;Resume</string>
+    <string lang="en" key="DEFER">&amp;Defer</string>
     <string lang="en" key="FORMAT">&amp;Format</string>
     <string lang="en" key="FORMAT_ABORT">Abort format?</string>
+    <string lang="en" key="SYSTEM_ENCRYPTION_FINISHED">The system partition/drive has been successfully encrypted.</string>
+    <string lang="en" key="SYSTEM_DECRYPTION_FINISHED">The system partition/drive has been successfully decrypted.</string>
     <string lang="en" key="FORMAT_FINISHED_HELP">\n\nThe TrueCrypt volume has been created and is ready for use. If you wish to create another TrueCrypt volume, click Next. Otherwise, click Exit.</string>
     <string lang="en" key="FORMAT_FINISHED_INFO">The TrueCrypt volume has been successfully created.</string>
     <string lang="en" key="FORMAT_FINISHED_TITLE">Volume Created</string>
-    <string lang="en" key="FORMAT_HELP">Here you can set additional options that will affect the format of the new volume. Please refer to the documentation for more information. When done, click 'Format' to create your new volume.</string>
-    <string lang="en" key="FORMAT_HIDVOL_HOST_HELP">Note that a hidden volume can only be created within a FAT volume. For more information, please refer to the documentation. When ready, click 'Format' to create the outer volume.</string>
+    <string lang="en" key="FORMAT_HELP">IMPORTANT: Move your mouse as randomly as possible within this window. The longer you move it, the better. This significantly increases the cryptographic strength of the encryption keys. Then click Format to create the volume.</string>
+    <string lang="en" key="FORMAT_HIDVOL_HOST_HELP">Click Format to create the outer volume. For more information, please refer to the documentation.</string>
     <string lang="en" key="FORMAT_HIDVOL_HOST_TITLE">Outer Volume Format</string>
     <string lang="en" key="FORMAT_HIDVOL_TITLE">Hidden Volume Format</string>
     <string lang="en" key="FORMAT_TITLE">Volume Format</string>
@@ -340,8 +388,9 @@
     <string lang="en" key="GETFILETIME_FAILED_PW">WARNING: Could not get container timestamp!\n\nIf there is a hidden volume within this container, the plausible deniability of the hidden volume might be affected after changing or attempting to change the password.</string>
     <string lang="en" key="GETFILETIME_FAILED_KEYFILE">WARNING: Could not get keyfile timestamp! Cannot preserve last access date/time.\n\nIt will be possible to tell that this file has been accessed.</string>
     <string lang="en" key="HELP_READER_ERROR">Adobe Reader (or a compatible tool) is necessary to view or print the TrueCrypt User's Guide. Adobe Reader (freeware) can be downloaded at: www.adobe.com\n\nDo you want to view the online documentation instead?</string>
-    <string lang="en" key="HIDDEN_VOL_WIZARD_MODE_HELP">Inexperienced users should select the first option. If you select the second option, it will be assumed that you have already created a TrueCrypt volume that is suitable to host the hidden volume.</string>
-    <string lang="en" key="HIDDEN_VOL_WIZARD_MODE_TITLE">Wizard Mode</string>
+    <string lang="en" key="HIDDEN_VOL_WIZARD_MODE_NORMAL_HELP">If you select this option, the wizard will first help you create a normal TrueCrypt volume and then a hidden TrueCrypt volume within it. Inexperienced users should always select this option.</string>
+    <string lang="en" key="HIDDEN_VOL_WIZARD_MODE_DIRECT_HELP">If you select this option, you will create a hidden volume within an existing TrueCrypt volume. It will be assumed that you have already created a TrueCrypt volume that is suitable to host the hidden volume.</string>
+    <string lang="en" key="HIDDEN_VOL_WIZARD_MODE_TITLE">Volume Creation Mode</string>
     <string lang="en" key="HIDVOL_FORMAT_FINISHED_HELP">The hidden TrueCrypt volume has been successfully created and is ready for use. If all the instructions have been followed and if precautions mentioned in the section "Security Precautions Pertaining to Hidden Volumes" in the TrueCrypt User's Guide are followed, it will be impossible to prove that the hidden volume exists, even when the outer volume is mounted.\n\nWARNING: IF YOU DO NOT PROTECT THE HIDDEN VOLUME (FOR INFORMATION ON HOW TO DO SO, REFER TO THE SECTION "PROTECTION OF HIDDEN VOLUMES AGAINST DAMAGE" IN THE TRUECRYPT USER'S GUIDE), DO NOT WRITE TO THE OUTER VOLUME. OTHERWISE, YOU MAY OVERWRITE AND DAMAGE THE HIDDEN VOLUME!</string>
     <string lang="en" key="HIDVOL_FORMAT_FINISHED_TITLE">Hidden Volume Created</string>
     <string lang="en" key="HIDVOL_HOST_FILLING_HELP">Outer volume has been successfully created and mounted as drive %hc:. To this volume you should now copy some sensitive-looking files that you actually do NOT want to hide. The files will be there for anyone forcing you to disclose your password. You will reveal only the password for this outer volume, not for the hidden one. The files that you really care about will be stored in the hidden volume, which will be created later on. When you finish copying, click Next. Do not dismount the volume.\n\nNote: After you click Next, cluster bitmap of the outer volume will be scanned to determine the size of uninterrupted area of free space whose end is aligned with the end of the volume. This area will accommodate the hidden volume, so it will limit its maximum possible size. Cluster bitmap scanning ensures that no data on the outer volume are overwritten by the hidden volume.</string>
@@ -350,13 +399,15 @@
     <string lang="en" key="HIDVOL_HOST_PRE_CIPHER_TITLE">Outer Volume</string>
     <string lang="en" key="HIDVOL_PRE_CIPHER_HELP">\n\nThe volume cluster bitmap has been scanned and the maximum possible size of the hidden volume has been determined. In the next steps you will set the options, the size, and the password for the hidden volume.</string>
     <string lang="en" key="HIDVOL_PRE_CIPHER_TITLE">Hidden Volume</string>
-    <string lang="en" key="HIDVOL_PROT_WARN_AFTER_MOUNT">The hidden volume is now protected against damage until the outer volume is dismounted.\n\nWARNING: If any data is attempted to be saved to the hidden volume area, TrueCrypt will start write-protecting the entire volume (both the outer and the hidden part) until it is dismounted. This may cause filesystem corruption on the outer volume. Any data being saved to the hidden volume area will NOT be saved and will be lost! Windows may report this as a write error ("Delayed Write Failed" or "The parameter is incorrect").</string>
-    <string lang="en" key="HIDVOL_PROT_WARN_AFTER_MOUNT_PLURAL">Each of the hidden volumes within the newly mounted volumes is now protected against damage until dismounted.\n\nWARNING: If any data is attempted to be saved to protected hidden volume area of any of these volumes, TrueCrypt will start write-protecting the entire volume (both the outer and the hidden part) until it is dismounted. This may cause filesystem corruption on the outer volume. Any data being saved to protected hidden volume areas will NOT be saved and will be lost! Windows may report this as a write error ("Delayed Write Failed" or "The parameter is incorrect").</string>
-    <string lang="en" key="DAMAGE_TO_HIDDEN_VOLUME_PREVENTED">WARNING: Data were attempted to be saved to the hidden volume area of the volume mounted as %c:!\n\nTrueCrypt prevented these data from being saved in order to protect the hidden volume. This may have caused filesystem corruption on the outer volume and Windows may have reported a write error ("Delayed Write Failed" or "The parameter is incorrect"). The entire volume (both the outer and the hidden part) will be write-protected until it is dismounted.\n\nWe strongly recommend that you restart the operating system now.</string>
+    <string lang="en" key="HIDVOL_PROT_WARN_AFTER_MOUNT">The hidden volume is now protected against damage until the outer volume is dismounted.\n\nWARNING: If any data is attempted to be saved to the hidden volume area, TrueCrypt will start write-protecting the entire volume (both the outer and the hidden part) until it is dismounted. This may cause filesystem corruption on the outer volume, which (if repeated) might adversely affect plausible deniability of the hidden volume. Therefore, you should make every effort to avoid writing to the hidden volume area. Any data being saved to the hidden volume area will not be saved and will be lost. Windows may report this as a write error ("Delayed Write Failed" or "The parameter is incorrect").</string>
+    <string lang="en" key="HIDVOL_PROT_WARN_AFTER_MOUNT_PLURAL">Each of the hidden volumes within the newly mounted volumes is now protected against damage until dismounted.\n\nWARNING: If any data is attempted to be saved to protected hidden volume area of any of these volumes, TrueCrypt will start write-protecting the entire volume (both the outer and the hidden part) until it is dismounted. This may cause filesystem corruption on the outer volume, which (if repeated) might adversely affect plausible deniability of the hidden volume. Therefore, you should make every effort to avoid writing to the hidden volume area. Any data being saved to protected hidden volume areas will not be saved and will be lost. Windows may report this as a write error ("Delayed Write Failed" or "The parameter is incorrect").</string>
+    <string lang="en" key="DAMAGE_TO_HIDDEN_VOLUME_PREVENTED">WARNING: Data were attempted to be saved to the hidden volume area of the volume mounted as %c:! TrueCrypt prevented these data from being saved in order to protect the hidden volume. This may have caused filesystem corruption on the outer volume and Windows may have reported a write error ("Delayed Write Failed" or "The parameter is incorrect"). The entire volume (both the outer and the hidden part) will be write-protected until it is dismounted. If this is not the first time TrueCrypt has prevented data from being saved to the hidden volume area of this volume, plausible deniability of this hidden volume might be adversely affected (due to possible unusual correlated inconsistencies within the outer volume file system). Therefore, you should consider creating a new TrueCrypt volume (with Quick Format disabled) and moving files from this volume to the new volume; this volume should be securely erased (both the outer and the hidden part). We strongly recommend that you restart the operating system now.</string>
+    <string lang="en" key="CONFIRM_RESTART">Your computer must be restarted.\n\nDo you want to restart it now?</string>
+    <string lang="en" key="ERR_GETTING_SYSTEM_ENCRYPTION_STATUS">An error occurred when obtaining the system encryption status.</string>
+    <string lang="en" key="INIT_SYS_ENC">Cannot initialize application components for system encryption.</string>
     <string lang="en" key="INIT_MUTEX">Unable to initialize the application. Failed to create a required mutex object.</string>
     <string lang="en" key="INIT_RAND">Failed to initialize the random number generator!</string>
     <string lang="en" key="INIT_REGISTER">Unable to initialize the application. Failed to register the Dialog class.</string>
-    <string lang="en" key="INTRO_HELP">\nThis wizard will help you to create a new TrueCrypt volume.\n\nImportant: Collection of random data has begun. The data will be used in generating the master key, the secondary key (LRW mode), and salt, for the new volume. The collected data include your mouse movements within this window, keystrokes, and other data obtained from the system. The data should be as random as possible, so the more randomly and the longer you move the mouse, the better.</string>
     <string lang="en" key="INTRO_TITLE">TrueCrypt Volume Creation Wizard</string>
     <string lang="en" key="INVALID_DEVICE">Invalid drive or partition specified. Use the following syntax to mount partitions: \\Device\\Harddisk0\\Partition4</string>
     <string lang="en" key="MAX_HIDVOL_SIZE_BYTES">Maximum possible hidden volume size for this volume is %.2f bytes.</string>
@@ -369,7 +420,9 @@
     <string lang="en" key="VOL_CREATION_WIZARD_NOT_FOUND">Error: Volume Creation Wizard not found.\n\nPlease make sure that the file 'TrueCrypt Format.exe' is in the folder from which 'TrueCrypt.exe' was launched. If it is not, please reinstall TrueCrypt, or locate 'TrueCrypt Format.exe' on your disk and run it.</string>
     <string lang="en" key="NEXT">&amp;Next &gt;</string>
     <string lang="en" key="FINALIZE">&amp;Finish</string>
-    <string lang="en" key="NODRIVER">Unable to connect to the TrueCrypt device driver. TrueCrypt cannot work if the device driver is not running.\n\nPlease note that, due to a Windows issue, it may be required to log off or restart the system before the device driver can be loaded.</string>
+    <string lang="en" key="INSTALL">&amp;Install</string>
+    <string lang="en" key="EXTRACT">E&amp;xtract</string>
+    <string lang="en" key="NODRIVER">Unable to connect to the TrueCrypt device driver. TrueCrypt cannot work if the device driver is not running.\n\nPlease note that, due to a Windows issue, it may be necessary to log off or restart the system before the device driver can be loaded.</string>
     <string lang="en" key="NOFONT">Error occurred when loading/preparing fonts.</string>
     <string lang="en" key="NOT_FOUND">The DOS drive letter you specified has not been found.</string>
     <string lang="en" key="DRIVE_LETTER_UNAVAILABLE">Drive letter not available.</string>
@@ -383,12 +436,15 @@
     <string lang="en" key="OPENFILES_LOCK">Unable to lock the volume. There are still open files on the volume. Therefore, it cannot be dismounted.</string>
     <string lang="en" key="OPEN_VOL_TITLE">Select a TrueCrypt Volume</string>
     <string lang="en" key="OPEN_TITLE">Specify Path and File Name</string>
+    <string lang="en" key="SELECT_PATH">Select Path</string>
     <string lang="en" key="OUTOFMEMORY">Out of Memory</string>
-    <string lang="en" key="FORMAT_DEVICE_FOR_ADVANCED_ONLY">IMPORTANT: We strongly recommend that inexperienced users create a TrueCrypt file container on the selected device/partition, instead of attempting to encrypt the entire device/partition.\n\nWhen you create a TrueCrypt file container (as opposed to encrypting a device or partition) there is, for example, no risk of destroying a large number of files. Note that a TrueCrypt file container (even though it contains a virtual encrypted disk) is actually just like any normal file. Therefore, it can be, for example, easily renamed, moved, or copied as any normal file. To create a TrueCrypt file container, click 'No' and then click 'Select File' in the wizard window. For more information, see the chapter Beginner's Tutorial in the TrueCrypt User Guide.\n\nAre you sure you want to encrypt the entire device/partition?</string>
-    <string lang="en" key="OVERWRITEPROMPT">WARNING: The file '%hs' already exists!\n\nNote that TrueCrypt will NOT encrypt the file, but it will delete it. Are you sure you want to delete the file and replace it with a new TrueCrypt container?</string>
-    <string lang="en" key="OVERWRITEPROMPT_DEVICE">CAUTION: ALL FILES CURRENTLY STORED ON THE SELECTED %s '%hs'%s WILL BE ERASED AND LOST!\n\nAre you sure you want to proceed with format?</string>
+    <string lang="en" key="FORMAT_DEVICE_FOR_ADVANCED_ONLY">IMPORTANT: We strongly recommend that inexperienced users create a TrueCrypt file container on the selected device/partition, instead of attempting to encrypt the entire device/partition.\n\nWhen you create a TrueCrypt file container (as opposed to encrypting a device or partition) there is, for example, no risk of destroying a large number of files. Note that a TrueCrypt file container (even though it contains a virtual encrypted disk) is actually just like any normal file. Therefore, it can be, for example, easily renamed, moved, or copied as any normal file. For more information, see the chapter Beginner's Tutorial in the TrueCrypt User Guide.\n\nAre you sure you want to encrypt the entire device/partition?</string>
+    <string lang="en" key="OVERWRITEPROMPT">WARNING: The file '%hs' already exists!\n\nIMPORTANT: TRUECRYPT WILL NOT ENCRYPT THE FILE, BUT IT WILL DELETE IT. Are you sure you want to delete the file and replace it with a new TrueCrypt container?</string>
+    <string lang="en" key="OVERWRITEPROMPT_DEVICE">CAUTION: ALL FILES CURRENTLY STORED ON THE SELECTED %s '%hs'%s WILL BE ERASED AND LOST (THEY WILL NOT BE ENCRYPTED)!\n\nAre you sure you want to proceed with format?</string>
     <string lang="en" key="PASSWORD">Password</string>
     <string lang="en" key="PASSWORD_CHANGED">Password and/or keyfile(s) successfully changed.\n\nIMPORTANT: Please make sure you have read the section 'Changing Passwords and Keyfiles' in the chapter 'Security Precautions' in the TrueCrypt User Guide.</string>
+    <string lang="en" key="SYS_PASSWORD_CHANGED_ASK_RESCUE_DISK">IMPORTANT: If you did not destroy your TrueCrypt Rescue Disk, your system partition/drive can still be decrypted using the old password. You should create a new TrueCrypt Rescue Disk and then destroy the old one.\n\nDo you want to create a new TrueCrypt Rescue Disk?</string>
+    <string lang="en" key="SYS_HKD_ALGO_CHANGED_ASK_RESCUE_DISK">Note that your TrueCrypt Rescue Disk still uses the previous algorithm. If you consider the previous algorithm insecure, you should create a new TrueCrypt Rescue Disk and then destroy the old one.\n\nDo you want to create a new TrueCrypt Rescue Disk?</string>
     <string lang="en" key="KEYFILE_CHANGED">Keyfile(s) successfully added/removed.</string>
     <string lang="en" key="PKCS5_PRF_CHANGED">Header key derivation algorithm successfully set.</string>
     <string lang="en" key="PASSWORD_HELP">It is very important that you choose a good password. You should avoid choosing one that contains only a single word that can be found in a dictionary (or a combination of 2, 3, or 4 such words). It should not contain any names or dates of birth. It should not be easy to guess. A good password is a random combination of upper and lower case letters, numbers, and special characters, such as @ ^ = $ * + etc. We recommend choosing a password consisting of more than 20 characters (the longer, the better). The maximum password length is 64 characters.</string>
@@ -404,21 +460,20 @@
     <string lang="en" key="PASSWORD_WRONG_CAPSLOCK_ON">\n\nWarning: Caps Lock is on. This may cause you to enter your password incorrectly.</string>
     <string lang="en" key="PASSWORD_WRONG_AUTOMOUNT">Incorrect password or no TrueCrypt volume found.</string>
     <string lang="en" key="PASSWORD_OR_KEYFILE_WRONG_AUTOMOUNT">Incorrect keyfile(s)/password or no TrueCrypt volume found.</string>
-    <string lang="en" key="PREV">&lt; &amp;Prev</string>
+    <string lang="en" key="PREV">&lt; &amp;Back</string>
     <string lang="en" key="RAWDEVICES">Unable to list raw devices installed on your system!</string>
     <string lang="en" key="READONLYPROMPT">The volume '%hs' exists, and is read-only. Are you sure you want to replace it?</string>
     <string lang="en" key="SELECT_DEST_DIR">Select destination directory</string>
     <string lang="en" key="SELECT_KEYFILE">Select Keyfile</string>
     <string lang="en" key="SELECT_KEYFILE_PATH">Select a keyfile search path. WARNING: Note that only the path will be remembered, not the filenames!</string>
-    <string lang="en" key="SERPENT_HELP">Designed by Ross Anderson, Eli Biham, and Lars Knudsen. Published in 1998. 256-bit key, 128-bit block. Mode of operation is LRW. Serpent was one of the AES finalists.</string>
+    <string lang="en" key="SERPENT_HELP">Designed by Ross Anderson, Eli Biham, and Lars Knudsen. Published in 1998. 256-bit key, 128-bit block. Mode of operation is XTS. Serpent was one of the AES finalists.</string>
     <string lang="en" key="SETFILETIME_FAILED_IMPLANT">WARNING: Failed to restore container timestamp (file modification/access date/time)!\n\nThe plausible deniability of the hidden volume might be affected.</string>
     <string lang="en" key="SETFILETIME_FAILED_PREP_IMPLANT">WARNING: Failed to restore container timestamp!\n\nIf you do not reset the timestamp using an external tool, we recommend that you do not create a hidden volume within this container.</string>
     <string lang="en" key="SETFILETIME_FAILED_PW">WARNING: Failed to restore container timestamp (file modification/access date/time)!\n\nIf there is a hidden volume within this container, the plausible deniability of the hidden volume might be affected.</string>
     <string lang="en" key="SETFILETIME_FAILED_KEYFILE">WARNING: Failed to restore keyfile timestamp! Cannot preserve last access date/time.\n\nIt will be possible to tell that this file has been accessed.</string>
-    <string lang="en" key="SETUP_INCOMPLETE">Error: 'Setup Files' folder not found.\n\nNote that before you can install TrueCrypt, you must extract all files from the distribution package.</string>
-    <string lang="en" key="SIZE_HELP">Please specify the size of the container to create.\n\nIf you create a dynamic (sparse-file) container, this parameter will specify its maximum size.\n\nNote that the minimum possible size of a FAT volume is 19 KB. The minimum possible size of an NTFS volume is 2526 KB.</string>
-    <string lang="en" key="SIZE_HELP_HIDDEN_HOST_VOL">Please specify the size of the new outer volume (within which the hidden volume will be created later on). The minimum possible size of a volume within which a hidden volume is intended to be created is 40 KB.</string>
-    <string lang="en" key="SIZE_HELP_HIDDEN_VOL">Please specify the size of the hidden volume to create. The minimum possible size of a FAT volume is 19 KB. The minimum possible size of an NTFS volume is 2526 KB. The maximum possible size you can specify for the hidden volume is displayed above.</string>
+    <string lang="en" key="SIZE_HELP">Please specify the size of the container to create.\n\nIf you create a dynamic (sparse-file) container, this parameter will specify its maximum size.\n\nNote that the minimum possible size of a FAT volume is 19 KB. The minimum possible size of an NTFS volume is 2573 KB.</string>
+    <string lang="en" key="SIZE_HELP_HIDDEN_HOST_VOL">Please specify the size of the outer volume to be created (you will first create the outer volume and then a hidden volume within it). The minimum possible size of a volume within which a hidden volume is intended to be created is 40 KB.</string>
+    <string lang="en" key="SIZE_HELP_HIDDEN_VOL">Please specify the size of the hidden volume to create. The minimum possible size of a FAT volume is 19 KB. The minimum possible size of an NTFS volume is 2573 KB. The maximum possible size you can specify for the hidden volume is displayed above.</string>
     <string lang="en" key="SIZE_HIDVOL_HOST_TITLE">Outer Volume Size</string>
     <string lang="en" key="SIZE_HIDVOL_TITLE">Hidden Volume Size</string>
     <string lang="en" key="SIZE_PARTITION_HELP">Size of a device or partition cannot be modified. Please verify that the size of the selected device or partition shown above is correct and click Next.</string>
@@ -427,17 +482,16 @@
     <string lang="en" key="SPARSE_FILE">Dynamic</string>
     <string lang="en" key="TESTS_FAILED">CAUTION: SELF-TEST FAILED!</string>
     <string lang="en" key="TESTS_PASSED">Self-tests of all algorithms passed</string>
-    <string lang="en" key="TEST_INCORRECT_LRW_INDEX_SIZE">The LRW block index that you supplied is too long or short.</string>
-    <string lang="en" key="TEST_INCORRECT_LRW_KEY_SIZE">The secondary key that you supplied is too long or short.</string>
+    <string lang="en" key="TEST_INCORRECT_TEST_DATA_UNIT_SIZE">The data unit number that you supplied is too long or short.</string>
+    <string lang="en" key="TEST_INCORRECT_SECONDARY_KEY_SIZE">The secondary key that you supplied is too long or short.</string>
     <string lang="en" key="TEST_CIPHERTEXT_SIZE">The test ciphertext you have supplied is too long or short.</string>
     <string lang="en" key="TEST_KEY_SIZE">The test key you have supplied is too long or short.</string>
     <string lang="en" key="TEST_PLAINTEXT_SIZE">The test plaintext you have supplied is too long or short.</string>
-    <string lang="en" key="TEST_LRW_INDEX_OVERRUN">Error: TrueCrypt does not support LRW block index values greater or equal to 2^64.\n\nAlso note that the maximum supported volume size is 2^63 bytes (8589934592 GB).</string>
-    <string lang="en" key="TWO_LAYER_CASCADE_HELP">Two ciphers in a cascade operating in LRW mode. Each block is first encrypted with %hs (%d-bit key) and then with %hs (%d-bit key). Each cipher uses its own key. All keys are mutually independent.</string>
-    <string lang="en" key="THREE_LAYER_CASCADE_HELP">Three ciphers in a cascade operating in LRW mode. Each block is first encrypted with %hs (%d-bit key), then with %hs (%d-bit key), and finally with %hs (%d-bit key). Each cipher uses its own key. All keys are mutually independent.</string>
-    <string lang="en" key="TRAVELLER_DISK_CREATED">TrueCrypt traveller disk has been successfully created.\n\nNote that you need administrator privileges to run TrueCrypt in traveller mode. Also note that, after examining the registry file, it may be possible to tell that TrueCrypt was run on a Windows system even if it is run in traveller mode.</string>
-    <string lang="en" key="TC_TRAVELLER_DISK">TrueCrypt Traveller Disk</string>
-    <string lang="en" key="TWOFISH_HELP">Designed by Bruce Schneier, John Kelsey, Doug Whiting, David Wagner, Chris Hall, and Niels Ferguson. Published in 1998. 256-bit key, 128-bit block. Mode of operation is LRW. Twofish was one of the AES finalists.</string>
+    <string lang="en" key="TWO_LAYER_CASCADE_HELP">Two ciphers in a cascade operating in XTS mode. Each block is first encrypted with %hs (%d-bit key) and then with %hs (%d-bit key). Each cipher uses its own key. All keys are mutually independent.</string>
+    <string lang="en" key="THREE_LAYER_CASCADE_HELP">Three ciphers in a cascade operating in XTS mode. Each block is first encrypted with %hs (%d-bit key), then with %hs (%d-bit key), and finally with %hs (%d-bit key). Each cipher uses its own key. All keys are mutually independent.</string>
+    <string lang="en" key="TRAVELER_DISK_CREATED">TrueCrypt traveler disk has been successfully created.\n\nNote that you need administrator privileges to run TrueCrypt in traveler mode. Also note that, after examining the registry file, it may be possible to tell that TrueCrypt was run on a Windows system even if it is run in traveler mode.</string>
+    <string lang="en" key="TC_TRAVELER_DISK">TrueCrypt Traveler Disk</string>
+    <string lang="en" key="TWOFISH_HELP">Designed by Bruce Schneier, John Kelsey, Doug Whiting, David Wagner, Chris Hall, and Niels Ferguson. Published in 1998. 256-bit key, 128-bit block. Mode of operation is XTS. Twofish was one of the AES finalists.</string>
     <string lang="en" key="MORE_INFO_ABOUT">More information on %hs</string>
     <string lang="en" key="UNKNOWN">Unknown</string>
     <string lang="en" key="ERR_UNKNOWN">An unspecified or unknown error occurred.</string>
@@ -454,7 +508,7 @@
     <string lang="en" key="VOL_SIZE_WRONG">Error: Incorrect volume size.</string>
     <string lang="en" key="VOL_TOO_SMALL">The volume is too small - it is an invalid volume.</string>
     <string lang="en" key="VOL_WRITING">Error writing data to volume.</string>
-    <string lang="en" key="WARN_QUICK_FORMAT">WARNING: You should use Quick Format only in the following cases:\n\n1) The device contains random data (e.g. has already been fully encrypted)\n2) You are going to use all available space immediately\n3) You are not concerned with security (testing)</string>
+    <string lang="en" key="WARN_QUICK_FORMAT">WARNING: You should use Quick Format only in the following cases:\n\n1) The device contains random data (e.g. has already been securely and fully encrypted).\n2) You are going to use all available space immediately.\n3) You are not concerned with security (testing).\n\nAre you sure you want to use Quick Format?</string>
     <string lang="en" key="CONFIRM_SPARSE_FILE">Dynamic container is a pre-allocated NTFS sparse file whose physical size (actual disk space used) grows as new data is added to it.\n\nWARNING: Performance of sparse-file-hosted volumes is significantly worse than performance of regular volumes. Sparse-file-hosted volumes are also less secure, because it is possible to tell which volume sectors are unused. Furthermore, if data is written to a sparse file container when there is not enough free space in the host file system, the encrypted file system may get corrupted.\n\nAre you sure you want to create a sparse-file-hosted volume?</string>
     <string lang="en" key="SPARSE_FILE_SIZE_NOTE">Note that the size of the dynamic container reported by Windows and by TrueCrypt will always be equal to its maximum size. To find out current physical size of the container (actual disk space it uses), right-click the container file (in a Windows Explorer window, not in TrueCrypt), then select 'Properties' and see the 'Size on disk' value.</string>
     <string lang="en" key="WIPE_CACHE">Passwords stored in the device driver cache have been wiped.</string>
@@ -468,12 +522,15 @@
     <string lang="en" key="UNSUPPORTED_BETA_OS">Error: TrueCrypt supports only stable (non-beta) versions of this operating system.</string>
     <string lang="en" key="ERR_MEM_ALLOC">Error: Cannot allocate memory.</string>
     <string lang="en" key="ERR_PERF_COUNTER">Error: Could not retrieve value of performance counter.</string>
+    <string lang="en" key="ERR_VOL_FORMAT_BAD">Error: Bad volume format.</string>
+    <string lang="en" key="LEGAL_NOTICES_DLG_TITLE">TrueCrypt - Legal Notices</string>    
     <string lang="en" key="ALL_FILES">All Files</string>
     <string lang="en" key="TC_VOLUMES">TrueCrypt Volumes</string>
     <string lang="en" key="FORMAT_NTFS_STOP">NTFS formatting cannot continue.</string>
     <string lang="en" key="CANT_MOUNT_VOLUME">Cannot mount volume.</string>
     <string lang="en" key="CANT_DISMOUNT_VOLUME">Cannot dismount volume.</string>
     <string lang="en" key="FORMAT_NTFS_FAILED">Windows failed to format the volume as NTFS.\n\nPlease select a different type of file system (if possible) and try again. Alternatively, you could leave the volume unformatted (select 'None' as the filesystem), exit this wizard, mount the volume, and then use either a system or a third-party tool to format the mounted volume (the volume will remain encrypted).</string>
+    <string lang="en" key="FORMAT_NTFS_FAILED_ASK_FAT">Windows failed to format the volume as NTFS.\n\nDo you want to format the volume as FAT instead?</string>
     <string lang="en" key="DEFAULT">Default</string>
     <string lang="en" key="SECTOR">sector</string>
     <string lang="en" key="BLOCK">block</string>
@@ -485,11 +542,14 @@
     <string lang="en" key="DEVICE_UPPER_CASE">DEVICE</string>
     <string lang="en" key="CLUSTER_TOO_SMALL">The selected cluster size is too small for this volume size. A greater cluster size will be used instead.</string>
     <string lang="en" key="CANT_GET_VOLSIZE">Error: Cannot get volume size!\n\nMake sure the selected volume is not being used by the system or an application.</string>
-    <string lang="en" key="HIDDEN_HOST_FAT_ONLY">A hidden volume can only be created within a FAT volume.\n\nFor more information, please refer to the documentation.</string>
     <string lang="en" key="HIDDEN_VOL_HOST_SPARSE">Hidden volumes shall not be created within dynamic (sparse file) containers. To achieve plausible deniability, the hidden volume shall be created within a regular volume.</string>
+    <string lang="en" key="HIDDEN_VOL_HOST_UNSUPPORTED_FILESYS">The TrueCrypt Volume Creation Wizard can create a hidden volume only within a FAT or NTFS volume.</string>
+    <string lang="en" key="HIDDEN_VOL_HOST_UNSUPPORTED_FILESYS_WIN2000">Under Windows 2000, the TrueCrypt Volume Creation Wizard can create a hidden volume only within a FAT volume.</string>
+    <string lang="en" key="HIDDEN_VOL_HOST_NTFS">Note: The FAT file system is more suitable for outer volumes than the NTFS file system (for example, the maximum possible size of the hidden volume would very likely have been greater if the outer volume had been formatted as FAT).</string>
+    <string lang="en" key="HIDDEN_VOL_HOST_NTFS_ASK">Note that the FAT file system is more suitable for outer volumes than the NTFS file system (for example, the maximum possible size of the hidden volume will very likely be greater if the outer volume is formatted as FAT).\n\nAre you sure you want to format the outer volume as NTFS?</string>
     <string lang="en" key="CANT_ACCESS_VOL">Error: Cannot access the volume!\n\nMake sure that the selected volume exists, that it is not mounted or being used by the system or an application, that you have read/write permission for the volume, and that it is not write-protected.</string>
     <string lang="en" key="CANT_DISMOUNT_OUTER_VOL">Error: Cannot dismount the outer volume!\n\nVolume cannot be dismounted if it contains files or folders being used by a program or the system.\n\nPlease close any program that might be using files or directories on the volume and click Retry.</string>
-    <string lang="en" key="CANT_LOCK_OUTER_VOL">Error: Cannot lock the outer volume!\n\nVolume cannot be locked if it contains files or folders being used by an application or the system.\n\nPlease close any application that might be using files or directories on the volume and click Retry.\n\nWARNING: If you decide to ignore this, you must ensure that after you click Ignore, no more data will be written to the volume until it is dismounted. Failure to do so may adversely affect plausible deniability of the hidden volume!</string>
+    <string lang="en" key="CANT_GET_OUTER_VOL_INFO">Error: Cannot obtain information about the outer volume!\nVolume creation cannot continue.</string>
     <string lang="en" key="CANT_ACCESS_OUTER_VOL">Error: Cannot access the outer volume! Volume creation cannot continue.</string>
     <string lang="en" key="CANT_MOUNT_OUTER_VOL">Error: Cannot mount the outer volume! Volume creation cannot continue.</string>
     <string lang="en" key="CANT_GET_CLUSTER_BITMAP">Error: Cannot get volume cluster bitmap! Volume creation cannot continue.</string>
@@ -512,8 +572,18 @@
     <string lang="en" key="HIDDEN">Hidden</string>
     <string lang="en" key="OUTER">Outer</string>
     <string lang="en" key="NORMAL">Normal</string>
+    <string lang="en" key="SYSTEM_NOUN">System</string>
+    <string lang="en" key="SYSTEM_VOLUME_TYPE_ADJECTIVE">System</string>
     <string lang="en" key="READ_ONLY">Read-Only</string>
     <string lang="en" key="HIDDEN_VOLUME">Hidden Volume</string>
+    <string lang="en" key="SYSTEM_DRIVE">System drive</string>
+    <string lang="en" key="SYSTEM_DRIVE_ENCRYPTING">System drive (encrypting - %.2f%% done)</string>
+    <string lang="en" key="SYSTEM_DRIVE_DECRYPTING">System drive (decrypting - %.2f%% done)</string>
+    <string lang="en" key="SYSTEM_DRIVE_PARTIALLY_ENCRYPTED">System drive (%.2f%% encrypted)</string>
+    <string lang="en" key="SYSTEM_PARTITION">System partition</string>
+    <string lang="en" key="SYSTEM_PARTITION_ENCRYPTING">System partition (encrypting - %.2f%% done)</string>
+    <string lang="en" key="SYSTEM_PARTITION_DECRYPTING">System partition (decrypting - %.2f%% done)</string>
+    <string lang="en" key="SYSTEM_PARTITION_PARTIALLY_ENCRYPTED">System partition (%.2f%% encrypted)</string>
     <string lang="en" key="HID_VOL_DAMAGE_PREVENTED">Yes (damage prevented!)</string>
     <string lang="en" key="NONE">None</string>
     <string lang="en" key="ACTIVE">Active</string>
@@ -530,12 +600,37 @@
     <string lang="en" key="REMOVABLE">removable</string>
     <string lang="en" key="HARDDISK">Harddisk</string>
     <string lang="en" key="UNCHANGED">Unchanged</string>
+    <string lang="en" key="SETUP_MODE_TITLE">Wizard Mode</string>
+    <string lang="en" key="SETUP_MODE_INFO">Select one of the modes. If you are not sure which to select, click Next.</string>
+    <string lang="en" key="SETUP_MODE_HELP_INSTALL">Select this option if you want to install TrueCrypt on this system.</string>
+    <string lang="en" key="SETUP_MODE_HELP_EXTRACT">If you select this option, all files will be extracted from this package but nothing will be installed on the system. Do not select it if you intend to encrypt the Windows system partition. Selecting this option can be useful, for example, if you want to run TrueCrypt in so-called traveler (portable) mode. TrueCrypt does not have to be installed on the operating system under which it is run. After all files are extracted, you can directly run the extracted file 'TrueCrypt.exe' (then TrueCrypt will run in traveler mode). You can also move the extracted files to other computers.</string>
+    <string lang="en" key="SETUP_OPTIONS_TITLE">Setup Options</string>
+    <string lang="en" key="SETUP_OPTIONS_INFO">Here you can set various options to control the installation process.</string>
+    <string lang="en" key="SETUP_PROGRESS_TITLE">Installing</string>
+    <string lang="en" key="SETUP_PROGRESS_INFO">Please wait while TrueCrypt is being installed.</string>
+    <string lang="en" key="SETUP_FINISHED_TITLE">TrueCrypt Installed</string>
+    <string lang="en" key="SETUP_FINISHED_INFO">TrueCrypt has been successfully installed. You can click Finish and run TrueCrypt now.</string>
+    <string lang="en" key="EXTRACTION_OPTIONS_TITLE">Extraction Options</string>
+    <string lang="en" key="EXTRACTION_OPTIONS_INFO">Here you can set various options to control the extraction process.</string>
+    <string lang="en" key="EXTRACTION_PROGRESS_INFO">Please wait while files are being extracted.</string>
+    <string lang="en" key="EXTRACTION_FINISHED_TITLE">Extraction Complete</string>
+    <string lang="en" key="EXTRACTION_FINISHED_INFO">All files have been successfully extracted to the destination location.</string>
+    <string lang="en" key="AUTO_FOLDER_CREATION">If the specified folder does not exist, it will be automatically created.</string>
     <string lang="en" key="AFTER_UPGRADE_RELEASE_NOTES">Do you want to view release notes for the current (latest stable) version of TrueCrypt?</string>
     <string lang="en" key="AFTER_INSTALL_TUTORIAL">If you have never used TrueCrypt before, we recommend that you read the chapter Beginner's Tutorial in the TrueCrypt User Guide. Do you want to view the tutorial?</string>
+    <string lang="en" key="SELECT_AN_ACTION">Please select an action to perform from the following:</string>
+    <string lang="en" key="REPAIR_REINSTALL">Repair/Reinstall</string>
+    <string lang="en" key="UNINSTALL">Uninstall</string>
     <string lang="en" key="SELECT_INSTALL_DIR">Please select installation directory</string>
     <string lang="en" key="SETUP_ADMIN">To successfully install/uninstall TrueCrypt you must have Administrator rights, do you want to continue?</string>
-    <string lang="en" key="INSTALL_FAILED">The installation has failed!</string>
-    <string lang="en" key="UNINSTALL_FAILED">The uninstall has failed!</string>
+    <string lang="en" key="INSTALL_FAILED">Installation failed.</string>
+    <string lang="en" key="UNINSTALL_FAILED">Uninstallation failed.</string>
+    <string lang="en" key="DIST_PACKAGE_CORRUPTED">This distribution package is damaged. Please try downloading it again (preferably from the official TrueCrypt website at www.truecrypt.org).</string>
+    <string lang="en" key="CANNOT_WRITE_FILE_X">Cannot write file %hs</string>
+    <string lang="en" key="EXTRACTING_VERB">Extracting</string>
+    <string lang="en" key="CANNOT_READ_FROM_PACKAGE">Cannot read data from the package.</string>
+    <string lang="en" key="CANT_VERIFY_PACKAGE_INTEGRITY">Cannot verify the integrity of this distribution package.</string>
+    <string lang="en" key="EXTRACTION_FAILED">Extraction failed.</string>
     <string lang="en" key="ROLLBACK">The installation has been rolled back.</string>
     <string lang="en" key="INSTALL_OK">TrueCrypt has been successfully installed.</string>
     <string lang="en" key="UNINSTALL_OK">TrueCrypt has been successfully uninstalled.\n\nClick 'Finish' to remove the TrueCrypt installer and the folder %hs. Note that the folder will not be removed if it contains any files that were not installed by the TrueCrypt installer or created by TrueCrypt.</string>
@@ -557,15 +652,17 @@
     <string lang="en" key="CANT_CREATE_FOLDER">The folder '%hs' could not be created</string>
     <string lang="en" key="CLOSE_TC_FIRST">The TrueCrypt device driver cannot be unloaded.\n\nPlease close all open TrueCrypt windows first. If it does not help, please restart Windows and then try again.</string>
     <string lang="en" key="DISMOUNT_ALL_FIRST">All TrueCrypt volumes must be dismounted before installing or uninstalling TrueCrypt.</string>
+    <string lang="en" key="UNINSTALL_OLD_VERSION_FIRST">An obsolete version of TrueCrypt is currently installed on this system. It needs to be uninstalled before you can install this new version of TrueCrypt.\n\nAs soon as you close this message box, the uninstaller of the old version will be launched. After you uninstall the old version of TrueCrypt, run the installer of the new version of TrueCrypt again.</string>
     <string lang="en" key="REG_INSTALL_FAILED">The installation of the registry entries has failed</string>
     <string lang="en" key="DRIVER_INSTALL_FAILED">The installation of the device driver has failed. Please restart Windows and then try installing TrueCrypt again.</string>
     <string lang="en" key="STARTING_DRIVER">Starting TrueCrypt device driver</string>
-    <string lang="en" key="DRIVER_UINSTALL_FAILED">The uninstallation of the device driver has failed</string>
+    <string lang="en" key="DRIVER_UINSTALL_FAILED">Uninstallation of the device driver has failed. Please note that, due to a Windows issue, it may be necessary to log off or restart the system before the device driver can be uninstalled (or reinstalled).</string>
     <string lang="en" key="INSTALLING_DRIVER">Installing TrueCrypt device driver</string>
     <string lang="en" key="STOPPING_DRIVER">Stopping TrueCrypt device driver</string>
     <string lang="en" key="REMOVING_DRIVER">Uninstalling TrueCrypt device driver</string>
     <string lang="en" key="COM_REG_FAILED">Registration of the User Account Control support library failed.</string>
     <string lang="en" key="COM_DEREG_FAILED">Unregistration of the User Account Control support library failed.</string>
+    <string lang="en" key="CANNOT_DISPLAY_LICENSE">Error: Cannot display license.</string>
     <string lang="en" key="OUTER_VOL_WRITE_PREVENTED">Outer(!)</string>
     <string lang="en" key="DAYS">days</string>
     <string lang="en" key="HOURS">hours</string>
@@ -577,6 +674,16 @@
     <string lang="en" key="HIDE_TC">Hide TrueCrypt</string>
     <string lang="en" key="TOTAL_DATA_READ">Data Read since Mount</string>
     <string lang="en" key="TOTAL_DATA_WRITTEN">Data Written since Mount</string>
+    <string lang="en" key="ENCRYPTED_PORTION">Encrypted Portion</string>
+    <string lang="en" key="ENCRYPTED_PORTION_FULLY_ENCRYPTED">100% (fully encrypted)</string>
+    <string lang="en" key="ENCRYPTED_PORTION_NOT_ENCRYPTED">0% (not encrypted)</string>
+    <string lang="en" key="PROCESSED_PORTION_X_PERCENT">%.3f%%</string>
+    <string lang="en" key="PROCESSED_PORTION_100_PERCENT">100%</string>
+    <string lang="en" key="PROGRESS_STATUS_WAITING">Waiting</string>
+    <string lang="en" key="PROGRESS_STATUS_ENCRYPTING">Encrypting</string>
+    <string lang="en" key="PROGRESS_STATUS_DECRYPTING">Decrypting</string>
+    <string lang="en" key="PROGRESS_STATUS_PAUSED">Paused</string>
+    <string lang="en" key="PROGRESS_STATUS_FINISHED">Finished</string>
     <string lang="en" key="FAVORITE_VOLUMES_SAVED">Favorite volumes saved.</string>
     <string lang="en" key="ENTER_PASSWORD_FOR">Enter password for %hs</string>
     <string lang="en" key="KEYFILE_CREATED">Keyfile has been successfully created.</string>
@@ -585,10 +692,20 @@
     <string lang="en" key="CONFIRM_VOL_HEADER_BAK">Are you sure you want to create volume header backup for %hs?\n\nAfter you click Yes, you will prompted for a filename for the header backup.\n\nNote: Both the standard volume header and the area where hidden volume headers are stored will be backed up (copied to the backup file), even if there is no hidden volume within this volume (to preserve plausible deniability). When restoring a volume header, you will be able to select which header is to be restored (i.e. standard or hidden).</string>
     <string lang="en" key="CONFIRM_VOL_HEADER_RESTORE">Are you sure you want to restore volume header of %hs?\n\nWARNING: Restoring a volume header also restores the volume password that was valid when the backup was created. Moreover, if keyfile(s) were/was necessary to mount the volume when the backup was created, the same keyfile(s) will be necessary to mount the volume again after the volume header is restored.\n\nAfter you click Yes, you will select the header backup file.</string>
     <string lang="en" key="HEADER_RESTORE_TYPE">Please select the type of TrueCrypt volume whose header you want to restore:</string>
+    <string lang="en" key="BACKUP_HEADER_NOT_FOR_SYS_DEVICE">You are attempting to back up the header of the system partition/drive. This is not allowed. Backup/restore operations pertaining to the system partition/drive can be performed only using the TrueCrypt Rescue Disk.\n\nDo you want to create a TrueCrypt Rescue Disk?</string>
+    <string lang="en" key="RESTORE_HEADER_NOT_FOR_SYS_DEVICE">You are attempting to restore the header of a virtual TrueCrypt volume but you selected the system partition/drive. This is not allowed. Backup/restore operations pertaining to the system partition/drive can be performed only using the TrueCrypt Rescue Disk.\n\nDo you want to create a TrueCrypt Rescue Disk?</string>
     <string lang="en" key="RESTORE_NORMAL_VOLUME_HEADER">Restore header of standard volume</string>
     <string lang="en" key="RESTORE_HIDDEN_VOLUME_HEADER">Restore header of hidden volume</string>
+    <string lang="en" key="RESCUE_DISK_NON_WIZARD_CREATION_SELECT_PATH">After you click OK, you will select a filename for the new TrueCrypt Rescue Disk ISO image and the location where you wish to place it.</string>
+    <string lang="en" key="RESCUE_DISK_NON_WIZARD_CREATION_BURN">The Rescue Disk image has been created and stored in this file:\n%hs\n\nNow you need to write (burn) the Rescue Disk to a CD or DVD.\n\nIMPORTANT: Note that the file must be written to the CD/DVD as an ISO disk image (not as an individual file). For information on how to do so, please refer to the documentation of your CD/DVD recording software.\n\nAfter you burn the Rescue Disk, select 'System' > 'Verify Rescue Disk' to verify that the Rescue Disk has been correctly burned.</string>
+    <string lang="en" key="RESCUE_DISK_NON_WIZARD_CHECK_INSERT">Please insert your TrueCrypt Rescue Disk into your CD/DVD drive and click OK to verify it.</string>
+    <string lang="en" key="RESCUE_DISK_NON_WIZARD_CHECK_PASSED">The TrueCrypt Rescue Disk has been successfully verified.</string>
+    <string lang="en" key="RESCUE_DISK_NON_WIZARD_CHECK_FAILED">Cannot verify that the Rescue Disk has been correctly burned.\n\nIf you have burned the Rescue Disk, please eject and reinsert the CD/DVD; then try again. If this does not help, please try other CD/DVD recording software and/or medium.\n\nIf you attempted to verify a TrueCrypt Rescue Disk created for a different master key, password, salt, etc., please note that such Rescue Disk will always fail this verification. To create a new Rescue Disk fully compatible with your current configuration, select 'System' > 'Create Rescue Disk'.</string>
+    <string lang="en" key="ERROR_CREATING_RESCUE_DISK">Error creating TrueCrypt Rescue Disk.</string>
+    <string lang="en" key="RESCUE_DISK_CHECK_FAILED">Cannot verify that the Rescue Disk has been correctly burned.\n\nIf you have burned the Rescue Disk, please eject and reinsert the CD/DVD; then click Next to try again. If this does not help, please try other CD/DVD recording software and/or medium.\n\nIf you have not burned the Rescue Disk yet, please do so, and then click Next.\n\nIf you attempted to verify a TrueCrypt Rescue Disk created before you started this wizard, please note that such Rescue Disk cannot be used because it was created for a different master key. You need to burn the newly generated Rescue Disk.</string>
     <string lang="en" key="CONFIRM_SAVE_FAVORITE_VOL">Save all currently mounted volumes and their drive letters to the Favorite Volumes list?\n\nNote: If no volumes are mounted, the Favorite Volumes list will be deleted.</string>
     <string lang="en" key="DISMOUNT_FIRST">Please dismount the volume before proceeding.</string>
+    <string lang="en" key="CANNOT_SET_TIMER">Error: Cannot set timer.</string>
     <string lang="en" key="IDPM_CHECK_FILESYS">Check Filesystem</string>
     <string lang="en" key="IDPM_REPAIR_FILESYS">Repair Filesystem</string>
     <string lang="en" key="IDPM_PROPERTIES">P&amp;roperties</string>
@@ -596,11 +713,13 @@
     <string lang="en" key="N_A_UISTR">N/A</string>
     <string lang="en" key="UISTR_YES">Yes</string>
     <string lang="en" key="UISTR_NO">No</string>
+    <string lang="en" key="DIGIT_ONE">1</string>
+    <string lang="en" key="TWO_OR_MORE">2 or more</string>
     <string lang="en" key="MODE_OF_OPERATION">Mode of Operation</string>
     <string lang="en" key="UNSUPPORTED_CHARS_IN_PWD">Error: Password must contain only ASCII characters.\n\nNon-ASCII characters in password might cause the volume to be impossible to mount when your system configuration changes.\n\nThe following characters are allowed:\n\n  ! " # $ % &amp; ' ( ) * + , - . / 0 1 2 3 4 5 6 7 8 9 : ; &lt; = &gt; ? @ A B C D E F G H I J K L M N O P Q R S T U V W X Y Z [ \\ ] ^ _ ` a b c d e f g h i j k l m n o p q r s t u v w k y z { | } ~</string>
     <string lang="en" key="UNSUPPORTED_CHARS_IN_PWD_RECOM">Warning: Password contains non-ASCII characters. This may cause the volume to be impossible to mount when your system configuration changes.\n\nYou should replace all non-ASCII characters in the password with ASCII characters. To do so, click 'Volumes' -&gt; 'Change Volume Password'.\n\nThe following are ASCII characters:\n\n  ! " # $ % &amp; ' ( ) * + , - . / 0 1 2 3 4 5 6 7 8 9 : ; &lt; = &gt; ? @ A B C D E F G H I J K L M N O P Q R S T U V W X Y Z [ \\ ] ^ _ ` a b c d e f g h i j k l m n o p q r s t u v w k y z { | } ~</string>
-    <string lang="en" key="EXE_FILE_EXTENSION_CONFIRM">WARNING: We recommend that you avoid file extensions that are used for executable files (such as .exe, .sys, or .dll). Using such file extensions often causes Windows and antivirus software to interfere with the container, which adversely affects the performance of the volume and may also cause other serious problems.\n\nContinue?</string>
-    <string lang="en" key="EXE_FILE_EXTENSION_MOUNT_WARNING">WARNING: This container has a file extension that is used for executable files (such as .exe, .sys, or .dll). It will very likely cause Windows and antivirus software to interfere with the container, which will adversely affect the performance of the volume and may also cause other serious problems.\n\nWe recommend that you change or remove the file extension of the container (after you dismount the volume).</string>
+    <string lang="en" key="EXE_FILE_EXTENSION_CONFIRM">WARNING: We strongly recommend that you avoid file extensions that are used for executable files (such as .exe, .sys, or .dll) and other similarly problematic file extensions. Using such file extensions causes Windows and antivirus software to interfere with the container, which adversely affects the performance of the volume and may also cause other serious problems.\n\nWe strongly recommend that you remove the file extension or change it (for example, to .raw, .iso, .img, .dat, or .rnd).\n\nAre you sure you want to use the problematic file extension?</string>
+    <string lang="en" key="EXE_FILE_EXTENSION_MOUNT_WARNING">WARNING: This container has a file extension that is used for executable files (such as .exe, .sys, or .dll) or other similarly problematic file extension. It will very likely cause Windows and antivirus software to interfere with the container, which will adversely affect the performance of the volume and may also cause other serious problems.\n\nWe strongly recommend that you remove the file extension of the container or change it (for example, to .raw, .iso, .img, .dat, or .rnd) after you dismount the volume.</string>
     <string lang="en" key="HOMEPAGE">Homepage</string>
     <string lang="en" key="LARGE_IDE_WARNING_XP">WARNING: It appears that you have not applied any Service Pack to your Windows installation. You should not write to IDE disks larger than 128 GB under Windows XP to which you did not apply Service Pack 1 or later! If you do, data on the disk (no matter if it is a TrueCrypt volume or not) may get corrupted. Note that this is a limitation of Windows, not a bug in TrueCrypt.</string>
     <string lang="en" key="LARGE_IDE_WARNING_2K">WARNING: It appears that you have not applied Service Pack 3 or later to your Windows installation. You should not write to IDE disks larger than 128 GB under Windows 2000 to which you did not apply Service Pack 3 or later! If you do, data on the disk (no matter if it is a TrueCrypt volume or not) may get corrupted. Note that this is a limitation of Windows, not a bug in TrueCrypt.\n\nNote: You may also need to enable the 48-bit LBA support in the registry; for more information, see http://support.microsoft.com/kb/305098/EN-US</string>
@@ -608,7 +727,7 @@
     <string lang="en" key="VOLUME_TOO_LARGE_FOR_FAT32">Error: Files larger than 4 GB cannot be stored on a FAT32 file system. Therefore, file-hosted TrueCrypt volumes (containers) stored on a FAT32 file system cannot be larger than 4 GB.\n\nIf you need a larger volume, create it on an NTFS file system or, instead of creating a file-hosted volume, encrypt a partition.</string>
     <string lang="en" key="FREE_SPACE_FOR_WRITING_TO_OUTER_VOLUME">WARNING: If you want to be able to add more data/files to the outer volume in future, you should consider choosing a smaller size for the hidden volume.\n\nAre you sure you want to continue with the size you specified?</string>
     <string lang="en" key="NO_VOLUME_SELECTED">No volume selected.\n\nClick 'Select Device' or 'Select File' to select a TrueCrypt volume.</string>
-    <string lang="en" key="CONFIRM_SAVE_DEFAULT_KEYFILES">Are you sure you want to save the selected keyfiles/paths as default?\n\nWARNING: If default keyfiles are set and enabled, volumes that are not using these keyfiles will be impossible to mount. Keep in mind to uncheck the 'Use keyfiles' checkbox whenever mounting such volumes.</string>
+    <string lang="en" key="CONFIRM_SAVE_DEFAULT_KEYFILES">WARNING: If default keyfiles are set and enabled, volumes that are not using these keyfiles will be impossible to mount. Therefore, after you enable default keyfiles, keep in mind to uncheck the 'Use keyfiles' checkbox (below a password input field) whenever mounting such volumes.\n\nAre you sure you want to save the selected keyfiles/paths as default?</string>
     <string lang="en" key="HK_AUTOMOUNT_DEVICES">Auto-Mount Devices</string>
     <string lang="en" key="HK_DISMOUNT_ALL">Dismount All</string>
     <string lang="en" key="HK_WIPE_CACHE">Wipe Cache</string>
@@ -622,6 +741,7 @@
     <string lang="en" key="CANNOT_USE_RESERVED_KEY">Error: This shortcut is reserved. Please choose a different shortcut.</string>
     <string lang="en" key="SHORTCUT_ALREADY_IN_USE">Error: Shortcut already in use.</string>
     <string lang="en" key="HOTKEY_REGISTRATION_ERROR">WARNING: One or more TrueCrypt system-wide hot keys will not work!\n\nPlease make sure that other applications and the operating system do not use the same shortcut(s) as TrueCrypt.</string>
+    <string lang="en" key="SYS_ENC_HIBERNATION_PREVENTED">TrueCrypt has prevented hibernation. Encryption of hibernation storage files is currently not supported.\n\nNote: When a computer hibernates (or enters a power-saving mode), the content of its system memory is written to a hibernation storage file residing on your drive. TrueCrypt would not be able to prevent encryption keys and the contents of sensitive files opened in RAM from being saved unencrypted to the hibernation storage file.</string>
     <string lang="en" key="MOUNTED_VOLUMES_DISMOUNTED">All mounted TrueCrypt volumes have been dismounted.</string>
     <string lang="en" key="MOUNTED_VOLUMES_AUTO_DISMOUNTED">All mounted TrueCrypt volumes have been auto-dismounted.\n\nNote: You can disable or configure auto-dismount in the 'Auto-Dismount' section of the Preferences window (select Settings -&gt; Preferences).</string>
     <string lang="en" key="DISMOUNT_ALL_ATTEMPT_COMPLETED">Attempt to dismount all mounted TrueCrypt volumes completed.</string>
@@ -630,11 +750,21 @@
     <string lang="en" key="CONFIRM_BACKGROUND_TASK_DISABLED">WARNING: If the TrueCrypt Background Task is disabled, the following functions will be disabled whenever you exit TrueCrypt:\n\n1) Hot keys\n2) Auto-dismount (e.g., upon log off, inadvertent host device removal, time-out, etc.)\n3) Notifications (e.g., when damage to hidden volume is prevented)\n4) Tray icon\n\nNote: You may shut down the Background Task anytime by right-clicking the TrueCrypt tray icon and selecting 'Exit'.\n\nAre you sure you want to disable the TrueCrypt Background Task?</string>
     <string lang="en" key="CONFIRM_NO_FORCED_AUTODISMOUNT">WARNING: If this option is disabled, volumes containing open files/directories will not be possible to auto-dismount.\n\nAre you sure you want to disable this option?</string>
     <string lang="en" key="WARN_PREF_AUTO_DISMOUNT">WARNING: Volumes containing open files/directories will NOT be auto-dismounted.\n\nTo prevent this, enable the following option in this dialog window: 'Force auto-dismount even if volume contains open files or directories'</string>
-    <string lang="en" key="CONFIRM_EXIT">WARNING: If TrueCrypt exits now, the following functions will be disabled:\n\n1) Hot keys\n2) Auto-dismount (e.g., upon log off, inadvertent host device removal, time-out, etc.)\n3) Notifications (e.g., when damage to hidden volume is prevented)\n\nNote: If you do not wish TrueCrypt to continue running in background after you close its window, disable the Background Task in the Preferences.\n\nAre you sure you want TrueCrypt to exit?</string>
+    <string lang="en" key="SYSTEM_ENCRYPTION_RESUME_PROMPT">You have scheduled the process of encryption or decryption of the system partition/drive. The process has not been completed yet.\n\nDo you want to start (resume) the process now?</string>
+    <string lang="en" key="CONFIRM_EXIT">WARNING: If TrueCrypt exits now, the following functions will be disabled:\n\n1) Hot keys\n2) Auto-dismount (e.g., upon log off, inadvertent host device removal, time-out, etc.)\n3) Notifications (e.g., when damage to hidden volume is prevented)\n\nNote: If you do not wish TrueCrypt to run in the background, disable the TrueCrypt Background Task in the Preferences (and, if necessary, disable the automatic start of TrueCrypt in the Preferences).\n\nAre you sure you want TrueCrypt to exit?</string>
+    <string lang="en" key="CONFIRM_EXIT_UNIVERSAL">Exit?</string>
+    <string lang="en" key="CHOOSE_ENCRYPT_OR_DECRYPT">TrueCrypt does not have sufficient information to determine whether to encrypt or decrypt (this may have been caused e.g. by loss or corruption of a configuration file).</string>
+    <string lang="en" key="SYSTEM_ENCRYPTION_DEFER_CONFIRM">Do you want to interrupt and postpone the process of encryption of the system partition/drive?\n\nNote: You will be able to resume the process and it will continue from the point it was stopped. You can do so, for example, by selecting 'System' &gt; 'Resume Interrupted Process' from the menu bar of the main TrueCrypt window. If you want to permanently terminate or reverse the encryption process, select 'System' &gt; 'Permanently Decrypt System Partition/Drive'.</string>
+    <string lang="en" key="SYSTEM_DECRYPTION_DEFER_CONFIRM">Do you want to interrupt and postpone the process of decryption of the system partition/drive?\n\nNote: You will be able to resume the process and it will continue from the point it was stopped. You can do so, for example, by selecting 'System' &gt; 'Resume Interrupted Process' from the menu bar of the main TrueCrypt window. If you want to reverse the decryption process (and start encrypting), select 'System' &gt; 'Encrypt System Partition/Drive'.</string>
+    <string lang="en" key="FAILED_TO_INTERRUPT_SYSTEM_ENCRYPTION">Error: Failed to interrupt the process of encryption/decryption of the system partition/drive.</string>
+    <string lang="en" key="FAILED_TO_RESUME_SYSTEM_ENCRYPTION">Error: Failed to resume the process of encryption/decryption of the system partition/drive.</string>
+    <string lang="en" key="INCONSISTENCY_RESOLVED">Inconsistency resolved.\n\n\n(If you report a bug in connection with this, please include the following technical information in the bug report:\n%hs)</string>
+    <string lang="en" key="NOTHING_TO_RESUME">There is no process/task to resume.</string>
     <string lang="en" key="HIDVOL_PROT_BKG_TASK_WARNING">WARNING: TrueCrypt Background Task is disabled. After you exit TrueCrypt, you will not be notified if damage to hidden volume is prevented.\n\nNote: You may shut down the Background Task anytime by right-clicking the TrueCrypt tray icon and selecting 'Exit'.\n\nEnable TrueCrypt Background Task?</string>
     <string lang="en" key="LANG_PACK_VERSION">Language pack version:  %s</string>
     <string lang="en" key="CHECKING_FS">Checking the file system on the TrueCrypt volume mounted as %hs...</string>
     <string lang="en" key="REPAIRING_FS">Attempting to repair the file system on the TrueCrypt volume mounted as %hs...</string>
+    <string lang="en" key="WARN_CBC_MODE">Warning: This volume is encrypted in CBC mode. Due to security issues, CBC mode has been deprecated since TrueCrypt 4.1.\n\nWe strongly recommend that you move data from this TrueCrypt volume to a new volume created by this version of TrueCrypt. After you do so, you should securely erase or destroy the old volume. For more information, please see the Version History in the documentation or the release notices distributed with TrueCrypt 4.1 or later.</string>
     <string lang="en" key="WARN_64_BIT_BLOCK_CIPHER">Warning: This volume is encrypted with a legacy encryption algorithm.\n\nAll 64-bit-block encryption algorithms (e.g., Blowfish, CAST-128, or Triple DES) are deprecated. It will be possible to mount this volume using future versions of TrueCrypt. However, there will be no further enhancements to the implementations of these legacy encryption algorithms. We recommend that you create a new TrueCrypt volume encrypted with a 128-bit-block encryption algorithm (e.g., AES, Serpent, Twofish, etc.) and that you move all files from this volume to the new volume.</string>
     <string lang="en" key="SYS_AUTOMOUNT_DISABLED">Your system is not configured to auto-mount new volumes. It may be impossible to mount device-hosted TrueCrypt volumes. Auto-mounting can be enabled by executing the following command and restarting the system.\n\nmountvol.exe /E</string>
     <string lang="en" key="SYS_ASSIGN_DRIVE_LETTER">Please assign a drive letter to the partition/device before proceeding ('Control Panel' > 'System and Maintenance' > 'Administrative Tools' - 'Create and format hard disk partitions').\n\nNote that this is a requirement of the operating system.</string>
@@ -642,7 +772,79 @@
     <string lang="en" key="DISMOUNT_ALL_TC_VOLUMES">Dismount all TrueCrypt volumes</string>
     <string lang="en" key="UAC_INIT_ERROR">TrueCrypt failed to obtain Administrator privileges.</string>
     <string lang="en" key="ERR_ACCESS_DENIED">Access was denied by the operating system.\n\nPossible cause: The operating system requires that you have read/write permission (or administrator privileges) for certain folders, files, and devices, in order for you to be allowed to read and write data to/from them. Normally, a user without administrator privileges is allowed to create, read and modify files in his or her Documents folder.</string>
-    <string lang="en" key="LARGE_SECTOR_UNSUPPORTED">Error: The selected device uses a sector size other than 512 bytes.\n\nIt is currently not possible to create device-hosted volumes on devices that use a sector size other than 512 bytes. However, note that you can create a file-hosted volume (container) on this device.</string>
+    <string lang="en" key="LARGE_SECTOR_UNSUPPORTED">Error: The device uses a sector size other than 512 bytes.\n\nIt is currently not possible to create device-hosted volumes on devices that use a sector size other than 512 bytes. However, note that you can create a file-hosted volume (container) on this device.</string>
+    <string lang="en" key="NO_SPACE_FOR_BOOT_LOADER">The TrueCrypt Boot Loader requires at least 32 KBytes of unallocated space at the beginning of the system drive.</string>
+    <string lang="en" key="FEATURE_UNSUPPORTED_ON_CURRENT_OS">The feature is not supported on the version of the operating system you are currently using.</string>
+    <string lang="en" key="SYS_ENCRYPTION_UNSUPPORTED_ON_CURRENT_OS">TrueCrypt does not support encryption of a system partition/drive on the version of the operating system you are currently using.</string>
+    <string lang="en" key="FEATURE_REQUIRES_INSTALLATION">Error: This feature requires TrueCrypt to be installed on your computer (you are running TrueCrypt in traveler mode).</string>
+    <string lang="en" key="WINDOWS_NOT_ON_BOOT_DRIVE_ERROR">Windows is not installed on the drive from which it boots.</string>
+    <string lang="en" key="UNSUPPORTED_BOOT_DRIVE_GEOMETRY">Your system drive has an unsupported geometry.</string>
+    <string lang="en" key="GPT_BOOT_DRIVE_UNSUPPORTED">Your system drive has a GUID partition table (GPT). Currently, only drives with a MBR partition table are supported.</string>
+    <string lang="en" key="TC_BOOT_LOADER_ALREADY_INSTALLED">CAUTION: The TrueCrypt Boot Loader is already installed on your system drive!\n\nIt is possible that another system on your computer is already encrypted.\n\nWARNING: PROCEEDING WITH ENCRYPTION OF THE CURRENTLY RUNNING SYSTEM MAY MAKE OTHER SYSTEM(S) IMPOSSIBLE TO START AND RELATED DATA INACCESSIBLE.\n\nAre you sure you want to continue?</string>
+    <string lang="en" key="SYS_LOADER_RESTORE_FAILED">Failed to restore the original system loader.\n\nPlease use your Windows installation medium to replace the TrueCrypt Boot Loader with the Windows system loader.</string>
+    <string lang="en" key="SYS_LOADER_UNAVAILABLE_FOR_RESCUE_DISK">The original system loader will not be stored on the Rescue Disk (probable cause: missing backup file).</string>
+    <string lang="en" key="ERROR_MBR_PROTECTED">Failed to write the MBR sector.\n\nYour BIOS may be configured to protect the MBR sector. Check your BIOS settings (press F2, Delete, or Esc, after powering on your computer) for MBR/antivirus protection.</string>
+    <string lang="en" key="SYS_PARTITION_OR_DRIVE_APPEARS_FULLY_ENCRYPTED">Your system partition/drive appears to be fully encrypted.</string>
+    <string lang="en" key="WHOLE_SYC_DEVICE_RECOM">As your system drive contains only a single partition that occupies the whole drive, it is preferable (more secure) to encrypt the entire drive including the free "slack" space that typically surrounds such a partition.\n\nDo you want to encrypt the entire system drive?</string>
+    <string lang="en" key="ALGO_NOT_SUPPORTED_FOR_SYS_ENCRYPTION">This algorithm is currently not supported for system encryption.</string>
+    <string lang="en" key="CANT_CHANGE_KEYB_LAYOUT_FOR_SYS_ENCRYPTION">Error: Cannot set the keyboard layout for TrueCrypt to the standard US keyboard layout.\n\nNote that the password needs to be typed in the pre-boot environment (before Windows starts) where non-US Windows keyboard layouts are not available. Therefore, the password must always be typed using the standard US keyboard layout.</string>
+    <string lang="en" key="KEYB_LAYOUT_CHANGE_PREVENTED">TrueCrypt prevented change of keyboard layout.\n\nNote that the password will need to be typed in the pre-boot environment (before Windows starts) where non-US Windows keyboard layouts are not available. Therefore, the password must always be typed using the standard US keyboard layout. However, it is important to note that you do NOT need a real US keyboard. TrueCrypt automatically ensures that you can safely type the password (right now and in the pre-boot environment) even if you do NOT have a real US keyboard.</string>
+    <string lang="en" key="RESCUE_DISK_INFO">Before you can encrypt the partition/drive, you must create a TrueCrypt Rescue Disk (TRD), which serves the following purposes:\n\n- If the TrueCrypt Boot Loader, master key, or other critical data gets damaged, the TRD allows you to restore it and thus to regain access to your encrypted system and data.\n\n- If the TrueCrypt Boot Loader gets damaged or infected with malware, you can avoid running it by booting directly from the TRD.\n\n- If Windows gets damaged and cannot start, the TRD allows you to permanently decrypt the partition/drive before Windows starts.\n\n- The TRD will contain a backup of the present content of the first drive cylinder (which typically contains a system loader or boot manager) and will allow you to restore it if necessary.</string>
+    <string lang="en" key="RESCUE_DISK_BURN_INFO">The Rescue Disk image has been created and stored in this file:\n%hs\n\nNow you need to write (burn) the Rescue Disk to a CD or DVD.\n\nIMPORTANT: Note that the file must be written to the CD/DVD as an ISO disk image (not as an individual file). For information on how to do so, please refer to the documentation of your CD/DVD recording software. If you do not have any CD/DVD recording software that can write an ISO disk image to a CD/DVD, click the link below to download such free software.\n\nAfter you burn the Rescue Disk, click Next to verify that the Rescue Disk has been correctly burned.</string>
+    <string lang="en" key="CANNOT_SAVE_SYS_ENCRYPTION_SETTINGS">Error: Cannot save system encryption settings.</string>
+    <string lang="en" key="CANNOT_INITIATE_SYS_ENCRYPTION_PRETEST">Cannot initiate the system encryption pretest.</string>
+    <string lang="en" key="WIPE_MODE_TITLE">Wipe Mode</string>
+    <string lang="en" key="WIPE_MODE_INFO">On some types of storage media, when data is overwritten with other data, it may be possible to recover the overwritten data using techniques such as magnetic force microscopy. Note that this also applies to data that are overwritten with their encrypted form (which happens when TrueCrypt encrypts a system partition or drive). According to some studies and governmental publications, recovery of overwritten data can be prevented (or made very difficult) by overwritting the data with pseudorandom and certain non-random data a certain number of times. Therefore, if you believe that an adversary might be able to use techniques such as magnetic force microscopy to recover the data you intend encrypt, you may want to select one of the implemented wipe modes.</string>
+    <string lang="en" key="WIPE_MODE_WARN">WARNING: Note that when you choose e.g. the 3-pass wipe mode, the time necessary to encrypt the drive/partition will be up to 4 times longer. Likewise, if you choose the 35-pass wipe mode, it will be up to 36 times longer (it might even take several weeks).\n\nAre you sure you want to use the wipe mode?</string>
+    <string lang="en" key="WIPE_MODE_NONE">None (fastest)</string>
+    <string lang="en" key="WIPE_MODE_3_DOD_5220">3-pass (US DoD 5220.22-M)</string>
+    <string lang="en" key="WIPE_MODE_7_DOD_5220">7-pass (US DoD 5220.22-M)</string>
+    <string lang="en" key="WIPE_MODE_35_GUTMANN">35-pass mode ("Gutmann")</string>
+    <string lang="en" key="SYS_MULTI_BOOT_MODE_TITLE">Number of Operating Systems</string>
+    <string lang="en" key="MULTI_BOOT_FOR_ADVANCED_ONLY">WARNING: Inexperienced users should never attempt to encrypt Windows in multi-boot configurations.\n\nContinue?</string>
+    <string lang="en" key="SYSENC_MULTI_BOOT_SYS_EQ_BOOT_TITLE">Boot Drive</string>
+    <string lang="en" key="SYSENC_MULTI_BOOT_SYS_EQ_BOOT_HELP">Is the currently running operating system installed on the boot drive?\n\nNote: Sometimes, Windows is not installed on the same drive as the Windows boot loader (boot partition). If that is the case, select 'No'.</string>
+    <string lang="en" key="SYS_PARTITION_MUST_BE_ON_BOOT_DRIVE">TrueCrypt currently does not support encrypting an operating system that does not boot from the drive on which it is installed.</string>
+    <string lang="en" key="SYSENC_MULTI_BOOT_NBR_SYS_DRIVES_TITLE">Number of System Drives</string>
+    <string lang="en" key="SYSENC_MULTI_BOOT_NBR_SYS_DRIVES_HELP">How many drives contain an operating system?\n\nNote: For example, if you have any operating system (e.g. Windows, Mac OS X, Linux, etc.) installed on your primary drive and any additional operating system installed on your secondary drive, select '2 or more'.</string>
+    <string lang="en" key="WDE_UNSUPPORTED_FOR_MULTIPLE_SYSTEMS_ON_ONE_DRIVE">TrueCrypt currently does not support encrypting a whole drive that contains multiple operating systems.\n\nPossible Solutions:\n\n- You can still encrypt one of the systems if you go back and choose to encrypt only a single system partition (as opposed to choosing to encrypt the entire system drive).\n\n- Alternatively, you will be able to encrypt the entire drive if you move some of the systems to other drives leaving only one system on the drive you want to encrypt.</string>
+    <string lang="en" key="SYSENC_MULTI_BOOT_ADJACENT_SYS_TITLE">Multiple Systems on Single Drive</string>
+    <string lang="en" key="SYSENC_MULTI_BOOT_ADJACENT_SYS_HELP">Are there any other operating systems installed on the drive on which the currently running operating system is installed?\n\nNote: For example, if the currently running operating system is installed on the drive #0, which contains several partitions, and if one of the partitions contains Windows and another partition contains any additional operating system (e.g. Windows, Mac OS X, Linux, etc.), select 'Yes'.</string>
+    <string lang="en" key="SYSENC_MULTI_BOOT_NONWIN_BOOT_LOADER_TITLE">Non-Windows Boot Loader</string>
+    <string lang="en" key="SYSENC_MULTI_BOOT_NONWIN_BOOT_LOADER_HELP">Is a non-Windows boot loader (or boot manager) installed in the master boot record (MBR)?\n\nNote: For example, if the first cylinder of the boot drive contains GRUB, LILO, Boot Camp, XOSL, or some other non-Windows boot manager (or boot loader), select 'Yes'.</string>
+    <string lang="en" key="SYSENC_MULTI_BOOT_OUTCOME_TITLE">Multi-Boot</string>
+    <string lang="en" key="CUSTOM_BOOT_MANAGERS_IN_MBR_UNSUPPORTED">TrueCrypt currently does not support multi-boot configurations where a non-Windows boot loader is installed in the Master Boot Record.\n\nPossible Solutions:\n\n- If you use a boot manager to boot Windows and Linux, move the boot manager (typically, GRUB) from the Master Boot Record to a partition. Then start this wizard again and encrypt the system partition/drive. Note that the TrueCrypt Boot Loader will become your primary boot manager and it will allow you to launch the original boot manager (e.g. GRUB) as your secondary boot manager (by pressing Esc in the TrueCrypt Boot Loader screen) and thus you will be able boot Linux.</string>
+    <string lang="en" key="WINDOWS_BOOT_LOADER_HINTS">If the currently running operating system is installed on the boot partition, then, after you encrypt it, you will need to enter the correct password even if you want to start the other unencrypted system(s).\n\nIn contrast, if the currently running operating system is not installed on the Windows boot partition, then, after you encrypt it, you will not need to enter the correct password to boot the unencrypted system(s) -- you will only need to press the Esc key to start the unencrypted system (if there are multiple unencrypted systems, you will also need to choose which system to start in the TrueCrypt Boot Manager menu).\n\nNote: Typically, the earliest installed operating system is installed on the boot partition.</string>
+    <string lang="en" key="SYSENC_DRIVE_ANALYSIS_TITLE">Detecting Hidden Sectors</string>
+    <string lang="en" key="SYS_ENCRYPTION_SPAN_TITLE">Area to Encrypt</string>
+    <string lang="en" key="SYS_ENCRYPTION_SPAN_WHOLE_SYS_DRIVE_HELP">Select this option if you want to encrypt the entire drive on which your Windows is installed and from which it boots. The whole drive, including all its partitions, will be encrypted except the first cylinder where the TrueCrypt Boot Loader will reside. Anyone who wants to access a system installed on the drive, or files stored on the drive, will need to enter the correct password each time before the system starts. This option cannot be used to encrypt a secondary or external drive if Windows is not installed on it and does not boot from it.</string>
+    <string lang="en" key="COLLECTING_RANDOM_DATA_TITLE">Collecting Random Data</string>
+    <string lang="en" key="KEYS_GEN_TITLE">Keys Generated</string>
+    <string lang="en" key="RESCUE_DISK_RECORDING_TITLE">Rescue Disk Recording</string>
+    <string lang="en" key="SYS_ENCRYPTION_PRETEST_TITLE">System Encryption Pretest</string>
+    <string lang="en" key="RESCUE_DISK_DISK_VERIFIED_TITLE">Rescue Disk Verified</string>
+    <string lang="en" key="RESCUE_DISK_VERIFIED_INFO">\nThe TrueCrypt Rescue Disk has been successfully verified. Please remove it from the drive now and store it in a safe place.\n\nClick Next to continue.</string>
+    <string lang="en" key="PREBOOT_NOT_LOCALIZED">Warning: Due to technical limitations of the pre-boot environment, texts displayed by TrueCrypt in the pre-boot environment (i.e. before Windows starts) cannot be localized. The TrueCrypt Boot Loader user interface is completely in English.\n\nContinue?</string>
+    <string lang="en" key="SYS_ENCRYPTION_PRETEST_INFO">Before encrypting your system partition or drive, TrueCrypt needs to verify that everything works correctly.\n\nAfter you click Test, all the necessary components (for example, the pre-boot authentication component, i.e. the TrueCrypt Boot Loader) will be installed and your computer will be restarted. Then you will have to enter your password in the TrueCrypt Boot Loader screen that will appear before Windows starts. After Windows starts, you will be automatically informed about the result of this pretest.\n\nThe following device will be modified: Drive #%d\n\n\nIf you click Cancel now, nothing will be installed and the pretest will not be performed.</string>
+    <string lang="en" key="SYS_ENCRYPTION_PRETEST_INFO2">IMPORTANT NOTES -- PLEASE READ OR PRINT (click 'Print'):\n\nNote that none of your files will be encrypted before you successfully restart your computer and start Windows. Thus, if anything fails, your data will NOT be lost. However, if something does go wrong, you might encounter difficulties in starting your Windows. Therefore, please read (and, if possible, print) the following guidelines on what to do if your Windows cannot start after you restart the computer.\n\nWhat to Do If Windows Cannot Start\n------------------------------------------------\n\nNote: These instructions are valid only if you have not started encrypting.\n\n- If you repeatedly enter the correct password but TrueCrypt says that the password is incorrect, do not panic. Just press the Esc key on your keyboard (and if you have multiple systems, choose which to start). Then your Windows should start and TrueCrypt will automatically ask whether you want to uninstall the pre-boot authentication component.\n\n- If the previous steps do not help or if the TrueCrypt Boot Loader screen does not appear (before Windows starts), insert the TrueCrypt Rescue Disk into your CD/DVD drive and restart your computer. If the TrueCrypt Boot Loader screen does not appear, restart your computer, press F2 or Delete (as soon as you see a BIOS start-up screen), and then (when a BIOS configuration screen appears) configure your BIOS to boot from the CD/DVD drive first. Then restart your computer again. If the TrueCrypt Boot Loader screen appears, select 'Repair Options' > 'Restore original system loader'. Then remove the Rescue Disk from your CD/DVD drive and restart your computer. Your Windows should start normally.</string>
+    <string lang="en" key="SYS_ENCRYPTION_PRETEST_RESULT_TITLE">Pretest Completed</string>
+    <string lang="en" key="SYS_ENCRYPTION_PRETEST_RESULT_INFO">The pretest has been successfully completed.\n\nWARNING: Please note that if power supply is suddenly interrupted while encrypting, or when the operating system crashes due to a software error or hardware malfunction while encrypting, some data will very likely be corrupted or lost. Therefore, before you start encrypting, please make sure that you have backup copies of the files you want to encrypt. If you do not, please back up the files now (you can click Defer, back up the files, then run TrueCrypt again anytime and it will automatically ask you whether you want to start encrypting).\n\nWhen ready, click Encrypt to start encrypting.</string>
+    <string lang="en" key="SYSENC_ENCRYPTION_PAGE_INFO">You can click Pause or Defer anytime to interrupt the process of encryption or decryption, exit this wizard, restart or shut down your computer, and then resume the process, which will continue from the point it was stopped. To prevent slowdown when the system or applications write or read data from the system drive, TrueCrypt automatically waits until the data are written or read (see Status above) and then automatically continues encrypting or decrypting.</string>
+    <string lang="en" key="RESCUE_DISK_HELP">\nIF POSSIBLE, PLEASE PRINT THIS TEXT (click 'Print' below).\n\n\nHow and When to Use TrueCrypt Rescue Disk (After Encrypting)\n-------------------------------------------------------------------------------------\n\nTo use a TrueCrypt Rescue Disk, insert it into your CD/DVD drive and restart your computer. Note that TrueCrypt Rescue Disks contain the same TrueCrypt Boot Loader that normally resides in the first cylinder of a system drive. Therefore, when you boot from a TrueCrypt Rescue Disk, the standard TrueCrypt Boot Loader screen appears. The only difference between the regular TrueCrypt Boot Loader and the TrueCrypt Rescue Disk is that there are many more options available in the Repair Options menu (the regular TrueCrypt Boot Loader offers only the option 'Permanently decrypt system partition/drive'). If the TrueCrypt Boot Loader screen does not appear or if there are not all options available in the Repair Menu (see below), it is possible that your BIOS is configured to attempt to boot from hard drives before CD/DVD drives. If that is the case, restart your computer, press F2 or Delete (as soon as you see a BIOS start-up screen), and wait until a BIOS configuration screen appears. If no BIOS configuration screen appears, restart (reset) the computer again and start pressing F2 or Delete repeatedly as soon as you restart (reset) the computer. When a BIOS configuration screen appears, configure your BIOS to boot from the CD/DVD drive first (for information on how to do so, please refer to the documentation for your BIOS or motherboard). Then restart your computer. The TrueCrypt Boot Loader should be launched from the Rescue Disk now. To select Repair Options, press F8 on your keyboard.\n\n\n1) If the TrueCrypt Boot Loader screen does not appear after you start your computer, the TrueCrypt Boot Loader may be damaged. The TrueCrypt Rescue Disk allows you restore it and thus to regain access to your encrypted system and data. In the Rescue Disk screen, select 'Repair Options' > 'Restore TrueCrypt Boot Loader'. Then press 'Y' to confirm the action, remove the Rescue Disk from your CD/DVD drive and restart your computer.\n\n2) If the previous steps do not help, it is possible that the master key or other critical data are damaged. The TrueCrypt Rescue Disk allows you restore them and thus to regain access to your encrypted system and data. In the Rescue Disk screen, select 'Repair Options' > 'Restore key data'. Then enter your password, press 'Y' to confirm the action, remove the Rescue Disk from your CD/DVD drive, and restart your computer.\n\n3) If the TrueCrypt Boot Loader is damaged or infected with malware, you can avoid running it by booting directly from the TrueCrypt Rescue Disk. Insert your Rescue Disk into your CD/DVD drive and then enter your password in the Rescue Disk screen.\n\n4) If Windows is damaged and cannot start, the TrueCrypt Rescue Disk allows you to permanently decrypt the partition/drive before Windows starts. In the Rescue Disk screen, select 'Repair Options' > 'Permanently decrypt system partition/drive'. Then enter the correct password and wait until decryption is complete.</string>
+    <string lang="en" key="CONFIRM_CANCEL_SYS_ENC_PRETEST">Do you want to cancel the system encryption pretest?</string>
+    <string lang="en" key="BOOT_PRETEST_FAILED_RETRY">The TrueCrypt system encryption pretest failed.\n\nNote: If the TrueCrypt Boot Loader did not ask you to enter the password before Windows started, it is possible that your operating system does not boot from the drive on which it is installed. This is not supported.\n\nDo you want to try again?</string>
+    <string lang="en" key="SYS_DRIVE_NOT_ENCRYPTED">The system partition/device does not appear to be encrypted (neither partially nor fully).</string>
+    <string lang="en" key="SETUP_FAILED_BOOT_DRIVE_ENCRYPTED">Your system partition/drive is encrypted (partially or fully).\n\nPlease decrypt your system partition/drive entirely before proceeding. To do so, select 'System' &gt; 'Permanently Decrypt System Partition/Drive' from the menu bar of the main TrueCrypt window.</string>
+    <string lang="en" key="SYS_ENCRYPTION_OR_DECRYPTION_IN_PROGRESS">Your system partition/drive is currently being encrypted, decrypted, or otherwise modified. Please interrupt the encryption/decryption/modification process (or wait until it is complete) before proceeding.</string>
+    <string lang="en" key="SYSTEM_ENCRYPTION_IN_PROGRESS_ELSEWHERE">An instance of the TrueCrypt Volume Creation Wizard is currently running on this system and performing or preparing encryption/decryption of the system partition/drive. Before you proceed, please wait for it to finish or close it. If you cannot close it, please restart your computer before proceeding.</string>
+    <string lang="en" key="SYSTEM_ENCRYPTION_NOT_COMPLETED">The process of encryption or decryption of the system partition/drive has not been completed. Please wait until it is complete before proceeding.</string>
+    <string lang="en" key="DEVICE_SELECTED_IN_NON_DEVICE_MODE">You have selected a partition or a device but the wizard mode you selected is suitable only for file containers.\n\nDo you want to change the wizard mode?</string>
+    <string lang="en" key="CONFIRM_CHANGE_WIZARD_MODE_TO_FILE_CONTAINER">Do you want to create a TrueCrypt file container instead?</string>
+    <string lang="en" key="CONFIRM_SYSTEM_ENCRYPTION_MODE">You have selected the system partition/device, but the wizard mode you selected is suitable only for non-system devices.\n\nDo you want to set up pre-boot authentication (which means that you will need to enter your password each time before Windows boots/starts) and encrypt the system/partition?</string>
+    <string lang="en" key="CONFIRM_DECRYPT_SYS_DEVICE">Are you sure you want to permanently decrypt the system partition/drive?</string>
+    <string lang="en" key="CONFIRM_DECRYPT_SYS_DEVICE_CAUTION">CAUTION: If you permanently decrypt the system partition/drive, unencrypted data will be written to it.\n\nAre you really sure you want to permanently decrypt the system partition/drive?</string>
+    <string lang="en" key="RESCUE_DISK">Rescue Disk</string>
+    <string lang="en" key="TEST">Test</string>
     <string lang="en" key="KEYFILE">Keyfile</string>
     <string lang="en" key="VOLUME_LABEL">Name</string>
     <string lang="en" key="VKEY_08">Backspace</string>

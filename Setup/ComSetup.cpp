@@ -1,7 +1,7 @@
 /*
- Copyright (c) TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2007 TrueCrypt Foundation. All rights reserved.
 
- Covered by the TrueCrypt License 2.3 the full text of which is contained
+ Governed by the TrueCrypt License 2.4 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -24,8 +24,8 @@ extern "C" BOOL RegisterComServers (char *modulePath)
 	wsprintfW (mainModule, L"%hsTrueCrypt.exe", modulePath);
 	wsprintfW (formatModule, L"%hsTrueCrypt Format.exe", modulePath);
 
-	UnRegisterTypeLib (LIBID_TrueCrypt, 1, 0, 0, SYS_WIN32);
-	UnRegisterTypeLib (LIBID_TrueCryptFormat, 1, 0, 0, SYS_WIN32);
+	UnRegisterTypeLib (LIBID_TrueCryptMainCom, 1, 0, 0, SYS_WIN32);
+	UnRegisterTypeLib (LIBID_TrueCryptFormatCom, 1, 0, 0, SYS_WIN32);
 
 	CRegObject ro;
 	ro.FinalConstruct ();
@@ -57,19 +57,19 @@ extern "C" BOOL UnregisterComServers (char *modulePath)
 {
 	BOOL ret;
 
-	if (UnRegisterTypeLib (LIBID_TrueCrypt, 1, 0, 0, SYS_WIN32) != S_OK)
+	if (UnRegisterTypeLib (LIBID_TrueCryptMainCom, 1, 0, 0, SYS_WIN32) != S_OK)
 		return FALSE;
-	if (UnRegisterTypeLib (LIBID_TrueCryptFormat, 1, 0, 0, SYS_WIN32) != S_OK)
+	if (UnRegisterTypeLib (LIBID_TrueCryptFormatCom, 1, 0, 0, SYS_WIN32) != S_OK)
 		return FALSE;
 
 	wchar_t module[1024];
 	CRegObject ro;
 	ro.FinalConstruct ();
 
-	wsprintfW (module, L"%hs\\TrueCrypt.exe", modulePath);
+	wsprintfW (module, L"%hsTrueCrypt.exe", modulePath);
 	ro.AddReplacement (L"MAIN_MODULE", module);
 
-	wsprintfW (module, L"%hs\\TrueCrypt Format.exe", modulePath);
+	wsprintfW (module, L"%hsTrueCrypt Format.exe", modulePath);
 	ro.AddReplacement (L"FORMAT_MODULE", module);
 
 	wchar_t setupModule[MAX_PATH];

@@ -94,18 +94,18 @@ BEGIN
     GROUPBOX        "Actions to perform upon log on to Windows",IDT_LOGON,4,61,328,35
 END
 
-IDD_VOLUME_PROPERTIES DIALOGEX 60, 30, 284, 185
+IDD_VOLUME_PROPERTIES DIALOGEX 60, 30, 284, 186
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "TrueCrypt Volume Properties"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    DEFPUSHBUTTON   "OK",IDOK,114,164,55,14
-    CONTROL         "",IDC_VOLUME_PROPERTIES_LIST,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,6,269,152
+    DEFPUSHBUTTON   "OK",IDOK,114,166,55,14
+    CONTROL         "",IDC_VOLUME_PROPERTIES_LIST,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,6,269,154
 END
 
 IDD_PASSWORDCHANGE_DLG DIALOGEX 0, 0, 316, 162
 STYLE DS_SETFONT | DS_MODALFRAME | DS_3DLOOK | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "Change Volume Password and Keyfiles"
+CAPTION "Change Password or Keyfiles"
 CLASS "CustomDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
@@ -176,9 +176,9 @@ BEGIN
     RTEXT           "Password:",IDT_PASSWORD,0,10,46,19
 END
 
-IDD_TRAVELLER_DLG DIALOGEX 0, 0, 300, 269
+IDD_TRAVELER_DLG DIALOGEX 0, 0, 300, 269
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "TrueCrypt Traveller Disk Setup"
+CAPTION "TrueCrypt Traveler Disk Setup"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     EDITTEXT        IDC_DIRECTORY,17,29,205,13,ES_AUTOHSCROLL
@@ -201,11 +201,11 @@ BEGIN
     PUSHBUTTON      "Close",IDCLOSE,236,249,57,14
     GROUPBOX        "File Settings",IDT_FILE_SETTINGS,6,7,287,59
     GROUPBOX        "AutoRun Configuration (autorun.inf)",IDT_AUTORUN,5,70,288,172
-    LTEXT           "TrueCrypt volume to mount (relative to traveller disk root):",IDT_TRAVELLER_MOUNT,21,147,248,8,WS_DISABLED
+    LTEXT           "TrueCrypt volume to mount (relative to traveler disk root):",IDT_TRAVELER_MOUNT,21,147,248,8,WS_DISABLED
     RTEXT           "Mount volume as drive letter:",IDT_MOUNT_LETTER,18,177,99,8,WS_DISABLED
-    LTEXT           "Create traveller disk files at (traveller disk root directory):",IDT_TRAVEL_ROOT,18,19,259,8
+    LTEXT           "Create traveler disk files at (traveler disk root directory):",IDT_TRAVEL_ROOT,18,19,259,8
     GROUPBOX        "Mount Settings",IDT_MOUNT_SETTINGS,13,134,272,100,WS_DISABLED
-    LTEXT           "Upon insertion of traveller disk: ",IDT_TRAVEL_INSERTION,13,84,263,8
+    LTEXT           "Upon insertion of traveler disk: ",IDT_TRAVEL_INSERTION,13,84,263,8
 END
 
 IDD_HOTKEYS_DLG DIALOGEX 0, 0, 381, 239
@@ -256,7 +256,7 @@ BEGIN
         LEFTMARGIN, 7
         RIGHTMARGIN, 277
         TOPMARGIN, 7
-        BOTTOMMARGIN, 178
+        BOTTOMMARGIN, 179
     END
 
     IDD_PASSWORDCHANGE_DLG, DIALOG
@@ -278,7 +278,7 @@ BEGIN
         BOTTOMMARGIN, 63
     END
 
-    IDD_TRAVELLER_DLG, DIALOG
+    IDD_TRAVELER_DLG, DIALOG
     BEGIN
         LEFTMARGIN, 7
         RIGHTMARGIN, 293
@@ -303,8 +303,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 4,3,1,0
- PRODUCTVERSION 4,3,1,0
+ FILEVERSION 5,0,0,0
+ PRODUCTVERSION 5,0,0,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -321,13 +321,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt"
-            VALUE "FileVersion", "4.3a"
+            VALUE "FileVersion", "5.0"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "4.3a"
-            VALUE "SpecialBuild", "2007-05-03"
+            VALUE "ProductVersion", "5.0"
+            VALUE "SpecialBuild", "2008-02-05"
         END
     END
     BLOCK "VarFileInfo"
@@ -373,6 +373,8 @@ IDB_DRIVEICON           BITMAP                  "Drive_icon_96dpi.bmp"
 IDB_DRIVEICON_MASK      BITMAP                  "Drive_icon_mask_96dpi.bmp"
 IDB_LOGO_96DPI          BITMAP                  "Logo_96dpi.bmp"
 IDB_LOGO_288DPI         BITMAP                  "Logo_288dpi.bmp"
+IDB_SYS_DRIVEICON       BITMAP                  "System_drive_icon_96dpi.bmp"
+IDB_SYS_DRIVEICON_MASK  BITMAP                  "System_drive_icon_mask_96dpi.bmp"
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -381,10 +383,6 @@ IDB_LOGO_288DPI         BITMAP                  "Logo_288dpi.bmp"
 
 IDR_MENU MENU 
 BEGIN
-    POPUP "File"
-    BEGIN
-        MENUITEM "Exit",                        IDM_EXIT
-    END
     POPUP "&Volumes"
     BEGIN
         MENUITEM "Select File...",              IDM_SELECT_FILE
@@ -406,6 +404,20 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "Volume Properties",           IDM_VOLUME_PROPERTIES
     END
+    POPUP "&System"
+    BEGIN
+        MENUITEM "Encrypt System Partition/Drive...", IDM_ENCRYPT_SYSTEM_DEVICE
+        MENUITEM "Permanently Decrypt System Partition/Drive", IDM_PERMANENTLY_DECRYPT_SYS
+        MENUITEM "Resume Interrupted Process",  IDM_SYSENC_RESUME
+        MENUITEM SEPARATOR
+        MENUITEM "Create Rescue Disk...",       IDM_CREATE_RESCUE_DISK
+        MENUITEM "Verify Rescue Disk",          IDM_VERIFY_RESCUE_DISK
+        MENUITEM SEPARATOR
+        MENUITEM "Change Password...",          IDM_CHANGE_SYS_PASSWORD
+        MENUITEM "Set Header Key Derivation Algorithm...", IDM_CHANGE_SYS_HEADER_KEY_DERIV_ALGO
+        MENUITEM SEPARATOR
+        MENUITEM "Properties",                  IDM_SYSTEM_ENCRYPTION_STATUS
+    END
     POPUP "&Keyfiles"
     BEGIN
         MENUITEM "Add/Remove Keyfiles to/from Volume...", IDM_ADD_REMOVE_VOL_KEYFILES
@@ -420,7 +432,7 @@ BEGIN
         MENUITEM "Benchmark...",                IDM_BENCHMARK
         MENUITEM "Test Vectors...",             IDM_TEST_VECTORS
         MENUITEM SEPARATOR
-        MENUITEM "Traveller Disk Setup...",     IDM_TRAVELLER
+        MENUITEM "Traveler Disk Setup...",      IDM_TRAVELER
         MENUITEM "Keyfile Generator",           IDM_KEYFILE_GENERATOR
         MENUITEM "Volume Creation Wizard",      IDM_VOLUME_WIZARD
         MENUITEM SEPARATOR

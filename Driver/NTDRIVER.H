@@ -1,12 +1,18 @@
 /*
- Legal Notice: The source code contained in this file has been derived from
- the source code of Encryption for the Masses 2.02a, which is Copyright (c)
- Paul Le Roux and which is covered by the 'License Agreement for Encryption
- for the Masses'. Modifications and additions to that source code contained
- in this file are Copyright (c) TrueCrypt Foundation and are covered by the
- TrueCrypt License 2.3 the full text of which is contained in the file
- License.txt included in TrueCrypt binary and source code distribution
+ Legal Notice: Some portions of the source code contained in this file were
+ derived from the source code of Encryption for the Masses 2.02a, which is
+ Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
+ Agreement for Encryption for the Masses'. Modifications and additions to
+ the original source code (contained in this file) and all other portions of
+ this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ by the TrueCrypt License 2.4 the full text of which is contained in the
+ file License.txt included in TrueCrypt binary and source code distribution
  packages. */
+
+#ifndef TC_HEADER_NTDRIVER
+#define TC_HEADER_NTDRIVER
+
+#include "EncryptedIoQueue.h"
 
 /* This structure is used to start new threads */
 typedef struct _THREAD_BLOCK_
@@ -17,12 +23,14 @@ typedef struct _THREAD_BLOCK_
 	MOUNT_STRUCT *mount;
 } THREAD_BLOCK, *PTHREAD_BLOCK;
 
+
 /* This structure is allocated for non-root devices! WARNING: bRootDevice
    must be the first member of the structure! */
 typedef struct EXTENSION
 {
 	BOOL bRootDevice;	/* Is this the root device ? which the
 				   user-mode apps talk to */
+	BOOL IsDriveFilterDevice;
 
 	ULONG lMagicNumber;	/* To ensure the completion routine is not
 				   sending us bad IRP's */
@@ -55,8 +63,7 @@ typedef struct EXTENSION
 
 	KEVENT keVolumeEvent;		/* Event structure used when setting up a device */
 
-	BOOL bSystemVolume;			/* System volume is hidden from user and supports system files (paging, hibernation). */
-	BOOL bPersistentVolume;		/* Persistent volume is hidden from user. */
+	EncryptedIoQueue Queue;
 
 	BOOL bReadOnly;				/* Is this device read-only ? */
 	BOOL bRemovable;			/* Is this device removable media ? */
@@ -72,11 +79,9 @@ typedef struct EXTENSION
 	LARGE_INTEGER fileLastChangeTime;
 	BOOL bTimeStampValid;
 
-	unsigned __int64 TotalBytesRead;	// Bytes read from volume
-	unsigned __int64 TotalBytesWritten;	// Bytes written to volume
-
 } EXTENSION, *PEXTENSION;
 
+extern BOOL DriverShuttingDown;
 extern ULONG OsMajorVersion;
 
 /* Helper macro returning x seconds in units of 100 nanoseconds */
@@ -85,9 +90,15 @@ extern ULONG OsMajorVersion;
 /* In order to see any debug output you will need to run a checked build of
    NT */
 #ifdef DEBUG
-#define Dump DbgPrint
+#	if 1 // DbgPrintEx is not available on Windows 2000
+#		define Dump DbgPrint
+#	else
+#		define Dump(...) DbgPrintEx (DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, __VA_ARGS__)
+#	endif
+#		define DumpMem(...) DumpMemory (__VA_ARGS__)
 #else
-#define Dump
+#	define Dump(...) ((void) 0)
+#	define DumpMem(...) ((void) 0)
 #endif
 
 #define FSCTL_LOCK_VOLUME               CTL_CODE(FILE_DEVICE_FILE_SYSTEM,  6, METHOD_BUFFERED, FILE_ANY_ACCESS)
@@ -96,13 +107,21 @@ extern ULONG OsMajorVersion;
 NTKERNELAPI NTSTATUS ObOpenObjectByPointer (IN PVOID Object, IN ULONG HandleAttributes, IN PACCESS_STATE PassedAccessState OPTIONAL, IN ACCESS_MASK DesiredAccess OPTIONAL, IN POBJECT_TYPE ObjectType OPTIONAL, IN KPROCESSOR_MODE AccessMode, OUT PHANDLE Handle);
 
 NTSTATUS DriverEntry (PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath);
+void DumpMemory (void *memory, int size);
+BOOL IsAccessibleByUser (PUNICODE_STRING objectFileName, BOOL readOnly);
+NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp);
+NTSTATUS ProcessVolumeDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp);
+NTSTATUS SendDeviceIoControlRequest (PDEVICE_OBJECT deviceObject, ULONG ioControlCode, void *inputBuffer, int inputBufferSize, void *outputBuffer, int outputBufferSize);
 NTSTATUS TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp);
 NTSTATUS TCCreateRootDeviceObject (PDRIVER_OBJECT DriverObject);
 NTSTATUS TCCreateDeviceObject (PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT * ppDeviceObject, MOUNT_STRUCT * mount);
-NTSTATUS TCDeviceControl (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp);
-NTSTATUS TCStartThread (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, MOUNT_STRUCT * mount);
-void TCStopThread (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension);
-VOID TCThreadIRP (PVOID Context);
+NTSTATUS TCReadDevice (PDEVICE_OBJECT deviceObject, PVOID buffer, LARGE_INTEGER offset, ULONG length);
+NTSTATUS TCWriteDevice (PDEVICE_OBJECT deviceObject, PVOID buffer, LARGE_INTEGER offset, ULONG length);
+NTSTATUS TCStartThread (PKSTART_ROUTINE threadProc, PVOID threadArg, PKTHREAD *kThread);
+NTSTATUS TCStartVolumeThread (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, MOUNT_STRUCT * mount);
+void TCStopThread (PKTHREAD kThread, PKEVENT wakeUpEvent);
+void TCStopVolumeThread (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension);
+VOID VolumeThreadProc (PVOID Context);
 void TCSleep (int milliSeconds);
 void TCGetNTNameFromNumber (LPWSTR ntname, int nDriveNo);
 void TCGetDosNameFromNumber (LPWSTR dosname, int nDriveNo);
@@ -119,8 +138,21 @@ NTSTATUS MountManagerMount (MOUNT_STRUCT *mount);
 NTSTATUS MountManagerUnmount (int nDosDriveNo);
 NTSTATUS MountDevice (PDEVICE_OBJECT deviceObject, MOUNT_STRUCT *mount);
 NTSTATUS UnmountDevice (PDEVICE_OBJECT deviceObject, BOOL ignoreOpenFiles);
-NTSTATUS UnmountAllDevices (PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles, BOOL unmountSystem, BOOL unmountPersistent);
+NTSTATUS UnmountAllDevices (PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles);
 NTSTATUS SymbolicLinkToTarget (PWSTR symlinkName, PWSTR targetName, USHORT maxTargetNameLength);
 void DriverMutexWait ();
 void DriverMutexRelease ();
 BOOL RegionsOverlap (unsigned __int64 start1, unsigned __int64 end1, unsigned __int64 start2, unsigned __int64 end2);
+void GetIntersection (uint64 start1, uint32 length1, uint64 start2, uint64 end2, uint64 *intersectStart, uint32 *intersectLength);
+NTSTATUS TCCompleteIrp (PIRP irp, NTSTATUS status, ULONG_PTR information);
+NTSTATUS TCCompleteDiskIrp (PIRP irp, NTSTATUS status, ULONG_PTR information);
+NTSTATUS ProbeRealDriveSize (PDEVICE_OBJECT driveDeviceObject, LARGE_INTEGER *driveSize);
+
+#define TC_TO_STRING2(n) #n
+#define TC_TO_STRING(n) TC_TO_STRING2(n)
+
+#define trace_point Dump (__FUNCTION__ ":" TC_TO_STRING(__LINE__) "\n")
+
+#define TC_BUG_CHECK(status) KeBugCheckEx (SECURITY_SYSTEM, __LINE__, status, 0, 'TC')
+
+#endif // TC_HEADER_NTDRIVER

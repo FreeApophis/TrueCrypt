@@ -1,7 +1,7 @@
 /*
- Copyright (c) TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2007-2008 TrueCrypt Foundation. All rights reserved.
 
- Covered by the TrueCrypt License 2.3 the full text of which is contained
+ Governed by the TrueCrypt License 2.4 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -9,9 +9,9 @@
 #include <atlcomcli.h>
 #include <atlconv.h>
 #include <comutil.h>
-#include <strsafe.h>
 #include <windows.h>
 #include "BaseCom.h"
+#include "BootEncryption.h"
 #include "Dlgcode.h"
 #include "Format.h"
 #include "Progress.h"
@@ -20,28 +20,23 @@
 #include "FormatCom_h.h"
 #include "FormatCom_i.c"
 
-static volatile LONG ObjectCount = 0;
-static ITrueCryptFormat *CallBackObj;
+using namespace TrueCrypt;
 
-class TrueCryptFormat : public ITrueCryptFormat
+static volatile LONG ObjectCount = 0;
+
+class TrueCryptFormatCom : public ITrueCryptFormatCom
 {
 
 public:
-	TrueCryptFormat (DWORD messageThreadId) : RefCount (0),
+	TrueCryptFormatCom (DWORD messageThreadId) : RefCount (0),
 		MessageThreadId (messageThreadId),
 		CallBack (NULL)
 	{
 		InterlockedIncrement (&ObjectCount);
 	}
 
-	~TrueCryptFormat ()
+	~TrueCryptFormatCom ()
 	{
-		if (CallBackObj)
-			CallBackObj = NULL;
-
-		if (CallBack)
-			CallBack->Release ();
-			
 		if (InterlockedDecrement (&ObjectCount) == 0)
 			PostThreadMessage (MessageThreadId, WM_APP, 0, 0);
 	}
@@ -64,7 +59,7 @@ public:
 
 	virtual HRESULT STDMETHODCALLTYPE QueryInterface (REFIID riid, void **ppvObject)
 	{
-		if (riid == IID_IUnknown || riid == IID_ITrueCryptFormat)
+		if (riid == IID_IUnknown || riid == IID_ITrueCryptFormatCom)
 			*ppvObject = this;
 		else
 		{
@@ -74,6 +69,11 @@ public:
 
 		AddRef ();
 		return S_OK;
+	}
+	
+	virtual DWORD STDMETHODCALLTYPE CallDriver (DWORD ioctl, BSTR input, BSTR *output)
+	{
+		return BaseCom::CallDriver (ioctl, input, output);
 	}
 
 	virtual BOOL STDMETHODCALLTYPE FormatNtfs (int driveNo, int clusterSize)
@@ -88,60 +88,37 @@ public:
 			(HWND) hwndDlg, driveNo, hiddenVolHostSize, realClusterSize, nbrFreeClusters);
 	}
 
-	virtual int STDMETHODCALLTYPE FormatVolume (
-		BSTR volumePath, BOOL bDevice, unsigned __int64 size,
-		unsigned __int64 hiddenVolHostSize, Password *password, int cipher, int pkcs5,
-		BOOL quickFormat, BOOL sparseFileSwitch, int fileSystem, int clusterSize,
-		LONG_PTR hwndDlg, LONG_PTR hDiskKey, LONG_PTR hHeaderKey, BOOL showKeys, BOOL hiddenVol, int *realClusterSize)
+	virtual DWORD STDMETHODCALLTYPE ReadWriteFile (BOOL write, BOOL device, BSTR filePath, BSTR *bufferBstr, unsigned __int64 offset, unsigned __int32 size, DWORD *sizeDone)
 	{
-		USES_CONVERSION;
-
-		::showKeys = showKeys;
-		::hDiskKey = (HWND) hDiskKey;
-		::hHeaderKey = (HWND) hHeaderKey;
-
-		return ::FormatVolume (CW2A (volumePath), bDevice, size,
-			hiddenVolHostSize, password, cipher, pkcs5, quickFormat, sparseFileSwitch, fileSystem, clusterSize,
-			(HWND) hwndDlg, hiddenVol, realClusterSize, TRUE);
+		return BaseCom::ReadWriteFile (write, device, filePath, bufferBstr, offset, size, sizeDone);
 	}
 
-	virtual BOOL STDMETHODCALLTYPE UpdateProgressBar (__int64 secNo, BOOL *bThreadCancel)
+	virtual DWORD STDMETHODCALLTYPE RegisterFilterDriver (BOOL registerDriver)
 	{
-		if (CallBack == NULL)
-			return FALSE;
-
-		*bThreadCancel = CallBack->UpdateProgressBarCallBack (secNo);
-		return TRUE;
+		return BaseCom::RegisterFilterDriver (registerDriver);
 	}
 
-	virtual BOOL STDMETHODCALLTYPE UpdateProgressBarCallBack (__int64 secNo)
+	virtual DWORD STDMETHODCALLTYPE SetDriverServiceStartType (DWORD startType)
 	{
-		return ::UpdateProgressBarProc (secNo);
-	}
-
-	virtual void STDMETHODCALLTYPE SetCallBack (ITrueCryptFormat *callBack)
-	{
-		callBack->AddRef ();
-		CallBack = callBack;
-		CallBackObj = this;
+		return BaseCom::SetDriverServiceStartType (startType);
 	}
 
 protected:
 	DWORD MessageThreadId;
 	LONG RefCount;
-	ITrueCryptFormat *CallBack;
+	ITrueCryptFormatCom *CallBack;
 };
 
 
 extern "C" BOOL ComServerFormat ()
 {
-	TrueCryptFactory<TrueCryptFormat> factory (GetCurrentThreadId ());
+	TrueCryptFactory<TrueCryptFormatCom> factory (GetCurrentThreadId ());
 	DWORD cookie;
 
 	if (IsUacSupported ())
 		UacElevated = TRUE;
 
-	if (CoRegisterClassObject (CLSID_TrueCryptFormat, (LPUNKNOWN) &factory,
+	if (CoRegisterClassObject (CLSID_TrueCryptFormatCom, (LPUNKNOWN) &factory,
 		CLSCTX_LOCAL_SERVER, REGCLS_SINGLEUSE, &cookie) != S_OK)
 		return FALSE;
 
@@ -165,15 +142,26 @@ extern "C" BOOL ComServerFormat ()
 }
 
 
-static BOOL ComGetInstance (HWND hWnd, ITrueCryptFormat **tcServer)
+static BOOL ComGetInstance (HWND hWnd, ITrueCryptFormatCom **tcServer)
 {
-	return ComGetInstanceBase (hWnd, CLSID_TrueCryptFormat, IID_ITrueCryptFormat, (void **) tcServer);
+	return ComGetInstanceBase (hWnd, CLSID_TrueCryptFormatCom, IID_ITrueCryptFormatCom, (void **) tcServer);
+}
+
+
+ITrueCryptFormatCom *GetElevatedInstance (HWND parent)
+{
+	ITrueCryptFormatCom *instance;
+
+	if (!ComGetInstance (parent, &instance))
+		throw UserAbort (SRC_POS);
+
+	return instance;
 }
 
 
 extern "C" int UacFormatNtfs (HWND hWnd, int driveNo, int clusterSize)
 {
-	CComPtr<ITrueCryptFormat> tc;
+	CComPtr<ITrueCryptFormatCom> tc;
 	int r;
 
 	CoInitialize (NULL);
@@ -191,7 +179,7 @@ extern "C" int UacFormatNtfs (HWND hWnd, int driveNo, int clusterSize)
 
 extern "C" int UacAnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, __int64 hiddenVolHostSize, int *realClusterSize, __int64 *nbrFreeClusters)
 {
-	CComPtr<ITrueCryptFormat> tc;
+	CComPtr<ITrueCryptFormatCom> tc;
 	int r;
 
 	CoInitialize (NULL);
@@ -205,43 +193,3 @@ extern "C" int UacAnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, __int64 h
 
 	return r;
 }
-
-
-extern "C" BOOL UacUpdateProgressBar (__int64 nSecNo, BOOL *bThreadCancel)
-{
-	if (CallBackObj == NULL)
-		return FALSE;
-
-	CallBackObj->UpdateProgressBar (nSecNo, bThreadCancel);
-	return TRUE;
-}
-
-
-extern "C" int UacFormatVolume (char *volumePath , BOOL bDevice ,
-	unsigned __int64 size , unsigned __int64 hiddenVolHostSize , Password *password , int cipher ,
-	int pkcs5 , BOOL quickFormat, BOOL sparseFileSwitch, int fileSystem , int clusterSize,
-	HWND hwndDlg , BOOL hiddenVol , int *realClusterSize)
-{
-	CComPtr<ITrueCryptFormat> tc;
-	int r;
-
-	CoInitialize (NULL);
-
-	if (ComGetInstance (hwndDlg, &tc))
-	{
-		TrueCryptFormat cb (GetCurrentThreadId ());
-		cb.AddRef();
-		tc->SetCallBack (&cb);
-
-		r = tc->FormatVolume (CComBSTR (volumePath), bDevice,
-			size, hiddenVolHostSize, password, cipher, pkcs5, quickFormat, sparseFileSwitch,
-			fileSystem, clusterSize, (LONG_PTR) hwndDlg, (LONG_PTR) hDiskKey, (LONG_PTR) hHeaderKey, showKeys, hiddenVol, realClusterSize);
-	}
-	else
-		r = ERR_DONT_REPORT;
-
-	CoUninitialize ();
-
-	return r;
-}
-
