@@ -3427,6 +3427,7 @@ static void DecryptSystemDevice (void)
 
 	if (!BootEncStatus.DriveEncrypted 
 		&& !BootEncStatus.DriveMounted
+		&& !BootEncStatus.DeviceFilterActive
 		&& !BootEncStatus.VolumeHeaderPresent
 		&& !SysEncryptionOrDecryptionRequired ())
 	{
@@ -3625,8 +3626,8 @@ static void ShowSystemEncryptionStatus (void)
 	{
 		// Ctrl+Shift held (for debugging purposes)
 
-		DebugMsgBox ("Debugging information:\n\nDeviceFilterActive %d\nBootLoaderVersion %x\nSetupInProgress %d\nSetupMode %d\nVolumeHeaderPresent %d\nDriveMounted %d\nDriveEncrypted %d\n"
-			"ConfiguredEncryptedAreaStart %I64d\nConfiguredEncryptedAreaEnd %I64d\nEncryptedAreaStart %I64d\nEncryptedAreaEnd %I64d\nDone %I64d%%",
+		DebugMsgBox ("Debugging information for system encryption:\n\nDeviceFilterActive: %d\nBootLoaderVersion: %x\nSetupInProgress: %d\nSetupMode: %d\nVolumeHeaderPresent: %d\nDriveMounted: %d\nDriveEncrypted: %d\n"
+			"ConfiguredEncryptedAreaStart: %I64d\nConfiguredEncryptedAreaEnd: %I64d\nEncryptedAreaStart: %I64d\nEncryptedAreaEnd: %I64d\nEncrypted: %I64d%%",
 			BootEncStatus.DeviceFilterActive,
 			BootEncStatus.BootLoaderVersion,
 			BootEncStatus.SetupInProgress,

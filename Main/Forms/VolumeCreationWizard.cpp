@@ -239,7 +239,7 @@ namespace TrueCrypt
 			{
 				FilePath (wstring (SelectedVolumePath)).Delete();
 			}
-			catch (Exception &e) {Gui->ShowError(e); }
+			catch (...) { }
 		}
 	}
 
@@ -416,7 +416,7 @@ namespace TrueCrypt
 						options->FilesystemClusterSize = SelectedFilesystemClusterSize;
 
 						options->EA = SelectedEncryptionAlgorithm;
-						options->Password = Password;
+						options->Password = Keyfile::ApplyListToPassword (Keyfiles, Password);
 						options->Path = SelectedVolumePath;
 						options->Quick = QuickFormatEnabled;
 						options->Size = VolumeSize;

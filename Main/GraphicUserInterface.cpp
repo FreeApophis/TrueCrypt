@@ -650,7 +650,7 @@ namespace TrueCrypt
 
 	wxString GraphicUserInterface::GetHomepageLinkURL (const wxString &linkId, const wxString &extraVars) const
 	{
-		wxString url = wxString (L"http://www.truecrypt.org/applink.php?version=4.3a&dest=") + linkId;
+		wxString url = wxString (L"http://www.truecrypt.org/applink.php?version=") + StringConverter::ToWide (Version::String()) + L"&dest=" + linkId;
 		
 		wxString os, osVersion, architecture;
 

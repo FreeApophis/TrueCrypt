@@ -779,7 +779,8 @@ namespace TrueCrypt
 
 		case CommandId::Help:
 			ShowString (L"\nExamples:\n\nMount a volume:\ntruecrypt volume.tc /media/truecrypt1\n\n"
-					L"Dismount volume:\ntruecrypt -d volume.tc\n"
+					L"Dismount a volume:\ntruecrypt -d volume.tc\n\n"
+					L"Dismount all mounted volumes:\ntruecrypt -d\n\n"
 					);
 			return true;
 

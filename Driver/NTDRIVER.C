@@ -464,15 +464,15 @@ NTSTATUS ProcessVolumeDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION 
 
 			outLength = FIELD_OFFSET(MOUNTDEV_SUGGESTED_LINK_NAME,Name) + ntUnicodeString.Length;
 
-			outputBuffer->UseOnlyIfThereAreNoOtherLinks = FALSE;
-			outputBuffer->NameLength = ntUnicodeString.Length;
-
 			if(irpSp->Parameters.DeviceIoControl.OutputBufferLength < outLength)
 			{
 				Irp->IoStatus.Information = sizeof (MOUNTDEV_SUGGESTED_LINK_NAME);
 				Irp->IoStatus.Status = STATUS_BUFFER_OVERFLOW;
 				break;
 			}
+			
+			outputBuffer->UseOnlyIfThereAreNoOtherLinks = FALSE;
+			outputBuffer->NameLength = ntUnicodeString.Length;
 
 			RtlCopyMemory ((PCHAR)outputBuffer->Name,ntUnicodeString.Buffer, ntUnicodeString.Length);
 		
@@ -601,6 +601,12 @@ NTSTATUS ProcessVolumeDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION 
 		break;
 
 	case IOCTL_DISK_VERIFY:
+		if (irpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof (PVERIFY_INFORMATION))
+		{
+			Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
+			Irp->IoStatus.Information = 0;
+		}
+		else
 		{
 			PVERIFY_INFORMATION pVerifyInformation;
 			pVerifyInformation = (PVERIFY_INFORMATION) Irp->AssociatedIrp.SystemBuffer;
@@ -610,7 +616,7 @@ NTSTATUS ProcessVolumeDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION 
 				pVerifyInformation->StartingOffset.HighPart;
 			irpSp->Parameters.Read.Length = pVerifyInformation->Length;
 			Irp->IoStatus.Status = STATUS_SUCCESS;
-			Irp->IoStatus.Information = pVerifyInformation->Length;
+			Irp->IoStatus.Information = 0;
 		}
 		break;
 
@@ -1177,13 +1183,27 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 
 NTSTATUS TCStartThread (PKSTART_ROUTINE threadProc, PVOID threadArg, PKTHREAD *kThread)
 {
+	return TCStartThreadInProcess (threadProc, threadArg, kThread, NULL);
+}
+
+
+NTSTATUS TCStartThreadInProcess (PKSTART_ROUTINE threadProc, PVOID threadArg, PKTHREAD *kThread, PEPROCESS process)
+{
 	NTSTATUS status;
 	HANDLE threadHandle;
+	HANDLE processHandle = NULL;
 	OBJECT_ATTRIBUTES threadObjAttributes;
+
+	if (process)
+	{
+		status = ObOpenObjectByPointer (process, OBJ_KERNEL_HANDLE, NULL, 0, NULL, KernelMode, &processHandle);
+		if (!NT_SUCCESS (status))
+			return status;
+	}
 
 	InitializeObjectAttributes (&threadObjAttributes, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
 	
-	status = PsCreateSystemThread (&threadHandle, THREAD_ALL_ACCESS, &threadObjAttributes, NULL, NULL, threadProc, threadArg);
+	status = PsCreateSystemThread (&threadHandle, THREAD_ALL_ACCESS, &threadObjAttributes, processHandle, NULL, threadProc, threadArg);
 	if (!NT_SUCCESS (status))
 		return status;
 
@@ -1194,6 +1214,9 @@ NTSTATUS TCStartThread (PKSTART_ROUTINE threadProc, PVOID threadArg, PKTHREAD *k
 		*kThread = NULL;
 		return status;
 	}
+
+	if (processHandle)
+		ZwClose (processHandle);
 
 	ZwClose (threadHandle);
 	return STATUS_SUCCESS;
@@ -1233,7 +1256,7 @@ TCStartVolumeThread (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, MOUNT_ST
 
 	if (mount->bUserContext)
 	{
-		ntStatus = ObOpenObjectByPointer (IoGetCurrentProcess (), 0, NULL, 0, NULL, KernelMode, &process);
+		ntStatus = ObOpenObjectByPointer (IoGetCurrentProcess (), OBJ_KERNEL_HANDLE, NULL, 0, NULL, KernelMode, &process);
 		if (!NT_SUCCESS (ntStatus))
 		{
 			Dump ("ObOpenObjectByPointer Failed\n");
@@ -1254,6 +1277,9 @@ TCStartVolumeThread (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, MOUNT_ST
 					 NULL,
 					 VolumeThreadProc,
 					 pThreadBlock);
+
+	if (process)
+		ZwClose (process);
 
 	if (!NT_SUCCESS (ntStatus))
 	{
@@ -1392,7 +1418,7 @@ VolumeThreadProc (PVOID Context)
 	Extension->Queue.HostFileHandle = Extension->hDeviceFile;
 	Extension->Queue.VirtualDeviceLength = Extension->DiskLength;
 
-	pThreadBlock->ntCreateStatus = EncryptedIoQueueStart (&Extension->Queue);
+	pThreadBlock->ntCreateStatus = EncryptedIoQueueStart (&Extension->Queue, pThreadBlock->mount->bUserContext ? IoGetCurrentProcess() : NULL);
 
 	if (!NT_SUCCESS (pThreadBlock->ntCreateStatus))
 	{
@@ -1787,6 +1813,7 @@ NTSTATUS ProbeRealDriveSize (PDEVICE_OBJECT driveDeviceObject, LARGE_INTEGER *dr
 	LARGE_INTEGER sysLength;
 	LARGE_INTEGER offset;
 	byte *sectorBuffer = TCalloc (SECTOR_SIZE);
+	ULONGLONG prevTime;
 
 	if (!sectorBuffer)
 		return STATUS_INSUFFICIENT_RESOURCES;
@@ -1800,16 +1827,20 @@ NTSTATUS ProbeRealDriveSize (PDEVICE_OBJECT driveDeviceObject, LARGE_INTEGER *dr
 		return status;
 	}
 
+	prevTime = KeQueryInterruptTime ();
 	for (offset.QuadPart = sysLength.QuadPart; ; offset.QuadPart += SECTOR_SIZE)
 	{
 		status = TCReadDevice (driveDeviceObject, sectorBuffer, offset, SECTOR_SIZE);
-		if (!NT_SUCCESS (status))
+		
+		if (!NT_SUCCESS (status) || KeQueryInterruptTime() - prevTime > 15ULL * 1000 * 1000 * 10)
 		{
 			driveSize->QuadPart = offset.QuadPart;
 			Dump ("Real drive size = %I64d\n", driveSize->QuadPart);
 			TCfree (sectorBuffer);
 			return STATUS_SUCCESS;
 		}
+	
+		prevTime = KeQueryInterruptTime ();
 	}
 }
 

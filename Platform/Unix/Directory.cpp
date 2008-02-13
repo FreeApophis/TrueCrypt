@@ -7,12 +7,18 @@
 */
 
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <errno.h>
 #include "System.h"
 #include "Platform/Directory.h"
+#include "Platform/Finally.h"
 #include "Platform/SystemException.h"
 
 namespace TrueCrypt
 {
+	static Mutex ReadDirMutex;	// readdir_r() may be unsafe on some systems
+
 	void Directory::Create (const DirectoryPath &path)
 	{
 		string p = path;
@@ -31,6 +37,26 @@ namespace TrueCrypt
 
 	FilePathList Directory::GetFilePaths (const DirectoryPath &path)
 	{
-		throw NotImplemented (SRC_POS);
+		DIR *dir = opendir (string (path).c_str());
+		throw_sys_sub_if (!dir, wstring (path));
+		finally_do_arg (DIR*, dir, { closedir (finally_arg); });
+
+		ScopeLock lock (ReadDirMutex);
+
+		FilePathList files;
+		struct dirent *dirEntry;
+		errno = 0;
+		while ((dirEntry = readdir (dir)) != nullptr)
+		{
+			shared_ptr <FilePath> filePath (new FilePath (string (AppendSeparator (path)) + string (dirEntry->d_name)));
+			
+			if (filePath->IsFile())
+				files.push_back (filePath);
+
+			errno = 0;
+		}
+
+		throw_sys_sub_if (errno != 0, wstring (path));
+		return files;
 	}
 }

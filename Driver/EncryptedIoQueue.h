@@ -106,7 +106,7 @@ NTSTATUS EncryptedIoQueueAddIrp (EncryptedIoQueue *queue, PIRP irp);
 BOOL EncryptedIoQueueIsRunning (EncryptedIoQueue *queue);
 BOOL EncryptedIoQueueIsSuspended (EncryptedIoQueue *queue);
 NTSTATUS EncryptedIoQueueResumeFromHold (EncryptedIoQueue *queue);
-NTSTATUS EncryptedIoQueueStart (EncryptedIoQueue *queue);
+NTSTATUS EncryptedIoQueueStart (EncryptedIoQueue *queue, PEPROCESS process);
 NTSTATUS EncryptedIoQueueStop (EncryptedIoQueue *queue);
 NTSTATUS EncryptedIoQueueHoldWhenIdle (EncryptedIoQueue *queue, int64 timeout);
 

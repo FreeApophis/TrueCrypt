@@ -113,7 +113,7 @@ NTSTATUS DriveFilterAddDevice (PDRIVER_OBJECT driverObject, PDEVICE_OBJECT pdo)
 
 	if (!BootDriveFound)
 	{
-		status = EncryptedIoQueueStart (&Extension->Queue);
+		status = EncryptedIoQueueStart (&Extension->Queue, NULL);
 		if (!NT_SUCCESS (status))
 			goto err;
 

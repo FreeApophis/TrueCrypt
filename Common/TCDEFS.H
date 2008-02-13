@@ -15,10 +15,10 @@
 #define TC_APP_NAME						"TrueCrypt"
 
 // Version displayed to user 
-#define VERSION_STRING					"5.0"
+#define VERSION_STRING					"5.0a"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x0500
+#define VERSION_NUM						0x050a
 
 // Version number written to volume header during format,
 // specifies the minimum program version required to mount the volume

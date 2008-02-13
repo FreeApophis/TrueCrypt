@@ -14,9 +14,6 @@ INCLUDE BootDefs.i
 
 ORG 7C00h ; Boot sector offset
 
-TC_PC_MEMORY_SEGMENT_SIZE = 64
-TC_PC_BASE_MEMORY_SIZE = 640
-
 start:
 	; BIOS executes boot sector from 0:7C00 or 7C0:0000 (default CD boot loader address).
 	; Far jump to the next instruction ensures the offset matches the ORG directive.
@@ -26,7 +23,7 @@ start:
 	db 'TrueCrypt'
 	
 main:	
-	mov ax, cs
+	xor ax, ax
 	mov ds, ax
 	
 	lea si, intro_msg
@@ -34,36 +31,21 @@ main:
 	
 	mov ax, TC_BOOT_LOADER_SEGMENT
 	mov es, ax ; Default load segment
-	xor si, si ; Default SP
 
 	; Check available memory
-	mov ax, word ptr [ds:413h]
-	
-	; >= 640 KB?
-	mov bx, TC_PC_BASE_MEMORY_SIZE
-	cmp ax, bx
+	cmp word ptr [ds:413h], TC_BOOT_LOADER_SEGMENT / 1024 * 16 + TC_BOOT_MEMORY_REQUIRED
 	jge clear_memory
-
-	; < required memory?
-	cmp ax, TC_PC_BASE_MEMORY_SIZE - (TC_PC_MEMORY_SEGMENT_SIZE - TC_BOOT_MEMORY_REQUIRED)
-	jge s0
 	
 	; Insufficient memory
 	mov ax, TC_BOOT_LOADER_LOWMEM_SEGMENT
 	mov es, ax
-	jmp clear_memory
-	
-s0:
-	; SP = 0 - ((640 - *0:0413) * 1024)
-	sub bx, ax
-	shl bx, 10
-	sub si, bx
 
 	; Ensure clear BSS section
 clear_memory:
 	xor al, al
 	mov di, TC_BOOT_LOADER_OFFSET
 	mov cx, TC_BOOT_MEMORY_REQUIRED * 1024 - 1
+	cld
 	rep stosb
 	
 	; Read boot loader
@@ -91,7 +73,7 @@ exec_loader:
 	mov ds, ax
 	cli
 	mov ss, ax
-	mov sp, si
+	mov sp, TC_BOOT_MEMORY_REQUIRED * 1024 - 4
 	sti
 	
 	mov word ptr [cs:jump_seg], es

@@ -387,6 +387,10 @@ handleWin32Error (HWND hwndDlg)
 	MessageBoxW (hwndDlg, lpMsgBuf, lpszTitle, ICON_HAND);
 	LocalFree (lpMsgBuf);
 
+	// User-friendly hardware error explanation
+	if (dwError == ERROR_CRC || dwError == ERROR_IO_DEVICE || dwError == ERROR_BAD_CLUSTERS)
+		Error ("ERR_HARDWARE_ERROR");
+
 	// Device not ready
 	if (dwError == ERROR_NOT_READY)
 		CheckSystemAutoMount();
@@ -633,7 +637,9 @@ static LRESULT CALLBACK BootPwdFieldProc (HWND hwnd, UINT message, WPARAM wParam
 }
 
 
-// Protects an input field from having its content updated by a Paste action. Used for pre-boot passwords.
+// Protects an input field from having its content updated by a Paste action. Used for pre-boot password
+// input fields (only the US keyboard layout is supported in pre-boot environment so we must prevent the 
+// user from pasting a password typed using a non-US keyboard layout).
 void ToBootPwdField (HWND hwndDlg, UINT ctrlId)
 {
 	HWND hwndCtrl = GetDlgItem (hwndDlg, ctrlId);

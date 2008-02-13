@@ -36,6 +36,7 @@
 #define TC_BIOS_MAX_CHARS_PER_LINE	80
 
 void Beep ();
+void ClearBiosKeystrokeBuffer ();
 void ClearScreen ();
 void DisableScreenOutput ();
 void EnableScreenOutput ();
@@ -59,6 +60,5 @@ void PrintHex (byte b);
 void PrintHex (uint16 data);
 void PrintHex (uint32 data);
 void PrintHex (const uint64 &data);
-void SendToDebugPort (byte dataByte);
 
 #endif // TC_HEADER_Boot_BootConsoleIo

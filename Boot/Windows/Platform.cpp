@@ -195,3 +195,16 @@ uint32 GetLinearAddress (uint16 segment, uint16 offset)
 {
 	return (uint32 (segment) << 4) + offset;
 }
+
+
+bool RegionsIntersect (const uint64 &start1, uint32 length1, const uint64 &start2, const uint64 &end2)
+{
+	uint64 end1 = start1 + length1 - 1UL;
+	uint64 intersectEnd = (end1 <= end2) ? end1 : end2;
+	
+	uint64 intersectStart = (start1 >= start2) ? start1 : start2;
+	if (intersectStart > intersectEnd)
+		return false;
+		
+	return (intersectEnd + 1UL - intersectStart).LowPart != 0;
+}

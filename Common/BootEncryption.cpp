@@ -446,6 +446,40 @@ namespace TrueCrypt
 	}
 
 
+	bool BootEncryption::SystemDriveContainsPartitionType (byte type)
+	{
+		Device device (GetSystemDriveConfiguration().DevicePath, true);
+
+		byte mbrBuf[SECTOR_SIZE];
+		device.SeekAt (0);
+		device.Read (mbrBuf, sizeof (mbrBuf));
+
+		MBR *mbr = reinterpret_cast <MBR *> (mbrBuf);
+		if (mbr->Signature != 0xaa55)
+			throw ParameterIncorrect (SRC_POS);
+
+		for (size_t i = 0; i < array_capacity (mbr->Partitions); ++i)
+		{
+			if (mbr->Partitions[i].Type == type)
+				return true;
+		}
+
+		return false;
+	}
+
+
+	bool BootEncryption::SystemDriveContainsExtendedPartition ()
+	{
+		return SystemDriveContainsPartitionType (PARTITION_EXTENDED) || SystemDriveContainsPartitionType (PARTITION_XINT13_EXTENDED);
+	}
+
+
+	bool BootEncryption::SystemDriveIsDynamic ()
+	{
+		return SystemDriveContainsPartitionType (PARTITION_LDM);
+	}
+
+
 	SystemDriveConfiguration BootEncryption::GetSystemDriveConfiguration ()
 	{
 		if (DriveConfigValid)
@@ -512,7 +546,7 @@ namespace TrueCrypt
 		SystemDriveConfiguration config = GetSystemDriveConfiguration();
 
 		return config.Partitions.size() == 1
-			&& config.SystemPartition.Info.PartitionLength.QuadPart * 1000 / config.DrivePartition.Info.PartitionLength.QuadPart >= 995;
+			&& config.DrivePartition.Info.PartitionLength.QuadPart - config.SystemPartition.Info.PartitionLength.QuadPart < 64 * 1024 * 1024;
 	}
 
 
@@ -570,6 +604,7 @@ namespace TrueCrypt
 		return path + '\\' + TC_SYS_BOOT_LOADER_BACKUP_NAME;
 	}
 
+#ifndef SETUP
 	void BootEncryption::CreateRescueIsoImage (bool initialSetup, const string &isoImagePath)
 	{
 		BootEncryptionStatus encStatus = GetStatus();
@@ -582,15 +617,57 @@ namespace TrueCrypt
 		memset (image, 0, RescueIsoImageSize);
 
 		// Primary volume descriptor
-		int offset = 0x8000;
+		strcpy ((char *)image + 0x8000, "\001CD001\001");
+		strcpy ((char *)image + 0x7fff + 41, "TrueCrypt Rescue Disk           ");
+		*(uint32 *) (image + 0x7fff + 81) = RescueIsoImageSize / 2048;
+		*(uint32 *) (image + 0x7fff + 85) = BE32 (RescueIsoImageSize / 2048);
+		image[0x7fff + 121] = 1;
+		image[0x7fff + 124] = 1;
+		image[0x7fff + 125] = 1;
+		image[0x7fff + 128] = 1;
+		image[0x7fff + 130] = 8;
+		image[0x7fff + 131] = 8;
+
+		image[0x7fff + 133] = 10;
+		image[0x7fff + 140] = 10;
+		image[0x7fff + 141] = 0x14;
+		image[0x7fff + 157] = 0x22;
+		image[0x7fff + 159] = 0x18;
 
 		// Boot record volume descriptor
 		strcpy ((char *)image + 0x8801, "CD001\001EL TORITO SPECIFICATION");
 		image[0x8800 + 0x47] = 0x19;
 
+		// Volume descriptor set terminator
+		strcpy ((char *)image + 0x9000, "\377CD001\001");
+
+		// Path table
+		image[0xA000 + 0] = 1;
+		image[0xA000 + 2] = 0x18;
+		image[0xA000 + 6] = 1;
+
+		// Root directory
+		image[0xc000 + 0] = 0x22;
+		image[0xc000 + 2] = 0x18;
+		image[0xc000 + 9] = 0x18;
+		image[0xc000 + 11] = 0x08;
+		image[0xc000 + 16] = 0x08;
+		image[0xc000 + 25] = 0x02;
+		image[0xc000 + 28] = 0x01;
+		image[0xc000 + 31] = 0x01;
+		image[0xc000 + 32] = 0x01;
+		image[0xc000 + 34] = 0x22;
+		image[0xc000 + 36] = 0x18;
+		image[0xc000 + 43] = 0x18;
+		image[0xc000 + 45] = 0x08;
+		image[0xc000 + 50] = 0x08;
+		image[0xc000 + 59] = 0x02;
+		image[0xc000 + 62] = 0x01;
+		*(uint32 *) (image + 0xc000 + 65) = 0x010101;
+
 		// Validation entry
 		image[0xc800] = 1;
-		offset = 0xc800 + 0x1c;
+		int offset = 0xc800 + 0x1c;
 		image[offset++] = 0xaa;
 		image[offset++] = 0x55;
 		image[offset++] = 0x55;
@@ -661,7 +738,7 @@ namespace TrueCrypt
 			isoFile.Write (image, RescueIsoImageSize);
 		}
 	}
-
+#endif
 
 	bool BootEncryption::VerifyRescueDisk ()
 	{
@@ -810,9 +887,10 @@ namespace TrueCrypt
 		throw_sys_if (classRegKey == INVALID_HANDLE_VALUE);
 		finally_do_arg (HKEY, classRegKey, { RegCloseKey (finally_arg); });
 
-		if (registerDriver)
+		if (registerDriver && nCurrentOS == WIN_VISTA_OR_LATER)
 		{
-			// Place our filter in front of others already registered
+			// Attaching to the device stack after PartMgr on Vista causes all write IRPs sent to the lower device object to fail
+			// with STATUS_ACCESS_DENIED. Therefore, our filter is placed in front of others already registered.
 			size_t strSize = strlen ("truecrypt") + 1;
 			byte regKeyBuf[65536];
 			DWORD size = sizeof (regKeyBuf) - strSize;
@@ -827,7 +905,6 @@ namespace TrueCrypt
 		}
 		else
 		{
-			// Deregister filter
 			char tempPath[MAX_PATH];
 			GetTempPath (sizeof (tempPath), tempPath);
 			string infFileName = string (tempPath) + "\\truecrypt_filter.inf";
@@ -835,8 +912,8 @@ namespace TrueCrypt
 			finally_do_arg (string, infFileName, { DeleteFile (finally_arg.c_str()); });
 			File infFile (infFileName, false, true);
 
-			string infTxt = "[truecrypt]\r\nDelReg=truecrypt_reg\r\n\r\n"
-							"[truecrypt_reg]\r\nHKR,,\"UpperFilters\",0x00018002,\"truecrypt\"\r\n";
+			string infTxt = "[truecrypt]\r\n" + string (registerDriver ? "Add" : "Del") + "Reg=truecrypt_reg\r\n\r\n"
+				"[truecrypt_reg]\r\nHKR,,\"UpperFilters\",0x0001" + string (registerDriver ? "0008" : "8002") + ",\"truecrypt\"\r\n";
 
 			infFile.Write ((byte *) infTxt.c_str(), infTxt.size());
 			infFile.Close();
@@ -870,9 +947,6 @@ namespace TrueCrypt
 
 		if (geometry.BytesPerSector != SECTOR_SIZE)
 			throw ErrorException ("LARGE_SECTOR_UNSUPPORTED");
-
-		if (geometry.SectorsPerTrack < 63)
-			throw ErrorException ("UNSUPPORTED_BOOT_DRIVE_GEOMETRY");
 
 		if (!config.SystemLoaderPresent)
 			throw ErrorException ("WINDOWS_NOT_ON_BOOT_DRIVE_ERROR");
@@ -1129,6 +1203,7 @@ namespace TrueCrypt
 		CallDriver (TC_IOCTL_BOOT_ENCRYPTION_SETUP, &request, sizeof (request), NULL, 0);
 	}
 
+#endif // !SETUP
 
 	bool BootEncryption::RestartComputer (void)
 	{
@@ -1154,8 +1229,4 @@ namespace TrueCrypt
 
 		return true;
 	}
-
-	
-#endif // !SETUP
-
 }

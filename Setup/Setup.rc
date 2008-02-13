@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 5,0,0,0
- PRODUCTVERSION 5,0,0,0
+ FILEVERSION 5,0,1,0
+ PRODUCTVERSION 5,0,1,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -46,13 +46,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Setup"
-            VALUE "FileVersion", "5.0"
+            VALUE "FileVersion", "5.0a"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt Setup.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "5.0"
-            VALUE "SpecialBuild", "2008-02-05"
+            VALUE "ProductVersion", "5.0a"
+            VALUE "SpecialBuild", "2008-02-12"
         END
     END
     BLOCK "VarFileInfo"

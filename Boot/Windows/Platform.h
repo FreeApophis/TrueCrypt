@@ -40,6 +40,16 @@ typedef UINT64_STRUCT uint64;
 #define TC_ASM_EMIT3(A,B,C) __asm _emit 0x##A __asm _emit 0x##B __asm _emit 0x##C
 #define TC_ASM_EMIT4(A,B,C,D) __asm _emit 0x##A __asm _emit 0x##B __asm _emit 0x##C __asm _emit 0x##D 
 
+#define TC_ASM_MOV_EAX_DI TC_ASM_EMIT3 (66, 8B, 05)
+#define TC_ASM_MOV_EBX_DI TC_ASM_EMIT3 (66, 8B, 1D)
+#define TC_ASM_MOV_ECX_DI TC_ASM_EMIT3 (66, 8B, 0D)
+#define TC_ASM_MOV_EDX_DI TC_ASM_EMIT3 (66, 8B, 15)
+
+#define TC_ASM_MOV_DI_EAX TC_ASM_EMIT3 (66, 89, 05)
+#define TC_ASM_MOV_DI_EBX TC_ASM_EMIT3 (66, 89, 1D)
+#define TC_ASM_MOV_DI_ECX TC_ASM_EMIT3 (66, 89, 0D)
+#define TC_ASM_MOV_DI_EDX TC_ASM_EMIT3 (66, 89, 15)
+
 
 #pragma pack(1)
 
@@ -98,6 +108,7 @@ void CopyMemory (byte *source, uint16 destSegment, uint16 destOffset, uint16 blo
 void CopyMemory (uint16 sourceSegment, uint16 sourceOffset, byte *destination, uint16 blockSize);
 uint32 GetLinearAddress (uint16 segment, uint16 offset);
 void Jump (uint16 jumpSegment, uint16 jumpOffset, byte dlRegister);
+bool RegionsIntersect (const uint64 &start1, uint32 length1, const uint64 &start2, const uint64 &end2);
 bool TestInt64 ();
 
 #endif // TC_HEADER_Boot_Platform

@@ -71,6 +71,7 @@ void OutcomePrompt ( HWND hwndDlg , BOOL bOK );
 void DoUninstall ( void *hwndDlg );
 void DoInstall ( void *hwndDlg );
 void SetInstallationPath (HWND hwndDlg);
+BOOL UpgradeBootLoader (HWND hwndDlg);
 BOOL CALLBACK InstallDlgProc ( HWND hwndDlg , UINT msg , WPARAM wParam , LPARAM lParam );
 int WINAPI WINMAIN ( HINSTANCE hInstance , HINSTANCE hPrevInstance , char *lpszCommandLine , int nCmdShow );
 

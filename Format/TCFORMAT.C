@@ -437,6 +437,9 @@ static BOOL ChangeWizardMode (int newWizardMode)
 
 	bDevice = (WizardMode != WIZARD_MODE_FILE_CONTAINER);
 
+	if (newWizardMode != WIZARD_MODE_SYS_DEVICE)
+		CloseSysEncMutex ();	
+
 	return TRUE;
 }
 
@@ -722,13 +725,39 @@ BOOL SwitchWizardToSysEncMode (void)
 
 			try
 			{
-				if (BootEncObj->SystemPartitionCoversWholeDrive() 
+				if (BootEncObj->SystemDriveIsDynamic())
+				{
+					Warning ("SYSENC_UNSUPPORTED_FOR_DYNAMIC_DISK");
+					ChangeWizardMode (WIZARD_MODE_NONSYS_DEVICE);
+					return FALSE;
+				}
+
+				if (bWholeSysDrive && !BootEncObj->SystemPartitionCoversWholeDrive())
+				{
+					if (BootEncObj->SystemDriveContainsExtendedPartition())
+					{
+						bWholeSysDrive = FALSE;
+
+						Warning ("WDE_UNSUPPORTED_FOR_EXTENDED_PARTITIONS");
+
+						if (AskYesNo ("ASK_ENCRYPT_PARTITION_INSTEAD_OF_DRIVE") == IDNO)
+						{
+							ChangeWizardMode (WIZARD_MODE_NONSYS_DEVICE);
+							return FALSE;
+						}
+					}
+					else
+						Warning ("WDE_EXTENDED_PARTITIONS_WARNING");
+				}
+				else if (BootEncObj->SystemPartitionCoversWholeDrive() 
 					&& !bWholeSysDrive)
 					bWholeSysDrive = (AskYesNo ("WHOLE_SYC_DEVICE_RECOM") == IDYES);
+
 			}
 			catch (Exception &e)
 			{
 				e.Show (MainDlg);
+				return FALSE;
 			}
 
 			// Skip SYSENC_SPAN_PAGE as the user already made the choice
@@ -1299,7 +1328,9 @@ static void SysEncResume (void)
 
 			case SYSENC_STATUS_DECRYPTING:
 
-				BootEncObj->StartDecryption ();			
+				if (locBootEncStatus.DriveMounted)	// If the drive is not encrypted we will just deinstall
+					BootEncObj->StartDecryption ();	
+
 				break;
 			}
 
@@ -3687,7 +3718,8 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 						try
 						{
-							BootEncObj->CheckEncryptionSetupResult();
+							if (BootEncStatus.DriveMounted)	// If we had been really encrypting/decrypting (not just proceeding to deinstall)
+								BootEncObj->CheckEncryptionSetupResult();
 						}
 						catch (Exception &e)
 						{
@@ -3985,6 +4017,27 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			{
 				try
 				{
+					if (BootEncObj->SystemDriveIsDynamic())
+					{
+						Warning ("SYSENC_UNSUPPORTED_FOR_DYNAMIC_DISK");
+						return 1;
+					}
+
+					if (bWholeSysDrive && !BootEncObj->SystemPartitionCoversWholeDrive())
+					{
+						if (BootEncObj->SystemDriveContainsExtendedPartition())
+						{
+							Warning ("WDE_UNSUPPORTED_FOR_EXTENDED_PARTITIONS");
+
+							if (AskYesNo ("ASK_ENCRYPT_PARTITION_INSTEAD_OF_DRIVE") == IDNO)
+								return 1;
+
+							bWholeSysDrive = FALSE;
+						}
+						else
+							Warning ("WDE_EXTENDED_PARTITIONS_WARNING");
+					}
+
 					if (!bWholeSysDrive && BootEncObj->SystemPartitionCoversWholeDrive())
 						bWholeSysDrive = (AskYesNo ("WHOLE_SYC_DEVICE_RECOM") == IDYES);
 				}
@@ -4629,6 +4682,10 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			else if (nCurPageNo == SYSENC_PRETEST_RESULT_PAGE)
 			{
 				TextInfoDialogBox (TC_TBXID_SYS_ENC_RESCUE_DISK);
+
+				// Begin the actual encryption process
+
+				ChangeSystemEncryptionStatus (SYSENC_STATUS_ENCRYPTING);
 			}
 
 			else if (nCurPageNo == SYSENC_ENCRYPTION_PAGE
@@ -5554,6 +5611,33 @@ static void AfterWMInitTasks (HWND hwndDlg)
 {
 	if (SystemEncryptionStatus != SYSENC_STATUS_PRETEST)
 	{
+		if (SystemEncryptionStatus == SYSENC_STATUS_ENCRYPTING
+			|| SystemEncryptionStatus == SYSENC_STATUS_DECRYPTING)
+		{
+			try
+			{
+				BootEncStatus = BootEncObj->GetStatus();
+
+				if (!BootEncStatus.DriveMounted)
+				{
+					// This is an inconsistent state. SystemEncryptionStatus can never be SYSENC_STATUS_ENCRYPTING
+					// or SYSENC_STATUS_DECRYPTING when the drive isn't mounted. A possible cause is a stale or
+					// corrupted config file.
+
+					// Fix the inconsistency
+					ManageStartupSeqWiz (TRUE, "");
+					ChangeSystemEncryptionStatus (SYSENC_STATUS_NONE);
+					EndMainDlg (MainDlg);
+					InconsistencyResolved (SRC_POS);
+					return;
+				}
+			}
+			catch (Exception &e)
+			{
+				e.Show (MainDlg);
+			}
+		}
+
 		// Handle system encryption command line arguments (if we're not in the Pretest phase).
 		// Note that if bDirectSysEncModeCommand is not SYSENC_COMMAND_NONE, we already have the mutex.
 
@@ -5631,6 +5715,9 @@ static void AfterWMInitTasks (HWND hwndDlg)
 			break;
 
 		case SYSENC_COMMAND_DECRYPT:
+
+			// Add the wizard to the system startup sequence
+			ManageStartupSeqWiz (FALSE, "/acsysenc");
 
 			ChangeSystemEncryptionStatus (SYSENC_STATUS_DECRYPTING);
 			LoadPage (hwndDlg, SYSENC_ENCRYPTION_PAGE);
@@ -5771,7 +5858,6 @@ static void AfterWMInitTasks (HWND hwndDlg)
 				{
 					// Pretest successful
 
-					ChangeSystemEncryptionStatus (SYSENC_STATUS_ENCRYPTING);
 					LoadPage (hwndDlg, SYSENC_PRETEST_RESULT_PAGE);
 				}
 				else

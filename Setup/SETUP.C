@@ -50,6 +50,7 @@ BOOL bMakePackage = FALSE;
 BOOL bDone = FALSE;
 BOOL Rollback = FALSE;
 BOOL bUpgrade = FALSE;
+BOOL SystemEncryptionUpgrade = FALSE;
 BOOL bRepairMode = FALSE;
 BOOL bChangeMode = FALSE;
 BOOL bDevm = FALSE;
@@ -783,18 +784,6 @@ DoDriverUnload (HWND hwndDlg)
 		BOOL bResult;
 		int volumesMounted;
 
-		// Test for encrypted boot drive
-		try
-		{
-			BootEncryption bootEnc (hwndDlg);
-			if (bootEnc.GetDriverServiceStartType() == SERVICE_BOOT_START)
-			{
-				Error ("SETUP_FAILED_BOOT_DRIVE_ENCRYPTED");
-				return FALSE;
-			}
-		}
-		catch (...)	{ }
-
 		// Try to determine if it's upgrade (and not reinstall, downgrade, or first-time install).
 		bResult = DeviceIoControl (hDriver, TC_IOCTL_GET_DRIVER_VERSION, NULL, 0, &driverVersion, sizeof (driverVersion), &dwResult, NULL);
 
@@ -803,30 +792,50 @@ DoDriverUnload (HWND hwndDlg)
 
 		bUpgrade = bResult && driverVersion < VERSION_NUM;
 
-		// Check mounted volumes
-		bResult = DeviceIoControl (hDriver, TC_IOCTL_IS_ANY_VOLUME_MOUNTED, NULL, 0, &volumesMounted, sizeof (volumesMounted), &dwResult, NULL);
-
-		if (!bResult)
+		// Test for encrypted boot drive
+		try
 		{
-			bResult = DeviceIoControl (hDriver, TC_IOCTL_LEGACY_GET_MOUNTED_VOLUMES, NULL, 0, &driver, sizeof (driver), &dwResult, NULL);
-			if (bResult)
-				volumesMounted = driver.ulMountedDrives;
-		}
-
-		if (bResult)
-		{
-			if (volumesMounted != 0)
+			BootEncryption bootEnc (hwndDlg);
+			if (bootEnc.GetDriverServiceStartType() == SERVICE_BOOT_START)
 			{
-				bOK = FALSE;
-				MessageBoxW (hwndDlg, GetString ("DISMOUNT_ALL_FIRST"), lpszTitle, MB_ICONHAND);
+				if (!bUpgrade || driverVersion < 0x500)
+				{
+					Error ("SETUP_FAILED_BOOT_DRIVE_ENCRYPTED");
+					return FALSE;
+				}
+
+				SystemEncryptionUpgrade = TRUE;
 			}
 		}
-		else
+		catch (...)	{ }
+
+		if (!SystemEncryptionUpgrade)
 		{
-			bOK = FALSE;
-			handleWin32Error (hwndDlg);
+			// Check mounted volumes
+			bResult = DeviceIoControl (hDriver, TC_IOCTL_IS_ANY_VOLUME_MOUNTED, NULL, 0, &volumesMounted, sizeof (volumesMounted), &dwResult, NULL);
+
+			if (!bResult)
+			{
+				bResult = DeviceIoControl (hDriver, TC_IOCTL_LEGACY_GET_MOUNTED_VOLUMES, NULL, 0, &driver, sizeof (driver), &dwResult, NULL);
+				if (bResult)
+					volumesMounted = driver.ulMountedDrives;
+			}
+
+			if (bResult)
+			{
+				if (volumesMounted != 0)
+				{
+					bOK = FALSE;
+					MessageBoxW (hwndDlg, GetString ("DISMOUNT_ALL_FIRST"), lpszTitle, MB_ICONHAND);
+				}
+			}
+			else
+			{
+				bOK = FALSE;
+				handleWin32Error (hwndDlg);
+			}
 		}
-		
+
 		// Try to close all open TC windows
 		if (bOK)
 		{
@@ -848,8 +857,11 @@ DoDriverUnload (HWND hwndDlg)
 			bOK = FALSE;
 		}
 
-		CloseHandle (hDriver);
-		hDriver = INVALID_HANDLE_VALUE;
+		if (!bOK || !SystemEncryptionUpgrade)
+		{
+			CloseHandle (hDriver);
+			hDriver = INVALID_HANDLE_VALUE;
+		}
 	}
 	else
 	{
@@ -863,6 +875,9 @@ DoDriverUnload (HWND hwndDlg)
 BOOL
 DoDriverInstall (HWND hwndDlg)
 {
+	if (SystemEncryptionUpgrade)
+		return TRUE;
+
 	SC_HANDLE hManager, hService = NULL;
 	BOOL bOK = FALSE, bRet;
 
@@ -911,6 +926,33 @@ error:
 
 	return bOK;
 }
+
+
+BOOL UpgradeBootLoader (HWND hwndDlg)
+{
+	if (!SystemEncryptionUpgrade)
+		return TRUE;
+
+	try
+	{
+		BootEncryption bootEnc (hwndDlg);
+		if (bootEnc.GetInstalledBootLoaderVersion() < VERSION_NUM)
+		{
+			bootEnc.InstallBootLoader ();
+			Info ("BOOT_LOADER_UPGRADE_OK");
+		}
+		return TRUE;
+	}
+	catch (Exception &e)
+	{
+		e.Show (hwndDlg);
+	}
+	catch (...) { }
+
+	Error ("BOOT_LOADER_UPGRADE_FAILED");
+	return FALSE;
+}
+
 
 BOOL
 DoShortcutsUninstall (HWND hwndDlg, char *szDestDir)
@@ -1129,7 +1171,7 @@ OutcomePrompt (HWND hwndDlg, BOOL bOK)
 		{
 			if (bDevm)
 				PostMessage (MainDlg, WM_CLOSE, 0, 0);
-			else
+			else if (!SystemEncryptionUpgrade)
 				Info ("INSTALL_OK");
 		}
 		else
@@ -1339,7 +1381,8 @@ DoInstall (void *arg)
 	
 	UpdateProgressBarProc(55);
 
-	DoRegUninstall ((HWND) hwndDlg, TRUE);
+	if (!SystemEncryptionUpgrade)
+		DoRegUninstall ((HWND) hwndDlg, TRUE);
 
 	UpdateProgressBarProc(62);
 
@@ -1347,7 +1390,7 @@ DoInstall (void *arg)
 	strcat_s (path, sizeof (path), "\\TrueCrypt Setup.exe");
 	DeleteFile (path);
 
-	if (UpdateProgressBarProc(63) && DoServiceUninstall (hwndDlg, "truecrypt") == FALSE)
+	if (UpdateProgressBarProc(63) && !SystemEncryptionUpgrade && DoServiceUninstall (hwndDlg, "truecrypt") == FALSE)
 	{
 		bOK = FALSE;
 	}
@@ -1355,11 +1398,15 @@ DoInstall (void *arg)
 	{
 		bOK = FALSE;
 	}
-	else if (UpdateProgressBarProc(80) && DoRegInstall ((HWND) hwndDlg, InstallationPath, bRegisterFileExt ) == FALSE)
+	else if (UpdateProgressBarProc(80) && !SystemEncryptionUpgrade && DoRegInstall ((HWND) hwndDlg, InstallationPath, bRegisterFileExt ) == FALSE)
 	{
 		bOK = FALSE;
 	}
-	else if (UpdateProgressBarProc(85) && DoDriverInstall (hwndDlg) == FALSE)
+	else if (UpdateProgressBarProc(85) && !SystemEncryptionUpgrade && DoDriverInstall (hwndDlg) == FALSE)
+	{
+		bOK = FALSE;
+	}
+	else if (SystemEncryptionUpgrade && UpgradeBootLoader (hwndDlg) == FALSE)
 	{
 		bOK = FALSE;
 	}
@@ -1388,7 +1435,8 @@ DoInstall (void *arg)
 		Rollback = TRUE;
 		Silent = TRUE;
 
-		DoUninstall (hwndDlg);
+		if (!SystemEncryptionUpgrade)
+			DoUninstall (hwndDlg);
 
 		bUninstall = FALSE;
 		Rollback = FALSE;
@@ -1405,13 +1453,24 @@ DoInstall (void *arg)
 	}
 	else if (!bUninstall && !bDevm)
 	{
-		if (bUpgrade && (AskYesNo ("AFTER_UPGRADE_RELEASE_NOTES") == IDYES))
+		if (SystemEncryptionUpgrade)
 		{
-			Applink ("releasenotes", TRUE, "");
+			if (AskYesNo ("UPGRADE_OK_REBOOT_REQUIRED") == IDYES)
+			{
+				BootEncryption bootEnc (hwndDlg);
+				bootEnc.RestartComputer();
+			}
 		}
-		else if (bFirstTimeInstall && AskYesNo ("AFTER_INSTALL_TUTORIAL") == IDYES)
+		else
 		{
-			Applink ("beginnerstutorial", TRUE, "");
+			if (bUpgrade && (AskYesNo ("AFTER_UPGRADE_RELEASE_NOTES") == IDYES))
+			{
+				Applink ("releasenotes", TRUE, "");
+			}
+			else if (bFirstTimeInstall && AskYesNo ("AFTER_INSTALL_TUTORIAL") == IDYES)
+			{
+				Applink ("beginnerstutorial", TRUE, "");
+			}
 		}
 	}
 }

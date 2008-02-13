@@ -161,16 +161,14 @@
 #define IDM_ONLINE_TUTORIAL             40044
 #define IDM_ONLINE_HELP                 40045
 #define IDM_DONATIONS                   40046
-#define IDM_PERMANENTLY_DECRYPT         40047
-#define IDM_CHANGE_SYS_HEADER_KEY_DERIV_ALGO 40048
-#define IDM_CHANGE_SYS_PASSWORD         40049
-#define IDM_CREATE_RESCUE_DISK          40050
-#define IDM_PERMANENTLY_DECRYPT_SYS     40051
-#define IDM_ENCRYPT_SYS                 40052
-#define IDM_VERIFY_RESCUE_DISK          40053
-#define IDM_SYSTEM_ENCRYPTION_STATUS    40054
-#define IDM_ENCRYPT_SYSTEM_DEVICE       40055
-#define IDM_SYSENC_RESUME               40056
+#define IDM_CHANGE_SYS_HEADER_KEY_DERIV_ALGO 40047
+#define IDM_CHANGE_SYS_PASSWORD         40048
+#define IDM_CREATE_RESCUE_DISK          40049
+#define IDM_PERMANENTLY_DECRYPT_SYS     40050
+#define IDM_VERIFY_RESCUE_DISK          40051
+#define IDM_SYSTEM_ENCRYPTION_STATUS    40052
+#define IDM_ENCRYPT_SYSTEM_DEVICE       40053
+#define IDM_SYSENC_RESUME               40054
 
 // Next default values for new objects
 // 
@@ -178,7 +176,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        115
-#define _APS_NEXT_COMMAND_VALUE         40057
+#define _APS_NEXT_COMMAND_VALUE         40055
 #define _APS_NEXT_CONTROL_VALUE         1098
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

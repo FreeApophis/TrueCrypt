@@ -231,6 +231,22 @@ bool IsKeyboardCharAvailable ()
 }
 
 
+void ClearBiosKeystrokeBuffer ()
+{
+	__asm
+	{
+		push es
+		xor ax, ax
+		mov es, ax
+		mov di, 0x41e
+		mov cx, 32
+		cld
+		rep stosb
+		pop es
+	}
+}
+
+
 bool IsPrintable (char c)
 {
 	return c >= ' ' && c <= '~';

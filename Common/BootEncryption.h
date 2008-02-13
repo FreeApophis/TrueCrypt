@@ -129,6 +129,35 @@ namespace TrueCrypt
 
 	typedef list <Partition> PartitionList;
 
+#pragma pack (push)
+#pragma pack(1)
+
+	struct PartitionEntryMBR
+	{
+		byte BootIndicator;
+
+		byte StartHead;
+		byte StartCylSector;
+		byte StartCylinder;
+
+		byte Type;
+
+		byte EndHead;
+		byte EndSector;
+		byte EndCylinder;
+
+		uint32 StartLBA;
+		uint32 SectorCountLBA;
+	};
+
+	struct MBR
+	{
+		byte Code[446];
+		PartitionEntryMBR Partitions[4];
+		uint16 Signature;
+	};
+
+#pragma pack (pop)
 
 	struct SystemDriveConfiguration
 	{
@@ -171,6 +200,7 @@ namespace TrueCrypt
 		void GetVolumeProperties (VOLUME_PROPERTIES_STRUCT *properties);
 		SystemDriveConfiguration GetSystemDriveConfiguration ();
 		void Install ();
+		void InstallBootLoader ();
 		void PrepareInstallation (bool systemPartitionOnly, Password &password, int ea, int mode, int pkcs5, const string &rescueIsoImagePath);
 		void ProbeRealSystemDriveSize ();
 		void RegisterFilterDriver (bool registerDriver);
@@ -178,7 +208,10 @@ namespace TrueCrypt
 		void SetDriverServiceStartType (DWORD startType);
 		void StartDecryption ();
 		void StartEncryption (WipeAlgorithmId wipeAlgorithm);
+		bool SystemDriveContainsPartitionType (byte type);
+		bool SystemDriveContainsExtendedPartition ();
 		bool SystemPartitionCoversWholeDrive ();
+		bool SystemDriveIsDynamic ();
 		bool VerifyRescueDisk ();
 
 	protected:
@@ -190,7 +223,6 @@ namespace TrueCrypt
 		DISK_GEOMETRY GetDriveGeometry (int driveNumber);
 		PartitionList GetDrivePartitions (int driveNumber);
 		string GetWindowsDirectory ();
-		void InstallBootLoader ();
 		void RestoreSystemLoader ();
 		void InstallVolumeHeader ();
 		void UpdateSystemDriveConfiguration ();

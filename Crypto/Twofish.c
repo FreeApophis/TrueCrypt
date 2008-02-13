@@ -20,14 +20,14 @@
 #include "Twofish.h"
 #include "Common/Endian.h"
 
+#ifndef TC_MINIMIZE_CODE_SIZE
+
 #define Q_TABLES
 #define M_TABLE
 #define MK_TABLE
 #define ONE_STEP
 
-//u4byte  k_len;
-//u4byte  l_key[40];
-//u4byte  s_key[4];
+#endif
 
 /* finite field arithmetic for GF(2**8) with the modular    */
 /* polynomial x^8 + x^6 + x^5 + x^3 + 1 (0x169)             */
@@ -167,18 +167,18 @@ static u4byte h_fun(TwofishInstance *instance, const u4byte x, const u4byte key[
 
     switch(instance->k_len)
     {
-    case 4: b0 = q(1, b0) ^ extract_byte(key[3],0);
-            b1 = q(0, b1) ^ extract_byte(key[3],1);
-            b2 = q(0, b2) ^ extract_byte(key[3],2);
-            b3 = q(1, b3) ^ extract_byte(key[3],3);
-    case 3: b0 = q(1, b0) ^ extract_byte(key[2],0);
-            b1 = q(1, b1) ^ extract_byte(key[2],1);
-            b2 = q(0, b2) ^ extract_byte(key[2],2);
-            b3 = q(0, b3) ^ extract_byte(key[2],3);
-    case 2: b0 = q(0,q(0,b0) ^ extract_byte(key[1],0)) ^ extract_byte(key[0],0);
-            b1 = q(0,q(1,b1) ^ extract_byte(key[1],1)) ^ extract_byte(key[0],1);
-            b2 = q(1,q(0,b2) ^ extract_byte(key[1],2)) ^ extract_byte(key[0],2);
-            b3 = q(1,q(1,b3) ^ extract_byte(key[1],3)) ^ extract_byte(key[0],3);
+    case 4: b0 = q(1, (u1byte) b0) ^ extract_byte(key[3],0);
+            b1 = q(0, (u1byte) b1) ^ extract_byte(key[3],1);
+            b2 = q(0, (u1byte) b2) ^ extract_byte(key[3],2);
+            b3 = q(1, (u1byte) b3) ^ extract_byte(key[3],3);
+    case 3: b0 = q(1, (u1byte) b0) ^ extract_byte(key[2],0);
+            b1 = q(1, (u1byte) b1) ^ extract_byte(key[2],1);
+            b2 = q(0, (u1byte) b2) ^ extract_byte(key[2],2);
+            b3 = q(0, (u1byte) b3) ^ extract_byte(key[2],3);
+    case 2: b0 = q(0, (u1byte) (q(0, (u1byte) b0) ^ extract_byte(key[1],0))) ^ extract_byte(key[0],0);
+            b1 = q(0, (u1byte) (q(1, (u1byte) b1) ^ extract_byte(key[1],1))) ^ extract_byte(key[0],1);
+            b2 = q(1, (u1byte) (q(0, (u1byte) b2) ^ extract_byte(key[1],2))) ^ extract_byte(key[0],2);
+            b3 = q(1, (u1byte) (q(1, (u1byte) b3) ^ extract_byte(key[1],3))) ^ extract_byte(key[0],3);
     }
 #ifdef  M_TABLE
 
@@ -186,7 +186,7 @@ static u4byte h_fun(TwofishInstance *instance, const u4byte x, const u4byte key[
 
 #else
 
-    b0 = q(1, b0); b1 = q(0, b1); b2 = q(1, b2); b3 = q(0, b3);
+    b0 = q(1, (u1byte) b0); b1 = q(0, (u1byte) b1); b2 = q(1, (u1byte) b2); b3 = q(0, (u1byte) b3);
     m5b_b0 = ffm_5b(b0); m5b_b1 = ffm_5b(b1); m5b_b2 = ffm_5b(b2); m5b_b3 = ffm_5b(b3);
     mef_b0 = ffm_ef(b0); mef_b1 = ffm_ef(b1); mef_b2 = ffm_ef(b2); mef_b3 = ffm_ef(b3);
     b0 ^= mef_b1 ^ m5b_b2 ^ m5b_b3; b3 ^= m5b_b0 ^ mef_b1 ^ mef_b2;
@@ -224,8 +224,6 @@ static void gen_mk_tab(TwofishInstance *instance, u4byte key[])
 {   u4byte  i;
     u1byte  by;
 
-//	u4byte *l_key = instance->l_key;
-//	u4byte *s_key = instance->s_key;
 	u4byte *mk_tab = instance->mk_tab;
 
     switch(instance->k_len)
@@ -286,8 +284,8 @@ static void gen_mk_tab(TwofishInstance *instance, u4byte key[])
 
 #else
 
-#define g0_fun(x)   h_fun(instance, x,s_key)
-#define g1_fun(x)   h_fun(instance, rotl(x,8),s_key)
+#define g0_fun(x)   h_fun(instance, x, instance->s_key)
+#define g1_fun(x)   h_fun(instance, rotl(x,8), instance->s_key)
 
 #endif
 
@@ -357,10 +355,6 @@ u4byte *twofish_set_key(TwofishInstance *instance, const u4byte in_key[], const 
 {   u4byte  i, a, b, me_key[4], mo_key[4];
 	u4byte *l_key, *s_key;
 
-	instance->l_key = (u4byte *) ((__int8 *)instance + sizeof (TwofishInstance));
-	instance->s_key = (u4byte *) ((__int8 *)instance + sizeof (TwofishInstance) + TF_L_KEY_SIZE);
-	instance->mk_tab = (u4byte *) ((__int8 *)instance + sizeof (TwofishInstance) + TF_L_KEY_SIZE + TF_S_KEY_SIZE);
-
 	l_key = instance->l_key;
 	s_key = instance->s_key;
 
@@ -419,7 +413,6 @@ void twofish_encrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte o
 {   u4byte  t0, t1, blk[4];
 
 	u4byte *l_key = instance->l_key;
-//	u4byte *s_key = instance->s_key;
 	u4byte *mk_tab = instance->mk_tab;
 
 	blk[0] = LE32(in_blk[0]) ^ l_key[0];
@@ -440,7 +433,6 @@ void twofish_encrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte o
 
 void f_rnd (int i, TwofishInstance *instance, u4byte *t0, u4byte *t1, u4byte *blk)
 {
-	u4byte *mk_tab = instance->mk_tab;
 	u4byte *l_key = instance->l_key;
 
 	*t1 = g1_fun(blk[1]); *t0 = g0_fun(blk[0]);
@@ -455,8 +447,6 @@ void twofish_encrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte o
 {   u4byte  t0, t1, blk[4];
 
 	u4byte *l_key = instance->l_key;
-//	u4byte *s_key = instance->s_key;
-	u4byte *mk_tab = instance->mk_tab;
 	int i;
 
 	blk[0] = LE32(in_blk[0]) ^ l_key[0];
@@ -493,7 +483,6 @@ void twofish_decrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte o
 {   u4byte  t0, t1, blk[4];
 
 	u4byte *l_key = instance->l_key;
-//	u4byte *s_key = instance->s_key;
 	u4byte *mk_tab = instance->mk_tab;
 
     blk[0] = LE32(in_blk[0]) ^ l_key[4];
@@ -514,7 +503,6 @@ void twofish_decrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte o
 
 void i_rnd (int i, TwofishInstance *instance, u4byte *t0, u4byte *t1, u4byte *blk)
 {
-	u4byte *mk_tab = instance->mk_tab;
 	u4byte *l_key = instance->l_key;
 
     *t1 = g1_fun(blk[1]); *t0 = g0_fun(blk[0]);
@@ -529,7 +517,6 @@ void twofish_decrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte o
 {   u4byte  t0, t1, blk[4];
 
 	u4byte *l_key = instance->l_key;
-	u4byte *mk_tab = instance->mk_tab;
 	int i;
 
     blk[0] = LE32(in_blk[0]) ^ l_key[4];

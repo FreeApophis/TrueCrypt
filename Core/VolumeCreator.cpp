@@ -67,7 +67,7 @@ namespace TrueCrypt
 				};
 
 				WriteSectorCallback fatWriter (this);
-				FatFormatter::Format (fatWriter, Options->Size, Options->FilesystemClusterSize);
+				FatFormatter::Format (fatWriter, Options->Size - Layout->GetHeaderSize(), Options->FilesystemClusterSize);
 			}
 
 			if (Options->Quick)

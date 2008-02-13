@@ -21,6 +21,7 @@
 #include "BootDebug.h"
 #include "BootDiskIo.h"
 #include "BootEncryptedIo.h"
+#include "BootMemory.h"
 #include "IntFilter.h"
 
 
@@ -119,8 +120,11 @@ static byte AskPassword (Password &password)
 		switch (scanCode)
 		{
 		case TC_BIOS_KEY_ENTER:
+			ClearBiosKeystrokeBuffer();
 			PrintEndl();
-			goto ret;
+
+			password.Length = pos;
+			return scanCode;
 
 		case TC_BIOS_KEY_BACKSPACE:
 			if (pos > 0)
@@ -138,6 +142,8 @@ static byte AskPassword (Password &password)
 			if (scanCode == TC_BIOS_KEY_ESC || IsMenuKey (scanCode))
 			{
 				burn (password.Text, sizeof (password.Text));
+				ClearBiosKeystrokeBuffer();
+
 				PrintEndl();
 				return scanCode;
 			}
@@ -155,10 +161,6 @@ static byte AskPassword (Password &password)
 		else
 			PrintCharAtCusor ('*');
 	}
-
-ret:
-	password.Length = pos;
-	return TC_BIOS_KEY_ENTER;
 }
 
 
@@ -191,6 +193,59 @@ static bool OpenVolume (byte drive, Password &password, CRYPTO_INFO **cryptoInfo
 }
 
 
+static bool CheckMemoryRequirements ()
+{
+	uint16 codeSeg;
+	__asm mov codeSeg, cs
+	if (codeSeg == TC_BOOT_LOADER_LOWMEM_SEGMENT)
+	{
+		PrintError ("Insufficient base memory: ", true, false);
+
+		uint16 memFree;
+		__asm
+		{
+			push es
+			xor ax, ax
+			mov es, ax
+			mov ax, es:[0x413]
+			mov memFree, ax
+			pop es
+		}
+
+		Print (memFree); Print (" KB\r\n");
+
+		return false;
+	}
+
+	// Check for conflicts with BIOS memory map
+	uint64 bootLoaderStart;
+	bootLoaderStart.HighPart = 0;
+	bootLoaderStart.LowPart = GetLinearAddress (codeSeg, 0);
+
+	BiosMemoryMapEntry entry;
+	if (GetFirstBiosMemoryMapEntry (entry))
+	{
+		do
+		{
+			if (entry.Type != 0x1
+				&& RegionsIntersect (bootLoaderStart, TC_BOOT_MEMORY_REQUIRED * 1024UL, entry.BaseAddress, entry.BaseAddress + entry.Length - 1))
+			{
+				PrintError ("Your BIOS reserved a memory area required by TrueCrypt:");
+				Print ("Type:"); Print (entry.Type);
+				Print (" Start:"); PrintHex (entry.BaseAddress);
+				Print (" Length:"); PrintHex (entry.Length);
+				PrintEndl (2);
+
+				return false;
+			}
+		}
+		while (GetNextBiosMemoryMapEntry (entry));
+	}
+
+	return true;
+}
+
+
 static bool MountVolume (byte drive, byte &exitKey)
 {
 	BootArguments *bootArguments = (BootArguments *) TC_BOOT_LOADER_ARGS_OFFSET;
@@ -207,17 +262,6 @@ static bool MountVolume (byte drive, byte &exitKey)
 			break;
 
 		Print ("Incorrect password or not a TrueCrypt volume.\r\n\r\n");
-	}
-	
-	// Check memory
-	uint16 codeSeg;
-	__asm mov codeSeg, cs
-	if (codeSeg == TC_BOOT_LOADER_LOWMEM_SEGMENT)
-	{
-		PrintError ("Insufficient memory for encryption");
-		EncryptedVirtualPartition.Drive = TC_FIRST_BIOS_DRIVE - 1;
-		GetKeyboardChar ();
-		return false;
 	}
 
 	// Setup boot arguments
@@ -266,7 +310,15 @@ static byte BootEncryptedDrive ()
 	if (!MountVolume (BootDrive, exitKey))
 		return exitKey;
 	
-	InstallInterruptFilters();
+	if (!CheckMemoryRequirements ())
+	{
+		Print ("Try disabling unneeded components (RAID, AHCI, integrated audio card, etc.) in\r\n"
+				"BIOS setup menu (invoked by pressing Del or F2 after turning on your computer).\r\n");
+		goto err;
+	}
+
+	if (!InstallInterruptFilters())
+		goto err;
 
 	// Execute boot sector of the active partition
 	byte bootSector[TC_LB_SIZE];
@@ -276,6 +328,9 @@ static byte BootEncryptedDrive ()
 	}
 
 err:
+	EncryptedVirtualPartition.Drive = TC_FIRST_BIOS_DRIVE - 1;
+	memset ((void *) TC_BOOT_LOADER_ARGS_OFFSET, 0, sizeof (BootArguments));
+
 	byte scanCode;
 	GetKeyboardChar (&scanCode);
 	return scanCode;
@@ -534,13 +589,18 @@ static void RepairMenu ()
 		int selection = AskSelection (options, optionCount);
 		PrintEndl();
 
-		if (selection == RestoreNone)
-			return;
-
-		if (selection == DecryptVolume)
+		switch (selection)
 		{
-			DecryptDrive (BootDrive);
-			continue;
+			case RestoreNone:
+				return;
+
+			case DecryptVolume:
+				DecryptDrive (BootDrive);
+				continue;
+
+			case RestoreOriginalSystemLoader:
+				if (!AskYesNo ("Is the drive decrypted"))
+					continue;
 		}
 
 		bool writeConfirmed = false;

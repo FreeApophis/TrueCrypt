@@ -1,4 +1,4 @@
-This archive contains the complete source code of TrueCrypt 5.0 for all
+This archive contains the complete source code of TrueCrypt 5.0a for all
 supported operating systems and all supported hardware platforms.
 
 

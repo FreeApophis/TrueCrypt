@@ -6,8 +6,8 @@
  distribution packages.
 */
 
-// Total memory required (CODE + DATA + BSS + STACK) in KBytes - determined from linker map.
-#define TC__BOOT_MEMORY_REQUIRED	60
+// Total memory required (CODE + DATA + BSS + STACK + 0x100) in KBytes - determined from linker map.
+#define TC__BOOT_MEMORY_REQUIRED	42
 
 // Windows Vista boot loader uses memory up to 8000:FFFF, disregarding the BIOS memory map and the amount
 // of available memory at 0:0413. Therefore, the code has to be loaded at or above 9000:0000.

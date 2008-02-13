@@ -93,6 +93,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\BootMemory.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\BootSector.asm"
 				>
 			</File>
@@ -192,6 +196,10 @@
 			</File>
 			<File
 				RelativePath=".\BootMain.h"
+				>
+			</File>
+			<File
+				RelativePath=".\BootMemory.h"
 				>
 			</File>
 			<File

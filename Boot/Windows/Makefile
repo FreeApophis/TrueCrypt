@@ -61,6 +61,7 @@ OBJS = $(OBJS) $(OUTDIR)\BootDebug.obj
 OBJS = $(OBJS) $(OUTDIR)\BootDiskIo.obj
 OBJS = $(OBJS) $(OUTDIR)\BootEncryptedIo.obj
 OBJS = $(OBJS) $(OUTDIR)\BootMain.obj
+OBJS = $(OBJS) $(OUTDIR)\BootMemory.obj
 OBJS = $(OBJS) $(OUTDIR)\IntFilter.obj
 OBJS = $(OBJS) $(OUTDIR)\Platform.obj
 

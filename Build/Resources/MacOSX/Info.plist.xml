@@ -12,7 +12,7 @@
 	<string>English</string>
 
 	<key>CFBundleExecutable</key>
-	<string>truecrypt</string>
+	<string>TrueCrypt</string>
 
 	<key>CFBundleIconFile</key>
 	<string>TrueCrypt.icns</string>

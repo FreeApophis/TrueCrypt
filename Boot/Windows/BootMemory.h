@@ -6,11 +6,19 @@
  distribution packages.
 */
 
-#ifndef TC_HEADER_Boot_IntFilter
-#define TC_HEADER_Boot_IntFilter
-
 #include "Platform.h"
+#include "Bios.h"
 
-bool InstallInterruptFilters ();
+#pragma pack(1)
 
-#endif TC_HEADER_Boot_IntFilter
+struct BiosMemoryMapEntry
+{
+	uint64 BaseAddress;
+	uint64 Length;
+	uint32 Type;
+};
+
+#pragma pack()
+
+bool GetFirstBiosMemoryMapEntry (BiosMemoryMapEntry &entry);
+bool GetNextBiosMemoryMapEntry (BiosMemoryMapEntry &entry);

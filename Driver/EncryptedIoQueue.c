@@ -536,7 +536,7 @@ NTSTATUS EncryptedIoQueueResumeFromHold (EncryptedIoQueue *queue)
 }
 
 
-NTSTATUS EncryptedIoQueueStart (EncryptedIoQueue *queue)
+NTSTATUS EncryptedIoQueueStart (EncryptedIoQueue *queue, PEPROCESS process)
 {
 	NTSTATUS status;
 	queue->ThreadExitRequested = FALSE;
@@ -569,7 +569,7 @@ NTSTATUS EncryptedIoQueueStart (EncryptedIoQueue *queue)
 	KeInitializeSpinLock (&queue->IoThreadQueueLock);
 	KeInitializeEvent (&queue->IoThreadQueueNotEmptyEvent, SynchronizationEvent, FALSE);
 
-	status = TCStartThread (IoThreadProc, queue, &queue->IoThread);
+	status = TCStartThreadInProcess (IoThreadProc, queue, &queue->IoThread, process);
 	if (!NT_SUCCESS (status))
 	{
 		queue->ThreadExitRequested = TRUE;

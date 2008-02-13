@@ -34,6 +34,9 @@ namespace TrueCrypt
 		virtual void DoShowWarning (const wxString &message) const;
 		virtual void EndBusyState () const { }
 		virtual shared_ptr <GetStringFunctor> GetAdminPasswordRequestHandler ();
+#ifdef __WXGTK__
+		virtual bool Initialize (int &argc, wxChar **argv) { return wxAppBase::Initialize(argc, argv); }
+#endif
 		virtual VolumeInfoList MountAllDeviceHostedVolumes (MountOptions &options) const;
 		virtual shared_ptr <VolumeInfo> MountVolume (MountOptions &options) const;
 		virtual bool OnInit ();

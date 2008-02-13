@@ -30,19 +30,17 @@ extern "C"
 #endif
 
 #endif
-
 typedef struct
 {
-	u4byte *l_key;
-	u4byte *s_key;
-	u4byte *mk_tab;
+	u4byte l_key[40];
+	u4byte s_key[4];
+#ifndef TC_MINIMIZE_CODE_SIZE
+	u4byte mk_tab[4 * 256];
+#endif
 	u4byte k_len;
 } TwofishInstance;
 
-#define TF_L_KEY_SIZE	(40*4)
-#define TF_S_KEY_SIZE	(4*4)
-#define TF_MK_TAB_SIZE	(4*4*256)
-#define TWOFISH_KS		(sizeof(TwofishInstance) + TF_L_KEY_SIZE + TF_S_KEY_SIZE + TF_MK_TAB_SIZE)
+#define TWOFISH_KS		sizeof(TwofishInstance)
 
 u4byte * twofish_set_key(TwofishInstance *instance, const u4byte in_key[], const u4byte key_len);
 void twofish_encrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte out_blk[]);

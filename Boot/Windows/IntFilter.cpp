@@ -7,10 +7,11 @@
 */
 
 #include "Platform.h"
-#include "Bios.h"
+#include "BootMemory.h"
 #include "BootConfig.h"
 #include "BootConsoleIo.h"
 #include "BootDebug.h"
+#include "BootDefs.h"
 #include "BootDiskIo.h"
 #include "BootEncryptedIo.h"
 #include "IntFilter.h"
@@ -45,8 +46,8 @@ bool Int13Filter ()
 	PrintChar (' '); PrintHex ((uint16) InterruptStack);
 	uint16 spdbg;
 	__asm mov spdbg, sp
-	PrintChar ('>'); PrintHex ((uint16) spdbg);
-	Print ("<"); PrintHex ((uint16) InterruptStack + sizeof (InterruptStack));
+	PrintChar ('<'); PrintHex ((uint16) spdbg);
+	PrintChar ('>'); PrintHex ((uint16) InterruptStack + sizeof (InterruptStack));
 
 #endif
 
@@ -185,52 +186,31 @@ bool Int13Filter ()
 }
 
 
-#pragma pack(1)
+#define TC_MAX_MEMORY_MAP_SIZE 32
 
-struct BiosMemoryMapEntry
+BiosMemoryMapEntry BiosMemoryMap[TC_MAX_MEMORY_MAP_SIZE];
+static size_t BiosMemoryMapSize;
+
+
+static void CreateBootLoaderMemoryMapEntry (BiosMemoryMapEntry *newMapEntry, uint32 bootLoaderStart)
 {
-	uint64 BaseAddress;
-	uint64 Length;
-	uint32 Type;
-};
+	newMapEntry->Type = 0x2;
+	newMapEntry->BaseAddress.HighPart = 0;
+	newMapEntry->BaseAddress.LowPart = bootLoaderStart;
+	newMapEntry->Length.HighPart = 0;
+	newMapEntry->Length.LowPart = TC_BOOT_MEMORY_REQUIRED * 1024UL;
+}
 
-#pragma pack()
 
-
-bool Int15Filter ()
+static bool CreateNewBiosMemoryMap ()
 {
-	Registers regs;
-	memcpy (&regs, &IntRegisters, sizeof (regs));
-	__asm sti
+	// Create a new BIOS memory map presenting the memory area of the loader as reserved
 
-#ifdef TC_TRACE_INT15
+	BiosMemoryMapSize = 0;
+	BiosMemoryMapEntry entry;
+	BiosMemoryMapEntry *newMapEntry = BiosMemoryMap;
 
-	DisableScreenOutput();
-
-	Print ("15-");
-	PrintHex (regs.AX);
-
-	Print (" SS:"); PrintHex (regs.SS);
-
-	PrintChar (' '); PrintHex ((uint16) InterruptStack);
-	uint16 spdbg;
-	__asm mov spdbg, sp
-	PrintChar ('>'); PrintHex ((uint16) spdbg);
-	Print ("<"); PrintHex ((uint16) InterruptStack + sizeof (InterruptStack));
-	PrintEndl();
-
-	Print ("EAX:"); PrintHex (regs.EAX);
-	Print (" EBX:"); PrintHex (regs.EBX);
-	Print (" ECX:"); PrintHex (regs.ECX);
-	Print (" EDX:"); PrintHex (regs.EDX);
-	Print (" DI:"); PrintHex (regs.DI);
-	PrintEndl();
-
-#endif
-
-	// Filter BIOS memory map entries to present the loader memory area as reserved.
-	// Changing the value at 0:0413 may be sufficient for some BIOSes to produce
-	// a memory map which needs no correction.
+	const BiosMemoryMapEntry *mapEnd = BiosMemoryMap + TC_MAX_MEMORY_MAP_SIZE;
 
 	uint64 bootLoaderStart;
 	bootLoaderStart.HighPart = 0;
@@ -239,59 +219,147 @@ bool Int15Filter ()
 	__asm mov codeSeg, cs
 	bootLoaderStart.LowPart = GetLinearAddress (codeSeg, 0);
 
-	BiosMemoryMapEntry entry;
-	for (int i = 0; i < regs.ECX / sizeof (entry); ++i)
+	uint64 bootLoaderEnd;
+	bootLoaderEnd.HighPart = 0;
+	bootLoaderEnd.LowPart = bootLoaderStart.LowPart + TC_BOOT_MEMORY_REQUIRED * 1024UL;
+
+	bool loaderEntryInserted = false;
+
+	if (GetFirstBiosMemoryMapEntry (entry))
 	{
-		CopyMemory (regs.ES, regs.DI + sizeof (entry) * i, (byte *) &entry, sizeof (entry));
-
-#ifdef TC_TRACE_INT15
-		PrintHex (entry.Type); PrintChar (' ');
-		PrintHex (entry.BaseAddress); PrintChar (' ');
-		PrintHex (entry.Length); PrintChar (' ');
-		PrintHex (entry.BaseAddress + entry.Length); PrintEndl();
-#endif
-
-		static uint32 correctedBaseAddress = 0;
-		uint64 entryEndAddress = entry.BaseAddress + entry.Length;
-			
-		if (entry.Type == 0x1 // Memory available
-			&& entry.BaseAddress < bootLoaderStart && bootLoaderStart < entryEndAddress)
+		do
 		{
-			correctedBaseAddress = entryEndAddress.LowPart; // Save this value for checking of subsequent reserved entries
+			uint64 entryEnd = entry.BaseAddress + entry.Length;
 
-			entry.Length = bootLoaderStart - entry.BaseAddress; // Correct the length
-			CopyMemory ((byte *) &entry, regs.ES, regs.DI + sizeof (entry) * i, sizeof (entry));
+			if (entry.Type == 0x1 && RegionsIntersect (bootLoaderStart, TC_BOOT_MEMORY_REQUIRED * 1024UL, entry.BaseAddress, entryEnd - 1))
+			{
+				// Free map entry covers the boot loader area
 
-#ifdef TC_TRACE_INT15
-			Print ("Corrected:\r\n");
-			CopyMemory (regs.ES, regs.DI + sizeof (entry) * i, (byte *) &entry, sizeof (entry));
+				if (entry.BaseAddress < bootLoaderStart)
+				{
+					// Create free entry below the boot loader area
+					if (newMapEntry >= mapEnd)
+						goto mapOverflow;
 
-			PrintHex (entry.Type); PrintChar (' ');
-			PrintHex (entry.BaseAddress); PrintChar (' ');
-			PrintHex (entry.Length); PrintChar (' ');
-			PrintHex (entry.BaseAddress + entry.Length); PrintEndl();PrintEndl();
-			PrintEndl();
-#endif
-		}
-		else if (entry.Type == 0x2 // Memory reserved
-			&& entry.BaseAddress.HighPart == 0 && entry.BaseAddress.LowPart == correctedBaseAddress)
-		{
-			entry.Length = entry.Length + (entry.BaseAddress - bootLoaderStart);
-			entry.BaseAddress = bootLoaderStart;
-			CopyMemory ((byte *) &entry, regs.ES, regs.DI + sizeof (entry) * i, sizeof (entry));
+					*newMapEntry = entry;
+					newMapEntry->Length = bootLoaderStart - entry.BaseAddress;
+					++newMapEntry;
+				}
 
-#ifdef TC_TRACE_INT15
-			Print ("Corrected2:\r\n");
-			CopyMemory (regs.ES, regs.DI + sizeof (entry) * i, (byte *) &entry, sizeof (entry));
+				if (!loaderEntryInserted)
+				{
+					// Create reserved entry for the boot loader if it has not been done yet
+					if (newMapEntry >= mapEnd)
+						goto mapOverflow;
 
-			PrintHex (entry.Type); PrintChar (' ');
-			PrintHex (entry.BaseAddress); PrintChar (' ');
-			PrintHex (entry.Length); PrintChar (' ');
-			PrintHex (entry.BaseAddress + entry.Length); PrintEndl();PrintEndl();
-			PrintEndl();
-#endif
-		}
+					CreateBootLoaderMemoryMapEntry (newMapEntry, bootLoaderStart.LowPart);
+					++newMapEntry;
+					loaderEntryInserted = true;
+				}
+
+				if (bootLoaderEnd < entryEnd)
+				{
+					// Create free entry above the boot loader area
+					if (newMapEntry >= mapEnd)
+						goto mapOverflow;
+
+					newMapEntry->Type = 0x1;
+					newMapEntry->BaseAddress = bootLoaderEnd;
+					newMapEntry->Length = entryEnd - bootLoaderEnd;
+					++newMapEntry;
+				}
+			}
+			else
+			{
+				if (newMapEntry >= mapEnd)
+					goto mapOverflow;
+
+				if (!loaderEntryInserted && entry.BaseAddress > bootLoaderStart)
+				{
+					// Create reserved entry for the boot loader if it has not been done yet
+					CreateBootLoaderMemoryMapEntry (newMapEntry, bootLoaderStart.LowPart);
+					++newMapEntry;
+					loaderEntryInserted = true;
+				}
+
+				// Copy map entry
+				*newMapEntry++ = entry;
+			}
+
+		} while (GetNextBiosMemoryMapEntry (entry));
 	}
+
+	BiosMemoryMapSize = newMapEntry - BiosMemoryMap;
+	return true;
+
+mapOverflow:
+	PrintError ("BIOS memory map too long");
+	return false;
+}
+
+
+bool Int15Filter ()
+{
+#ifdef TC_TRACE_INT15
+	DisableScreenOutput();
+
+	Print ("15-");
+	PrintHex (IntRegisters.AX);
+
+	Print (" SS:"); PrintHex (IntRegisters.SS);
+
+	PrintChar (' '); PrintHex ((uint16) InterruptStack);
+	uint16 spdbg;
+	__asm mov spdbg, sp
+		PrintChar ('<'); PrintHex ((uint16) spdbg);
+	PrintChar ('>'); PrintHex ((uint16) InterruptStack + sizeof (InterruptStack));
+	PrintEndl();
+
+	Print ("EAX:"); PrintHex (IntRegisters.EAX);
+	Print (" EBX:"); PrintHex (IntRegisters.EBX);
+	Print (" ECX:"); PrintHex (IntRegisters.ECX);
+	Print (" EDX:"); PrintHex (IntRegisters.EDX);
+	Print (" DI:"); PrintHex (IntRegisters.DI);
+	PrintEndl();
+
+#endif
+
+	if (IntRegisters.EBX >= BiosMemoryMapSize)
+	{
+		IntRegisters.Flags |= TC_X86_CARRY_FLAG;
+		IntRegisters.EBX = 0;
+		IntRegisters.AX = -1;
+	}
+	else
+	{
+		CopyMemory ((byte *) &BiosMemoryMap[IntRegisters.EBX], IntRegisters.ES, IntRegisters.DI, sizeof (BiosMemoryMap[0]));
+
+		IntRegisters.Flags &= ~TC_X86_CARRY_FLAG;
+		IntRegisters.EAX = 0x534D4150UL;
+
+		++IntRegisters.EBX;
+		if (IntRegisters.EBX >= BiosMemoryMapSize)
+			IntRegisters.EBX = 0;
+
+		IntRegisters.ECX = sizeof (BiosMemoryMap[0]);
+	}
+
+#ifdef TC_TRACE_INT15
+	BiosMemoryMapEntry entry;
+	CopyMemory (IntRegisters.ES, IntRegisters.DI, (byte *) &entry, sizeof (entry));
+	PrintHex (entry.Type); PrintChar (' ');
+	PrintHex (entry.BaseAddress); PrintChar (' ');
+	PrintHex (entry.Length); PrintChar (' ');
+	PrintHex (entry.BaseAddress + entry.Length); PrintEndl();
+
+	Print ("EAX:"); PrintHex (IntRegisters.EAX);
+	Print (" EBX:"); PrintHex (IntRegisters.EBX);
+	Print (" ECX:"); PrintHex (IntRegisters.ECX);
+	Print (" EDX:"); PrintHex (IntRegisters.EDX);
+	Print (" DI:"); PrintHex (IntRegisters.DI);
+	Print (" FL:"); PrintHex (IntRegisters.Flags);
+	PrintEndl (2);
+#endif
 
 #ifdef TC_TRACE_INT15
 	EnableScreenOutput();
@@ -315,13 +383,13 @@ void IntFilterEntry ()
 		mov cs:IntRegisters.DI, di
 
 		lea di, cs:IntRegisters.EAX
-		TC_ASM_EMIT4 (66,2E,89,05); // mov [cs:di], eax
+		TC_ASM_EMIT4 (66,2E,89,05) // mov [cs:di], eax
 		lea di, cs:IntRegisters.EBX
-		TC_ASM_EMIT4 (66,2E,89,1D); // mov [cs:di], ebx
+		TC_ASM_EMIT4 (66,2E,89,1D) // mov [cs:di], ebx
 		lea di, cs:IntRegisters.ECX
-		TC_ASM_EMIT4 (66,2E,89,0D); // mov [cs:di], ecx
+		TC_ASM_EMIT4 (66,2E,89,0D) // mov [cs:di], ecx
 		lea di, cs:IntRegisters.EDX
-		TC_ASM_EMIT4 (66,2E,89,15); // mov [cs:di], edx
+		TC_ASM_EMIT4 (66,2E,89,15) // mov [cs:di], edx
 
 		mov ax, [bp + 8]
 		mov cs:IntRegisters.Flags, ax
@@ -394,13 +462,13 @@ void IntFilterEntry ()
 		leave
 
 		lea di, cs:IntRegisters.EAX
-		TC_ASM_EMIT4 (66,2E,8B,05); // mov eax, [cs:di]
+		TC_ASM_EMIT4 (66,2E,8B,05) // mov eax, [cs:di]
 		lea di, cs:IntRegisters.EBX
-		TC_ASM_EMIT4 (66,2E,8B,1D); // mov ebx, [cs:di]
+		TC_ASM_EMIT4 (66,2E,8B,1D) // mov ebx, [cs:di]
 		lea di, cs:IntRegisters.ECX
-		TC_ASM_EMIT4 (66,2E,8B,0D); // mov ecx, [cs:di]
+		TC_ASM_EMIT4 (66,2E,8B,0D) // mov ecx, [cs:di]
 		lea di, cs:IntRegisters.EDX
-		TC_ASM_EMIT4 (66,2E,8B,15); // mov edx, [cs:di]
+		TC_ASM_EMIT4 (66,2E,8B,15) // mov edx, [cs:di]
 
 		mov di, cs:IntRegisters.DI
 		mov si, cs:IntRegisters.SI
@@ -459,8 +527,6 @@ static void Int15FilterEntry ()
 		jmp cs:OriginalInt15Handler
 
 	filter:
-		pushf
-		call cs:OriginalInt15Handler
 		leave
 		push 0x15
 		jmp IntFilterEntry
@@ -468,8 +534,11 @@ static void Int15FilterEntry ()
 }
 
 
-void InstallInterruptFilters ()
+bool InstallInterruptFilters ()
 {
+	if (!CreateNewBiosMemoryMap())
+		return false;
+
 	__asm
 	{
 		cli
@@ -506,12 +575,18 @@ void InstallInterruptFilters ()
 		mov es:[si], ax
 		mov es:[si + 2], cs
 
-		// Set amount of available memory to CS:0000 - 0:0000
+		// If the BIOS does not support system memory map (INT15 0xe820),
+		// set amount of available memory to CS:0000 - 0:0000
+		cmp BiosMemoryMapSize, 1
+		jg mem_map_ok
 		mov ax, cs
 		shr ax, 10 - 4		// CS * 16 / 1024
 		mov es:[0x413], ax	// = KBytes available
+	mem_map_ok:
 
 		pop es
 		sti
 	}
+
+	return true;
 }
