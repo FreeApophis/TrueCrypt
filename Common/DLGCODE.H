@@ -138,6 +138,7 @@ enum tc_app_msg_ids
 	// Mount									
 	TC_APPMSG_MOUNT_ENABLE_DISABLE_CONTROLS =		WM_APP + 201,
 	TC_APPMSG_MOUNT_SHOW_WINDOW =					WM_APP + 202,
+	TC_APPMSG_PREBOOT_PASSWORD_MODE =				WM_APP + 203,
 	// Format									
 	TC_APPMSG_FORMAT_THREAD_ENDED =					WM_APP + 301,
 	TC_APPMSG_FORMAT_FINISHED =						WM_APP + 302,
@@ -196,7 +197,7 @@ void AbortProcessSilent ( void );
 void *err_malloc ( size_t size );
 char *err_strdup ( char *lpszText );
 DWORD handleWin32Error ( HWND hwndDlg );
-BOOL translateWin32Error ( wchar_t *lpszMsgBuf , int nSizeOfBuf );
+BOOL translateWin32Error ( wchar_t *lpszMsgBuf , int nWSizeOfBuf );
 BOOL CALLBACK AboutDlgProc ( HWND hwndDlg , UINT msg , WPARAM wParam , LPARAM lParam );
 BOOL IsButtonChecked ( HWND hButton );
 void CheckButton ( HWND hButton );
@@ -219,13 +220,18 @@ void AddComboPairW (HWND hComboBox, wchar_t *lpszItem, int value);
 void SelectAlgo ( HWND hComboBox , int *nCipher );
 void PopulateWipeModeCombo (HWND hComboBox, BOOL bNA);
 LRESULT CALLBACK CustomDlgProc ( HWND hwnd , UINT uMsg , WPARAM wParam , LPARAM lParam );
+BOOL TCCreateMutex (HANDLE *hMutex, char *name);
+void TCCloseMutex (HANDLE *hMutex);
 BOOL CreateSysEncMutex (void);
 void CloseSysEncMutex (void);
+BOOL CreateDriverSetupMutex (void);
+void CloseDriverSetupMutex (void);
 BOOL LoadSysEncSettings (HWND hwndDlg);
 BOOL SysEncryptionOrDecryptionRequired (void);
 void InitApp ( HINSTANCE hInstance, char *lpszCommandLine );
 void InitHelpFileName (void);
 BOOL OpenDevice ( char *lpszPath , OPEN_TEST_STRUCT *driver );
+void NotifyDriverOfTravelerMode (void);
 int GetAvailableFixedDisks ( HWND hComboBox , char *lpszRootPath );
 int GetAvailableRemovables ( HWND hComboBox , char *lpszRootPath );
 int IsSystemDevicePath (char *path, HWND hwndDlg, BOOL bReliableRequired);
@@ -343,6 +349,7 @@ BOOL ToHyperlink (HWND hwndDlg, UINT ctrlId);
 void ToBootPwdField (HWND hwndDlg, UINT ctrlId);
 void AccommodateTextField (HWND hwndDlg, UINT ctrlId, BOOL bFirstUpdate);
 BOOL GetDriveLabel (int driveNo, wchar_t *label, int labelSize);
+BOOL DoDriverInstall (HWND hwndDlg);
 
 #ifdef __cplusplus
 }

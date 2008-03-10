@@ -1,32 +1,50 @@
-/* This is an independent implementation of the encryption algorithm:   */
-/*                                                                      */
-/*         Twofish by Bruce Schneier and colleagues                     */
-/*                                                                      */
-/* which is a candidate algorithm in the Advanced Encryption Standard   */
-/* programme of the US National Institute of Standards and Technology.  */
-/*                                                                      */
-/* Copyright in this implementation is held by Dr B R Gladman but I     */
-/* hereby give permission for its free direct or derivative use subject */
-/* to acknowledgment of its origin and compliance with any conditions   */
-/* that the originators of the algorithm place on its exploitation.     */
-/*                                                                      */
-/* My thanks to Doug Whiting and Niels Ferguson for comments that led   */
-/* to improvements in this implementation.                              */
-/*                                                                      */
-/* Dr Brian Gladman (gladman@seven77.demon.co.uk) 14th January 1999     */
+/*
+ ---------------------------------------------------------------------------
+ Copyright (c) 1999, Dr Brian Gladman, Worcester, UK.   All rights reserved.
+
+ LICENSE TERMS
+
+ The free distribution and use of this software is allowed (with or without
+ changes) provided that:
+
+  1. source code distributions include the above copyright notice, this
+     list of conditions and the following disclaimer;
+
+  2. binary distributions include the above copyright notice, this list
+     of conditions and the following disclaimer in their documentation;
+
+  3. the name of the copyright holder is not used to endorse products
+     built using this software without specific written permission.
+
+ DISCLAIMER
+
+ This software is provided 'as is' with no explicit or implied warranties
+ in respect of its properties, including, but not limited to, correctness
+ and/or fitness for purpose.
+ ---------------------------------------------------------------------------
+
+ My thanks to Doug Whiting and Niels Ferguson for comments that led
+ to improvements in this implementation.
+
+ Issue Date: 14th January 1999
+*/
 
 /* Adapted for TrueCrypt by the TrueCrypt Foundation */
+
+
+#ifdef TC_WINDOWS_BOOT
+#pragma optimize ("tl", on)
+#endif
 
 #include "Twofish.h"
 #include "Common/Endian.h"
 
-#ifndef TC_MINIMIZE_CODE_SIZE
-
 #define Q_TABLES
 #define M_TABLE
-#define MK_TABLE
-#define ONE_STEP
 
+#if !defined (TC_MINIMIZE_CODE_SIZE) || defined (TC_WINDOWS_BOOT_TWOFISH)
+#	define MK_TABLE
+#	define ONE_STEP
 #endif
 
 /* finite field arithmetic for GF(2**8) with the modular    */
@@ -34,32 +52,32 @@
 
 #define G_M 0x0169
 
-u1byte  tab_5b[4] = { 0, G_M >> 2, G_M >> 1, (G_M >> 1) ^ (G_M >> 2) };
-u1byte  tab_ef[4] = { 0, (G_M >> 1) ^ (G_M >> 2), G_M >> 1, G_M >> 2 };
+static u1byte  tab_5b[4] = { 0, G_M >> 2, G_M >> 1, (G_M >> 1) ^ (G_M >> 2) };
+static u1byte  tab_ef[4] = { 0, (G_M >> 1) ^ (G_M >> 2), G_M >> 1, G_M >> 2 };
 
 #define ffm_01(x)    (x)
 #define ffm_5b(x)   ((x) ^ ((x) >> 2) ^ tab_5b[(x) & 3])
 #define ffm_ef(x)   ((x) ^ ((x) >> 1) ^ ((x) >> 2) ^ tab_ef[(x) & 3])
 
-u1byte ror4[16] = { 0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15 };
-u1byte ashx[16] = { 0, 9, 2, 11, 4, 13, 6, 15, 8, 1, 10, 3, 12, 5, 14, 7 };
+static u1byte ror4[16] = { 0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15 };
+static u1byte ashx[16] = { 0, 9, 2, 11, 4, 13, 6, 15, 8, 1, 10, 3, 12, 5, 14, 7 };
 
-u1byte qt0[2][16] = 
+static u1byte qt0[2][16] = 
 {   { 8, 1, 7, 13, 6, 15, 3, 2, 0, 11, 5, 9, 14, 12, 10, 4 },
     { 2, 8, 11, 13, 15, 7, 6, 14, 3, 1, 9, 4, 0, 10, 12, 5 }
 };
 
-u1byte qt1[2][16] =
+static u1byte qt1[2][16] =
 {   { 14, 12, 11, 8, 1, 2, 3, 5, 15, 4, 10, 6, 7, 0, 9, 13 }, 
     { 1, 14, 2, 11, 4, 12, 3, 7, 6, 13, 10, 5, 15, 9, 0, 8 }
 };
 
-u1byte qt2[2][16] = 
+static u1byte qt2[2][16] = 
 {   { 11, 10, 5, 14, 6, 13, 9, 0, 12, 8, 15, 3, 2, 4, 7, 1 },
     { 4, 12, 7, 5, 1, 6, 9, 10, 0, 14, 13, 8, 2, 11, 3, 15 }
 };
 
-u1byte qt3[2][16] = 
+static u1byte qt3[2][16] = 
 {   { 13, 7, 15, 4, 1, 2, 6, 14, 9, 11, 3, 0, 8, 5, 12, 10 },
     { 11, 9, 5, 1, 12, 3, 13, 14, 6, 4, 7, 15, 2, 0, 8, 10 }
 };
@@ -77,8 +95,8 @@ static u1byte qp(const u4byte n, const u1byte x)
 
 #ifdef  Q_TABLES
 
-u4byte  qt_gen = 0;
-u1byte  q_tab[2][256];
+static u4byte  qt_gen = 0;
+static u1byte  q_tab[2][256];
 
 #define q(n,x)  q_tab[n][x]
 
@@ -100,8 +118,8 @@ static void gen_qtab(void)
 
 #ifdef  M_TABLE
 
-u4byte  mt_gen = 0;
-u4byte  m_tab[4][256];
+static u4byte  mt_gen = 0;
+static u4byte  m_tab[4][256];
 
 static void gen_mtab(void)
 {   u4byte  i, f01, f5b, fef;
@@ -202,7 +220,7 @@ static u4byte h_fun(TwofishInstance *instance, const u4byte x, const u4byte key[
 #ifdef  ONE_STEP
 //u4byte  mk_tab[4][256];
 #else
-u1byte  sb[4][256];
+static u1byte  sb[4][256];
 #endif
 
 #define q20(x)  q(0,q(0,x) ^ extract_byte(key[1],0)) ^ extract_byte(key[0],0)
@@ -431,22 +449,13 @@ void twofish_encrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte o
 
 #else // TC_MINIMIZE_CODE_SIZE
 
-void f_rnd (int i, TwofishInstance *instance, u4byte *t0, u4byte *t1, u4byte *blk)
-{
-	u4byte *l_key = instance->l_key;
-
-	*t1 = g1_fun(blk[1]); *t0 = g0_fun(blk[0]);
-	blk[2] = rotr(blk[2] ^ (*t0 + *t1 + l_key[4 * (i) + 8]), 1);
-	blk[3] = rotl(blk[3], 1) ^ (*t0 + 2 * *t1 + l_key[4 * (i) + 9]);
-	*t1 = g1_fun(blk[3]); *t0 = g0_fun(blk[2]);
-	blk[0] = rotr(blk[0] ^ (*t0 + *t1 + l_key[4 * (i) + 10]), 1);
-	blk[1] = rotl(blk[1], 1) ^ (*t0 + 2 * *t1 + l_key[4 * (i) + 11]);
-}
-
 void twofish_encrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte out_blk[])
 {   u4byte  t0, t1, blk[4];
 
 	u4byte *l_key = instance->l_key;
+#ifdef TC_WINDOWS_BOOT_TWOFISH
+	u4byte *mk_tab = instance->mk_tab;
+#endif
 	int i;
 
 	blk[0] = LE32(in_blk[0]) ^ l_key[0];
@@ -456,7 +465,12 @@ void twofish_encrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte o
 
 	for (i = 0; i <= 7; ++i)
 	{
-		f_rnd (i, instance, &t0, &t1, blk);
+		t1 = g1_fun(blk[1]); t0 = g0_fun(blk[0]);
+		blk[2] = rotr(blk[2] ^ (t0 + t1 + l_key[4 * (i) + 8]), 1);
+		blk[3] = rotl(blk[3], 1) ^ (t0 + 2 * t1 + l_key[4 * (i) + 9]);
+		t1 = g1_fun(blk[3]); t0 = g0_fun(blk[2]);
+		blk[0] = rotr(blk[0] ^ (t0 + t1 + l_key[4 * (i) + 10]), 1);
+		blk[1] = rotl(blk[1], 1) ^ (t0 + 2 * t1 + l_key[4 * (i) + 11]);
 	}
 
     out_blk[0] = LE32(blk[2] ^ l_key[4]);
@@ -501,22 +515,13 @@ void twofish_decrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte o
 
 #else // TC_MINIMIZE_CODE_SIZE
 
-void i_rnd (int i, TwofishInstance *instance, u4byte *t0, u4byte *t1, u4byte *blk)
-{
-	u4byte *l_key = instance->l_key;
-
-    *t1 = g1_fun(blk[1]); *t0 = g0_fun(blk[0]);
-    blk[2] = rotl(blk[2], 1) ^ (*t0 + *t1 + l_key[4 * (i) + 10]);
-    blk[3] = rotr(blk[3] ^ (*t0 + 2 * *t1 + l_key[4 * (i) + 11]), 1);
-    *t1 = g1_fun(blk[3]); *t0 = g0_fun(blk[2]);
-    blk[0] = rotl(blk[0], 1) ^ (*t0 + *t1 + l_key[4 * (i) +  8]);
-    blk[1] = rotr(blk[1] ^ (*t0 + 2 * *t1 + l_key[4 * (i) +  9]), 1);
-}
-
 void twofish_decrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte out_blk[4])
 {   u4byte  t0, t1, blk[4];
 
 	u4byte *l_key = instance->l_key;
+#ifdef TC_WINDOWS_BOOT_TWOFISH
+	u4byte *mk_tab = instance->mk_tab;
+#endif
 	int i;
 
     blk[0] = LE32(in_blk[0]) ^ l_key[4];
@@ -526,7 +531,12 @@ void twofish_decrypt(TwofishInstance *instance, const u4byte in_blk[4], u4byte o
 
 	for (i = 7; i >= 0; --i)
 	{
-		i_rnd (i, instance, &t0, &t1, blk);
+		t1 = g1_fun(blk[1]); t0 = g0_fun(blk[0]);
+		blk[2] = rotl(blk[2], 1) ^ (t0 + t1 + l_key[4 * (i) + 10]);
+		blk[3] = rotr(blk[3] ^ (t0 + 2 * t1 + l_key[4 * (i) + 11]), 1);
+		t1 = g1_fun(blk[3]); t0 = g0_fun(blk[2]);
+		blk[0] = rotl(blk[0], 1) ^ (t0 + t1 + l_key[4 * (i) +  8]);
+		blk[1] = rotr(blk[1] ^ (t0 + 2 * t1 + l_key[4 * (i) +  9]), 1);
 	}
 
     out_blk[0] = LE32(blk[2] ^ l_key[0]);

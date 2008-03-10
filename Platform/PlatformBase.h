@@ -75,8 +75,10 @@ namespace TrueCrypt
 		return s.substr (p + 1);
 	}
 #	define SRC_POS (GetFunctionName (__PRETTY_FUNCTION__) += ":" TC_TO_STRING(__LINE__))
+#	define TC_UNUSED_VAR __attribute__ ((unused))
 #else
 #	define SRC_POS (__FUNCTION__ ":" TC_TO_STRING(__LINE__))
+#	define TC_UNUSED_VAR
 #endif
 
 

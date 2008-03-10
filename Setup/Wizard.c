@@ -176,13 +176,13 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 				CheckButton (GetDlgItem (hwndDlg, bLicenseAccepted ? IDC_AGREE : IDC_DISAGREE));
 
-				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), L"License Agreement");
-				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_INFO), L"You must accept this license agreement before you can use, extract, or install TrueCrypt.");
-				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), L"IMPORTANT: By selecting the first option below and clicking Accept, you accept and agree to be bound by these license terms. Click the 'arrow down' icon to see the rest of the license.");
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), L"License");
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_INFO), L"You must accept these license terms before you can use, extract, or install TrueCrypt.");
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), L"IMPORTANT: By selecting the first option below and clicking Accept, you accept these license terms and agree to be bound by and to comply with them. Click the 'arrow down' icon to see the rest of the license.");
 				//SendMessage (GetDlgItem (hwndDlg, IDC_BOX_HELP), WM_SETFONT, (WPARAM) hUserBoldFont, (LPARAM) TRUE);
 
-				SetWindowTextW (GetDlgItem (hwndDlg, IDC_AGREE), L"I a&ccept and agree to be bound by all of the terms of the license agreement");
-				SetWindowTextW (GetDlgItem (hwndDlg, IDC_DISAGREE), L"I &do not accept the terms of the license agreement");
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_AGREE), L"I a&ccept and agree to be bound by the license terms");
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_DISAGREE), L"I &do not accept the license terms");
 
 				//SendMessage (GetDlgItem (hwndDlg, IDC_AGREE), WM_SETFONT, (WPARAM) hUserBoldFont, (LPARAM) TRUE);
 				//SendMessage (GetDlgItem (hwndDlg, IDC_DISAGREE), WM_SETFONT, (WPARAM) hUserBoldFont, (LPARAM) TRUE);
@@ -472,7 +472,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				return 1;
 
 			case IDC_OPEN_CONTAINING_FOLDER:
-				bOpenContainingFolder = IsButtonChecked (GetDlgItem (hCurPage, IDC_SYSTEM_RESTORE));
+				bOpenContainingFolder = IsButtonChecked (GetDlgItem (hCurPage, IDC_OPEN_CONTAINING_FOLDER));
 				return 1;
 			}
 		}

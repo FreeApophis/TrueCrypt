@@ -14,13 +14,7 @@
 #include "Xts.h"
 #include "Crc.h"
 #include "Common/Endian.h"
-
-#ifdef LINUX_DRIVER
-#include <linux/module.h>
-#include <linux/string.h>
-#else
 #include <string.h>
-#endif
 
 /* Update the following when adding a new cipher or EA:
 
@@ -36,6 +30,8 @@
      DecipherBlock()
 
 */
+
+#ifndef TC_WINDOWS_BOOT_SINGLE_CIPHER_MODE
 
 // Cipher configuration
 static Cipher Ciphers[] =
@@ -120,16 +116,15 @@ int CipherInit (int cipher, unsigned char *key, unsigned __int8 *ks)
 	{
 	case AES:
 #ifndef TC_WINDOWS_BOOT
-		if (aes_encrypt_key(key, CipherGetKeySize(AES), (aes_encrypt_ctx *) ks) != EXIT_SUCCESS)
+		if (aes_encrypt_key256 (key, (aes_encrypt_ctx *) ks) != EXIT_SUCCESS)
 			return ERR_CIPHER_INIT_FAILURE;
 
-		if (aes_decrypt_key(key, CipherGetKeySize(AES), (aes_decrypt_ctx *) (ks + sizeof(aes_encrypt_ctx))) != EXIT_SUCCESS)
+		if (aes_decrypt_key256 (key, (aes_decrypt_ctx *) (ks + sizeof(aes_encrypt_ctx))) != EXIT_SUCCESS)
 			return ERR_CIPHER_INIT_FAILURE;
 #else
 		if (aes_set_key (key, (length_type) CipherGetKeySize(AES), (aes_context *) ks) != 0)
 			return ERR_CIPHER_INIT_FAILURE;
 #endif
-
 		break;
 
 	case SERPENT:
@@ -335,6 +330,8 @@ int EAInit (int ea, unsigned char *key, unsigned __int8 *ks)
 }
 
 
+#ifndef TC_WINDOWS_BOOT
+
 int EAInitMode (PCRYPTO_INFO ci)
 {
 	switch (ci->mode)
@@ -351,7 +348,6 @@ int EAInitMode (PCRYPTO_INFO ci)
 		that the size of each of the volumes is 1024 terabytes). */
 		break;
 
-#ifndef TC_WINDOWS_BOOT
 	case LRW:
 		switch (CipherGetBlockSize (EAGetFirstCipher (ci->ea)))
 		{
@@ -373,7 +369,6 @@ int EAInitMode (PCRYPTO_INFO ci)
 	case OUTER_CBC:
 		// The mode does not need to be initialized or is initialized elsewhere 
 		return TRUE;
-#endif	// TC_WINDOWS_BOOT
 
 	default:		
 		// Unknown/wrong ID
@@ -382,7 +377,6 @@ int EAInitMode (PCRYPTO_INFO ci)
 	return TRUE;
 }
 
-#ifndef TC_WINDOWS_BOOT
 
 // Returns name of EA, cascaded cipher names are separated by hyphens
 char *EAGetName (char *buf, int ea)
@@ -658,6 +652,9 @@ BOOL HashIsDeprecated (int hashId)
 }
 
 
+#endif // TC_WINDOWS_BOOT_SINGLE_CIPHER_MODE
+
+
 #ifdef TC_WINDOWS_BOOT
 
 static byte CryptoInfoBufferInUse = 0;
@@ -726,6 +723,9 @@ void crypto_close (PCRYPTO_INFO cryptoInfo)
 
 #endif // TC_WINDOWS_BOOT
 }
+
+
+#ifndef TC_WINDOWS_BOOT_SINGLE_CIPHER_MODE
 
 
 #ifndef TC_NO_COMPILER_INT64
@@ -1655,3 +1655,98 @@ int GetMaxPkcs5OutSize (void)
 
 	return size;
 }
+
+
+#else // TC_WINDOWS_BOOT_SINGLE_CIPHER_MODE
+
+
+#if !defined (TC_WINDOWS_BOOT_AES) && !defined (TC_WINDOWS_BOOT_SERPENT) && !defined (TC_WINDOWS_BOOT_TWOFISH)
+#error No cipher defined
+#endif
+
+void EncipherBlock(int cipher, void *data, void *ks)
+{
+#ifdef TC_WINDOWS_BOOT_AES
+	aes_encrypt (data, data, ks); 
+#elif defined (TC_WINDOWS_BOOT_SERPENT)
+	serpent_encrypt (data, data, ks);
+#elif defined (TC_WINDOWS_BOOT_TWOFISH)
+	twofish_encrypt (ks, data, data);
+#endif
+}
+
+void DecipherBlock(int cipher, void *data, void *ks)
+{
+#ifdef TC_WINDOWS_BOOT_AES
+	aes_decrypt (data, data, (aes_decrypt_ctx *) ((byte *) ks + sizeof(aes_encrypt_ctx))); 
+#elif defined (TC_WINDOWS_BOOT_SERPENT)
+	serpent_decrypt (data, data, ks);
+#elif defined (TC_WINDOWS_BOOT_TWOFISH)
+	twofish_decrypt (ks, data, data);
+#endif
+}
+
+int EAGetFirst ()
+{
+	return 1;
+}
+
+int EAGetNext (int previousEA)
+{
+	return 0;
+}
+
+int EAInit (int ea, unsigned char *key, unsigned __int8 *ks)
+{
+#ifdef TC_WINDOWS_BOOT_AES
+
+	aes_init();
+
+	if (aes_encrypt_key256 (key, (aes_encrypt_ctx *) ks) != EXIT_SUCCESS)
+		return ERR_CIPHER_INIT_FAILURE;
+	if (aes_decrypt_key256 (key, (aes_decrypt_ctx *) (ks + sizeof (aes_encrypt_ctx))) != EXIT_SUCCESS)
+		return ERR_CIPHER_INIT_FAILURE;
+
+#elif defined (TC_WINDOWS_BOOT_SERPENT)
+	serpent_set_key (key, 32 * 8, ks);
+#elif defined (TC_WINDOWS_BOOT_TWOFISH)
+	twofish_set_key ((TwofishInstance *)ks, (const u4byte *)key, 32 * 8);
+#endif
+	return ERR_SUCCESS;
+}
+
+int EAGetKeySize (int ea)
+{
+	return 32;
+}
+
+int EAGetFirstCipher (int ea)
+{
+	return 1;
+}
+
+void EncryptBuffer (unsigned __int8 *buf, TC_LARGEST_COMPILER_UINT len, PCRYPTO_INFO cryptoInfo)
+{
+	UINT64_STRUCT dataUnitNo;
+	dataUnitNo.LowPart = 0; dataUnitNo.HighPart = 0;
+	EncryptBufferXTS (buf, len, &dataUnitNo, 0, cryptoInfo->ks, cryptoInfo->ks2, 1);
+}
+
+void EncryptDataUnits (unsigned __int8 *buf, const UINT64_STRUCT *structUnitNo, TC_LARGEST_COMPILER_UINT nbrUnits, PCRYPTO_INFO ci)
+{
+	EncryptBufferXTS (buf, nbrUnits * ENCRYPTION_DATA_UNIT_SIZE, structUnitNo, 0, ci->ks, ci->ks2, 1);
+}
+
+void DecryptBuffer (unsigned __int8 *buf, TC_LARGEST_COMPILER_UINT len, PCRYPTO_INFO cryptoInfo)
+{
+	UINT64_STRUCT dataUnitNo;
+	dataUnitNo.LowPart = 0; dataUnitNo.HighPart = 0;
+	DecryptBufferXTS (buf, len, &dataUnitNo, 0, cryptoInfo->ks, cryptoInfo->ks2, 1);
+}
+
+void DecryptDataUnits (unsigned __int8 *buf, const UINT64_STRUCT *structUnitNo, TC_LARGEST_COMPILER_UINT nbrUnits, PCRYPTO_INFO ci)
+{
+	DecryptBufferXTS (buf, nbrUnits * ENCRYPTION_DATA_UNIT_SIZE, structUnitNo, 0, ci->ks, ci->ks2, 1);
+}
+
+#endif // TC_WINDOWS_BOOT_SINGLE_CIPHER_MODE

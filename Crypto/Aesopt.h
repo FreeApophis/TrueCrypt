@@ -1,25 +1,20 @@
 /*
  ---------------------------------------------------------------------------
- Copyright (c) 1998-2006, Brian Gladman, Worcester, UK. All rights reserved.
+ Copyright (c) 1998-2007, Brian Gladman, Worcester, UK. All rights reserved.
 
  LICENSE TERMS
 
- The free distribution and use of this software in both source and binary
- form is allowed (with or without changes) provided that:
+ The free distribution and use of this software is allowed (with or without
+ changes) provided that:
 
-   1. distributions of this source code include the above copyright
-      notice, this list of conditions and the following disclaimer;
+  1. source code distributions include the above copyright notice, this
+     list of conditions and the following disclaimer;
 
-   2. distributions in binary form include the above copyright
-      notice, this list of conditions and the following disclaimer
-      in the documentation and/or other associated materials;
+  2. binary distributions include the above copyright notice, this list
+     of conditions and the following disclaimer in their documentation;
 
-   3. the copyright holder's name is not used to endorse products
-      built using this software without specific written permission.
-
- ALTERNATIVELY, provided that this notice is retained in full, this product
- may be distributed under the terms of the GNU General Public License (GPL),
- in which case the provisions of the GPL apply INSTEAD OF those given above.
+  3. the name of the copyright holder is not used to endorse products
+     built using this software without specific written permission.
 
  DISCLAIMER
 
@@ -27,7 +22,7 @@
  in respect of its properties, including, but not limited to, correctness
  and/or fitness for purpose.
  ---------------------------------------------------------------------------
- Issue 09/09/2006
+ Issue Date: 20/12/2007
 
  This file contains the compilation options for AES (Rijndael) and code
  that is common across encryption, key scheduling and table generation.
@@ -70,7 +65,7 @@
                                                   const aes_decrypt_ctx cx[1]);
 
  IMPORTANT NOTE: If you are using this C interface with dynamic tables make sure that
- you call gen_tabs() before AES is used so that the tables are initialised.
+ you call aes_init() before AES is used so that the tables are initialised.
 
  C++ aes class subroutines:
 
@@ -100,6 +95,10 @@
 
 #if !defined( _AESOPT_H )
 #define _AESOPT_H
+
+#ifdef TC_WINDOWS_BOOT
+#define ASM_X86_V2
+#endif
 
 #if defined( __cplusplus )
 #include "Aescpp.h"
@@ -251,7 +250,7 @@
 
 #if (defined ( ASM_X86_V1C ) || defined( ASM_X86_V2 ) || defined( ASM_X86_V2C )) \
       && !defined( _M_IX86 ) || defined( ASM_AMD64_C ) && !defined( _M_X64 )
-#  error Assembler code is only available for x86 and AMD64 systems
+//#  error Assembler code is only available for x86 and AMD64 systems
 #endif
 
 /*  4. FAST INPUT/OUTPUT OPERATIONS.
@@ -306,7 +305,7 @@
     If this section is included, tables are used to provide faster finite
     field arithmetic (this has no effect if FIXED_TABLES is defined).
 */
-#if 1
+#if !defined (TC_WINDOWS_BOOT)
 #define FF_TABLES
 #endif
 
@@ -324,10 +323,10 @@
 /*  8. FIXED OR DYNAMIC TABLES
 
     When this section is included the tables used by the code are compiled
-    statically into the binary file.  Otherwise the subroutine gen_tabs()
+    statically into the binary file.  Otherwise the subroutine aes_init()
     must be called to compute them before the code is first used.
 */
-#if 1 && !(defined( _MSC_VER ) && ( _MSC_VER <= 800 ))
+#if !defined (TC_WINDOWS_BOOT) && !(defined( _MSC_VER ) && ( _MSC_VER <= 800 ))
 #define FIXED_TABLES
 #endif
 

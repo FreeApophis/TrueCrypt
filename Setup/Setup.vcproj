@@ -65,7 +65,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalOptions="/NODEFAULTLIB:LIBCMTD"
-				AdditionalDependencies="msvcrtd.lib"
+				AdditionalDependencies="msvcrtd.lib setupapi.lib"
 				OutputFile="$(OutDir)/TrueCryptSetup.exe"
 				LinkIncremental="2"
 				GenerateDebugInformation="true"
@@ -152,7 +152,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalOptions="/IGNORE:4089"
-				AdditionalDependencies="atls.lib"
+				AdditionalDependencies="atls.lib setupapi.lib"
 				OutputFile="$(OutDir)/TrueCryptSetup.exe"
 				LinkIncremental="1"
 				GenerateDebugInformation="false"
@@ -261,6 +261,22 @@
 				<File
 					RelativePath="..\Common\Dlgcode.c"
 					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							CompileAs="2"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							CompileAs="2"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\Common\Inflate.c"

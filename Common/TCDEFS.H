@@ -15,10 +15,10 @@
 #define TC_APP_NAME						"TrueCrypt"
 
 // Version displayed to user 
-#define VERSION_STRING					"5.0a"
+#define VERSION_STRING					"5.1"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x050a
+#define VERSION_NUM						0x0510
 
 // Version number written to volume header during format,
 // specifies the minimum program version required to mount the volume
@@ -45,7 +45,8 @@
 #define MIN_FAT_VOLUME_SIZE				19456
 #define MAX_FAT_VOLUME_SIZE				0x20000000000LL
 #define MIN_NTFS_VOLUME_SIZE			2634752
-#define MAX_NTFS_VOLUME_SIZE			128LL * BYTES_PER_TB	// NTFS volume can theoretically be up to 16 exabytes, but Windows XP and 2003 limit the size to that addressable with 32-bit clusters, i.e. max size is 128 TB (if 64-KB clusters are used).
+#define OPTIMAL_MIN_NTFS_VOLUME_SIZE	(4 * BYTES_PER_GB)
+#define MAX_NTFS_VOLUME_SIZE			(128LL * BYTES_PER_TB)	// NTFS volume can theoretically be up to 16 exabytes, but Windows XP and 2003 limit the size to that addressable with 32-bit clusters, i.e. max size is 128 TB (if 64-KB clusters are used).
 #define MAX_HIDDEN_VOLUME_HOST_SIZE     MAX_NTFS_VOLUME_SIZE
 #define MAX_HIDDEN_VOLUME_SIZE          ( MAX_HIDDEN_VOLUME_HOST_SIZE - HIDDEN_VOL_HEADER_OFFSET - HEADER_SIZE )
 #define MIN_VOLUME_SIZE                 MIN_FAT_VOLUME_SIZE
@@ -167,11 +168,6 @@ typedef unsigned __int32 LRESULT;
 #endif
 /* NT4_DRIVER */
 
-#elif defined(LINUX_DRIVER)	
-
-#define TCalloc(size) (kmalloc( size, GFP_KERNEL ))
-#define TCfree(memblock) kfree( memblock )
-
 #else
 
 #define TCalloc malloc
@@ -219,6 +215,11 @@ typedef unsigned __int32 LRESULT;
 #	define FAST_ERASE64(mem,size) do { volatile unsigned __int32 *burnm = (volatile unsigned __int32 *)(mem); int burnc = size >> 2; while (burnc--) *burnm++ = 0; } while (0)
 #endif
 
+#ifdef TC_WINDOWS_BOOT
+#undef burn
+#define burn EraseMemory
+#endif
+
 #ifdef MAX_PATH
 #define TC_MAX_PATH		MAX_PATH
 #else
@@ -232,6 +233,11 @@ typedef unsigned __int32 LRESULT;
 
 enum
 {
+	/* WARNING: Add any new codes at the end (do NOT insert them between existing). Do NOT delete any 
+	existing codes. Changing these values or their meanings may cause incompatibility with other 
+	versions (for example, if a new version of the TrueCrypt installer receives an error code from
+	an installed driver whose version is lower, it will interpret the error incorrectly). */
+
 	ERR_SUCCESS = 0,
 	ERR_OS_ERROR = 1,
 	ERR_OUTOFMEMORY,
@@ -260,7 +266,9 @@ enum
 	ERR_INVALID_DEVICE,
 	ERR_ACCESS_DENIED,
 	ERR_MODE_INIT_FAILED,
-	ERR_DONT_REPORT
+	ERR_DONT_REPORT,
+	ERR_ENCRYPTION_NOT_COMPLETED,
+	ERR_PARAMETER_INCORRECT
 };
 
 #endif 	// #ifndef TCDEFS_H

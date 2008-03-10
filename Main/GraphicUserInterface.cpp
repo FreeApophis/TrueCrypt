@@ -98,7 +98,13 @@ namespace TrueCrypt
 		window->SetCursor (*arrowWaitCursor);
 	}
 
-	void GraphicUserInterface::ChangePassword (shared_ptr <VolumePath> volumePath, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, shared_ptr <VolumePassword> newPassword, shared_ptr <KeyfileList> newKeyfiles) const
+	void GraphicUserInterface::ChangePassword (shared_ptr <VolumePath> volumePath, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, shared_ptr <VolumePassword> newPassword, shared_ptr <KeyfileList> newKeyfiles, shared_ptr <Hash> newHash) const
+	{
+		Gui->ShowError (_("This feature is currently supported only in text mode."));
+		throw UserAbort (SRC_POS);
+	}
+
+	void GraphicUserInterface::CreateVolume (shared_ptr <VolumeCreationOptions> options, const FilesystemPath &randomSourcePath) const
 	{
 		Gui->ShowError (_("This feature is currently supported only in text mode."));
 		throw UserAbort (SRC_POS);
@@ -367,6 +373,16 @@ namespace TrueCrypt
 	shared_ptr <VolumeInfo> GraphicUserInterface::MountVolume (MountOptions &options) const
 	{
 		shared_ptr <VolumeInfo> volume;
+
+		if (!Preferences.NonInteractive && (!options.Path || options.Path->IsEmpty()))
+		{
+			wxString path = wxGetTextFromUser (_("Enter volume path: "), Application::GetName());
+			
+			if (path.empty())
+				throw UserAbort();
+
+			options.Path = make_shared <VolumePath> (wstring (path));
+		}
 
 		if (Core->IsVolumeMounted (*options.Path))
 		{

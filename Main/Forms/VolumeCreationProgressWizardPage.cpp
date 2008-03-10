@@ -139,7 +139,7 @@ namespace TrueCrypt
 
 		if (value != 0)
 		{
-			SizeDoneStaticText->SetLabel (wxString::Format (L"%3.3f%%", 100.0 - double (ProgressBarRange - value) / (double (ProgressBarRange) / 100.0)));
+			SizeDoneStaticText->SetLabel (wxString::Format (L"%7.3f%%", 100.0 - double (ProgressBarRange - value) / (double (ProgressBarRange) / 100.0)));
 
 			wxLongLong timeDiff = wxGetLocalTimeMillis() - StartTime;
 			if (timeDiff.GetValue() > 0)
@@ -149,26 +149,7 @@ namespace TrueCrypt
 				if (ProgressBarRange != value)
 					SpeedStaticText->SetLabel (Gui->SpeedToString (speed));
 
-				if (speed > 0)
-				{
-					uint64 sec = (ProgressBarRange - value) / speed;
-					wstringstream s;
-
-					if (sec >= 60 * 60 * 24 * 2)
-						s << sec / (60 * 24 * 60) << L" " << LangString["DAYS"].c_str();
-					else if (sec >= 120 * 60)
-						s << sec / (60 * 60) << L" " << LangString["HOURS"].c_str();
-					else if (sec >= 120)
-						s << sec / 60 << L" " << LangString["MINUTES"].c_str();
-					else
-						s << sec << L" " << LangString["SECONDS"].c_str();
-
-					TimeLeftStaticText->SetLabel (s.str());
-				}
-				else
-				{
-					TimeLeftStaticText->SetLabel (L"");
-				}
+				TimeLeftStaticText->SetLabel (speed > 0 ? Gui->TimeSpanToString ((ProgressBarRange - value) / speed) : L"");
 			}
 		}
 		else

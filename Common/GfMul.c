@@ -4,22 +4,17 @@
 
  LICENSE TERMS
 
- The free distribution and use of this software in both source and binary
- form is allowed (with or without changes) provided that:
+ The free distribution and use of this software is allowed (with or without
+ changes) provided that:
 
-   1. distributions of this source code include the above copyright
-      notice, this list of conditions and the following disclaimer;
+  1. source code distributions include the above copyright notice, this
+     list of conditions and the following disclaimer;
 
-   2. distributions in binary form include the above copyright
-      notice, this list of conditions and the following disclaimer
-      in the documentation and/or other associated materials;
+  2. binary distributions include the above copyright notice, this list
+     of conditions and the following disclaimer in their documentation;
 
-   3. the copyright holder's name is not used to endorse products
-      built using this software without specific written permission.
-
- ALTERNATIVELY, provided that this notice is retained in full, this product
- may be distributed under the terms of the GNU General Public License (GPL),
- in which case the provisions of the GPL apply INSTEAD OF those given above.
+  3. the name of the copyright holder is not used to endorse products
+     built using this software without specific written permission.
 
  DISCLAIMER
 
@@ -50,14 +45,8 @@
    - Removed GCM.
 */
 
-#ifdef LINUX_DRIVER
-#include <linux/module.h>
-#include <linux/string.h>
-#else
 #include <memory.h>
 #include <stdlib.h>
-#endif
-
 #include "GfMul.h"
 #include "Tcdefs.h"
 #include "Common/Endian.h"

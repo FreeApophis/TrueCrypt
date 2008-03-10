@@ -10,6 +10,7 @@
 #include <wx/cmdline.h>
 #include <wx/tokenzr.h>
 #include "Core/Core.h"
+#include "Application.h"
 #include "CommandLineInterface.h"
 #include "LanguageStrings.h"
 #include "UserInterfaceException.h"
@@ -18,38 +19,50 @@ namespace TrueCrypt
 {
 	CommandLineInterface::CommandLineInterface (wxCmdLineParser &parser, UserInterfaceType::Enum interfaceType) :
 		ArgCommand (CommandId::None),
+		ArgFilesystem (VolumeCreationOptions::FilesystemType::Unknown),
+		ArgSize (0),
+		ArgVolumeType (VolumeType::Unknown),
 		StartBackgroundTask (false)
 	{
 		parser.SetSwitchChars (L"-");
 
 		parser.AddOption (L"",  L"auto-mount",			_("Auto mount device-hosted/favorite volumes"));
 		parser.AddSwitch (L"",  L"background-task",		_("Start Background Task"));
-		parser.AddSwitch (L"d", L"dismount",			_("Dismount volume"));
 		parser.AddSwitch (L"",  L"cache",				_("Cache passwords and keyfiles"));
 		parser.AddSwitch (L"C", L"change",				_("Change password or keyfiles"));
+		parser.AddSwitch (L"c", L"create",				_("Create new volume"));
+		parser.AddSwitch (L"d", L"dismount",			_("Dismount volume"));
+		parser.AddOption (L"",	L"encryption",			_("Encryption algorithm"));
 		parser.AddSwitch (L"",	L"explore",				_("Open explorer window for mounted volume"));
+		parser.AddOption (L"",	L"filesystem",			_("Filesystem type"));
 		parser.AddSwitch (L"f", L"force",				_("Force mount/dismount/overwrite"));
+#if !defined(TC_WINDOWS) && !defined(TC_MACOSX)
+		parser.AddOption (L"",	L"fs-options",			_("Filesystem mount options"));
+#endif
+		parser.AddOption (L"",	L"hash",				_("Hash algorithm"));
 		parser.AddSwitch (L"h", L"help",				_("Display help"), wxCMD_LINE_OPTION_HELP);
 		parser.AddOption (L"k", L"keyfiles",			_("Keyfiles"));
-		parser.AddOption (L"",	L"filesystem",			_("Filesystem type"));
-#if !defined(TC_WINDOWS) && !defined(TC_MACOSX)
-		parser.AddOption (L"",	L"fs-options",			_("Filesystem options"));
-#endif
 		parser.AddSwitch (L"l", L"list",				_("List mounted volumes"));
-		parser.AddOption (L"m", L"mount-options",		_("Mount options"));
+		parser.AddSwitch (L"",	L"load-preferences",	_("Load user preferences"));
+		parser.AddSwitch (L"",	L"mount",				_("Mount volume interactively"));
+		parser.AddOption (L"m", L"mount-options",		_("TrueCrypt volume mount options"));
 		parser.AddOption (L"",	L"new-keyfiles",		_("New keyfiles"));
 		parser.AddOption (L"",	L"new-password",		_("New password"));
 		parser.AddSwitch (L"",	L"non-interactive",		_("Do not interact with user"));
 		parser.AddOption (L"p", L"password",			_("Password"));
-		parser.AddSwitch (L"",	L"load-preferences",	_("Load user preferences"));
 		parser.AddSwitch (L"",	L"protect-hidden",		_("Protect hidden volume"));
 		parser.AddOption (L"",	L"protection-keyfiles",	_("Keyfiles for protected hidden volume"));
 		parser.AddOption (L"",	L"protection-password",	_("Password for protected hidden volume"));
-		parser.AddSwitch (L"v", L"verbose",				_("Enable verbose output"));
-		parser.AddOption (L"", L"slot",					_("Volume slot number"));
+		parser.AddOption (L"",	L"random-source",		_("Use file as source of random data"));
+		parser.AddSwitch (L"",	L"quick",				_("Enable quick format"));
+		parser.AddOption (L"",	L"size",				_("Size in bytes"));
+		parser.AddOption (L"",	L"slot",				_("Volume slot number"));
 		parser.AddSwitch (L"",	L"test",				_("Test internal algorithms"));
 		parser.AddSwitch (L"t", L"text",				_("Use text user interface"));
-		parser.AddSwitch (L"", L"version",				_("Display version information"));
+		parser.AddSwitch (L"v", L"verbose",				_("Enable verbose output"));
+		parser.AddSwitch (L"",	L"version",				_("Display version information"));
+		parser.AddSwitch (L"",	L"volume-properties",	_("Display volume properties"));
+		parser.AddOption (L"",	L"volume-type",			_("Volume type"));
 		parser.AddParam (								_("Volume path"), wxCMD_LINE_VAL_STRING, wxCMD_LINE_PARAM_OPTIONAL);
 		parser.AddParam (								_("Mount point"), wxCMD_LINE_VAL_STRING, wxCMD_LINE_PARAM_OPTIONAL);
 
@@ -128,6 +141,13 @@ namespace TrueCrypt
 			param1IsVolume = true;
 		}
 
+		if (parser.Found (L"create"))
+		{
+			CheckCommandSingle();
+			ArgCommand = CommandId::CreateVolume;
+			param1IsVolume = true;
+		}
+
 		if (parser.Found (L"dismount"))
 		{
 			CheckCommandSingle();
@@ -142,10 +162,24 @@ namespace TrueCrypt
 			param1IsMountedVolumeSpec = true;
 		}
 
+		if (parser.Found (L"mount"))
+		{
+			CheckCommandSingle();
+			ArgCommand = CommandId::MountVolume;
+			param1IsVolume = true;
+		}
+
 		if (parser.Found (L"test"))
 		{
 			CheckCommandSingle();
 			ArgCommand = CommandId::Test;
+		}
+
+		if (parser.Found (L"volume-properties"))
+		{
+			CheckCommandSingle();
+			ArgCommand = CommandId::DisplayVolumeProperties;
+			param1IsMountedVolumeSpec = true;
 		}
 
 		// Options
@@ -155,19 +189,59 @@ namespace TrueCrypt
 		if (parser.Found (L"cache"))
 			ArgMountOptions.CachePassword = true;
 		
+		if (parser.Found (L"encryption", &str))
+		{
+			ArgEncryptionAlgorithm.reset();
+
+			foreach (shared_ptr <EncryptionAlgorithm> ea, EncryptionAlgorithm::GetAvailableAlgorithms())
+			{
+				if (wxString (ea->GetName()).IsSameAs (str, false))
+					ArgEncryptionAlgorithm = ea;
+			}
+
+			if (!ArgEncryptionAlgorithm)
+				throw_err (LangString["UNKNOWN_OPTION"] + L": " + str);
+		}
+
 		if (parser.Found (L"explore"))
 			Preferences.OpenExplorerWindowAfterMount = true;
 
 		if (parser.Found (L"filesystem", &str))
 		{
 			if (str.IsSameAs (L"none", false))
+			{
 				ArgMountOptions.NoFilesystem = true;
+				ArgFilesystem = VolumeCreationOptions::FilesystemType::None;
+			}
 			else
+			{
 				ArgMountOptions.FilesystemType = wstring (str);
+				
+				if (str.IsSameAs (L"FAT", false))
+					ArgFilesystem = VolumeCreationOptions::FilesystemType::FAT;
+			}
 		}
 
-		if (parser.Found (L"force"))
-			ArgForce = true;
+		ArgForce = parser.Found (L"force");
+
+#if !defined(TC_WINDOWS) && !defined(TC_MACOSX)
+		if (parser.Found (L"fs-options", &str))
+			ArgMountOptions.FilesystemOptions = str;
+#endif
+
+		if (parser.Found (L"hash", &str))
+		{
+			ArgHash.reset();
+
+			foreach (shared_ptr <Hash> hash, Hash::GetAvailableAlgorithms())
+			{
+				if (wxString (hash->GetName()).IsSameAs (str, false))
+					ArgHash = hash;
+			}
+
+			if (!ArgHash)
+				throw_err (LangString["UNKNOWN_OPTION"] + L": " + str);
+		}
 
 		if (parser.Found (L"keyfiles", &str))
 			ArgKeyfiles = ToKeyfileList (str);
@@ -219,6 +293,11 @@ namespace TrueCrypt
 			ArgMountOptions.Protection = VolumeProtection::HiddenVolumeReadOnly;
 		}
 
+		ArgQuick = parser.Found (L"quick");
+
+		if (parser.Found (L"random-source", &str))
+			ArgRandomSourcePath = FilesystemPath (str);
+
 		if (parser.Found (L"slot", &str))
 		{
 			unsigned long number;
@@ -238,8 +317,30 @@ namespace TrueCrypt
 			}
 		}
 
+		if (parser.Found (L"size", &str))
+		{
+			try
+			{
+				ArgSize = StringConverter::ToUInt64 (wstring (str));
+			}
+			catch (...)
+			{
+				throw_err (LangString["PARAMETER_INCORRECT"] + L": " + str);
+			}
+		}
+
 		if (parser.Found (L"verbose"))
 			Preferences.Verbose = true;
+
+		if (parser.Found (L"volume-type", &str))
+		{
+			if (str.IsSameAs (L"normal", false))
+				ArgVolumeType = VolumeType::Normal;
+			else if (str.IsSameAs (L"hidden", false))
+				ArgVolumeType = VolumeType::Hidden;
+			else
+				throw_err (LangString["UNKNOWN_OPTION"] + L": " + str);
+		}
 
 		// Parameters
 		if (parser.GetParamCount() > 0)
@@ -273,6 +374,9 @@ namespace TrueCrypt
 
 		if (param1IsMountedVolumeSpec)
 			ArgVolumes = GetMountedVolumes (parser.GetParamCount() > 0 ? parser.GetParam (0) : wxString());
+
+		if (ArgCommand == CommandId::None && Application::GetUserInterfaceType() == UserInterfaceType::Text)
+			parser.Usage();
 	}
 
 	CommandLineInterface::~CommandLineInterface ()

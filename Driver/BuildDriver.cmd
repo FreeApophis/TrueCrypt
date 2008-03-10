@@ -22,6 +22,7 @@ shift
 set TC_C_DEFINES=-D_WIN32 -DNT4_DRIVER
 set TC_C_FLAGS=-nologo -I..
 set TC_LINKER_FLAGS=-nologo
+set NO_SAFESEH=1
 
 
 :: Windows DDK root
@@ -52,10 +53,12 @@ exit /B 1
 if "%TC_ARG_ARCH%"=="-x64" (
 	set TC_BUILD_ARCH=AMD64 WNET
 	set TC_BUILD_ARCH_DIR=amd64
+	set TC_ARCH=x64
 	set TC_ARCH_SUFFIX=-x64
 ) else (
 	set TC_BUILD_ARCH=WXP
 	set TC_BUILD_ARCH_DIR=i386
+	set TC_ARCH=x86
 	set TC_ARCH_SUFFIX=
 )
 
@@ -70,6 +73,7 @@ if "%TC_ARG_TYPE%"=="-debug" (
 ) else (
 	set TC_BUILD_TYPE=fre
 	set TC_BUILD_ALT_DIR=_driver_release
+	set TC_C_FLAGS=%TC_C_FLAGS% -w34189
 	set TC_COPY_DIR="..\Release"
 )
 

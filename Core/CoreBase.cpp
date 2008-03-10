@@ -38,7 +38,7 @@ namespace TrueCrypt
 		{
 #ifdef TC_UNIX
 			UserId origDeviceOwner;
-			origDeviceOwner.SystemId = -1;
+			origDeviceOwner.SystemId = (uid_t) -1;
 
 			if (!HasAdminPrivileges() && volumePath.IsDevice())
 			{
@@ -89,7 +89,8 @@ namespace TrueCrypt
 			newPkcs5Kdf = openVolume->GetPkcs5Kdf();
 
 		RandomNumberGenerator::Start();
-		
+		RandomNumberGenerator::SetHash (newPkcs5Kdf->GetHash());
+
 		SecureBuffer newSalt (openVolume->GetSaltSize());
 		SecureBuffer newHeaderKey (VolumeHeader::GetLargestSerializedKeySize());
 
@@ -214,7 +215,7 @@ namespace TrueCrypt
 		{
 #ifdef TC_UNIX
 			UserId origDeviceOwner;
-			origDeviceOwner.SystemId = -1;
+			origDeviceOwner.SystemId = (uid_t) -1;
 
 			if (!HasAdminPrivileges() && volumePath.IsDevice())
 			{
@@ -230,7 +231,7 @@ namespace TrueCrypt
 
 			finally_do_arg2 (VolumePath, volumePath, UserId, origDeviceOwner,
 				{
-					if (finally_arg2.SystemId != -1)
+					if (finally_arg2.SystemId != (uid_t) -1)
 						Core->SetFileOwner (finally_arg, finally_arg2);
 				}
 			);

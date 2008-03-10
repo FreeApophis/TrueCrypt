@@ -17,6 +17,8 @@
 #include "Ntdriver.h"
 #include "Ntvol.h"
 
+#include "Boot/Windows/BootCommon.h"
+
 #include "Cache.h"
 
 #if 0 && _DEBUG
@@ -41,6 +43,7 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	PCRYPTO_INFO tmpCryptoInfo = NULL;
 	LARGE_INTEGER lDiskLength;
 	LARGE_INTEGER hiddenVolHeaderOffset;
+	__int64 partitionStartingOffset;
 	int volumeType;
 	char *readBuffer = 0;
 	NTSTATUS ntStatus = 0;
@@ -78,10 +81,16 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 
 		// Drive geometry is used only when IOCTL_DISK_GET_PARTITION_INFO fails
 		if (NT_SUCCESS (TCSendHostDeviceIoControlRequest (DeviceObject, Extension, IOCTL_DISK_GET_PARTITION_INFO_EX, (char *) &pix, sizeof (pix))))
+		{
 			lDiskLength.QuadPart = pix.PartitionLength.QuadPart;
+			partitionStartingOffset = pix.StartingOffset.QuadPart;
+		}
 		// Windows 2000 does not support IOCTL_DISK_GET_PARTITION_INFO_EX
 		else if (NT_SUCCESS (TCSendHostDeviceIoControlRequest (DeviceObject, Extension, IOCTL_DISK_GET_PARTITION_INFO, (char *) &pi, sizeof (pi))))
+		{
 			lDiskLength.QuadPart = pi.PartitionLength.QuadPart;
+			partitionStartingOffset = pi.StartingOffset.QuadPart;
+		}
 
 		if (!mount->bMountReadOnly && TCSendHostDeviceIoControlRequest (DeviceObject, Extension, IOCTL_DISK_IS_WRITABLE, NULL, 0) == STATUS_MEDIA_WRITE_PROTECTED)
 		{
@@ -247,9 +256,17 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		volumeType < NBR_VOLUME_TYPES;
 		volumeType++)	
 	{
+		if (mount->bPartitionInInactiveSysEncScope
+			&& volumeType != VOLUME_TYPE_NORMAL)
+			continue;		
+
 		/* Read the volume header */
 
-		ntStatus = ZwReadFile (Extension->hDeviceFile,
+		if (!mount->bPartitionInInactiveSysEncScope)
+		{
+			// Header of a volume that is not within the scope of system encryption
+
+			ntStatus = ZwReadFile (Extension->hDeviceFile,
 			NULL,
 			NULL,
 			NULL,
@@ -258,6 +275,68 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			HEADER_SIZE,
 			volumeType == VOLUME_TYPE_HIDDEN ? &hiddenVolHeaderOffset : NULL,
 			NULL);
+		}
+		else
+		{
+			// Header of a partition that is within the scope of system encryption
+
+			WCHAR parentDrivePath [47+1] = {0};
+			HANDLE hParentDeviceFile = NULL;
+			UNICODE_STRING FullParentPath;
+			OBJECT_ATTRIBUTES oaParentFileAttributes;
+			LARGE_INTEGER parentKeyDataOffset;
+
+			_snwprintf (parentDrivePath,
+				sizeof (parentDrivePath) / sizeof (WCHAR) - 1,
+				WIDE ("\\Device\\Harddisk%d\\Partition0"),
+				mount->nPartitionInInactiveSysEncScopeDriveNo);
+
+			Dump ("Mounting partition within scope of system encryption (reading key data from: %ls)\n", parentDrivePath);
+
+			RtlInitUnicodeString (&FullParentPath, parentDrivePath);
+			InitializeObjectAttributes (&oaParentFileAttributes, &FullParentPath, OBJ_CASE_INSENSITIVE,	NULL, NULL);
+
+			ntStatus = ZwCreateFile (&hParentDeviceFile,
+				GENERIC_READ | SYNCHRONIZE,
+				&oaParentFileAttributes,
+				&IoStatusBlock,
+				NULL,
+				FILE_ATTRIBUTE_NORMAL |
+				FILE_ATTRIBUTE_SYSTEM,
+				FILE_SHARE_READ | FILE_SHARE_WRITE,
+				FILE_OPEN,
+				FILE_RANDOM_ACCESS |
+				FILE_WRITE_THROUGH |
+				(Extension->HostBytesPerSector == SECTOR_SIZE ? FILE_NO_INTERMEDIATE_BUFFERING : 0) |
+				FILE_SYNCHRONOUS_IO_NONALERT,
+				NULL,
+				0);
+
+			if (!NT_SUCCESS (ntStatus))
+			{
+				if (hParentDeviceFile != NULL)
+					ZwClose (hParentDeviceFile);
+
+				Dump ("Cannot open %ls\n", parentDrivePath);
+
+				goto error;
+			}
+
+			parentKeyDataOffset.QuadPart = ((volumeType == VOLUME_TYPE_HIDDEN) ? TC_BOOT_VOLUME_HEADER_SECTOR_OFFSET : TC_BOOT_VOLUME_HEADER_SECTOR_OFFSET);
+
+			ntStatus = ZwReadFile (hParentDeviceFile,
+				NULL,
+				NULL,
+				NULL,
+				&IoStatusBlock,
+				readBuffer,
+				HEADER_SIZE,
+				&parentKeyDataOffset,
+				NULL);
+
+			if (hParentDeviceFile != NULL)
+				ZwClose (hParentDeviceFile);
+		}
 
 		if (!NT_SUCCESS (ntStatus))
 		{
@@ -279,6 +358,7 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		if (volumeType == VOLUME_TYPE_HIDDEN && mount->bProtectHiddenVolume)
 		{
 			mount->nReturnCode = VolumeReadHeaderCache (
+				mount->bPartitionInInactiveSysEncScope,
 				mount->bCache,
 				readBuffer,
 				&mount->ProtectedHidVolPassword,
@@ -287,6 +367,7 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		else
 		{
 			mount->nReturnCode = VolumeReadHeaderCache (
+				mount->bPartitionInInactiveSysEncScope,
 				mount->bCache,
 				readBuffer,
 				&mount->VolumePassword,
@@ -300,14 +381,44 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			Extension->cryptoInfo->bProtectHiddenVolume = FALSE;
 			Extension->cryptoInfo->bHiddenVolProtectionAction = FALSE;
 
+			Extension->cryptoInfo->bPartitionInInactiveSysEncScope = mount->bPartitionInInactiveSysEncScope;
+
+			if (mount->bPartitionInInactiveSysEncScope)
+			{
+				if (Extension->cryptoInfo->EncryptedAreaStart.Value > (unsigned __int64) partitionStartingOffset
+					|| Extension->cryptoInfo->EncryptedAreaStart.Value + Extension->cryptoInfo->VolumeSize.Value <= (unsigned __int64) partitionStartingOffset)
+				{
+					// The partition is not within the key scope of system encryption
+					mount->nReturnCode = ERR_PASSWORD_WRONG;
+					ntStatus = STATUS_SUCCESS;
+					goto error;
+				}
+
+				if (Extension->cryptoInfo->EncryptedAreaLength.Value != Extension->cryptoInfo->VolumeSize.Value)
+				{
+					// Partial encryption is not supported for volumes mounted as regular
+					mount->nReturnCode = ERR_ENCRYPTION_NOT_COMPLETED;
+					ntStatus = STATUS_SUCCESS;
+					goto error;
+				}
+			}
+
 			switch (volumeType)
 			{
 			case VOLUME_TYPE_NORMAL:
 
-				// Correct the volume size for this volume type. Later on, this must be undone
-				// if Extension->DiskLength is used in deriving hidden volume offset
-				Extension->DiskLength -= HEADER_SIZE;	
+				if (!mount->bPartitionInInactiveSysEncScope)
+				{
+					// Correct the volume size for this volume type. Later on, this must be undone
+					// if Extension->DiskLength is used in deriving hidden volume offset
+					Extension->DiskLength -= HEADER_SIZE;	
+				}
+
 				Extension->cryptoInfo->hiddenVolume = FALSE;
+				Extension->cryptoInfo->volDataAreaOffset = mount->bPartitionInInactiveSysEncScope ? 0 : HEADER_SIZE;
+
+				Extension->cryptoInfo->FirstDataUnitNo.Value = mount->bPartitionInInactiveSysEncScope ? 
+					partitionStartingOffset / ENCRYPTION_DATA_UNIT_SIZE : 0;
 
 				break;
 
@@ -343,13 +454,22 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 				{
 					Extension->DiskLength = cryptoInfoPtr->hiddenVolumeSize;
 					Extension->cryptoInfo->hiddenVolume = TRUE;
+					Extension->cryptoInfo->volDataAreaOffset = Extension->cryptoInfo->hiddenVolumeOffset;
+
+					Extension->cryptoInfo->FirstDataUnitNo.Value = mount->bPartitionInInactiveSysEncScope ? 
+						(partitionStartingOffset + Extension->cryptoInfo->hiddenVolumeOffset) / ENCRYPTION_DATA_UNIT_SIZE 
+						: 0;
+
 				}
 				else
 				{
 					// Hidden volume protection
 					Extension->cryptoInfo->hiddenVolume = FALSE;
 					Extension->cryptoInfo->bProtectHiddenVolume = TRUE;
-					Extension->cryptoInfo->hiddenVolumeOffset += HEADER_SIZE;	// Offset was incorrect due to loop processing
+
+					if (!mount->bPartitionInInactiveSysEncScope)
+						Extension->cryptoInfo->hiddenVolumeOffset += HEADER_SIZE;	// Offset was incorrect due to loop processing
+
 					Dump("Hidden volume protection active (offset = %I64d)", Extension->cryptoInfo->hiddenVolumeOffset);
 				}
 

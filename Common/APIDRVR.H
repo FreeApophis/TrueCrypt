@@ -18,7 +18,7 @@
 
 #ifdef _WIN32
 
-// Modifying the following values can introduce incompatibility with previous versions
+/* WARNING: Modifying the following values or their meanings can introduce incompatibility with previous versions. */
 
 #define TC_IOCTL(CODE) (CTL_CODE (FILE_DEVICE_UNKNOWN, 0x800 + (CODE), METHOD_BUFFERED, FILE_ANY_ACCESS))
 
@@ -45,6 +45,9 @@
 #define TC_IOCTL_GET_BOOT_ENCRYPTION_SETUP_RESULT		TC_IOCTL (21)
 #define TC_IOCTL_GET_BOOT_DRIVE_VOLUME_PROPERTIES		TC_IOCTL (22)
 #define TC_IOCTL_REOPEN_BOOT_VOLUME_HEADER				TC_IOCTL (23)
+#define TC_IOCTL_GET_BOOT_ENCRYPTION_ALGORITHM_NAME		TC_IOCTL (24)
+#define TC_IOCTL_GET_TRAVELER_MODE_STATUS				TC_IOCTL (25)
+#define TC_IOCTL_SET_TRAVELER_MODE_STATUS				TC_IOCTL (26)
 
 // Legacy IOCTLs used before version 5.0
 #define TC_IOCTL_LEGACY_GET_DRIVER_VERSION		466968
@@ -72,6 +75,8 @@ typedef struct
 	BOOL bMountManager;					/* Announce volume to mount manager */
 	BOOL bUserContext;					/* Mount volume in user process context */
 	BOOL bPreserveTimestamp;			/* Preserve file container timestamp */
+	BOOL bPartitionInInactiveSysEncScope;		/* If TRUE, we are to attempt to mount a partition located on an encrypted system drive without pre-boot authentication. */
+	int nPartitionInInactiveSysEncScopeDriveNo;	/* If bPartitionInInactiveSysEncScope is TRUE, this contains the drive number of the system drive on which the partition is located. */
 	// Hidden volume protection
 	BOOL bProtectHiddenVolume;			/* TRUE if the user wants the hidden volume within this volume to be protected against being overwritten (damaged) */
 	Password ProtectedHidVolPassword;	/* Password to the hidden volume to be protected against overwriting */
@@ -137,11 +142,13 @@ typedef struct
 {
 	WCHAR DeviceName[TC_MAX_PATH];
 	LARGE_INTEGER RealDriveSize;
+	BOOL TimeOut;
 } ProbeRealDriveSizeRequest;
 
 typedef struct
 {
-	short wszFileName[TC_MAX_PATH];	/* Volume to be "open tested" */
+	short wszFileName[TC_MAX_PATH];		// Volume to be "open tested"
+	BOOL bDetectTCBootLoader;			// Whether the driver is to determine if the first sector contains a portion of the TrueCrypt Boot Loader
 } OPEN_TEST_STRUCT;
 
 
@@ -194,6 +201,12 @@ typedef struct
 } ReopenBootVolumeHeaderRequest;
 
 
+typedef struct
+{
+	char BootEncryptionAlgorithmName[256];
+} GetBootEncryptionAlgorithmNameRequest;
+
+
 #pragma pack (pop)
 
 #ifdef NT4_DRIVER
@@ -204,7 +217,7 @@ typedef struct
 
 /* NT only */
 
-#define TC_UNIQUE_ID_PREFIX "TrueCrypt"
+#define TC_UNIQUE_ID_PREFIX "TrueCryptVolume"
 #define TC_MOUNT_PREFIX L"\\Device\\TrueCryptVolume"
 
 #define NT_MOUNT_PREFIX DRIVER_STR("\\Device\\TrueCryptVolume")

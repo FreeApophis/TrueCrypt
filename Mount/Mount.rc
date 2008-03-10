@@ -303,8 +303,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 5,0,1,0
- PRODUCTVERSION 5,0,1,0
+ FILEVERSION 5,1,0,0
+ PRODUCTVERSION 5,1,0,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -321,13 +321,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt"
-            VALUE "FileVersion", "5.0a"
+            VALUE "FileVersion", "5.1"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "5.0a"
-            VALUE "SpecialBuild", "2008-02-12"
+            VALUE "ProductVersion", "5.1"
+            VALUE "SpecialBuild", "2008-03-10"
         END
     END
     BLOCK "VarFileInfo"
@@ -404,7 +404,7 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "Volume Properties",           IDM_VOLUME_PROPERTIES
     END
-    POPUP "&System"
+    POPUP "S&ystem"
     BEGIN
         MENUITEM "Encrypt System Partition/Drive...", IDM_ENCRYPT_SYSTEM_DEVICE
         MENUITEM "Permanently Decrypt System Partition/Drive", IDM_PERMANENTLY_DECRYPT_SYS
@@ -415,6 +415,8 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "Change Password...",          IDM_CHANGE_SYS_PASSWORD
         MENUITEM "Set Header Key Derivation Algorithm...", IDM_CHANGE_SYS_HEADER_KEY_DERIV_ALGO
+        MENUITEM SEPARATOR
+        MENUITEM "Mount Without Pre-Boot &Authentication...", IDM_MOUNT_SYSENC_PART_WITHOUT_PBA
         MENUITEM SEPARATOR
         MENUITEM "Properties",                  IDM_SYSTEM_ENCRYPTION_STATUS
     END

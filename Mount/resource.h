@@ -169,6 +169,7 @@
 #define IDM_SYSTEM_ENCRYPTION_STATUS    40052
 #define IDM_ENCRYPT_SYSTEM_DEVICE       40053
 #define IDM_SYSENC_RESUME               40054
+#define IDM_MOUNT_SYSENC_PART_WITHOUT_PBA 40055
 
 // Next default values for new objects
 // 
@@ -176,7 +177,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        115
-#define _APS_NEXT_COMMAND_VALUE         40055
+#define _APS_NEXT_COMMAND_VALUE         40056
 #define _APS_NEXT_CONTROL_VALUE         1098
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 5,0,1,0
- PRODUCTVERSION 5,0,1,0
+ FILEVERSION 5,1,0,0
+ PRODUCTVERSION 5,1,0,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -46,13 +46,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Format"
-            VALUE "FileVersion", "5.0a"
+            VALUE "FileVersion", "5.1"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt Format.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "5.0a"
-            VALUE "SpecialBuild", "2008-02-12"
+            VALUE "ProductVersion", "5.1"
+            VALUE "SpecialBuild", "2008-03-10"
         END
     END
     BLOCK "VarFileInfo"
@@ -182,15 +182,15 @@ STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     CONTROL         "Create a file container",IDC_FILE_CONTAINER,"Button",BS_AUTORADIOBUTTON,0,7,217,10
+    LTEXT           "More information",IDC_MORE_INFO_ON_CONTAINERS,16,39,165,10,SS_NOTIFY
     CONTROL         "Create a volume within a non-system partition/device",IDC_NONSYS_DEVICE,
                     "Button",BS_AUTORADIOBUTTON,0,53,217,10
-    LTEXT           "Creates a virtual encrypted disk within a file. Recommended for inexperienced users.",IDT_FILE_CONTAINER,16,20,205,16
-    LTEXT           "More information about system encryption",IDC_MORE_INFO_ON_SYS_ENCRYPTION,16,136,190,10,SS_NOTIFY
     CONTROL         "Encrypt the system partition or entire system drive",IDC_SYS_DEVICE,
                     "Button",BS_AUTORADIOBUTTON,0,87,217,10
+    LTEXT           "More information about system encryption",IDC_MORE_INFO_ON_SYS_ENCRYPTION,16,136,190,10,SS_NOTIFY
+    LTEXT           "Creates a virtual encrypted disk within a file. Recommended for inexperienced users.",IDT_FILE_CONTAINER,16,20,205,16
     LTEXT           "Formats and encrypts a non-system partition, entire external or secondary drive, entire USB stick, etc.",IDT_NON_SYS_DEVICE,16,66,205,16
     LTEXT           "Encrypts the partition/drive where Windows is installed. Anyone who wants to gain access and use the system, read and write files, etc., will need to enter the correct password each time before Windows boots (starts).",IDT_SYS_DEVICE,16,100,205,33
-    LTEXT           "More information",IDC_MORE_INFO_ON_CONTAINERS,16,39,165,10,SS_NOTIFY
 END
 
 IDD_INFO_PAGE_DLG DIALOGEX 0, 0, 226, 152
@@ -236,8 +236,8 @@ FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     CONTROL         "Standard TrueCrypt volume",IDC_STD_VOL,"Button",BS_AUTORADIOBUTTON,0,7,212,10
     CONTROL         "Hi&dden TrueCrypt volume ",IDC_HIDDEN_VOL,"Button",BS_AUTORADIOBUTTON,0,53,212,10
-    LTEXT           "",IDC_BOX_HELP_NORMAL_VOL,16,20,205,25
     LTEXT           "More information about hidden volumes",IDC_HIDDEN_VOL_HELP,16,125,205,10,SS_NOTIFY
+    LTEXT           "",IDC_BOX_HELP_NORMAL_VOL,16,20,205,25
     LTEXT           "",IDC_BOX_HELP,16,66,205,57
 END
 
@@ -245,57 +245,57 @@ IDD_SYSENC_SPAN_PAGE_DLG DIALOGEX 0, 0, 226, 152
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    CONTROL         "Encrypt the whole drive",IDC_WHOLE_SYS_DRIVE,"Button",BS_AUTORADIOBUTTON,0,53,212,10
     CONTROL         "Encrypt the Windows system partition",IDC_SYS_PARTITION,
                     "Button",BS_AUTORADIOBUTTON,0,7,212,10
-    LTEXT           "",IDT_WHOLE_SYS_DRIVE,16,66,205,79
+    CONTROL         "Encrypt the whole drive",IDC_WHOLE_SYS_DRIVE,"Button",BS_AUTORADIOBUTTON,0,53,212,10
     LTEXT           "Select this option to encrypt the partition where your Windows is installed and from which it boots.",IDT_SYS_PARTITION,16,20,205,32
+    LTEXT           "",IDT_WHOLE_SYS_DRIVE,16,66,205,79
 END
 
 IDD_SYSENC_RESCUE_DISK_CREATION_DLG DIALOGEX 0, 0, 226, 152
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    LTEXT           "",IDT_RESCUE_DISK_INFO,0,1,225,129
     EDITTEXT        IDC_RESCUE_DISK_ISO_PATH,0,135,163,13,ES_AUTOHSCROLL
     PUSHBUTTON      "Bro&wse...",IDC_BROWSE,166,134,59,14
+    LTEXT           "",IDT_RESCUE_DISK_INFO,0,1,225,129
 END
 
 IDD_SYSENC_COLLECTING_RANDOM_DATA_DLG DIALOGEX 0, 0, 226, 152
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    LTEXT           "IMPORTANT: Move your mouse as randomly as possible within this window. The longer you move it, the better. This significantly increases the cryptographic strength of the encryption keys. Then click Next to continue.",IDT_COLLECTING_RANDOM_DATA_NOTE,1,112,224,40
     CONTROL         "Display pool content",IDC_DISPLAY_POOL_CONTENTS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,1,98,122,10
-    GROUPBOX        "Current pool content (partial)",IDT_PARTIAL_POOL_CONTENTS,0,5,222,88
     CONTROL         "",IDC_SYS_POOL_CONTENTS,"Static",SS_LEFTNOWORDWRAP | WS_GROUP,8,14,205,72,WS_EX_TRANSPARENT
+    LTEXT           "IMPORTANT: Move your mouse as randomly as possible within this window. The longer you move it, the better. This significantly increases the cryptographic strength of the encryption keys. Then click Next to continue.",IDT_COLLECTING_RANDOM_DATA_NOTE,1,112,224,40
+    GROUPBOX        "Current pool content (partial)",IDT_PARTIAL_POOL_CONTENTS,0,5,222,88
 END
 
 IDD_SYSENC_MULTI_BOOT_MODE_PAGE_DLG DIALOGEX 0, 0, 226, 152
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    CONTROL         "Multi-boot",IDC_MULTI_BOOT,"Button",BS_AUTORADIOBUTTON,0,53,217,10
     CONTROL         "Single-boot",IDC_SINGLE_BOOT,"Button",BS_AUTORADIOBUTTON,0,7,212,10
-    LTEXT           "Select this option if there are two or more operating systems installed on this computer.\n\nFor example:\n- Windows XP and Windows XP\n- Windows XP and Windows Vista\n- Windows and Mac OS X\n- Windows and Linux\n- Windows, Linux and Mac OS X",IDT_MULTI_BOOT,16,66,205,72
+    CONTROL         "Multi-boot",IDC_MULTI_BOOT,"Button",BS_AUTORADIOBUTTON,0,53,217,10
     LTEXT           "Select this option if there is only one operating system installed on this computer (even if it has multiple users).",IDT_SINGLE_BOOT,16,20,205,32
+    LTEXT           "Select this option if there are two or more operating systems installed on this computer.\n\nFor example:\n- Windows XP and Windows XP\n- Windows XP and Windows Vista\n- Windows and Mac OS X\n- Windows and Linux\n- Windows, Linux and Mac OS X",IDT_MULTI_BOOT,16,66,205,72
 END
 
 IDD_SYSENC_RESCUE_DISK_BURN_PAGE_DLG DIALOGEX 0, 0, 226, 152
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    LTEXT           "",IDT_RESCUE_DISK_BURN_INFO,0,4,225,128
     LTEXT           "Download CD/DVD recording software",IDC_DOWNLOAD_CD_BURN_SOFTWARE,0,136,217,10,SS_NOTIFY
+    LTEXT           "",IDT_RESCUE_DISK_BURN_INFO,0,4,225,128
 END
 
 IDD_SYSENC_WIPE_MODE_PAGE_DLG DIALOGEX 0, 0, 226, 152
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    LTEXT           "",IDT_WIPE_MODE_INFO,0,32,219,114
     COMBOBOX        IDC_WIPE_MODE,61,10,127,90,CBS_DROPDOWNLIST | WS_TABSTOP
     RTEXT           "Wipe mode:",IDT_WIPE_MODE,0,12,59,8,0,WS_EX_RIGHT
+    LTEXT           "",IDT_WIPE_MODE_INFO,0,32,219,114
 END
 
 IDD_SYSENC_ENCRYPTION_PAGE_DLG DIALOGEX 0, 0, 226, 152
@@ -304,40 +304,40 @@ FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     COMBOBOX        IDC_WIPE_MODE,67,13,125,90,CBS_DROPDOWNLIST | WS_TABSTOP
     PUSHBUTTON      "&Pause",IDC_PAUSE,169,40,50,14
-    LTEXT           "",IDC_BOX_HELP,1,77,224,64
-    GROUPBOX        "Options",IDT_FORMAT_OPTIONS,0,3,225,29
-    CONTROL         "",IDC_PROGRESS_BAR,"msctls_progress32",WS_BORDER | 0x1,6,41,158,12
-    RTEXT           "",IDC_TIMEREMAIN,177,58,42,11,SS_CENTERIMAGE,WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
-    RTEXT           "",IDC_WRITESPEED,103,58,46,11,SS_CENTERIMAGE,WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
+    LTEXT           "More information",IDC_MORE_INFO_SYS_ENCRYPTION,1,141,202,10,SS_NOTIFY
     LTEXT           "",IDC_BYTESWRITTEN,29,58,39,11,SS_CENTERIMAGE,WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
+    RTEXT           "",IDC_WRITESPEED,103,58,46,11,SS_CENTERIMAGE,WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
+    RTEXT           "",IDC_TIMEREMAIN,177,58,42,11,SS_CENTERIMAGE,WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
+    RTEXT           "Wipe mode:",IDT_WIPE_MODE,6,15,59,8,0,WS_EX_RIGHT
+    CONTROL         "",IDC_PROGRESS_BAR,"msctls_progress32",WS_BORDER | 0x1,6,41,158,12
     RTEXT           "Done",IDT_DONE,5,59,22,8
     RTEXT           "Status",IDT_STATUS,72,59,29,8
     RTEXT           "Left",IDT_LEFT,151,59,24,8
+    LTEXT           "",IDC_BOX_HELP,1,77,224,64
+    GROUPBOX        "Options",IDT_FORMAT_OPTIONS,0,3,225,29
     GROUPBOX        "",IDC_STATIC,0,32,225,41
-    RTEXT           "Wipe mode:",IDT_WIPE_MODE,6,15,59,8,0,WS_EX_RIGHT
-    LTEXT           "More information",IDC_MORE_INFO_SYS_ENCRYPTION,1,141,202,10,SS_NOTIFY
 END
 
 IDD_SYSENC_KEYS_GEN_PAGE_DLG DIALOGEX 0, 0, 226, 152
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    RTEXT           "Header Key: ",IDT_HEADER_KEY,2,72,54,8
-    CONTROL         "",IDC_HEADER_KEY,"Static",SS_LEFTNOWORDWRAP | WS_GROUP,57,71,163,8,WS_EX_TRANSPARENT
-    RTEXT           "Master Key: ",IDT_MASTER_KEY,2,80,54,8
-    LTEXT           "",IDC_DISK_KEY,57,79,163,8,0,WS_EX_TRANSPARENT
-    LTEXT           "The keys, salt, and other data have been successfully generated. If you want to generate new keys, click Back and then Next. Otherwise, click Next to continue.",IDT_SYSENC_KEYS_GEN_INFO,1,23,224,41
-    GROUPBOX        "",-1,0,65,225,26
     CONTROL         "Display generated keys (their portions)",IDC_DISPLAY_KEYS,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,1,94,216,10
+    CONTROL         "",IDC_HEADER_KEY,"Static",SS_LEFTNOWORDWRAP | WS_GROUP,57,71,163,8,WS_EX_TRANSPARENT
+    LTEXT           "",IDC_DISK_KEY,57,79,163,8,0,WS_EX_TRANSPARENT
+    LTEXT           "The keys, salt, and other data have been successfully generated. If you want to generate new keys, click Back and then Next. Otherwise, click Next to continue.",IDT_SYSENC_KEYS_GEN_INFO,1,23,224,41
+    RTEXT           "Header Key: ",IDT_HEADER_KEY,2,72,54,8
+    RTEXT           "Master Key: ",IDT_MASTER_KEY,2,80,54,8
+    GROUPBOX        "",-1,0,65,225,26
 END
 
 IDD_UNIVERSAL_DUAL_CHOICE_PAGE_DLG DIALOGEX 0, 0, 226, 152
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    CONTROL         "",IDC_CHOICE2,"Button",BS_AUTORADIOBUTTON,0,17,217,10
     CONTROL         "",IDC_CHOICE1,"Button",BS_AUTORADIOBUTTON,0,7,212,10
+    CONTROL         "",IDC_CHOICE2,"Button",BS_AUTORADIOBUTTON,0,17,217,10
     LTEXT           "",IDC_BOX_HELP,1,34,220,112
 END
 

@@ -15,6 +15,10 @@
 #include "Common/Endian.h"
 #include "Crypto.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Macros
 
 #ifndef LITTLE_ENDIAN
@@ -64,5 +68,9 @@ typedef union
 
 void EncryptBufferXTS (unsigned __int8 *buffer, TC_LARGEST_COMPILER_UINT length, const UINT64_STRUCT *startDataUnitNo, unsigned int startCipherBlockNo, unsigned __int8 *ks, unsigned __int8 *ks2, int cipher);
 void DecryptBufferXTS (unsigned __int8 *buffer, TC_LARGEST_COMPILER_UINT length, const UINT64_STRUCT *startDataUnitNo, unsigned int startCipherBlockNo, unsigned __int8 *ks, unsigned __int8 *ks2, int cipher);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif	// #ifndef XTS_H

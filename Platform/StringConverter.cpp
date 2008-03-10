@@ -25,7 +25,14 @@ namespace TrueCrypt
 		return s.str();
 	}
 
-	wstring StringConverter::FromNumber (unsigned int number)
+	wstring StringConverter::FromNumber (int32 number)
+	{
+		wstringstream s;
+		s << number;
+		return s.str();
+	}
+
+	wstring StringConverter::FromNumber (uint32 number)
 	{
 		wstringstream s;
 		s << number;
@@ -33,27 +40,6 @@ namespace TrueCrypt
 	}
 
 	wstring StringConverter::FromNumber (int64 number)
-	{
-		wstringstream s;
-		s << number;
-		return s.str();
-	}
-
-	wstring StringConverter::FromNumber (int number)
-	{
-		wstringstream s;
-		s << number;
-		return s.str();
-	}
-	
-	wstring StringConverter::FromNumber (long number)
-	{
-		wstringstream s;
-		s << number;
-		return s.str();
-	}
-
-	wstring StringConverter::FromNumber (unsigned long number)
 	{
 		wstringstream s;
 		s << number;

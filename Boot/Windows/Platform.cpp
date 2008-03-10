@@ -139,22 +139,6 @@ bool TestInt64 ()
 }
 
 
-void Jump (uint16 jumpSegment, uint16 jumpOffset, byte dlRegister)
-{
-	uint32 addr = (uint32 (jumpSegment) << 16) | jumpOffset;
-	__asm
-	{
-		mov dl, dlRegister
-		mov ax, jumpSegment
-		mov ds, ax
-		mov es, ax
-		mov ss, ax
-		mov sp, 0xffff
-		jmp cs:addr
-	}
-}
-
-
 void CopyMemory (byte *source, uint16 destSegment, uint16 destOffset, uint16 blockSize)
 {
 	__asm
@@ -187,6 +171,17 @@ void CopyMemory (uint16 sourceSegment, uint16 sourceOffset, byte *destination, u
 		rep movsb
 		pop es
 		pop ds
+	}
+}
+
+
+void EraseMemory (void *memory, int size)
+{
+	byte *m = (byte *) memory;
+	
+	while (size--)
+	{
+		*m++ = 0;
 	}
 }
 

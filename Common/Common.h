@@ -44,6 +44,7 @@ typedef struct
 	BOOL Removable;
 	BOOL ProtectHiddenVolume;
 	BOOL PreserveTimestamp;
+	BOOL PartitionInInactiveSysEncScope;	/* If TRUE, we are to attempt to mount a partition located on an encrypted system drive without pre-boot authentication. */
 	Password ProtectedHidVolPassword;	/* Password of hidden volume to protect against overwriting */
 } MountOptions;
 

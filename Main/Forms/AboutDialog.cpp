@@ -50,7 +50,7 @@ namespace TrueCrypt
 			L"Portions of this software:\n"
 			L"Copyright \xA9 2003-2008 TrueCrypt Foundation. All Rights Reserved.\n"
 			L"Copyright \xA9 1998-2000 Paul Le Roux. All Rights Reserved.\n"
-			L"Copyright \xA9 1999-2006 Brian Gladman. All Rights Reserved.\n"
+			L"Copyright \xA9 1998-2008 Brian Gladman. All Rights Reserved.\n"
 			L"Copyright \xA9 1995-1997 Eric Young. All Rights Reserved.\n"
 			L"Copyright \xA9 2001 Markus Friedl. All Rights Reserved.\n\n"
 

@@ -8,9 +8,9 @@
 
 #include "Crypto.h"
 #include "Platform.h"
-#include "Bios.h"
 #include "BootConfig.h"
 #include "BootDebug.h"
+#include "BootDefs.h"
 #include "BootDiskIo.h"
 #include "BootEncryptedIo.h"
 
@@ -18,24 +18,30 @@
 BiosResult ReadEncryptedSectors (uint16 destSegment, uint16 destOffset, byte drive, uint64 sector, uint16 sectorCount)
 {
 	BiosResult result;
-	byte sectorBuf[TC_LB_SIZE];
 
-	while (sectorCount-- > 0)
+	result = ReadSectors (destSegment, destOffset, drive, sector, sectorCount);
+
+	if (result != BiosResultSuccess)
+		return result;
+
+	if (drive == EncryptedVirtualPartition.Drive)
 	{
-		result = ReadSectors (sectorBuf, drive, sector, 1);
-
-		if (result != BiosResultSuccess)
-			return result;
-
-		if (drive == EncryptedVirtualPartition.Drive && sector >= EncryptedVirtualPartition.StartSector && sector <= EncryptedVirtualPartition.EndSector)
+		while (sectorCount-- > 0)
 		{
-			DecryptDataUnits (sectorBuf, &sector, 1, BootCryptoInfo);
+			if (sector >= EncryptedVirtualPartition.StartSector && sector <= EncryptedVirtualPartition.EndSector)
+			{
+				AcquireSectorBuffer();
+				CopyMemory (destSegment, destOffset, SectorBuffer, TC_LB_SIZE);
+
+				DecryptDataUnits (SectorBuffer, &sector, 1, BootCryptoInfo);
+
+				CopyMemory (SectorBuffer, destSegment, destOffset, TC_LB_SIZE);
+				ReleaseSectorBuffer();
+			}
+
+			++sector;
+			destOffset += TC_LB_SIZE;
 		}
-
-		CopyMemory (sectorBuf, destSegment, destOffset, sizeof (sectorBuf));
-
-		++sector;
-		destOffset += sizeof (sectorBuf);
 	}
 
 	return result;
@@ -45,25 +51,26 @@ BiosResult ReadEncryptedSectors (uint16 destSegment, uint16 destOffset, byte dri
 BiosResult WriteEncryptedSectors (uint16 sourceSegment, uint16 sourceOffset, byte drive, uint64 sector, uint16 sectorCount)
 {
 	BiosResult result;
-	byte sectorBuf[TC_LB_SIZE];
+	AcquireSectorBuffer();
 
 	while (sectorCount-- > 0)
 	{
-		CopyMemory (sourceSegment, sourceOffset, sectorBuf, sizeof (sectorBuf));
+		CopyMemory (sourceSegment, sourceOffset, SectorBuffer, TC_LB_SIZE);
 
 		if (drive == EncryptedVirtualPartition.Drive && sector >= EncryptedVirtualPartition.StartSector && sector <= EncryptedVirtualPartition.EndSector)
 		{
-			EncryptDataUnits (sectorBuf, &sector, 1, BootCryptoInfo);
+			EncryptDataUnits (SectorBuffer, &sector, 1, BootCryptoInfo);
 		}
 
-		result = WriteSectors (sectorBuf, drive, sector, 1);
+		result = WriteSectors (SectorBuffer, drive, sector, 1);
 
 		if (result != BiosResultSuccess)
-			return result;
+			break;
 
 		++sector;
-		sourceOffset += sizeof (sectorBuf);
+		sourceOffset += TC_LB_SIZE;
 	}
 
+	ReleaseSectorBuffer();
 	return result;
 }

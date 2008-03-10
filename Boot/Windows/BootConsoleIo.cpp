@@ -28,7 +28,7 @@ void EnableScreenOutput ()
 
 void PrintChar (char c)
 {
-#ifdef TC_TRACING_ENABLED
+#ifdef TC_BOOT_TRACING_ENABLED
 	WriteDebugPort (c);
 #endif
 

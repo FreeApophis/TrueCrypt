@@ -92,10 +92,10 @@ namespace TrueCrypt
 
 	void CipherAES::SetCipherKey (const byte *key)
 	{
-		if (aes_encrypt_key (key, (int) GetKeySize(), (aes_encrypt_ctx *) ScheduledKey.Ptr()) != EXIT_SUCCESS)
+		if (aes_encrypt_key256 (key, (aes_encrypt_ctx *) ScheduledKey.Ptr()) != EXIT_SUCCESS)
 			throw CipherInitError (SRC_POS);
 
-		if (aes_decrypt_key (key, (int) GetKeySize(), (aes_decrypt_ctx *) (ScheduledKey.Ptr() + sizeof (aes_encrypt_ctx))) != EXIT_SUCCESS)
+		if (aes_decrypt_key256 (key, (aes_decrypt_ctx *) (ScheduledKey.Ptr() + sizeof (aes_encrypt_ctx))) != EXIT_SUCCESS)
 			throw CipherInitError (SRC_POS);
 	}
 

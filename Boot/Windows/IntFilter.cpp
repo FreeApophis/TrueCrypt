@@ -16,8 +16,6 @@
 #include "BootEncryptedIo.h"
 #include "IntFilter.h"
 
-static byte InterruptStack[4096];
-
 static uint32 OriginalInt13Handler;
 static uint32 OriginalInt15Handler;
 
@@ -26,6 +24,8 @@ static Registers IntRegisters;
 
 bool Int13Filter ()
 {
+	CheckStack();
+
 	Registers regs;
 	memcpy (&regs, &IntRegisters, sizeof (regs));
 	__asm sti
@@ -43,11 +43,11 @@ bool Int13Filter ()
 	Print (" EN:"); Print (ReEntryCount);
 	Print (" SS:"); PrintHex (regs.SS);
 
-	PrintChar (' '); PrintHex ((uint16) InterruptStack);
 	uint16 spdbg;
 	__asm mov spdbg, sp
-	PrintChar ('<'); PrintHex ((uint16) spdbg);
-	PrintChar ('>'); PrintHex ((uint16) InterruptStack + sizeof (InterruptStack));
+	PrintChar (' ');
+	PrintHex (spdbg);
+	PrintChar ('<'); PrintHex (TC_BOOT_LOADER_STACK_TOP);
 
 #endif
 
@@ -300,6 +300,8 @@ mapOverflow:
 
 bool Int15Filter ()
 {
+	CheckStack();
+
 #ifdef TC_TRACE_INT15
 	DisableScreenOutput();
 
@@ -308,14 +310,13 @@ bool Int15Filter ()
 
 	Print (" SS:"); PrintHex (IntRegisters.SS);
 
-	PrintChar (' '); PrintHex ((uint16) InterruptStack);
 	uint16 spdbg;
 	__asm mov spdbg, sp
-		PrintChar ('<'); PrintHex ((uint16) spdbg);
-	PrintChar ('>'); PrintHex ((uint16) InterruptStack + sizeof (InterruptStack));
-	PrintEndl();
+	PrintChar (' ');
+	PrintHex (spdbg);
+	PrintChar ('<'); PrintHex (TC_BOOT_LOADER_STACK_TOP);
 
-	Print ("EAX:"); PrintHex (IntRegisters.EAX);
+	Print (" EAX:"); PrintHex (IntRegisters.EAX);
 	Print (" EBX:"); PrintHex (IntRegisters.EBX);
 	Print (" ECX:"); PrintHex (IntRegisters.ECX);
 	Print (" EDX:"); PrintHex (IntRegisters.EDX);
@@ -342,6 +343,35 @@ bool Int15Filter ()
 			IntRegisters.EBX = 0;
 
 		IntRegisters.ECX = sizeof (BiosMemoryMap[0]);
+	}
+
+	if (IntRegisters.EBX == 0 && !(BootSectorFlags & TC_BOOT_CFG_FLAG_WINDOWS_VISTA_OR_LATER))
+	{
+		// Uninstall filter when the modified map has been issued three times to prevent
+		// problems with hardware drivers on some notebooks running Windows XP.
+
+		static CompleteMapIssueCount = 0;
+		if (++CompleteMapIssueCount >= 3)
+		{
+			__asm
+			{
+				cli
+				push es
+
+				lea si, OriginalInt15Handler
+				xor ax, ax
+				mov es, ax
+				mov di, 0x15 * 4
+
+				mov ax, [si]
+				mov es:[di], ax
+				mov ax, [si + 2]
+				mov es:[di + 2], ax
+
+				pop es
+				sti
+			}
+		}
 	}
 
 #ifdef TC_TRACE_INT15
@@ -401,7 +431,7 @@ void IntFilterEntry ()
 		mov cs:IntRegisters.ES, es
 		mov cs:IntRegisters.SS, ss
 
-		// Compiler assumes SS == DS - use private stack if this condition is not met
+		// Compiler assumes SS == DS - use our stack if this condition is not met
 		mov ax, ss
 		mov bx, cs
 		cmp ax, bx
@@ -411,8 +441,7 @@ void IntFilterEntry ()
 		mov cs:OrigStackSegment, ss
 		mov ax, cs
 		mov ss, ax
-		lea ax, InterruptStack + SIZE InterruptStack
-		mov sp, ax
+		mov sp, TC_BOOT_LOADER_STACK_TOP
 
 	stack_ok:
 		// DS = CS
@@ -441,9 +470,9 @@ void IntFilterEntry ()
 		pop es
 		pop ds
 
-		// Restore original SS:SP if the private stack is empty
+		// Restore original SS:SP if our stack is empty
 		cli
-		lea bx, InterruptStack + SIZE InterruptStack
+		mov bx, TC_BOOT_LOADER_STACK_TOP
 		cmp bx, sp
 		jnz stack_in_use
 

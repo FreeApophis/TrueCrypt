@@ -270,7 +270,7 @@ namespace TrueCrypt
 		// shared_ptr, make_shared, StringConverter, foreach
 		list <shared_ptr <uint64> > numList;
 		
-		numList.push_front (make_shared <uint64> (StringConverter::ToUInt64 (StringConverter::FromNumber (0xFFFFffffFFFFfffeULL))));
+		numList.push_front (make_shared <uint64> (StringConverter::ToUInt64 (StringConverter::FromNumber ((uint64) 0xFFFFffffFFFFfffeULL))));
 		numList.push_front (make_shared <uint64> (StringConverter::ToUInt32 (StringConverter::GetTrailingNumber ("str2"))));
 		numList.push_front (make_shared <uint64> (3));
 

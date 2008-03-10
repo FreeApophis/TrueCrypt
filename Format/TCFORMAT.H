@@ -26,6 +26,7 @@ void ComboSelChangeEA ( HWND hwndDlg );
 void VerifySizeAndUpdate ( HWND hwndDlg , BOOL bUpdate );
 void __cdecl sysEncDriveAnalysisThread (void *hwndDlgArg);
 void __cdecl formatThreadFunction ( void *hwndDlg );
+BOOL RegisterBootDriver (void);
 void LoadPage ( HWND hwndDlg , int nPageNo );
 int PrintFreeSpace ( HWND hwndTextBox , char *lpszDrive , PLARGE_INTEGER lDiskFree );
 void DisplaySizingErrorText ( HWND hwndTextBox );

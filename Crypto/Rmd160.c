@@ -398,6 +398,8 @@ RMD160Transform(u_int32_t state[5], const u_char block[64])
  distribution packages.
 */
 
+#pragma optimize ("tl", on)
+
 typedef unsigned __int32 uint32;
 typedef unsigned __int8 byte;
 

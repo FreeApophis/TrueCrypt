@@ -28,47 +28,28 @@ extern "C"
 
 #elif !defined(BYTE_ORDER)
 
-#	ifdef LINUX_DRIVER
-#		include <asm/byteorder.h>
-
-#		define LITTLE_ENDIAN 1234
-#		define BIG_ENDIAN 4321
-
-#		ifdef __LITTLE_ENDIAN
-#			define BYTE_ORDER LITTLE_ENDIAN
-#		endif
-
-#		ifdef __BIG_ENDIAN
-#			define BYTE_ORDER BIG_ENDIAN
-#		endif
-
-#		ifndef BYTE_ORDER
-#			error Byte order cannot be determined - kernel source not prepared for building of modules
-#		endif
+#	ifdef TC_MACOSX
+#		include <machine/endian.h>
+#	elif defined (TC_BSD)
+#		include <sys/endian.h>
 #	else
-#		ifdef TC_MACOSX
-#			include <machine/endian.h>
-#		elif defined (TC_BSD)
-#			include <sys/endian.h>
-#		else
-#			include <endian.h>
+#		include <endian.h>
+#	endif
+
+#	ifndef BYTE_ORDER
+#		ifndef __BYTE_ORDER
+#			error Byte order cannot be determined (BYTE_ORDER undefined)
 #		endif
 
-#		ifndef BYTE_ORDER
-#			ifndef __BYTE_ORDER
-#				error Byte order cannot be determined (BYTE_ORDER undefined)
-#			endif
+#		define BYTE_ORDER __BYTE_ORDER
+#	endif
 
-#			define BYTE_ORDER __BYTE_ORDER
-#		endif
+#	ifndef LITTLE_ENDIAN
+#		define LITTLE_ENDIAN __LITTLE_ENDIAN
+#	endif
 
-#		ifndef LITTLE_ENDIAN
-#			define LITTLE_ENDIAN __LITTLE_ENDIAN
-#		endif
-
-#		ifndef BIG_ENDIAN
-#			define BIG_ENDIAN __BIG_ENDIAN
-#		endif
+#	ifndef BIG_ENDIAN
+#		define BIG_ENDIAN __BIG_ENDIAN
 #	endif
 
 #endif // !BYTE_ORDER

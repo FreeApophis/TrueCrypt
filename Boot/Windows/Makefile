@@ -42,9 +42,15 @@ PROJDIR = ..
 !else
 
 OBJDIR = Release
+
+!ifdef SINGLE_CIPHER
+OBJDIR = $(OBJDIR)_$(SINGLE_CIPHER)
+CPPFLAGS = $(CPPFLAGS) /D TC_WINDOWS_BOOT_SINGLE_CIPHER_MODE /D TC_WINDOWS_BOOT_$(SINGLE_CIPHER)
+!endif
+
 OUTDIR = $(OBJDIR)
 TARGETEXT = com
-TARGETS = $(OUTDIR)\BootDefs.i $(OUTDIR)\BootSector.bin
+TARGETS = $(OUTDIR)\BootDefs.i $(OUTDIR)\BootSector.bin $(OUTDIR)\Decompressor.com
 CPPFLAGS = $(CPPFLAGS) /AT /Zl /f- /G3 /Oe /Os /Ob1 /OV0 /Gs /Gf /Gy /D NDEBUG
 LFLAGS = $(LFLAGS) /NOD /NOE /TINY
 OBJS = $(OUTDIR)\BootCrt.obj
@@ -52,6 +58,11 @@ LIBS = slibce
 
 !endif
 
+!if 1
+SRCDIR = ..
+!else
+SRCDIR = $(MAKEDIR)
+!endif
 
 TARGETS = $(TARGETS) $(OUTDIR)\$(PROJ).$(TARGETEXT)
 
@@ -72,10 +83,22 @@ OBJS = $(OBJS) $(OUTDIR)\Pkcs5.obj
 OBJS = $(OBJS) $(OUTDIR)\Volumes.obj
 OBJS = $(OBJS) $(OUTDIR)\Xts.obj
 
-OBJS = $(OBJS) $(OUTDIR)\AesSmall.obj
-OBJS = $(OBJS) $(OUTDIR)\Serpent.obj
-OBJS = $(OBJS) $(OUTDIR)\Twofish.obj
 OBJS = $(OBJS) $(OUTDIR)\Rmd160.obj
+
+!if !DEFINED (SINGLE_CIPHER)
+OBJS = $(OBJS) $(OUTDIR)\AesSmall.obj
+!else if "$(SINGLE_CIPHER)" == "AES"
+OBJS = $(OBJS) $(OUTDIR)\AesSmall_x86.obj
+OBJS = $(OBJS) $(OUTDIR)\Aestab.obj
+!endif
+
+!if !DEFINED (SINGLE_CIPHER) || "$(SINGLE_CIPHER)" == "SERPENT"
+OBJS = $(OBJS) $(OUTDIR)\Serpent.obj
+!endif
+
+!if !DEFINED (SINGLE_CIPHER) || "$(SINGLE_CIPHER)" == "TWOFISH"
+OBJS = $(OBJS) $(OUTDIR)\Twofish.obj
+!endif
 
 
 all: env $(TARGETS)
@@ -91,34 +114,47 @@ clean:
 
 .asm{$(OUTDIR)}.obj:
 	cd $(OBJDIR)
-	$(AS) $(AFLAGS) /c ..\$<
+	$(AS) $(AFLAGS) /c "$(SRCDIR)\$<"
+	cd ..
+
+{..\..\Crypto}.asm{$(OUTDIR)}.obj:
+	cd $(OBJDIR)
+	echo $(<F)
+	nasm.exe -Xvc -f obj -O3 "$(SRCDIR)\$<" -o "$(<B).obj" -l "$(<B).lst"
 	cd ..
 
 {..\..\Crypto}.c{$(OUTDIR)}.obj:
 	cd $(OBJDIR)
 	set PATH=.
-	$(CPP) $(CPPFLAGS) /c ..\$<
+	$(CPP) $(CPPFLAGS) /c "$(SRCDIR)\$<"
 	set PATH=$(ENVPATH)
 	cd ..
 	
 {..\..\Common}.c{$(OUTDIR)}.obj:
 	cd $(OBJDIR)
 	set PATH=.
-	$(CPP) $(CPPFLAGS) /c ..\$<
+	$(CPP) $(CPPFLAGS) /c "$(SRCDIR)\$<"
 	set PATH=$(ENVPATH)
 	cd ..
-		
+
+.c{$(OUTDIR)}.obj:
+	cd $(OBJDIR)
+	set PATH=.
+	$(CPP) $(CPPFLAGS) /c "$(SRCDIR)\$<"
+	set PATH=$(ENVPATH)
+	cd ..
+			
 .cpp{$(OUTDIR)}.obj:
 	cd $(OBJDIR)
 	set PATH=.
-	$(CPP) $(CPPFLAGS) /c ..\$<
+	$(CPP) $(CPPFLAGS) /c "$(SRCDIR)\$<"
 	set PATH=$(ENVPATH)
 	cd ..
 
 $(OUTDIR)\BootDefs.i: BootDefs.h
 	cd $(OBJDIR)
 	set PATH=.
-	$(CPP) /nologo /D TC_ASM_PREPROCESS /P /EP ..\BootDefs.h
+	$(CPP) $(CPPFLAGS) /D TC_ASM_PREPROCESS /P /EP "$(SRCDIR)\BootDefs.h"
 	set PATH=$(ENVPATH)
 	cd ..
 	
@@ -128,13 +164,18 @@ $(OUTDIR)\BootSector.bin: $(OUTDIR)\BootSector.obj
 	-dd.exe conv=notrunc bs=512 conv=notrunc if=BootSector.bin of=$(PROJ).flp 2>NUL:
 	cd ..
 
+$(OUTDIR)\Decompressor.com: $(OUTDIR)\BootCrt.obj $(OUTDIR)\Decompressor.obj
+	cd $(OBJDIR)
+	$(LD) $(LFLAGS) BootCrt.obj Decompressor.obj,Decompressor.com,Decompressor.map,$(MSVC16_ROOT)\lib\+slibce,,
+	-dd.exe conv=notrunc,sync bs=512 seek=1 if=Decompressor.com of=$(PROJ).flp 2>NUL:
+	cd ..
 
 $(OUTDIR)\$(PROJ).$(TARGETEXT): $(OBJS)
 	@echo Linking...
 	cd $(OBJDIR)
 	
 	echo >NUL: @<<$(PROJ).crf2
-		
+
 $(PROJ).$(TARGETEXT)
 $(PROJ).map
 $(MSVC16_ROOT)\lib\+
@@ -149,6 +190,7 @@ $(LIBS)
 	del $(PROJ).crf $(PROJ).crf2
 
 !ifndef DEBUG
-	-dd.exe conv=notrunc,sync bs=512 seek=1 if=$(PROJ).$(TARGETEXT) of=$(PROJ).flp 2>NUL:
+	gzip.exe -c -n --best $(PROJ).$(TARGETEXT) >$(PROJ).$(TARGETEXT).gz
+	-dd.exe conv=notrunc,sync bs=512 seek=5 if=$(PROJ).$(TARGETEXT).gz of=$(PROJ).flp 2>NUL:
 !endif
 	cd ..

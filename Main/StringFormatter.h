@@ -26,11 +26,9 @@ namespace TrueCrypt
 		StringFormatterArg (const string &str) :	Empty (false), Referenced (false), StringArg (StringConverter::ToWide (str)) { }
 		StringFormatterArg (const wstring &str) :	Empty (false), Referenced (false), StringArg (str) { }
 		StringFormatterArg (const wxString &str) :	Empty (false), Referenced (false), StringArg (str) { }
-		StringFormatterArg (int number) :			Empty (false), Referenced (false), StringArg (StringConverter::FromNumber (number)) { }
+		StringFormatterArg (int32 number) :			Empty (false), Referenced (false), StringArg (StringConverter::FromNumber (number)) { }
+		StringFormatterArg (uint32 number) :		Empty (false), Referenced (false), StringArg (StringConverter::FromNumber (number)) { }
 		StringFormatterArg (int64 number) :			Empty (false), Referenced (false), StringArg (StringConverter::FromNumber (number)) { }
-		StringFormatterArg (long number) :			Empty (false), Referenced (false), StringArg (StringConverter::FromNumber (number)) { }
-		StringFormatterArg (unsigned int number) :	Empty (false), Referenced (false), StringArg (StringConverter::FromNumber (number)) { }
-		StringFormatterArg (unsigned long number) :	Empty (false), Referenced (false), StringArg (StringConverter::FromNumber (number)) { }
 		StringFormatterArg (uint64 number) :		Empty (false), Referenced (false), StringArg (StringConverter::FromNumber (number)) { }
 
 		operator wxString () { Referenced = true; return StringArg; }

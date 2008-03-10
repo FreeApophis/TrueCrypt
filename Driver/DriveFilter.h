@@ -39,6 +39,7 @@ NTSTATUS AbortBootEncryptionSetup ();
 NTSTATUS DriveFilterAddDevice (PDRIVER_OBJECT driverObject, PDEVICE_OBJECT pdo);
 NTSTATUS DriveFilterDispatchIrp (PDEVICE_OBJECT DeviceObject, PIRP Irp);
 void GetBootDriveVolumeProperties (PIRP irp, PIO_STACK_LOCATION irpSp);
+void GetBootEncryptionAlgorithmName (PIRP irp, PIO_STACK_LOCATION irpSp);
 void GetBootEncryptionStatus (PIRP irp, PIO_STACK_LOCATION irpSp);
 void GetBootLoaderVersion (PIRP irp, PIO_STACK_LOCATION irpSp);
 NTSTATUS GetSetupResult ();
@@ -48,9 +49,10 @@ NTSTATUS LoadBootArguments ();
 static NTSTATUS SaveDriveVolumeHeader (DriveFilterExtension *Extension);
 NTSTATUS StartBootEncryptionSetup (PDEVICE_OBJECT DeviceObject, PIRP irp, PIO_STACK_LOCATION irpSp);
 void ReopenBootVolumeHeader (PIRP irp, PIO_STACK_LOCATION irpSp);
-static BOOL UserCanAccessDriveDevice ();
+void StartHibernationDriverFilter ();
 
 #define TC_ENCRYPTION_SETUP_IO_BLOCK_SIZE (1280 * 1024)
 #define TC_ENCRYPTION_SETUP_HEADER_UPDATE_THRESHOLD (64 * 1024 * 1024)
+#define TC_HIBERNATION_WRITE_BUFFER_SIZE (128 * 1024)
 
 #endif // TC_HEADER_DRIVER_DRIVE_FILTER

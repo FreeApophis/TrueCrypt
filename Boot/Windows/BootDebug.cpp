@@ -9,9 +9,12 @@
 #include "Platform.h"
 #include "Bios.h"
 #include "BootConsoleIo.h"
+#include "BootDefs.h"
 #include "BootDiskIo.h"
 #include "BootDebug.h"
 
+
+#ifdef TC_BOOT_TRACING_ENABLED
 
 void InitDebugPort ()
 {
@@ -38,25 +41,15 @@ void WriteDebugPort (byte dataByte)
 	}
 }
 
+#endif // TC_BOOT_TRACING_ENABLED
+
+
+#ifdef TC_BOOT_DEBUG_ENABLED
 
 extern "C" void PrintDebug (uint32 debugVal)
 {
 	Print (debugVal);
 	PrintEndl();
-}
-
-
-void PrintAddress (void *addr)
-{
-	uint16 segment = uint16 (uint32 (addr) >> 16);
-	uint16 offset = uint16 (addr);
-
-	PrintHex (segment);
-	PrintChar (':');
-	PrintHex (offset);
-	Print (" (");
-	PrintHex (GetLinearAddress (segment, offset));
-	Print (")");
 }
 
 
@@ -139,3 +132,46 @@ void PrintHexDump (uint16 memSegment, uint16 memOffset, size_t size)
 {
 	PrintHexDump ((byte *) memOffset, size, &memSegment);
 }
+
+#endif // TC_BOOT_DEBUG_ENABLED
+
+
+#ifdef TC_BOOT_STACK_CHECKING_ENABLED
+
+extern "C" char end[];
+
+static void PrintStackInfo ()
+{
+	uint16 spReg;
+	__asm mov spReg, sp
+
+	Print ("Stack: "); Print (TC_BOOT_LOADER_STACK_TOP - spReg);
+	Print ("/"); Print (TC_BOOT_LOADER_STACK_TOP - (uint16) end);
+}
+
+
+void CheckStack ()
+{
+	uint16 spReg;
+	__asm mov spReg, sp
+
+	if (*(uint32 *) end != 0x12345678UL || spReg < (uint16) end)
+	{
+		__asm cli
+		__asm mov sp, TC_BOOT_LOADER_STACK_TOP
+
+		PrintError ("Stack overflow");
+		TC_THROW_FATAL_EXCEPTION;
+	}
+}
+
+
+void InitStackChecker ()
+{
+	*(uint32 *) end = 0x12345678UL;
+
+	PrintStackInfo();
+	PrintEndl();
+}
+
+#endif // TC_BOOT_STACK_CHECKING_ENABLED

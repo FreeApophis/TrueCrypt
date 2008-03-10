@@ -3,8 +3,10 @@ TARGETTYPE=DRIVER_LIBRARY
 
 INCLUDES = ..
 
+NTTARGETFILE0 = "$(OBJ_PATH)\$(O)\Aes_$(TC_ARCH).obj"
+
 SOURCES = \
-	Aescrypt.c \
+	Aes_$(TC_ARCH).asm \
 	Aeskey.c \
 	Aestab.c \
 	Bf_ecb.c \

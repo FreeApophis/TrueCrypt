@@ -133,9 +133,14 @@ namespace TrueCrypt
 
 				if (verify)
 				{
-					if (password->Size() < VolumePassword::WarningSizeThreshold
-						&& !AskYesNo (LangString ["PASSWORD_LENGTH_WARNING"], false, true))
-						continue;
+					if (password->Size() < VolumePassword::WarningSizeThreshold)
+					{
+						SetTerminalEcho (true);
+						finally_do ({ TextUserInterface::SetTerminalEcho (false); });
+
+						if (!AskYesNo (LangString ["PASSWORD_LENGTH_WARNING"], false, true))
+							continue;
+					}
 				}
 			}
 
@@ -147,6 +152,30 @@ namespace TrueCrypt
 		}
 
 		return password;
+	}
+	
+	size_t TextUserInterface::AskSelection (size_t optionCount, size_t defaultOption) const
+	{
+		while (true)
+		{
+			wstring selectionStr = AskString (StringFormatter (_("Select [{0}]: "), (uint32) defaultOption));
+			size_t selection;
+
+			if (selectionStr.empty() && defaultOption != -1)
+				return defaultOption;
+
+			try
+			{
+				selection = StringConverter::ToUInt32 (selectionStr);
+			}
+			catch (...)
+			{
+				continue;
+			}
+
+			if (selection > 0 && selection <= optionCount)
+				return selection;
+		}
 	}
 
 	wstring TextUserInterface::AskString (const wxString &message) const
@@ -176,7 +205,7 @@ namespace TrueCrypt
 		return make_shared <VolumePath> (AskString (message.empty() ? wxString (_("Enter volume path: ")) : message));
 	}
 
-	void TextUserInterface::ChangePassword (shared_ptr <VolumePath> volumePath, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, shared_ptr <VolumePassword> newPassword, shared_ptr <KeyfileList> newKeyfiles) const
+	void TextUserInterface::ChangePassword (shared_ptr <VolumePath> volumePath, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, shared_ptr <VolumePassword> newPassword, shared_ptr <KeyfileList> newKeyfiles, shared_ptr <Hash> newHash) const
 	{
 		shared_ptr <Volume> volume;
 
@@ -259,11 +288,271 @@ namespace TrueCrypt
 				newKeyfiles = AskKeyfiles (_("Enter new keyfile"));
 		}
 
-		Core->ChangePassword (volume, newPassword, newKeyfiles);
+		Core->ChangePassword (volume, newPassword, newKeyfiles,
+			newHash ? Pkcs5Kdf::GetAlgorithm (*newHash) : shared_ptr <Pkcs5Kdf>());
 
 		ShowInfo ("PASSWORD_CHANGED");
 	}
-	
+
+	void TextUserInterface::CreateVolume (shared_ptr <VolumeCreationOptions> options, const FilesystemPath &randomSourcePath) const
+	{
+		// Volume type
+		if (options->Type == VolumeType::Unknown)
+		{
+			if (Preferences.NonInteractive)
+			{
+				options->Type = VolumeType::Normal;
+			}
+			else
+			{
+				ShowString (_("Volume type:\n 1) Normal\n 2) Hidden\n"));
+
+				switch (AskSelection (2, 1))
+				{
+				case 1:
+					options->Type = VolumeType::Normal;
+					break;
+
+				case 2:
+					options->Type = VolumeType::Hidden;
+					break;
+				}
+			}
+		}
+
+		if (options->Type == VolumeType::Hidden)
+		{
+			throw_err (LangString["FEATURE_CURRENTLY_UNSUPPORTED_ON_PLATFORM"]);
+		}
+
+		// Volume path
+		if (options->Path.IsEmpty())
+		{
+			if (Preferences.NonInteractive)
+				throw MissingArgument (SRC_POS);
+
+			do
+			{
+				ShowString (L"\n");
+				options->Path = VolumePath (*AskVolumePath());
+			} while (options->Path.IsEmpty());
+		}
+
+		// Volume size
+		if (options->Path.IsDevice())
+		{
+			if (options->Size != 0)
+				throw_err (_("Volume size cannot be changed for device-hosted volumes."));
+
+			options->Size = Core->GetDeviceSize (options->Path);
+		}
+		else
+		{
+			options->Quick = false;
+
+			while (options->Size == 0)
+			{
+				if (Preferences.NonInteractive)
+					throw MissingArgument (SRC_POS);
+
+				wstring sizeStr = AskString (_("\nEnter volume size (sizeK/size[M]/sizeG): "));
+
+				int multiplier = 1024 * 1024;
+
+				if (sizeStr.find (L"K") != string::npos)
+				{
+					multiplier = 1024;
+					sizeStr.resize (sizeStr.size() - 1);
+				}
+				else if (sizeStr.find (L"M") != string::npos)
+				{
+					sizeStr.resize (sizeStr.size() - 1);
+				}
+				else if (sizeStr.find (L"G") != string::npos)
+				{
+					multiplier = 1024 * 1024 * 1024;
+					sizeStr.resize (sizeStr.size() - 1);
+				}
+
+				try
+				{
+					options->Size = StringConverter::ToUInt64 (sizeStr);
+					options->Size *= multiplier;
+				}
+				catch (...)
+				{
+					continue;
+				}
+			}
+
+			if (options->Size < MIN_VOLUME_SIZE)
+				options->Size = MIN_VOLUME_SIZE;
+		}
+
+		// Encryption algorithm
+		if (!options->EA)
+		{
+			if (Preferences.NonInteractive)
+				throw MissingArgument (SRC_POS);
+
+			ShowInfo (wxString (L"\n") + LangString["ENCRYPTION_ALGORITHM_LV"] + L":");
+
+			vector < shared_ptr <EncryptionAlgorithm> > encryptionAlgorithms;
+			foreach (shared_ptr <EncryptionAlgorithm> ea, EncryptionAlgorithm::GetAvailableAlgorithms())
+			{
+				if (!ea->IsDeprecated())
+				{
+					ShowString (StringFormatter (L" {0}) {1}\n", (uint32) encryptionAlgorithms.size() + 1, ea->GetName()));
+					encryptionAlgorithms.push_back (ea);
+				}
+			}
+
+
+			options->EA = encryptionAlgorithms[AskSelection (encryptionAlgorithms.size(), 1) - 1];
+		}
+
+		// Hash algorithm
+		if (!options->VolumeHeaderKdf)
+		{
+			if (Preferences.NonInteractive)
+				throw MissingArgument (SRC_POS);
+
+			ShowInfo (_("\nHash algorithm:"));
+
+			vector < shared_ptr <Hash> > hashes;
+			foreach (shared_ptr <Hash> hash, Hash::GetAvailableAlgorithms())
+			{
+				if (!hash->IsDeprecated())
+				{
+					ShowString (StringFormatter (L" {0}) {1}\n", (uint32) hashes.size() + 1, hash->GetName()));
+					hashes.push_back (hash);
+				}
+			}
+
+			shared_ptr <Hash> selectedHash = hashes[AskSelection (hashes.size(), 1) - 1];
+			RandomNumberGenerator::SetHash (selectedHash);
+			options->VolumeHeaderKdf = Pkcs5Kdf::GetAlgorithm (*selectedHash);
+
+		}
+
+		// Filesystem
+		options->FilesystemClusterSize = 0;
+
+		if (options->Filesystem == VolumeCreationOptions::FilesystemType::Unknown)
+		{
+			if (Preferences.NonInteractive)
+			{
+				options->Filesystem = VolumeCreationOptions::FilesystemType::FAT;
+			}
+			else
+			{
+				ShowInfo (_("\nFilesystem:\n 1) FAT\n 2) None"));
+
+				switch (AskSelection (2, 1))
+				{
+				case 1:
+					options->Filesystem = VolumeCreationOptions::FilesystemType::FAT;
+					break;
+
+				case 2:
+					options->Filesystem = VolumeCreationOptions::FilesystemType::None;
+					break;
+				}
+			}
+		}
+
+		if (options->Filesystem == VolumeCreationOptions::FilesystemType::FAT
+			&& (options->Size < MIN_FAT_VOLUME_SIZE || options->Size > MAX_FAT_VOLUME_SIZE))
+		{
+			throw_err (_("Specified volume size cannot be used with FAT filesystem."));
+		}
+
+		// Password
+		if (!options->Password && !Preferences.NonInteractive)
+		{
+			ShowString (L"\n");
+			options->Password = AskPassword (_("Enter password"), true);
+		}
+
+		if (options->Password)
+			options->Password->CheckPortability();
+
+		// Keyfiles
+		if (!options->Keyfiles && !Preferences.NonInteractive)
+		{
+			ShowString (L"\n");
+			options->Keyfiles = AskKeyfiles (_("Enter keyfile path"));
+		}
+
+		if ((!options->Keyfiles || options->Keyfiles->empty()) 
+			&& (!options->Password || options->Password->IsEmpty()))
+		{
+			throw_err (_("Password cannot be empty when no keyfile is specified"));
+		}
+
+		// Random data
+		RandomNumberGenerator::Start();
+		finally_do ({ RandomNumberGenerator::Stop(); });
+
+		if (!randomSourcePath.IsEmpty())
+		{
+			Buffer buffer (RandomNumberGenerator::PoolSize);
+			File randSourceFile;
+			
+			randSourceFile.Open (randomSourcePath, File::OpenRead);
+			randSourceFile.Read (buffer);
+
+			RandomNumberGenerator::AddToPool (buffer);
+		}
+		else if (!Preferences.NonInteractive)
+		{
+			int randCharsRequired = RandomNumberGenerator::PoolSize / 2;
+			ShowInfo (StringFormatter (_("\nPlease type at least {0} randomly chosen characters and then press Enter:"), randCharsRequired));
+
+			while (randCharsRequired > 0)
+			{
+				wstring randStr = AskString();
+				RandomNumberGenerator::AddToPool (ConstBufferPtr ((byte *) randStr.c_str(), randStr.size()));
+
+				randCharsRequired -= randStr.size();
+
+				if (randCharsRequired > 0)
+					ShowInfo (StringFormatter (_("Characters remaining: {0}"), randCharsRequired));
+			}
+		}
+
+ 		ShowString (L"\n");
+		wxLongLong startTime = wxGetLocalTimeMillis();
+
+		VolumeCreator creator;
+		creator.CreateVolume (options);
+
+		bool volumeCreated = false;
+		while (!volumeCreated)
+		{
+			VolumeCreator::ProgressInfo progress = creator.GetProgressInfo();
+
+			wxLongLong timeDiff = wxGetLocalTimeMillis() - startTime;
+			if (timeDiff.GetValue() > 0)
+			{
+				uint64 speed = progress.SizeDone * 1000 / timeDiff.GetValue();
+
+				volumeCreated = !progress.CreationInProgress;
+
+				ShowString (wxString::Format (L"\rDone: %7.3f%%  Speed: %9s  Left: %s         ",
+					100.0 - double (options->Size - progress.SizeDone) / (double (options->Size) / 100.0),
+					speed > 0 ? SpeedToString (speed).c_str() : L" ",
+					speed > 0 ? TimeSpanToString ((options->Size - progress.SizeDone) / speed).c_str() : L""));
+			}
+
+			Thread::Sleep (100);
+		}
+
+		ShowString (L"\n");
+		creator.CheckResult();
+		ShowInfo ("FORMAT_FINISHED_INFO");
+	}
+
 	void TextUserInterface::DoShowError (const wxString &message) const
 	{
 		wcerr << L"Error: " << static_cast<wstring> (message) << endl;

@@ -54,8 +54,11 @@ namespace TrueCrypt
 	uint64 VolumeSizeWizardPage::GetVolumeSize () const
 	{
 		uint64 prefixMult = 1;
-		if (VolumeSizePrefixChoice->GetSelection() != wxNOT_FOUND)
-			prefixMult = reinterpret_cast <int> (VolumeSizePrefixChoice->GetClientData (VolumeSizePrefixChoice->GetSelection()));
+		int selection = VolumeSizePrefixChoice->GetSelection();
+		if (selection == wxNOT_FOUND)
+			return 0;
+
+		prefixMult = reinterpret_cast <uint64> (VolumeSizePrefixChoice->GetClientData (selection));
 		
 		uint64 val = StringConverter::ToUInt64 (wstring (VolumeSizeTextCtrl->GetValue()));
 		if (val <= 0x7fffFFFFffffFFFFull / prefixMult)

@@ -1,25 +1,20 @@
 /*
  ---------------------------------------------------------------------------
- Copyright (c) 1998-2006, Brian Gladman, Worcester, UK. All rights reserved.
+ Copyright (c) 1998-2007, Brian Gladman, Worcester, UK. All rights reserved.
 
  LICENSE TERMS
 
- The free distribution and use of this software in both source and binary
- form is allowed (with or without changes) provided that:
+ The free distribution and use of this software is allowed (with or without
+ changes) provided that:
 
-   1. distributions of this source code include the above copyright
-      notice, this list of conditions and the following disclaimer;
+  1. source code distributions include the above copyright notice, this
+     list of conditions and the following disclaimer;
 
-   2. distributions in binary form include the above copyright
-      notice, this list of conditions and the following disclaimer
-      in the documentation and/or other associated materials;
+  2. binary distributions include the above copyright notice, this list
+     of conditions and the following disclaimer in their documentation;
 
-   3. the copyright holder's name is not used to endorse products
-      built using this software without specific written permission.
-
- ALTERNATIVELY, provided that this notice is retained in full, this product
- may be distributed under the terms of the GNU General Public License (GPL),
- in which case the provisions of the GPL apply INSTEAD OF those given above.
+  3. the name of the copyright holder is not used to endorse products
+     built using this software without specific written permission.
 
  DISCLAIMER
 
@@ -27,18 +22,17 @@
  in respect of its properties, including, but not limited to, correctness
  and/or fitness for purpose.
  ---------------------------------------------------------------------------
- Issue 09/09/2006
+ Issue Date: 20/12/2007
+*/
+
+/* Adapted for TrueCrypt by the TrueCrypt Foundation:
+   - Added run-time table generator for Aes_x86_v2.asm
 */
 
 #define DO_TABLES
 
 #include "Aes.h"
 #include "Aesopt.h"
-
-#if defined(__cplusplus)
-extern "C"
-{
-#endif
 
 #if defined(FIXED_TABLES)
 
@@ -193,11 +187,16 @@ extern "C"
 
 #include "Aestab.h"
 
+#if defined(__cplusplus)
+extern "C"
+{
+#endif
+
 #if defined(FIXED_TABLES)
 
 /* implemented in case of wrong call for fixed tables */
 
-AES_RETURN gen_tabs(void)
+AES_RETURN aes_init(void)
 {
     return EXIT_SUCCESS;
 }
@@ -264,8 +263,46 @@ static uint_8t fi(const uint_8t x)
 
 static int init = 0;
 
-AES_RETURN gen_tabs(void)
+#ifdef TC_WINDOWS_BOOT
+
+#pragma optimize ("l", on)
+uint_8t aes_enc_tab[256][8];
+uint_8t aes_dec_tab[256][8];
+
+#endif
+
+AES_RETURN aes_init(void)
 {   uint_32t  i, w;
+
+#ifdef TC_WINDOWS_BOOT
+
+	if (init)
+		return EXIT_SUCCESS;
+
+    for (i = 0; i < 256; ++i)
+    { 
+        uint_8t x = fwd_affine(fi((uint_8t)i));
+		aes_enc_tab[i][0] = 0;
+		aes_enc_tab[i][1] = x;
+		aes_enc_tab[i][2] = x;
+		aes_enc_tab[i][3] = f3(x);
+		aes_enc_tab[i][4] = f2(x);
+		aes_enc_tab[i][5] = x;
+		aes_enc_tab[i][6] = x;
+		aes_enc_tab[i][7] = f3(x);
+
+        x = fi((uint_8t)inv_affine((uint_8t)i));
+		aes_dec_tab[i][0] = fe(x);
+		aes_dec_tab[i][1] = f9(x);
+		aes_dec_tab[i][2] = fd(x);
+		aes_dec_tab[i][3] = fb(x);
+		aes_dec_tab[i][4] = fe(x);
+		aes_dec_tab[i][5] = f9(x);
+		aes_dec_tab[i][6] = fd(x);
+		aes_dec_tab[i][7] = x;
+    }
+
+#else // TC_WINDOWS_BOOT
 
 #if defined(FF_TABLES)
 
@@ -320,7 +357,7 @@ AES_RETURN gen_tabs(void)
 #endif
         w = bytes2word(b, 0, 0, 0);
 
-#if defined( FL1_SET )                 /* tables for last encryption round (may also   */
+#if defined( FL1_SET )            /* tables for last encryption round (may also   */
         t_set(f,l)[i] = w;        /* be used in the key schedule)                 */
 #endif
 #if defined( FL4_SET )
@@ -330,7 +367,7 @@ AES_RETURN gen_tabs(void)
         t_set(f,l)[3][i] = upr(w,3);
 #endif
 
-#if defined( LS1_SET )                 /* table for key schedule if t_set(f,l) above is    */
+#if defined( LS1_SET )			/* table for key schedule if t_set(f,l) above is*/
         t_set(l,s)[i] = w;      /* not of the required form                     */
 #endif
 #if defined( LS4_SET )
@@ -343,7 +380,7 @@ AES_RETURN gen_tabs(void)
         b = fi(inv_affine((uint_8t)i));
         w = bytes2word(fe(b), f9(b), fd(b), fb(b));
 
-#if defined( IM1_SET )                 /* tables for the inverse mix column operation  */
+#if defined( IM1_SET )			/* tables for the inverse mix column operation  */
         t_set(i,m)[b] = w;
 #endif
 #if defined( IM4_SET )
@@ -356,7 +393,7 @@ AES_RETURN gen_tabs(void)
 #if defined( ISB_SET )
         t_set(i,box)[i] = b;
 #endif
-#if defined( IT1_SET )                 /* tables for a normal decryption round */
+#if defined( IT1_SET )			/* tables for a normal decryption round */
         t_set(i,n)[i] = w;
 #endif
 #if defined( IT4_SET )
@@ -366,7 +403,7 @@ AES_RETURN gen_tabs(void)
         t_set(i,n)[3][i] = upr(w,3);
 #endif
         w = bytes2word(b, 0, 0, 0);
-#if defined( IL1_SET )                 /* tables for last decryption round */
+#if defined( IL1_SET )			/* tables for last decryption round */
         t_set(i,l)[i] = w;
 #endif
 #if defined( IL4_SET )
@@ -376,6 +413,9 @@ AES_RETURN gen_tabs(void)
         t_set(i,l)[3][i] = upr(w,3);
 #endif
     }
+
+#endif // TC_WINDOWS_BOOT
+
     init = 1;
     return EXIT_SUCCESS;
 }

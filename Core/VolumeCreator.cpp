@@ -22,6 +22,7 @@
 namespace TrueCrypt
 {
 	VolumeCreator::VolumeCreator ()
+		: SizeDone (0)
 	{
 	}
 
@@ -129,7 +130,7 @@ namespace TrueCrypt
 		{
 #ifdef TC_UNIX
 			UserId origDeviceOwner;
-			origDeviceOwner.SystemId = -1;
+			origDeviceOwner.SystemId = (uid_t) -1;
 
 			if (!Core->HasAdminPrivileges() && options->Path.IsDevice())
 			{
@@ -145,7 +146,7 @@ namespace TrueCrypt
 			
 			finally_do_arg2 (FilesystemPath, options->Path, UserId, origDeviceOwner,
 				{
-					if (finally_arg2.SystemId != -1)
+					if (finally_arg2.SystemId != (uid_t) -1)
 						Core->SetFileOwner (finally_arg, finally_arg2);
 				}
 			);

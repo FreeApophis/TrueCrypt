@@ -75,12 +75,10 @@
 #endif
 #endif
 
-#ifndef LINUX_DRIVER
 #include <stdio.h>
 #include <stdlib.h>
 #ifndef MSDOS
 #include <unistd.h>
-#endif
 #endif
 #include "Des.h"
 
@@ -166,9 +164,7 @@ YOU SHOULD NOT HAVE BOTH DES_RISC1 AND DES_RISC2 DEFINED!!!!!
 #endif
 
 #if defined(__STDC__) || defined(VMS) || defined(M_XENIX) || defined(MSDOS)
-#ifndef LINUX_DRIVER
 #include <string.h>
-#endif
 #endif
 
 #ifndef RAND

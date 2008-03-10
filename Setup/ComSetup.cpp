@@ -34,7 +34,7 @@ extern "C" BOOL RegisterComServers (char *modulePath)
 	ro.AddReplacement (L"FORMAT_MODULE", formatModule);
 
 	wchar_t setupModule[MAX_PATH];
-	GetModuleFileNameW (NULL, setupModule, sizeof (setupModule));
+	GetModuleFileNameW (NULL, setupModule, sizeof (setupModule) / sizeof (setupModule[0]));
 	if (ro.ResourceRegister (setupModule, IDR_COMREG, L"REGISTRY") != S_OK)
 		goto error;
 
@@ -73,7 +73,7 @@ extern "C" BOOL UnregisterComServers (char *modulePath)
 	ro.AddReplacement (L"FORMAT_MODULE", module);
 
 	wchar_t setupModule[MAX_PATH];
-	GetModuleFileNameW (NULL, setupModule, sizeof (setupModule));
+	GetModuleFileNameW (NULL, setupModule, sizeof (setupModule) / sizeof (setupModule[0]));
 
 	ret = ro.ResourceUnregister (setupModule, IDR_COMREG, L"REGISTRY") == S_OK;
 

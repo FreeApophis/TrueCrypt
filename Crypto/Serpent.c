@@ -2,12 +2,14 @@
 
 /* Adapted for TrueCrypt by the TrueCrypt Foundation */
 
+#ifdef TC_WINDOWS_BOOT
+#pragma optimize ("t", on)
+#endif
+
 #include "Serpent.h"
 #include "Common/Endian.h"
 
-#ifndef LINUX_DRIVER
 #include <memory.h>
-#endif
 
 #if defined(_WIN32) && !defined(_DEBUG)
 #include <stdlib.h>
@@ -434,6 +436,200 @@
 	d ^= k[4 * r + 3];}
 
 
+#ifdef TC_MINIMIZE_CODE_SIZE
+
+static void S0f (unsigned __int32 *r0, unsigned __int32 *r1, unsigned __int32 *r2, unsigned __int32 *r3, unsigned __int32 *r4)
+{
+	*r3 ^= *r0;
+	*r4 = *r1;
+	*r1 &= *r3;
+	*r4 ^= *r2;
+	*r1 ^= *r0;
+	*r0 |= *r3;
+	*r0 ^= *r4;
+	*r4 ^= *r3;
+	*r3 ^= *r2;
+	*r2 |= *r1;
+	*r2 ^= *r4;
+	*r4 = ~*r4;
+	*r4 |= *r1;
+	*r1 ^= *r3;
+	*r1 ^= *r4;
+	*r3 |= *r0;
+	*r1 ^= *r3;
+	*r4 ^= *r3;
+}
+
+static void S1f (unsigned __int32 *r0, unsigned __int32 *r1, unsigned __int32 *r2, unsigned __int32 *r3, unsigned __int32 *r4)
+{        
+    *r0 = ~*r0;   
+    *r2 = ~*r2;   
+    *r4 = *r0;
+    *r0 &= *r1;
+    *r2 ^= *r0;
+    *r0 |= *r3;
+    *r3 ^= *r2;
+    *r1 ^= *r0;
+    *r0 ^= *r4;
+    *r4 |= *r1;
+    *r1 ^= *r3;
+    *r2 |= *r0;
+    *r2 &= *r4;
+    *r0 ^= *r1;
+    *r1 &= *r2;
+    *r1 ^= *r0;
+    *r0 &= *r2;
+    *r0 ^= *r4;
+}
+
+static void S2f (unsigned __int32 *r0, unsigned __int32 *r1, unsigned __int32 *r2, unsigned __int32 *r3, unsigned __int32 *r4)
+{        
+	*r4 = *r0;
+	*r0 &= *r2;
+	*r0 ^= *r3;
+	*r2 ^= *r1;
+	*r2 ^= *r0;
+	*r3 |= *r4;
+	*r3 ^= *r1;
+	*r4 ^= *r2;
+	*r1 = *r3;
+	*r3 |= *r4;
+	*r3 ^= *r0;
+	*r0 &= *r1;
+	*r4 ^= *r0;
+	*r1 ^= *r3;
+	*r1 ^= *r4;
+	*r4 = ~*r4;   
+}
+
+static void S3f (unsigned __int32 *r0, unsigned __int32 *r1, unsigned __int32 *r2, unsigned __int32 *r3, unsigned __int32 *r4)
+{        
+	*r4 = *r0;
+	*r0 |= *r3;
+	*r3 ^= *r1;
+	*r1 &= *r4;
+	*r4 ^= *r2;
+	*r2 ^= *r3;
+	*r3 &= *r0;
+	*r4 |= *r1;
+	*r3 ^= *r4;
+	*r0 ^= *r1;
+	*r4 &= *r0;
+	*r1 ^= *r3;
+	*r4 ^= *r2;
+	*r1 |= *r0;
+	*r1 ^= *r2;
+	*r0 ^= *r3;
+	*r2 = *r1;
+	*r1 |= *r3;
+	*r1 ^= *r0;
+}
+
+static void S4f (unsigned __int32 *r0, unsigned __int32 *r1, unsigned __int32 *r2, unsigned __int32 *r3, unsigned __int32 *r4)
+{        
+	*r1 ^= *r3;
+	*r3 = ~*r3;   
+	*r2 ^= *r3;
+	*r3 ^= *r0;
+	*r4 = *r1;
+	*r1 &= *r3;
+	*r1 ^= *r2;
+	*r4 ^= *r3;
+	*r0 ^= *r4;
+	*r2 &= *r4;
+	*r2 ^= *r0;
+	*r0 &= *r1;
+	*r3 ^= *r0;
+	*r4 |= *r1;
+	*r4 ^= *r0;
+	*r0 |= *r3;
+	*r0 ^= *r2;
+	*r2 &= *r3;
+	*r0 = ~*r0;   
+	*r4 ^= *r2;
+}
+
+static void S5f (unsigned __int32 *r0, unsigned __int32 *r1, unsigned __int32 *r2, unsigned __int32 *r3, unsigned __int32 *r4)
+{        
+	*r0 ^= *r1;
+	*r1 ^= *r3;
+	*r3 = ~*r3;   
+	*r4 = *r1;
+	*r1 &= *r0;
+	*r2 ^= *r3;
+	*r1 ^= *r2;
+	*r2 |= *r4;
+	*r4 ^= *r3;
+	*r3 &= *r1;
+	*r3 ^= *r0;
+	*r4 ^= *r1;
+	*r4 ^= *r2;
+	*r2 ^= *r0;
+	*r0 &= *r3;
+	*r2 = ~*r2;   
+	*r0 ^= *r4;
+	*r4 |= *r3;
+	*r2 ^= *r4;
+}
+
+static void S6f (unsigned __int32 *r0, unsigned __int32 *r1, unsigned __int32 *r2, unsigned __int32 *r3, unsigned __int32 *r4)
+{        
+	*r2 = ~*r2;   
+	*r4 = *r3;
+	*r3 &= *r0;
+	*r0 ^= *r4;
+	*r3 ^= *r2;
+	*r2 |= *r4;
+	*r1 ^= *r3;
+	*r2 ^= *r0;
+	*r0 |= *r1;
+	*r2 ^= *r1;
+	*r4 ^= *r0;
+	*r0 |= *r3;
+	*r0 ^= *r2;
+	*r4 ^= *r3;
+	*r4 ^= *r0;
+	*r3 = ~*r3;   
+	*r2 &= *r4;
+	*r2 ^= *r3;
+}
+
+static void S7f (unsigned __int32 *r0, unsigned __int32 *r1, unsigned __int32 *r2, unsigned __int32 *r3, unsigned __int32 *r4)
+{        
+	*r4 = *r2;
+	*r2 &= *r1;
+	*r2 ^= *r3;
+	*r3 &= *r1;
+	*r4 ^= *r2;
+	*r2 ^= *r1;
+	*r1 ^= *r0;
+	*r0 |= *r4;
+	*r0 ^= *r2;
+	*r3 ^= *r1;
+	*r2 ^= *r3;
+	*r3 &= *r0;
+	*r3 ^= *r4;
+	*r4 ^= *r2;
+	*r2 &= *r0;
+	*r4 = ~*r4;   
+	*r2 ^= *r4;
+	*r4 &= *r0;
+	*r1 ^= *r3;
+	*r4 ^= *r1;
+}
+
+static void KXf (const unsigned __int32 *k, unsigned int r, unsigned __int32 *a, unsigned __int32 *b, unsigned __int32 *c, unsigned __int32 *d)
+{
+	*a ^= k[r];
+	*b ^= k[r + 1];
+	*c ^= k[r + 2];
+	*d ^= k[r + 3];
+}
+
+#endif // TC_MINIMIZE_CODE_SIZE
+
+#ifndef TC_MINIMIZE_CODE_SIZE
+
 void serpent_set_key(const unsigned __int8 userKey[], int keylen, unsigned __int8 *ks)
 {
 	unsigned __int32 a,b,c,d,e;
@@ -479,6 +675,61 @@ void serpent_set_key(const unsigned __int8 userKey[], int keylen, unsigned __int
 	}
 	afterS2(LK); afterS2(S3); afterS3(SK);
 }
+
+#else // TC_MINIMIZE_CODE_SIZE
+
+static void LKf (unsigned __int32 *k, unsigned int r, unsigned __int32 *a, unsigned __int32 *b, unsigned __int32 *c, unsigned __int32 *d)
+{
+	*a = k[r];
+	*b = k[r + 1];
+	*c = k[r + 2];
+	*d = k[r + 3];
+}
+
+static void SKf (unsigned __int32 *k, unsigned int r, unsigned __int32 *a, unsigned __int32 *b, unsigned __int32 *c, unsigned __int32 *d)
+{
+	k[r + 4] = *a;
+	k[r + 5] = *b;
+	k[r + 6] = *c;
+	k[r + 7] = *d;
+}
+
+void serpent_set_key(const unsigned __int8 userKey[], int keylen, unsigned __int8 *ks)
+{
+	unsigned __int32 a,b,c,d,e;
+	unsigned __int32 *k = (unsigned __int32 *)ks;
+	unsigned __int32 t;
+	int i;
+
+	for (i = 0; i < keylen / (int)sizeof(__int32); i++)
+		k[i] = LE32(((unsigned __int32*)userKey)[i]);
+
+	if (keylen < 32)
+		k[keylen/4] |= (unsigned __int32)1 << ((keylen%4)*8);
+
+	k += 8;
+	t = k[-1];
+	for (i = 0; i < 132; ++i)
+		k[i] = t = rotlFixed(k[i-8] ^ k[i-5] ^ k[i-3] ^ t ^ 0x9e3779b9 ^ i, 11);
+	k -= 20;
+
+	for (i=0; i<4; i++)
+	{
+		LKf (k, 20, &a, &e, &b, &d); S3f (&a, &e, &b, &d, &c); SKf (k, 16, &e, &b, &d, &c);
+		LKf (k, 24, &c, &b, &a, &e); S2f (&c, &b, &a, &e, &d); SKf (k, 20, &a, &e, &b, &d);
+		LKf (k, 28, &b, &e, &c, &a); S1f (&b, &e, &c, &a, &d); SKf (k, 24, &c, &b, &a, &e);
+		LKf (k, 32, &a, &b, &c, &d); S0f (&a, &b, &c, &d, &e); SKf (k, 28, &b, &e, &c, &a);
+		k += 8*4;
+		LKf (k,  4, &a, &c, &d, &b); S7f (&a, &c, &d, &b, &e); SKf (k,  0, &d, &e, &b, &a);
+		LKf (k,  8, &a, &c, &b, &e); S6f (&a, &c, &b, &e, &d); SKf (k,  4, &a, &c, &d, &b);
+		LKf (k, 12, &b, &a, &e, &c); S5f (&b, &a, &e, &c, &d); SKf (k,  8, &a, &c, &b, &e);
+		LKf (k, 16, &e, &b, &d, &c); S4f (&e, &b, &d, &c, &a); SKf (k, 12, &b, &a, &e, &c);
+	}
+	LKf (k, 20, &a, &e, &b, &d); S3f (&a, &e, &b, &d, &c); SKf (k, 16, &e, &b, &d, &c);
+}
+
+#endif // TC_MINIMIZE_CODE_SIZE
+
 
 #ifndef TC_MINIMIZE_CODE_SIZE
 
@@ -532,7 +783,7 @@ void serpent_encrypt(const unsigned __int8 *inBlock, unsigned __int8 *outBlock, 
 
 typedef unsigned __int32 uint32;
 
-void LTf (uint32 *a, uint32 *b, uint32 *c, uint32 *d)
+static void LTf (uint32 *a, uint32 *b, uint32 *c, uint32 *d)
 {
 	*a = rotlFixed(*a, 13);
 	*c = rotlFixed(*c, 3);
@@ -541,18 +792,6 @@ void LTf (uint32 *a, uint32 *b, uint32 *c, uint32 *d)
 	*a = rotlFixed(*a ^ *b ^ *d, 5);
 	*c = rotlFixed(*c ^ *d ^ (*b << 7), 22);
 }
-
-// order of output from S-box functions
-#define beforeS0LT LTf (&a,&b,&c,&d)
-#define afterS0LT LTf (&b,&e,&c,&a)
-#define afterS1LT LTf (&c,&b,&a,&e)
-#define afterS2LT LTf (&a,&e,&b,&d)
-#define afterS3LT LTf (&e,&b,&d,&c)
-#define afterS4LT LTf (&b,&a,&e,&c)
-#define afterS5LT LTf (&a,&c,&b,&e)
-#define afterS6LT LTf (&a,&c,&d,&b)
-#define afterS7LT LTf (&d,&e,&b,&a)
-
 
 void serpent_encrypt(const unsigned __int8 *inBlock, unsigned __int8 *outBlock, unsigned __int8 *ks)
 {
@@ -569,14 +808,14 @@ void serpent_encrypt(const unsigned __int8 *inBlock, unsigned __int8 *outBlock, 
 
 	do
 	{
-		beforeS0(KX); beforeS0(S0); afterS0LT;
-		afterS0(KX); afterS0(S1); afterS1LT;
-		afterS1(KX); afterS1(S2); afterS2LT;
-		afterS2(KX); afterS2(S3); afterS3LT;
-		afterS3(KX); afterS3(S4); afterS4LT;
-		afterS4(KX); afterS4(S5); afterS5LT;
-		afterS5(KX); afterS5(S6); afterS6LT;
-		afterS6(KX); afterS6(S7);
+		KXf (k,  0, &a, &b, &c, &d); S0f (&a, &b, &c, &d, &e); LTf (&b, &e, &c, &a);
+		KXf (k,  4, &b, &e, &c, &a); S1f (&b, &e, &c, &a, &d); LTf (&c, &b, &a, &e);
+		KXf (k,  8, &c, &b, &a, &e); S2f (&c, &b, &a, &e, &d); LTf (&a, &e, &b, &d);
+		KXf (k, 12, &a, &e, &b, &d); S3f (&a, &e, &b, &d, &c); LTf (&e, &b, &d, &c);
+		KXf (k, 16, &e, &b, &d, &c); S4f (&e, &b, &d, &c, &a); LTf (&b, &a, &e, &c);
+		KXf (k, 20, &b, &a, &e, &c); S5f (&b, &a, &e, &c, &d); LTf (&a, &c, &b, &e);
+		KXf (k, 24, &a, &c, &b, &e); S6f (&a, &c, &b, &e, &d); LTf (&a, &c, &d, &b);
+		KXf (k, 28, &a, &c, &d, &b); S7f (&a, &c, &d, &b, &e);
 
 		if (i == 4)
 			break;
@@ -588,11 +827,11 @@ void serpent_encrypt(const unsigned __int8 *inBlock, unsigned __int8 *outBlock, 
 		d = a;
 		a = e;
 		k += 32;
-		beforeS0LT;
+		LTf (&a,&b,&c,&d);
 	}
 	while (1);
 
-	afterS7(KX);
+	KXf (k, 32, &d, &e, &b, &a);
 	
     out[0] = LE32(d);
 	out[1] = LE32(e);
@@ -602,7 +841,7 @@ void serpent_encrypt(const unsigned __int8 *inBlock, unsigned __int8 *outBlock, 
 
 #endif // TC_MINIMIZE_CODE_SIZE
 
-#ifndef TC_MINIMIZE_CODE_SIZE
+#if !defined (TC_MINIMIZE_CODE_SIZE) || defined (TC_WINDOWS_BOOT_SERPENT)
 
 void serpent_decrypt(const unsigned __int8 *inBlock, unsigned __int8 *outBlock, unsigned __int8 *ks)
 {
@@ -645,9 +884,9 @@ start:
 	out[3] = LE32(e);
 }
 
-#else // TC_MINIMIZE_CODE_SIZE
+#else // TC_MINIMIZE_CODE_SIZE && !TC_WINDOWS_BOOT_SERPENT
 
-void ILTf (uint32 *a, uint32 *b, uint32 *c, uint32 *d)
+static void ILTf (uint32 *a, uint32 *b, uint32 *c, uint32 *d)
 { 
 	*c = rotrFixed(*c, 22);
 	*a = rotrFixed(*a, 5);
@@ -659,16 +898,6 @@ void ILTf (uint32 *a, uint32 *b, uint32 *c, uint32 *d)
 	*c = rotrFixed(*c, 3);
 	*a = rotrFixed(*a, 13);
 }
-
-#define beforeI7ILT ILTf (&a,&b,&c,&d)
-#define afterI7ILT ILTf (&d,&a,&b,&e)
-#define afterI6ILT ILTf (&a,&b,&c,&e)
-#define afterI5ILT ILTf (&b,&d,&e,&c)
-#define afterI4ILT ILTf (&b,&c,&e,&a)
-#define afterI3ILT ILTf (&a,&b,&e,&c)
-#define afterI2ILT ILTf (&b,&d,&e,&c)
-#define afterI1ILT ILTf (&a,&b,&c,&e)
-#define afterI0ILT ILTf (&a,&d,&b,&e)
 
 void serpent_decrypt(const unsigned __int8 *inBlock, unsigned __int8 *outBlock, unsigned __int8 *ks)
 {
@@ -683,7 +912,7 @@ void serpent_decrypt(const unsigned __int8 *inBlock, unsigned __int8 *outBlock, 
 	c = LE32(in[2]);
 	d = LE32(in[3]);
 
-	beforeI7(KX);
+	KXf (k, 32, &a, &b, &c, &d);
 	goto start;
 
 	do
@@ -694,14 +923,14 @@ void serpent_decrypt(const unsigned __int8 *inBlock, unsigned __int8 *outBlock, 
 		k -= 32;
 		beforeI7(ILT);
 start:
-		beforeI7(I7); afterI7(KX); 
-		afterI7ILT; afterI7(I6); afterI6(KX); 
-		afterI6ILT; afterI6(I5); afterI5(KX); 
-		afterI5ILT; afterI5(I4); afterI4(KX); 
-		afterI4ILT; afterI4(I3); afterI3(KX); 
-		afterI3ILT; afterI3(I2); afterI2(KX); 
-		afterI2ILT; afterI2(I1); afterI1(KX); 
-		afterI1ILT; afterI1(I0); afterI0(KX);
+		beforeI7(I7); KXf (k, 28, &d, &a, &b, &e);
+		ILTf (&d, &a, &b, &e); afterI7(I6); KXf (k, 24, &a, &b, &c, &e); 
+		ILTf (&a, &b, &c, &e); afterI6(I5); KXf (k, 20, &b, &d, &e, &c); 
+		ILTf (&b, &d, &e, &c); afterI5(I4); KXf (k, 16, &b, &c, &e, &a); 
+		ILTf (&b, &c, &e, &a); afterI4(I3); KXf (k, 12, &a, &b, &e, &c);
+		ILTf (&a, &b, &e, &c); afterI3(I2); KXf (k, 8,  &b, &d, &e, &c);
+		ILTf (&b, &d, &e, &c); afterI2(I1); KXf (k, 4,  &a, &b, &c, &e);
+		ILTf (&a, &b, &c, &e); afterI1(I0); KXf (k, 0,  &a, &d, &b, &e);
 	}
 	while (--i != 0);
 	
@@ -711,4 +940,4 @@ start:
 	out[3] = LE32(e);
 }
 
-#endif // TC_MINIMIZE_CODE_SIZE
+#endif // TC_MINIMIZE_CODE_SIZE && !TC_WINDOWS_BOOT_SERPENT

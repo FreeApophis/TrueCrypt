@@ -210,6 +210,90 @@
 					>
 				</File>
 			</Filter>
+			<Filter
+				Name="Crypto"
+				>
+				<File
+					RelativePath="..\Crypto\Aes_x64.asm"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Aes_x86.asm"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Aeskey.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Aestab.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Bf_ecb.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Bf_enc.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Bf_skey.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\C_ecb.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\C_enc.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\C_skey.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Des.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Des_enc.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Ecb3_enc.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Rmd160.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Serpent.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Set_key.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Sha1.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Sha2.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Twofish.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Whirlpool.c"
+					>
+				</File>
+			</Filter>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -287,12 +371,20 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Makefile"
+				>
+			</File>
+			<File
 				RelativePath=".\Sources"
 				>
 			</File>
 			<Filter
 				Name="Common"
 				>
+				<File
+					RelativePath="..\Common\Makefile"
+					>
+				</File>
 				<File
 					RelativePath="..\Common\Sources"
 					>
@@ -301,6 +393,14 @@
 			<Filter
 				Name="Crypto"
 				>
+				<File
+					RelativePath="..\Crypto\Makefile"
+					>
+				</File>
+				<File
+					RelativePath="..\Crypto\Makefile.inc"
+					>
+				</File>
 				<File
 					RelativePath="..\Crypto\Sources"
 					>

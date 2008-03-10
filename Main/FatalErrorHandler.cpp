@@ -23,6 +23,8 @@
 #	else
 #		include <i386/ucontext.h>
 #	endif
+#elif defined (TC_BSD)
+#	include <ucontext.h>
 #endif
 
 #include "FatalErrorHandler.h"
@@ -150,7 +152,7 @@ namespace TrueCrypt
 			if (exPos.find (L"TrueCrypt::") != string::npos)
 				exPos = exPos.Mid (11);
 
-			vars << L"&exception=" << exName;
+			vars << L"exception=" << exName;
 			vars << L"&exlocation=" << exPos;
 			vars.Replace (L"::", L".");
 			vars.Replace (L":", L".");

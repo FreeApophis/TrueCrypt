@@ -18,5 +18,5 @@
 
 extern int cacheEmpty;
 
-int VolumeReadHeaderCache (BOOL bCache, char *header, Password *password, PCRYPTO_INFO *retInfo);
+int VolumeReadHeaderCache (BOOL bBoot, BOOL bCache, char *header, Password *password, PCRYPTO_INFO *retInfo);
 void WipeCache (void);

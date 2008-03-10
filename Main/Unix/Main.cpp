@@ -44,7 +44,9 @@ int main (int argc, char **argv)
 			}
 			catch (exception &e)
 			{
+#ifdef DEBUG
 				SystemLog::WriteException (e);
+#endif
 			}
 			catch (...)	{ }
 			return 1;

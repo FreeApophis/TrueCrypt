@@ -1,25 +1,20 @@
 /*
  ---------------------------------------------------------------------------
- Copyright (c) 1998-2006, Brian Gladman, Worcester, UK. All rights reserved.
+ Copyright (c) 1998-2007, Brian Gladman, Worcester, UK. All rights reserved.
 
  LICENSE TERMS
 
- The free distribution and use of this software in both source and binary
- form is allowed (with or without changes) provided that:
+ The free distribution and use of this software is allowed (with or without
+ changes) provided that:
 
-   1. distributions of this source code include the above copyright
-      notice, this list of conditions and the following disclaimer;
+  1. source code distributions include the above copyright notice, this
+     list of conditions and the following disclaimer;
 
-   2. distributions in binary form include the above copyright
-      notice, this list of conditions and the following disclaimer
-      in the documentation and/or other associated materials;
+  2. binary distributions include the above copyright notice, this list
+     of conditions and the following disclaimer in their documentation;
 
-   3. the copyright holder's name is not used to endorse products
-      built using this software without specific written permission.
-
- ALTERNATIVELY, provided that this notice is retained in full, this product
- may be distributed under the terms of the GNU General Public License (GPL),
- in which case the provisions of the GPL apply INSTEAD OF those given above.
+  3. the name of the copyright holder is not used to endorse products
+     built using this software without specific written permission.
 
  DISCLAIMER
 
@@ -27,13 +22,13 @@
  in respect of its properties, including, but not limited to, correctness
  and/or fitness for purpose.
  ---------------------------------------------------------------------------
- Issue 09/09/2006
+ Issue Date: 20/12/2007
 
  This file contains the definitions required to use AES in C. See aesopt.h
  for optimisation details.
 */
 
-/* Adapted for TrueCrypt by the TrueCrypt Foundation */
+/* Adapted by the TrueCrypt Foundation */
 
 #ifndef _AES_H
 #define _AES_H
@@ -44,69 +39,18 @@
 #define EXIT_SUCCESS    0
 #define EXIT_FAILURE    1
 #endif
-
-#ifndef RETURN_VALUES
-#  define RETURN_VALUES
-#  if defined( DLL_EXPORT )
-#    if defined( _MSC_VER ) || defined ( __INTEL_COMPILER )
-#      define VOID_RETURN    __declspec( dllexport ) void __stdcall
-#      define INT_RETURN     __declspec( dllexport ) int  __stdcall
-#    elif defined( __GNUC__ )
-#      define VOID_RETURN    __declspec( __dllexport__ ) void
-#      define INT_RETURN     __declspec( __dllexport__ ) int
-#    else
-#      error Use of the DLL is only available on the Microsoft, Intel and GCC compilers
-#    endif
-#  elif defined( DLL_IMPORT )
-#    if defined( _MSC_VER ) || defined ( __INTEL_COMPILER )
-#      define VOID_RETURN    __declspec( dllimport ) void __stdcall
-#      define INT_RETURN     __declspec( dllimport ) int  __stdcall
-#    elif defined( __GNUC__ )
-#      define VOID_RETURN    __declspec( __dllimport__ ) void
-#      define INT_RETURN     __declspec( __dllimport__ ) int
-#    else
-#      error Use of the DLL is only available on the Microsoft, Intel and GCC compilers
-#    endif
-#  elif defined( __WATCOMC__ )
-#    define VOID_RETURN  void __cdecl
-#    define INT_RETURN   int  __cdecl
-#  else
-#    define VOID_RETURN  void
-#    define INT_RETURN   int
-#  endif
-#endif
-
-/*  These defines are used to declare buffers in a way that allows
-    faster operations on longer variables to be used.  In all these
-    defines 'size' must be a power of 2 and >= 8
-
-    dec_unit_type(size,x)       declares a variable 'x' of length 
-                                'size' bits
-
-    dec_bufr_type(size,bsize,x) declares a buffer 'x' of length 'bsize' 
-                                bytes defined as an array of variables
-                                each of 'size' bits (bsize must be a 
-                                multiple of size / 8)
-
-    ptr_cast(x,size)            casts a pointer to a pointer to a 
-                                varaiable of length 'size' bits
-*/
-
-#define ui_type(size)               uint_##size##t
-#define dec_unit_type(size,x)       typedef ui_type(size) x
-#define dec_bufr_type(size,bsize,x) typedef ui_type(size) x[bsize / (size >> 3)]
-#define ptr_cast(x,size)            ((ui_type(size)*)(x))
+#define INT_RETURN   int
 
 #if defined(__cplusplus)
 extern "C"
 {
 #endif
 
-#define AES_128     /* define if AES with 128 bit keys is needed    */
-#define AES_192     /* define if AES with 192 bit keys is needed    */
+// #define AES_128     /* define if AES with 128 bit keys is needed    */
+// #define AES_192     /* define if AES with 192 bit keys is needed    */
 #define AES_256     /* define if AES with 256 bit keys is needed    */
-#define AES_VAR     /* define if a variable key size is needed      */
-#define AES_MODES   /* define if support is needed for modes        */
+// #define AES_VAR     /* define if a variable key size is needed      */
+// #define AES_MODES   /* define if support is needed for modes        */
 
 /* The following must also be set in assembler files if being used  */
 
@@ -159,7 +103,7 @@ typedef struct
 /* This routine must be called before first use if non-static       */
 /* tables are being used                                            */
 
-AES_RETURN gen_tabs(void);
+AES_RETURN aes_init(void);
 
 /* Key lengths in the range 16 <= key_len <= 32 are given in bytes, */
 /* those in the range 128 <= key_len <= 256 are given in bits       */
@@ -225,6 +169,8 @@ AES_RETURN aes_decrypt(const unsigned char *in, unsigned char *out, const aes_de
 /* this has to be reset if a new operation with the same IV as the  */
 /* previous one is required (or decryption follows encryption with  */
 /* the same IV array).                                              */
+
+AES_RETURN aes_test_alignment_detection(unsigned int n);
 
 AES_RETURN aes_ecb_encrypt(const unsigned char *ibuf, unsigned char *obuf,
                     int len, const aes_encrypt_ctx cx[1]);

@@ -15,13 +15,8 @@
 #include "Common/Endian.h"
 #include "Tests.h"
 #include "Xts.h"
-
-#ifdef LINUX_DRIVER
-#include <linux/string.h>
-#else
 #include <string.h>
 #include "Pkcs5.h"
-#endif
 
 typedef struct {
 	unsigned __int8 key1[32];
@@ -2508,10 +2503,8 @@ BOOL AutoTestAlgorithms (void)
 
 	
 	/* PKCS #5 and HMACs */
-#ifndef LINUX_DRIVER
 	if (!test_pkcs5 ())
 		bFailed = TRUE;
-#endif
 
 	/* CRC-32 */
 	if (!crc32_selftests ())
@@ -2538,8 +2531,6 @@ BOOL AutoTestAlgorithms (void)
 	crypto_close (ci);
 	return !bFailed;
 }
-
-#ifndef LINUX_DRIVER
 
 BOOL test_hmac_sha512 ()
 {
@@ -2678,5 +2669,3 @@ BOOL test_pkcs5 ()
 
 	return TRUE;
 }
-#endif /* LINUX_DRIVER */
- 

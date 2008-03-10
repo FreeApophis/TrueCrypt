@@ -404,6 +404,29 @@ PROGRAMS, EVEN IF SUCH HOLDER OR OTHER PARTY HAD PREVIOUSLY BEEN ADVISED
 OF THE POSSIBILITY OF SUCH DAMAGES.
 ____________________________________________________________
 
+Copyright (c) 1998-2008, Brian Gladman, Worcester, UK. All rights reserved.
+
+LICENSE TERMS
+
+The free distribution and use of this software is allowed (with or without
+changes) provided that:
+
+ 1. source code distributions include the above copyright notice, this
+    list of conditions and the following disclaimer;
+
+ 2. binary distributions include the above copyright notice, this list
+    of conditions and the following disclaimer in their documentation;
+
+ 3. the name of the copyright holder is not used to endorse products
+    built using this software without specific written permission.
+
+DISCLAIMER
+
+This software is provided 'as is' with no explicit or implied warranties
+in respect of its properties, including, but not limited to, correctness
+and/or fitness for purpose.
+____________________________________________________________
+
 Copyright (C) 1995-1997 Eric Young (eay@cryptsoft.com)
 All rights reserved.
 
@@ -461,50 +484,24 @@ copied and put under another distribution licence
 [including the GNU Public Licence.]
 ____________________________________________________________
 
-Copyright (c) 1998-2006, Brian Gladman, Worcester, UK. All rights reserved.
+Copyright (C) 2002-2004 Mark Adler, all rights reserved
+version 1.8, 9 Jan 2004
 
-LICENSE TERMS
+This software is provided 'as-is', without any express or implied
+warranty.  In no event will the author be held liable for any damages
+arising from the use of this software.
 
-The free distribution and use of this software in both source and binary
-form is allowed (with or without changes) provided that:
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
 
-  1. distributions of this source code include the above copyright
-     notice, this list of conditions and the following disclaimer;
-
-  2. distributions in binary form include the above copyright
-     notice, this list of conditions and the following disclaimer
-     in the documentation and/or other associated materials;
-
-  3. the copyright holder's name is not used to endorse products
-     built using this software without specific written permission.
-
-ALTERNATIVELY, provided that this notice is retained in full, this product
-may be distributed under the terms of the GNU General Public License (GPL),
-in which case the provisions of the GPL apply INSTEAD OF those given above.
-
-DISCLAIMER
-
-This software is provided 'as is' with no explicit or implied warranties
-in respect of its properties, including, but not limited to, correctness
-and/or fitness for purpose.
-____________________________________________________________
-
-This is an independent implementation of the encryption algorithm:
-
-        Twofish by Bruce Schneier and colleagues
-
-which is a candidate algorithm in the Advanced Encryption Standard
-programme of the US National Institute of Standards and Technology.
-
-Copyright in this implementation is held by Dr B R Gladman but I
-hereby give permission for its free direct or derivative use subject
-to acknowledgment of its origin and compliance with any conditions
-that the originators of the algorithm place on its exploitation.
-
-My thanks to Doug Whiting and Niels Ferguson for comments that led
-to improvements in this implementation.
-
-Dr Brian Gladman (gladman@seven77.demon.co.uk) 14th January 1999
+1. The origin of this software must not be misrepresented; you must not
+   claim that you wrote the original software. If you use this software
+   in a product, an acknowledgment in the product documentation would be
+   appreciated but is not required.
+2. Altered source versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+3. This notice may not be removed or altered from any source distribution.
 ____________________________________________________________
 
 Copyright (c) 2001 Markus Friedl.  All rights reserved.

@@ -997,7 +997,7 @@ namespace TrueCrypt
 		if (Gui->IsInBackgroundMode() && !prefs.BackgroundTaskEnabled)
 			Close (true);
 
-		prefs.Save();
+		SavePreferences();
 	}
 	
 	void MainFrame::OnRestoreVolumeHeaderMenuItemSelected (wxCommandEvent& event)

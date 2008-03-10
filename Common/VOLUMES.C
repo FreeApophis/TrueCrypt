@@ -101,6 +101,8 @@ UINT64_STRUCT GetHeaderField64 (byte *header, size_t offset)
 }
 
 
+#ifndef TC_WINDOWS_BOOT
+
 int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCRYPTO_INFO *retInfo, CRYPTO_INFO *retHeaderCryptoInfo)
 {
 	char header[HEADER_SIZE];
@@ -150,8 +152,6 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 				PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
 			break;
 
-#ifndef TC_WINDOWS_BOOT
-
 		case SHA512:
 			derive_key_sha512 (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
 				PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
@@ -167,7 +167,6 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 			derive_key_whirlpool (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
 				PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
 			break;
-#endif
 
 		default:		
 			// Unknown/wrong ID
@@ -181,7 +180,6 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 		{
 			switch (cryptoInfo->mode)
 			{
-#ifndef TC_WINDOWS_BOOT
 			case LRW:
 			case CBC:
 			case INNER_CBC:
@@ -192,7 +190,7 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 				memcpy (cryptoInfo->k2, dk, LEGACY_VOL_IV_SIZE);
 				primaryKeyOffset = LEGACY_VOL_IV_SIZE;
 				break;
-#endif
+
 			default:
 				primaryKeyOffset = 0;
 			}
@@ -227,7 +225,6 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 						goto err;
 					}
 				}
-#ifndef TC_WINDOWS_BOOT
 				else if (cryptoInfo->mode == LRW
 					&& (blockSize == 8 && !lrw64InitDone || blockSize == 16 && !lrw128InitDone))
 				{
@@ -244,7 +241,6 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 					else if (blockSize == 16)
 						lrw128InitDone = TRUE;
 				}
-#endif
 
 				// Copy the header for decryption
 				memcpy (header, encryptedHeader, HEADER_SIZE);
@@ -276,7 +272,6 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 					goto err;
 				}
 
-#ifndef TC_WINDOWS_BOOT
 				// Volume creation time
 				cryptoInfo->volume_creation_time = GetHeaderField64 (header, TC_HEADER_OFFSET_VOLUME_CREATION_TIME).Value;
 
@@ -285,7 +280,7 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 
 				// Hidden volume size (if any)
 				cryptoInfo->hiddenVolumeSize = GetHeaderField64 (header, TC_HEADER_OFFSET_HIDDEN_VOLUME_SIZE).Value;
-#endif
+
 				// Volume size
 				cryptoInfo->VolumeSize = GetHeaderField64 (header, TC_HEADER_OFFSET_VOLUME_SIZE);
 				
@@ -317,12 +312,10 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 				memcpy (keyInfo.master_keydata, header + HEADER_MASTER_KEYDATA_OFFSET, MASTER_KEYDATA_SIZE);
 				memcpy (cryptoInfo->master_keydata, keyInfo.master_keydata, MASTER_KEYDATA_SIZE);
 
-#ifndef TC_WINDOWS_BOOT
 				// PKCS #5
 				memcpy (cryptoInfo->salt, keyInfo.salt, PKCS5_SALT_SIZE);
 				cryptoInfo->pkcs5 = pkcs5_prf;
 				cryptoInfo->noIterations = keyInfo.noIterations;
-#endif
 
 				// Init the encryption algorithm with the decrypted master key
 				status = EAInit (cryptoInfo->ea, keyInfo.master_keydata + primaryKeyOffset, cryptoInfo->ks);
@@ -331,7 +324,6 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 
 				switch (cryptoInfo->mode)
 				{
-#ifndef TC_WINDOWS_BOOT
 				case LRW:
 				case CBC:
 				case INNER_CBC:
@@ -341,7 +333,7 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 					// For CBC (deprecated/legacy), the IV/whitening seed
 					memcpy (cryptoInfo->k2, keyInfo.master_keydata, LEGACY_VOL_IV_SIZE);
 					break;
-#endif
+
 				default:
 					// The secondary master key (if cascade, multiple concatenated)
 					memcpy (cryptoInfo->k2, keyInfo.master_keydata + EAGetKeySize (cryptoInfo->ea), EAGetKeySize (cryptoInfo->ea));
@@ -376,6 +368,98 @@ err:
 	burn (dk, sizeof(dk));
 	return status;
 }
+
+#else // TC_WINDOWS_BOOT
+
+int VolumeReadHeader (BOOL bBoot, char *header, Password *password, PCRYPTO_INFO *retInfo, CRYPTO_INFO *retHeaderCryptoInfo)
+{
+#ifdef TC_WINDOWS_BOOT_SINGLE_CIPHER_MODE
+	char dk[32 * 2];			// 2 * 256-bit key
+	char masterKey[32 * 2];
+#else
+	char dk[32 * 2 * 3];		// 6 * 256-bit key
+	char masterKey[32 * 2 * 3];
+#endif
+
+	PCRYPTO_INFO cryptoInfo;
+	int status;
+
+	if (retHeaderCryptoInfo != NULL)
+		cryptoInfo = retHeaderCryptoInfo;
+	else
+		cryptoInfo = *retInfo = crypto_open ();
+
+	// PKCS5 PRF
+	derive_key_ripemd160 (password->Text, (int) password->Length, header + HEADER_SALT_OFFSET,
+		PKCS5_SALT_SIZE, 1000, dk, sizeof (dk));
+
+	// Mode of operation
+	cryptoInfo->mode = FIRST_MODE_OF_OPERATION_ID;
+
+	// Test all available encryption algorithms
+	for (cryptoInfo->ea = EAGetFirst (); cryptoInfo->ea != 0; cryptoInfo->ea = EAGetNext (cryptoInfo->ea))
+	{
+		status = EAInit (cryptoInfo->ea, dk, cryptoInfo->ks);
+		if (status == ERR_CIPHER_INIT_FAILURE)
+			goto err;
+
+		// Secondary key schedule
+		EAInit (cryptoInfo->ea, dk + EAGetKeySize (cryptoInfo->ea), cryptoInfo->ks2);
+
+		// Try to decrypt header 
+		DecryptBuffer (header + HEADER_ENCRYPTED_DATA_OFFSET, HEADER_ENCRYPTED_DATA_SIZE, cryptoInfo);
+		
+		// Check magic 'TRUE' and key CRC
+		if (GetHeaderField32 (header, TC_HEADER_OFFSET_MAGIC) != 0x54525545
+			|| GetHeaderField32 (header, TC_HEADER_OFFSET_KEY_AREA_CRC) != GetCrc32 (header + HEADER_MASTER_KEYDATA_OFFSET, MASTER_KEYDATA_SIZE))
+		{
+			EncryptBuffer (header + HEADER_ENCRYPTED_DATA_OFFSET, HEADER_ENCRYPTED_DATA_SIZE, cryptoInfo);
+			continue;
+		}
+
+		// Header decrypted
+		status = 0;
+
+		// Volume size
+		cryptoInfo->VolumeSize = GetHeaderField64 (header, TC_HEADER_OFFSET_VOLUME_SIZE);
+
+		// Encrypted area size and length
+		cryptoInfo->EncryptedAreaStart = GetHeaderField64 (header, TC_HEADER_OFFSET_ENCRYPTED_AREA_START);
+		cryptoInfo->EncryptedAreaLength = GetHeaderField64 (header, TC_HEADER_OFFSET_ENCRYPTED_AREA_LENGTH);
+
+		memcpy (masterKey, header + HEADER_MASTER_KEYDATA_OFFSET, sizeof (masterKey));
+		EncryptBuffer (header + HEADER_ENCRYPTED_DATA_OFFSET, HEADER_ENCRYPTED_DATA_SIZE, cryptoInfo);
+
+		if (retHeaderCryptoInfo)
+			goto ret;
+
+		// Init the encryption algorithm with the decrypted master key
+		status = EAInit (cryptoInfo->ea, masterKey, cryptoInfo->ks);
+		if (status == ERR_CIPHER_INIT_FAILURE)
+			goto err;
+
+		// The secondary master key (if cascade, multiple concatenated)
+		EAInit (cryptoInfo->ea, masterKey + EAGetKeySize (cryptoInfo->ea), cryptoInfo->ks2);
+		goto ret;
+	}
+
+	status = ERR_PASSWORD_WRONG;
+
+err:
+	if (cryptoInfo != retHeaderCryptoInfo)
+	{
+		crypto_close(cryptoInfo);
+		*retInfo = NULL; 
+	}
+
+ret:
+	burn (dk, sizeof(dk));
+	burn (masterKey, sizeof(masterKey));
+	return status;
+}
+
+#endif // TC_WINDOWS_BOOT
+
 
 #if !defined (DEVICE_DRIVER) && !defined (TC_WINDOWS_BOOT)
 

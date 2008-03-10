@@ -40,7 +40,17 @@ namespace TrueCrypt
 				struct utimbuf u;
 				u.actime = AccTime;
 				u.modtime = ModTime;
-				throw_sys_sub_if (utime (string (Path).c_str(), &u) == -1, wstring (Path));
+
+				try
+				{
+					throw_sys_sub_if (utime (string (Path).c_str(), &u) == -1, wstring (Path));
+				}
+				catch (...) // Suppress errors to allow using read-only files
+				{
+#ifdef DEBUG 
+					throw;
+#endif
+				}
 			}
 		}
 	}

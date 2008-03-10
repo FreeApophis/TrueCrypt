@@ -141,8 +141,11 @@ namespace TrueCrypt
 			Pool.Allocate (PoolSize);
 			Test();
 
-			// First hash algorithm is the default one
-			PoolHash = Hash::GetAvailableAlgorithms().front();
+			if (!PoolHash)
+			{
+				// First hash algorithm is the default one
+				PoolHash = Hash::GetAvailableAlgorithms().front();
+			}
 		}
 	}
 
@@ -163,6 +166,7 @@ namespace TrueCrypt
 
 	void RandomNumberGenerator::Test ()
 	{
+		shared_ptr <Hash> origPoolHash = PoolHash;
 		PoolHash.reset (new Ripemd160());
 
 		Pool.Zero();
@@ -182,6 +186,8 @@ namespace TrueCrypt
 
 		if (Crc32::ProcessBuffer (Pool) != 0x1e3d0d72)
 			throw TestFailed (SRC_POS);
+
+		PoolHash = origPoolHash;
 	}
 
 	Mutex RandomNumberGenerator::AccessMutex;
@@ -189,7 +195,7 @@ namespace TrueCrypt
 	SecureBuffer RandomNumberGenerator::Pool;
 	shared_ptr <Hash> RandomNumberGenerator::PoolHash;
 	size_t RandomNumberGenerator::ReadOffset;
-	SharedVal <int> RandomNumberGenerator::ReferenceCount;
+	SharedVal <int> RandomNumberGenerator::ReferenceCount (0);
 	bool RandomNumberGenerator::Running = false;
 	size_t RandomNumberGenerator::WriteOffset;
 }

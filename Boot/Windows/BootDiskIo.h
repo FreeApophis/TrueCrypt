@@ -10,6 +10,13 @@
 #define TC_HEADER_Boot_BootDiskIo
 
 #include "Bios.h"
+#include "BootDebug.h"
+#include "BootDefs.h"
+
+enum
+{
+	BiosResultEccCorrected = 0x11
+};
 
 #pragma pack(1)
 
@@ -66,7 +73,6 @@ struct Partition
 	bool Primary;
 	uint64 SectorCount;
 	uint64 StartSector;
-	ChsAddress StartChsAddress;
 	byte Type;
 };
 
@@ -78,6 +84,14 @@ struct DriveGeometry
 };
 
 
+#ifdef TC_BOOT_DEBUG_ENABLED
+void AcquireSectorBuffer ();
+void ReleaseSectorBuffer ();
+#else
+#	define AcquireSectorBuffer()
+#	define ReleaseSectorBuffer()
+#endif
+
 void ChsToLba (const DriveGeometry &geometry, const ChsAddress &chs, uint64 &lba);
 BiosResult GetActivePartition (byte drive, Partition &partition, size_t &partitionCount, bool silent);
 BiosResult GetDriveGeometry (byte drive, DriveGeometry &geometry, bool silent = false);
@@ -85,11 +99,13 @@ BiosResult GetDrivePartitions (byte drive, Partition *partitionArray, size_t par
 void LbaToChs (const DriveGeometry &geometry, const uint64 &lba, ChsAddress &chs);
 void Print (const ChsAddress &chs);
 void PrintDiskError (BiosResult error, bool write, byte drive, const uint64 *sector, const ChsAddress *chs = nullptr);
-BiosResult ReadMBR (byte drive, MBR &mbr, bool silent = false);
+BiosResult ReadSectors (uint16 bufferSegment, uint16 bufferOffset, byte drive, const uint64 &sector, uint16 sectorCount, bool silent = false);
 BiosResult ReadSectors (byte *buffer, byte drive, const uint64 &sector, uint16 sectorCount, bool silent = false);
 BiosResult ReadSectors (byte *buffer, byte drive, const ChsAddress &chs, byte sectorCount, bool silent = false);
 BiosResult ReadWriteSectors (bool write, uint16 bufferSegment, uint16 bufferOffset, byte drive, const uint64 &sector, uint16 sectorCount, bool silent);
 BiosResult WriteSectors (byte *buffer, byte drive, const uint64 &sector, uint16 sectorCount, bool silent = false);
 BiosResult WriteSectors (byte *buffer, byte drive, const ChsAddress &chs, byte sectorCount, bool silent = false);
+
+extern byte SectorBuffer[TC_LB_SIZE];
 
 #endif // TC_HEADER_Boot_BootDiskIo

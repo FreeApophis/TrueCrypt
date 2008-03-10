@@ -23,11 +23,13 @@ namespace TrueCrypt
 
 		virtual shared_ptr <KeyfileList> AskKeyfiles (const wxString &message = L"") const;
 		virtual shared_ptr <VolumePassword> AskPassword (const wxString &message = L"", bool verify = false) const;
-		virtual wstring AskString (const wxString &message) const;
+		virtual size_t AskSelection (size_t optionCount, size_t defaultOption = -1) const;
+		virtual wstring AskString (const wxString &message = wxEmptyString) const;
 		virtual shared_ptr <VolumePath> AskVolumePath (const wxString &message = L"") const;
 		virtual bool AskYesNo (const wxString &message, bool defaultYes = false, bool warning = false) const;
 		virtual void BeginBusyState () const { }
-		virtual void ChangePassword (shared_ptr <VolumePath> volumePath = shared_ptr <VolumePath>(), shared_ptr <VolumePassword> password = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> keyfiles = shared_ptr <KeyfileList>(), shared_ptr <VolumePassword> newPassword = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> newKeyfiles = shared_ptr <KeyfileList>()) const;
+		virtual void ChangePassword (shared_ptr <VolumePath> volumePath = shared_ptr <VolumePath>(), shared_ptr <VolumePassword> password = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> keyfiles = shared_ptr <KeyfileList>(), shared_ptr <VolumePassword> newPassword = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> newKeyfiles = shared_ptr <KeyfileList>(), shared_ptr <Hash> newHash = shared_ptr <Hash>()) const;
+		virtual void CreateVolume (shared_ptr <VolumeCreationOptions> options, const FilesystemPath &randomSourcePath = FilesystemPath()) const;
 		virtual void DoShowError (const wxString &message) const;
 		virtual void DoShowInfo (const wxString &message) const;
 		virtual void DoShowString (const wxString &str) const;

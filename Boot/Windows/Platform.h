@@ -106,8 +106,8 @@ bool operator<= (const uint64 &a, const uint64 &b);
 
 void CopyMemory (byte *source, uint16 destSegment, uint16 destOffset, uint16 blockSize);
 void CopyMemory (uint16 sourceSegment, uint16 sourceOffset, byte *destination, uint16 blockSize);
+extern "C" void EraseMemory (void *memory, int size);
 uint32 GetLinearAddress (uint16 segment, uint16 offset);
-void Jump (uint16 jumpSegment, uint16 jumpOffset, byte dlRegister);
 bool RegionsIntersect (const uint64 &start1, uint32 length1, const uint64 &start2, const uint64 &end2);
 bool TestInt64 ();
 

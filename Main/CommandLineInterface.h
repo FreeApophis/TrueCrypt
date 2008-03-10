@@ -27,8 +27,10 @@ namespace TrueCrypt
 			AutoMountDevicesFavorites,
 			AutoMountFavorites,
 			ChangePassword,
+			CreateVolume,
 			DismountVolumes,
 			DisplayVersion,
+			DisplayVolumeProperties,
 			Help,
 			ListVolumes,
 			MountVolume,
@@ -44,15 +46,22 @@ namespace TrueCrypt
 
 
 		CommandId::Enum ArgCommand;
+		shared_ptr <EncryptionAlgorithm> ArgEncryptionAlgorithm;
+		VolumeCreationOptions::FilesystemType::Enum ArgFilesystem;
 		bool ArgForce;
+		shared_ptr <Hash> ArgHash;
 		shared_ptr <KeyfileList> ArgKeyfiles;
+		MountOptions ArgMountOptions;
 		shared_ptr <DirectoryPath> ArgMountPoint;
 		shared_ptr <KeyfileList> ArgNewKeyfiles;
 		shared_ptr <VolumePassword> ArgNewPassword;
 		shared_ptr <VolumePassword> ArgPassword;
-		VolumeInfoList ArgVolumes;
+		bool ArgQuick;
+		FilesystemPath ArgRandomSourcePath;
+		uint64 ArgSize;
 		shared_ptr <VolumePath> ArgVolumePath;
-		MountOptions ArgMountOptions;
+		VolumeInfoList ArgVolumes;
+		VolumeType::Enum ArgVolumeType;
 
 		bool StartBackgroundTask;
 		UserPreferences Preferences;

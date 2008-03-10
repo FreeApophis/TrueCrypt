@@ -18,11 +18,9 @@ namespace TrueCrypt
 	{
 	public:
 		static wstring FromNumber (double number);
-		static wstring FromNumber (int number);
+		static wstring FromNumber (int32 number);
+		static wstring FromNumber (uint32 number);
 		static wstring FromNumber (int64 number);
-		static wstring FromNumber (long number);
-		static wstring FromNumber (unsigned int number);
-		static wstring FromNumber (unsigned long number);
 		static wstring FromNumber (uint64 number);
 		static string GetTrailingNumber (const string &str);
 		static string GetTypeName (const type_info &typeInfo);

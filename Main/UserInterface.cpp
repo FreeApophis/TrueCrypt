@@ -208,7 +208,61 @@ namespace TrueCrypt
 		if (Preferences.Verbose && !message.IsEmpty())
 			ShowInfo (message);
 	}
-	
+		
+	void UserInterface::DisplayVolumeProperties (const VolumeInfoList &volumes) const
+	{
+		if (volumes.size() < 1)
+			throw_err (LangString["NO_VOLUMES_MOUNTED"]);
+
+		wxString prop;
+
+		foreach_ref (const VolumeInfo &volume, volumes)
+		{
+			prop << _("Slot") << L": " << StringConverter::FromNumber (volume.SlotNumber) << L'\n';
+			prop << LangString["VOLUME"] << L": " << wstring (volume.Path) << L'\n';
+#ifndef TC_WINDOWS
+			prop << LangString["VIRTUAL_DEVICE"] << L": " << wstring (volume.VirtualDevice) << L'\n';
+#endif
+			prop << LangString["MOUNT_POINT"] << L": " << wstring (volume.MountPoint) << L'\n';
+			prop << LangString["SIZE"] << L": " << SizeToString (volume.Size) << L'\n';
+			prop << LangString["TYPE"] << L": " << VolumeTypeToString (volume.Type, volume.Protection) << L'\n';
+
+			prop << LangString["READ_ONLY"] << L": " << LangString [volume.Protection == VolumeProtection::ReadOnly ? "UISTR_YES" : "UISTR_NO"] << L'\n';
+
+			wxString protection;
+			if (volume.Type == VolumeType::Hidden)
+				protection = LangString["N_A_UISTR"];
+			else if (volume.HiddenVolumeProtectionTriggered)
+				protection = LangString["HID_VOL_DAMAGE_PREVENTED"];
+			else
+				protection = LangString [volume.Protection == VolumeProtection::HiddenVolumeReadOnly ? "UISTR_YES" : "UISTR_NO"];
+
+			prop << LangString["HIDDEN_VOL_PROTECTION"] << L": " << protection << L'\n';
+			prop << LangString["ENCRYPTION_ALGORITHM"] << L": " << volume.EncryptionAlgorithmName << L'\n';
+			prop << LangString["KEY_SIZE"] << L": " << StringFormatter (L"{0} {1}", volume.EncryptionAlgorithmKeySize * 8, LangString ["BITS"]) << L'\n';
+
+			wstringstream blockSize;
+			blockSize << volume.EncryptionAlgorithmBlockSize * 8;
+			if (volume.EncryptionAlgorithmBlockSize != volume.EncryptionAlgorithmMinBlockSize)
+				blockSize << L"/" << volume.EncryptionAlgorithmMinBlockSize * 8;
+
+			prop << LangString["BLOCK_SIZE"] << L": " << blockSize.str() + L" " + LangString ["BITS"] << L'\n';
+			prop << LangString["MODE_OF_OPERATION"] << L": " << volume.EncryptionModeName << L'\n';
+			prop << LangString["PKCS5_PRF"] << L": " << volume.Pkcs5PrfName << L'\n';
+			prop << LangString["PKCS5_ITERATIONS"] << L": " << StringConverter::FromNumber (volume.Pkcs5IterationCount) << L'\n';
+
+			prop << LangString["VOLUME_CREATE_DATE"] << L": " << VolumeTimeToString (volume.VolumeCreationTime) << L'\n';
+			prop << LangString["VOLUME_HEADER_DATE"] << L": " << VolumeTimeToString (volume.HeaderCreationTime) << L'\n';
+
+			prop << LangString["TOTAL_DATA_READ"] << L": " << SizeToString (volume.TotalDataRead) << L'\n';
+			prop << LangString["TOTAL_DATA_WRITTEN"] << L": " << SizeToString (volume.TotalDataWritten) << L'\n';
+		
+			prop << L'\n';
+		}
+
+		ShowString (prop);
+	}
+
 	wxString UserInterface::ExceptionToMessage (const exception &ex) const
 	{
 		wxString message;
@@ -302,6 +356,9 @@ namespace TrueCrypt
 		{
 			wxString message = ExceptionTypeToString (typeid (ex));
 
+#ifdef __WXGTK__
+			if (Application::GetUserInterfaceType() != UserInterfaceType::Text)
+#endif
 			if (wxGetKeyState (WXK_CAPITAL))
 				message += wxString (L"\n\n") + LangString["CAPSLOCK_ON"];
 
@@ -328,7 +385,7 @@ namespace TrueCrypt
 		EX2MSG (PasswordEmpty,						_("No password or keyfile specified."));
 		EX2MSG (PasswordIncorrect,					LangString["PASSWORD_WRONG"]);
 		EX2MSG (PasswordKeyfilesIncorrect,			LangString["PASSWORD_OR_KEYFILE_WRONG"]);
-		EX2MSG (PasswordTooLong,					StringFormatter (_("Password is longer than {0} characters."), VolumePassword::MaxSize));
+		EX2MSG (PasswordTooLong,					StringFormatter (_("Password is longer than {0} characters."), (int) VolumePassword::MaxSize));
 		EX2MSG (ProtectionPasswordIncorrect,		_("Incorrect keyfile(s) and/or password to the protected hidden volume or the hidden volume does not exist."));
 		EX2MSG (ProtectionPasswordKeyfilesIncorrect,	_("Incorrect password to the protected hidden volume or the hidden volume does not exist."));
 		EX2MSG (RootDeviceUnavailable,				LangString["NODRIVER"]);
@@ -401,15 +458,12 @@ namespace TrueCrypt
 			else
 				message << L" - ";
 
-			if (Preferences.Verbose)
-				message << L' ' << SizeToString (volume.Size);
-
 			message << L'\n';
 		}
 
 		ShowString (message);
 	}
-	
+
 	VolumeInfoList UserInterface::MountAllDeviceHostedVolumes (MountOptions &options) const
 	{
 		BusyScope busy (this);
@@ -766,8 +820,33 @@ namespace TrueCrypt
 			return true;
 
 		case CommandId::ChangePassword:
-			ChangePassword (cmdLine.ArgVolumePath, cmdLine.ArgPassword, cmdLine.ArgKeyfiles, cmdLine.ArgNewPassword, cmdLine.ArgNewKeyfiles);
+			ChangePassword (cmdLine.ArgVolumePath, cmdLine.ArgPassword, cmdLine.ArgKeyfiles, cmdLine.ArgNewPassword, cmdLine.ArgNewKeyfiles, cmdLine.ArgHash);
 			return true;
+
+		case CommandId::CreateVolume:
+			{
+				make_shared_auto (VolumeCreationOptions, options);
+
+				if (cmdLine.ArgHash)
+				{
+					options->VolumeHeaderKdf = Pkcs5Kdf::GetAlgorithm (*cmdLine.ArgHash);
+					RandomNumberGenerator::SetHash (cmdLine.ArgHash);
+				}
+				
+				options->EA = cmdLine.ArgEncryptionAlgorithm;
+				options->Filesystem = cmdLine.ArgFilesystem;
+				options->Keyfiles = cmdLine.ArgKeyfiles;
+				options->Password = cmdLine.ArgPassword;
+				options->Quick = cmdLine.ArgQuick;
+				options->Size = (cmdLine.ArgSize + SECTOR_SIZE - 1) & ~(SECTOR_SIZE - 1);
+				options->Type = cmdLine.ArgVolumeType;
+
+				if (cmdLine.ArgVolumePath)
+					options->Path = VolumePath (*cmdLine.ArgVolumePath);
+
+				CreateVolume (options, cmdLine.ArgRandomSourcePath);
+				return true;
+			}
 
 		case CommandId::DismountVolumes:
 			DismountVolumes (cmdLine.ArgVolumes, cmdLine.ArgForce, !Preferences.NonInteractive);
@@ -777,15 +856,186 @@ namespace TrueCrypt
 			ShowString (Application::GetName() + L" " + StringConverter::ToWide (Version::String()) + L"\n");
 			return true;
 
+		case CommandId::DisplayVolumeProperties:
+			DisplayVolumeProperties (cmdLine.ArgVolumes);
+			return true;
+
 		case CommandId::Help:
-			ShowString (L"\nExamples:\n\nMount a volume:\ntruecrypt volume.tc /media/truecrypt1\n\n"
-					L"Dismount a volume:\ntruecrypt -d volume.tc\n\n"
-					L"Dismount all mounted volumes:\ntruecrypt -d\n\n"
-					);
+			{
+				wstring helpText = StringConverter::ToWide (
+					"Commands:\n"
+					"\n"
+					"--auto-mount=devices|favorites\n"
+					" Auto mount device-hosted or favorite volumes.\n"
+					"\n"
+					"-c, --create=[VOLUME_PATH]\n"
+					" Create a new volume. Most options are requested from user if not specified\n"
+					" on command line. See also options --encryption, -k, --filesystem, --hash, -p,\n"
+					" --random-source, --quick, --size, --volume-type. Note that passing some of the\n"
+					" options may affect security (see option -p for more information).\n"
+					"\n"
+					"-C, --change=[VOLUME_PATH]\n"
+					" Change a password and/or keyfile(s) of a volume. Volume path and passwords are\n"
+					" requested from user if not specified on command line. PKCS-5 PRF HMAC hash\n"
+					" algorithm can be changed with option --hash. See also options -k,\n"
+					" --new-keyfiles, --new-password, -p, --random-source, -v.\n"
+					"\n"
+					"-d, --dismount=[MOUNTED_VOLUME]\n"
+					" Dismount a mounted volume. If MOUNTED_VOLUME is not specified, all\n"
+					" volumes are dismounted. See below for a description of MOUNTED_VOLUME.\n"
+					"\n"
+					"-l, --list=[MOUNTED_VOLUME]\n"
+					" Display a list of mounted volumes. If MOUNTED_VOLUME is not specified, all\n"
+					" volumes are listed. By default, the list contains only volume path, virtual\n"
+					" device, and mount point. A more detailed list can be enabled by verbose\n"
+					" output option (-v). See below for a description of MOUNTED_VOLUME.\n"
+					"\n"
+					"--mount=[VOLUME_PATH]\n"
+					" Mount a volume interactively. Options which may affect security are\n"
+					" requested from the user. See option -p for more information.\n"
+					"\n"
+					"--test\n"
+					" Test internal algorithms used in the process of encryption and decryption.\n"
+					"\n"
+					"--version\n"
+					" Display program version.\n"
+					"\n"
+					"--volume-properties=[MOUNTED_VOLUME]\n"
+					" Display properties of a mounted volume. See below for a description of\n"
+					" MOUNTED_VOLUME.\n"
+					"\n"
+					"MOUNTED_VOLUME:\n"
+					" Specifies a mounted volume. One of the following forms can be used:\n"
+					" 1) Path to the encrypted TrueCrypt volume.\n"
+					" 2) Mount directory of the volume's filesystem (if mounted).\n"
+					" 3) Slot number of the mounted volume (requires --slot).\n"
+					"\n"
+					"\n"
+					"Options:\n"
+					"\n"
+					"--encryption=ENCRYPTION_ALGORITHM\n"
+					" Use specified encryption algorithm when creating a new volume.\n"
+					"\n"
+					"--filesystem=TYPE\n"
+					" Filesystem type to mount. The TYPE argument is passed to mount(8) command\n"
+					" with option -t. Default type is 'auto'. When creating a new volume, this\n"
+					" option specifies the filesystem to be created on the new volume.\n"
+					"\n"
+					"--force\n"
+					" Force mounting of a volume in use, dismounting of a volume in use, or\n"
+					" overwriting a file. Note that this option has no effect on some platforms.\n"
+					"\n"
+					"--fs-options=OPTIONS\n"
+					" Filesystem mount options. The OPTIONS argument is passed to mount(8)\n"
+					" command with option -o. This option is not available on some platforms.\n"
+					"\n"
+					"--hash=HASH\n"
+					" Use specified hash algorithm when creating a new volume or changing password\n"
+					" and/or keyfiles.\n"
+					"\n"
+					"-k, --keyfiles=KEYFILE1,KEYFILE2,KEYFILE3,..\n"
+					" Use specified keyfiles when mounting a volume (or when changing password\n"
+					" and/or keyfiles). When a directory is specified, all files inside it will be\n"
+					" used (non-recursively). Multiple keyfiles must be separated by comma.\n"
+					" An empty keyfile (-k \"\") disables interactive requests for keyfiles. See also\n"
+					" options --new-keyfiles, --protection-keyfiles.\n"
+					"\n"
+					"--mount-options=readonly|ro,timestamp|ts\n"
+					" Specify comma-separated mount options for a TrueCrypt volume:\n"
+					"  readonly|ro: Mount read-only.\n"
+					"  timestamp|ts: Update (do not preserve) host-file timestamps.\n"
+					"\n"
+					"-p, --password=PASSWORD\n"
+					" Use specified password to mount/open a volume. An empty password can also be\n"
+					" specified (-p \"\"). Note that passing a password on the command line is\n"
+					" potentially insecure as the password may be visible in the process list\n"
+					" (see ps(1)) and/or stored in a command history file or system logs.\n"
+					"\n"
+					"--protect-hidden\n"
+					" Write-protect a hidden volume when mounting an outer volume. Before mounting\n"
+					" the outer volume, the user will be prompted for a password to open the hidden\n"
+					" volume. The size and position of the hidden volume is then determined and the\n"
+					" outer volume is mapped with all sectors belonging to the hidden volume\n"
+					" protected against write operations. When a write to the protected area is\n"
+					" prevented, the whole volume is switched to read-only mode. Verbose list\n"
+					" (-v -l) can be used to query the state of the hidden volume protection.\n"
+					" Warning message is displayed when a volume switched to read-only is being\n"
+					" dismounted. See also option --mount.\n"
+					"\n"
+					"--protection-keyfiles=KEYFILE1,KEYFILE2,KEYFILE3,..\n"
+					" Use specified keyfiles to open a hidden volume to be protected. This option\n"
+					" may be used only when mounting an outer volume with hidden volume protected.\n"
+					" See also options -k and --protect-hidden.\n"
+					"\n"
+					"--protection-password=PASSWORD\n"
+					" Use specified password to open a hidden volume to be protected. This option\n"
+					" may be used only when mounting an outer volume with hidden volume protected.\n"
+					" See also options -p and --protect-hidden.\n"
+					"\n"
+					"--quick\n"
+					" Use quick format when creating a new volume. This option can be used only\n"
+					" when creating a device-hosted volume.\n"
+					"\n"
+					"--random-source=FILE\n"
+					" Use FILE as a source of random data (e.g., when creating a volume).\n"
+					"\n"
+					"--slot=SLOT\n"
+					" Use specified slot number when mounting, dismounting, or listing a volume.\n"
+					"\n"
+					"--size=SIZE\n"
+					" Use specified size in bytes when creating a new volume.\n"
+					"\n"
+					"-t, --text\n"
+					" Use text user interface. Graphical user interface is used by default if\n"
+					" available.\n"
+					"\n"
+					"--volume-type=TYPE\n"
+					" Use specified volume type when creating a new volume. TYPE can be 'normal'\n"
+					" or 'hidden'.\n"
+					"\n"
+					"-v, --verbose\n"
+					" Enable verbose output.\n"
+					"\n"
+					"\nExamples:\n\n"
+					"Create a new volume using text interface:\ntruecrypt -t -c\n"
+					"\n"
+					"Mount a volume:\ntruecrypt volume.tc /media/truecrypt1\n"
+					"\n"
+					"Mount a volume read-only, using keyfiles:\ntruecrypt -m ro -k keyfile1,keyfile2 volume.tc\n"
+					"\n"
+					"Dismount a volume:\ntruecrypt -d volume.tc\n"
+					"\n"
+					"Dismount all mounted volumes:\ntruecrypt -d\n"
+				);
+
+				if (Application::GetUserInterfaceType() == UserInterfaceType::Graphic)
+				{
+					wxDialog dialog (nullptr, wxID_ANY, _("TrueCrypt Command Line Help"), wxDefaultPosition, wxSize (600,400));
+
+					wxTextCtrl *textCtrl = new wxTextCtrl (&dialog, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE | wxTE_READONLY);
+					textCtrl->SetValue (helpText);
+
+					wxBoxSizer *sizer = new wxBoxSizer (wxVERTICAL);
+					sizer->Add (textCtrl, 1, wxALL | wxEXPAND, 5);
+					sizer->Add (new wxButton (&dialog, wxID_OK, _("OK")), 0, wxALL | wxALIGN_CENTER_HORIZONTAL, 5);
+
+					dialog.SetSizer (sizer);
+					dialog.Layout();
+					dialog.ShowModal();
+				}
+				else
+				{
+					ShowString (L"\n\n");
+					ShowString (helpText);
+				}
+			}
 			return true;
 
 		case CommandId::ListVolumes:
-			ListMountedVolumes (cmdLine.ArgVolumes);
+			if (Preferences.Verbose)
+				DisplayVolumeProperties (cmdLine.ArgVolumes);
+			else
+				ListMountedVolumes (cmdLine.ArgVolumes);
 			return true;
 
 		case CommandId::Test:
@@ -847,15 +1097,15 @@ namespace TrueCrypt
 		else if (speed > 1024ULL*1024*1024*1024*1024)
 			return wxString::Format (L"%.1f %s", (double)(speed/1024.0/1024/1024/1024/1024), LangString["PB_PER_SEC"].c_str());
 		else if (speed > 1024ULL*1024*1024*1024*99)
-			s << speed/1024/1024/1024/1024 << L" " << LangString["TB"].c_str();
+			s << speed/1024/1024/1024/1024 << L" " << LangString["TB_PER_SEC"].c_str();
 		else if (speed > 1024ULL*1024*1024*1024)
 			return wxString::Format (L"%.1f %s", (double)(speed/1024.0/1024/1024/1024), LangString["TB_PER_SEC"].c_str());
 		else if (speed > 1024ULL*1024*1024*99)
-			s << speed/1024/1024/1024 << L" " << LangString["GB"].c_str();
+			s << speed/1024/1024/1024 << L" " << LangString["GB_PER_SEC"].c_str();
 		else if (speed > 1024ULL*1024*1024)
 			return wxString::Format (L"%.1f %s", (double)(speed/1024.0/1024/1024), LangString["GB_PER_SEC"].c_str());
 		else if (speed > 1024ULL*1024*99)
-			s << speed/1024/1024 << L" " << LangString["MB"].c_str();
+			s << speed/1024/1024 << L" " << LangString["MB_PER_SEC"].c_str();
 		else if (speed > 1024ULL*1024)
 			return wxString::Format (L"%.1f %s", (double)(speed/1024.0/1024), LangString["MB_PER_SEC"].c_str());
 		else if (speed > 1024ULL)
@@ -905,6 +1155,22 @@ namespace TrueCrypt
 		catch (StringFormatterException&) { }
 
 		ShowInfo ("TESTS_PASSED");
+	}
+
+	wxString UserInterface::TimeSpanToString (uint64 seconds) const
+	{
+		wstringstream s;
+
+		if (seconds >= 60 * 60 * 24 * 2)
+			s << seconds / (60 * 24 * 60) << L" " << LangString["DAYS"].c_str();
+		else if (seconds >= 120 * 60)
+			s << seconds / (60 * 60) << L" " << LangString["HOURS"].c_str();
+		else if (seconds >= 120)
+			s << seconds / 60 << L" " << LangString["MINUTES"].c_str();
+		else
+			s << seconds << L" " << LangString["SECONDS"].c_str();
+
+		return s.str();
 	}
 	
 	bool UserInterface::VolumeHasUnrecommendedExtension (const VolumePath &path) const

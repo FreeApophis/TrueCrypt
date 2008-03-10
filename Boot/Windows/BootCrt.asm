@@ -14,11 +14,10 @@ INCLUDE BootDefs.i
 EXTERNDEF main:NEAR
 
 _TEXT SEGMENT
-ORG TC_BOOT_LOADER_OFFSET
+ORG TC_COM_EXECUTABLE_OFFSET
 
 start:
-	call main
-	jmp $
+	jmp main
 
 _TEXT ENDS
 END start

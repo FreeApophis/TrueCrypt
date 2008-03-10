@@ -227,7 +227,7 @@ namespace TrueCrypt
 				return;
 			}
 		}
-		catch (Exception &e)
+		catch (exception &e)
 		{
 			Gui->ShowError (e);
 		}
@@ -416,7 +416,8 @@ namespace TrueCrypt
 						options->FilesystemClusterSize = SelectedFilesystemClusterSize;
 
 						options->EA = SelectedEncryptionAlgorithm;
-						options->Password = Keyfile::ApplyListToPassword (Keyfiles, Password);
+						options->Password = Password;
+						options->Keyfiles = Keyfiles;
 						options->Path = SelectedVolumePath;
 						options->Quick = QuickFormatEnabled;
 						options->Size = VolumeSize;

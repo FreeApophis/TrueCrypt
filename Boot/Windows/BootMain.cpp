@@ -62,6 +62,7 @@ static bool AskYesNo (const char *message)
 		{
 		case 'y':
 		case 'Y':
+		case 'z':
 			PrintEndl();
 			return true;
 
@@ -168,28 +169,44 @@ static void ExecuteBootSector (byte drive, byte *sectorBuffer)
 {
 	Print ("Booting...\r\n");
 	CopyMemory (sectorBuffer, 0x0000, 0x7c00, TC_LB_SIZE);
-	Jump (0x0000, 0x7c00, drive);
+
+	uint32 addr = 0x7c00;
+	__asm
+	{
+		cli
+		mov dl, drive
+		xor ax, ax
+		mov ds, ax
+		mov es, ax
+		mov ss, ax
+		mov sp, 0xffff
+		sti
+		jmp cs:addr
+	}
 }
 
 
 static bool OpenVolume (byte drive, Password &password, CRYPTO_INFO **cryptoInfo, uint32 *headSaltCrc32)
 {
-	byte header[HEADER_SIZE];
+	bool status = false;
 	uint64 headerSec;
 	headerSec.HighPart = 0;
 	headerSec.LowPart = TC_BOOT_VOLUME_HEADER_SECTOR;
 
-	if (ReadSectors (header, drive, headerSec, 1) != BiosResultSuccess)
-		return false;
+	AcquireSectorBuffer();
+	if (ReadSectors (SectorBuffer, drive, headerSec, 1) != BiosResultSuccess)
+		goto ret;
 
-	if (VolumeReadHeader (TRUE, (char *) header, &password, cryptoInfo, nullptr) == 0)
+	if (VolumeReadHeader (TRUE, (char *) SectorBuffer, &password, cryptoInfo, nullptr) == 0)
 	{
 		if (headSaltCrc32)
-			*headSaltCrc32 = GetCrc32 (header, PKCS5_SALT_SIZE);
-		return true;
+			*headSaltCrc32 = GetCrc32 (SectorBuffer, PKCS5_SALT_SIZE);
+		status = true;
 	}
 
-	return false;
+ret:
+	ReleaseSectorBuffer();
+	return status;
 }
 
 
@@ -217,31 +234,6 @@ static bool CheckMemoryRequirements ()
 		return false;
 	}
 
-	// Check for conflicts with BIOS memory map
-	uint64 bootLoaderStart;
-	bootLoaderStart.HighPart = 0;
-	bootLoaderStart.LowPart = GetLinearAddress (codeSeg, 0);
-
-	BiosMemoryMapEntry entry;
-	if (GetFirstBiosMemoryMapEntry (entry))
-	{
-		do
-		{
-			if (entry.Type != 0x1
-				&& RegionsIntersect (bootLoaderStart, TC_BOOT_MEMORY_REQUIRED * 1024UL, entry.BaseAddress, entry.BaseAddress + entry.Length - 1))
-			{
-				PrintError ("Your BIOS reserved a memory area required by TrueCrypt:");
-				Print ("Type:"); Print (entry.Type);
-				Print (" Start:"); PrintHex (entry.BaseAddress);
-				Print (" Length:"); PrintHex (entry.Length);
-				PrintEndl (2);
-
-				return false;
-			}
-		}
-		while (GetNextBiosMemoryMapEntry (entry));
-	}
-
 	return true;
 }
 
@@ -249,6 +241,7 @@ static bool CheckMemoryRequirements ()
 static bool MountVolume (byte drive, byte &exitKey)
 {
 	BootArguments *bootArguments = (BootArguments *) TC_BOOT_LOADER_ARGS_OFFSET;
+	int incorrectPasswordCount = 0;
 
 	// Open volume header
 	while (true)
@@ -262,6 +255,12 @@ static bool MountVolume (byte drive, byte &exitKey)
 			break;
 
 		Print ("Incorrect password or not a TrueCrypt volume.\r\n\r\n");
+
+		if (++incorrectPasswordCount == 5)
+		{
+			Print ("If you are sure the password is correct, the key data may be damaged. Boot your\r\n"
+				   "TrueCrypt Rescue Disk and select 'Repair Options' > 'Restore key data'.\r\n\r\n");
+		}
 	}
 
 	// Setup boot arguments
@@ -298,6 +297,7 @@ static byte BootEncryptedDrive ()
 {
 	Partition partition;
 	size_t partCount;
+	BootCryptoInfo = NULL;
 
 	// Find active partition
 	if (GetActivePartition (BootDrive, partition, partCount, false) != BiosResultSuccess || partCount < 1)
@@ -314,20 +314,33 @@ static byte BootEncryptedDrive ()
 	{
 		Print ("Try disabling unneeded components (RAID, AHCI, integrated audio card, etc.) in\r\n"
 				"BIOS setup menu (invoked by pressing Del or F2 after turning on your computer).\r\n");
+#ifndef TC_WINDOWS_BOOT_AES
+		Print ("If it does not help, try using the AES encryption algorithm to reduce memory\r\nrequirements.\r\n");
+#endif
 		goto err;
 	}
 
 	if (!InstallInterruptFilters())
 		goto err;
 
-	// Execute boot sector of the active partition
-	byte bootSector[TC_LB_SIZE];
-	if (ReadSectors (bootSector, partition.Drive, partition.StartSector, 1) == BiosResultSuccess)
+	while (true)
 	{
-		ExecuteBootSector (partition.Drive, bootSector);
+		// Execute boot sector of the active partition
+		if (ReadSectors (SectorBuffer, partition.Drive, partition.StartSector, 1) == BiosResultSuccess)
+		{
+			ExecuteBootSector (partition.Drive, SectorBuffer);
+		}
+
+		GetKeyboardChar();
 	}
 
 err:
+	if (BootCryptoInfo)
+	{
+		crypto_close (BootCryptoInfo);
+		BootCryptoInfo = NULL;
+	}
+
 	EncryptedVirtualPartition.Drive = TC_FIRST_BIOS_DRIVE - 1;
 	memset ((void *) TC_BOOT_LOADER_ARGS_OFFSET, 0, sizeof (BootArguments));
 
@@ -352,18 +365,16 @@ static void BootMenu ()
 			for (size_t i = 0; i < partitionCount; ++i)
 			{
 				const Partition &partition = partitions[i];
+				result = ReadSectors (SectorBuffer, drive, partition.StartSector, 1);
 
-				byte bootSector[TC_LB_SIZE];
-				result = ReadSectors (bootSector, drive, partition.StartSector, 1);
-
-				if (result == BiosResultSuccess && *(uint16 *) (bootSector + TC_LB_SIZE - 2) == 0xaa55)
+				if (result == BiosResultSuccess && *(uint16 *) (SectorBuffer + TC_LB_SIZE - 2) == 0xaa55)
 				{
 					// Windows writes boot loader on all NTFS/FAT filesytems it creates and, therefore,
 					// NTFS/FAT partitions must have the boot indicator set to be considered bootable.
 					if (!partition.Active
-						&& (*(uint32 *) (bootSector + 3) == 0x5346544e  // 'NTFS'
-							|| *(uint16 *) (bootSector + 54) == 0x4146 && bootSector[56] == 'T' // 'FAT'
-							|| *(uint16 *) (bootSector + 82) == 0x4146 && bootSector[84] == 'T'))
+						&& (*(uint32 *) (SectorBuffer + 3) == 0x5346544e  // 'NTFS'
+							|| *(uint16 *) (SectorBuffer + 54) == 0x4146 && SectorBuffer[56] == 'T' // 'FAT'
+							|| *(uint16 *) (SectorBuffer + 82) == 0x4146 && SectorBuffer[84] == 'T'))
 					{
 						continue;
 					}
@@ -424,10 +435,9 @@ static void BootMenu ()
 
 		const Partition &partition = bootablePartitions[partChar - '0' - 1];
 
-		byte bootSector[TC_LB_SIZE];
-		if (ReadSectors (bootSector, partition.Drive, partition.StartSector, 1) == BiosResultSuccess)
+		if (ReadSectors (SectorBuffer, partition.Drive, partition.StartSector, 1) == BiosResultSuccess)
 		{
-			ExecuteBootSector (partition.Drive, bootSector);
+			ExecuteBootSector (partition.Drive, SectorBuffer);
 		}
 	}
 }
@@ -445,20 +455,19 @@ static void DecryptDrive (byte drive)
 	uint64 sectorsRemaining = EncryptedVirtualPartition.EndSector + 1 - EncryptedVirtualPartition.StartSector;
 	uint64 sector = EncryptedVirtualPartition.EndSector + 1;
 
-	byte sectorBuf[TC_LB_SIZE];
 	int fragmentSectorCount = sectorsPerIoBlock;
 	int statCount;
 
 	if (EncryptedVirtualPartition.Drive == TC_FIRST_BIOS_DRIVE - 1)
 	{
-		// Drive not encrypted
+		// Drive already decrypted
 		sectorsRemaining.HighPart = 0;
 		sectorsRemaining.LowPart = 0;
-		headerUpdateRequired = true;
 	}
 	else
 	{
-		Print ("\r\nDo NOT turn off power. Press ESC to abort.\r\n");
+		Print ("\r\nTo safely interrupt and defer decryption, press Esc.\r\n"
+			"WARNING: You can turn off power only after you press Esc.\r\n\r\n");
 	}
 
 	while (sectorsRemaining.HighPart != 0 || sectorsRemaining.LowPart != 0)
@@ -485,15 +494,19 @@ static void DecryptDrive (byte drive)
 		if (ReadWriteSectors (false, TC_BOOT_LOADER_BUFFER_SEGMENT, 0, drive, sector, fragmentSectorCount, false) != BiosResultSuccess)
 			break;
 
+		AcquireSectorBuffer();
+
 		for (int i = 0; i < fragmentSectorCount; ++i)
 		{
-			CopyMemory (TC_BOOT_LOADER_BUFFER_SEGMENT, i * sizeof (sectorBuf), sectorBuf, sizeof (sectorBuf));
+			CopyMemory (TC_BOOT_LOADER_BUFFER_SEGMENT, i * TC_LB_SIZE, SectorBuffer, TC_LB_SIZE);
 
 			uint64 s = sector + i;
-			DecryptDataUnits (sectorBuf, &s, 1, BootCryptoInfo);
+			DecryptDataUnits (SectorBuffer, &s, 1, BootCryptoInfo);
 
-			CopyMemory (sectorBuf, TC_BOOT_LOADER_BUFFER_SEGMENT, i * sizeof (sectorBuf), sizeof (sectorBuf));
+			CopyMemory (SectorBuffer, TC_BOOT_LOADER_BUFFER_SEGMENT, i * TC_LB_SIZE, TC_LB_SIZE);
 		} 
+
+		ReleaseSectorBuffer();
 
 		if (ReadWriteSectors (true, TC_BOOT_LOADER_BUFFER_SEGMENT, 0, drive, sector, fragmentSectorCount, false) != BiosResultSuccess)
 			break;
@@ -507,45 +520,42 @@ static void DecryptDrive (byte drive)
 
 	if (headerUpdateRequired)
 	{
-		byte header[HEADER_SIZE];
+		AcquireSectorBuffer();
 		uint64 headerSector;
 		headerSector.HighPart = 0;
 		headerSector.LowPart = TC_BOOT_VOLUME_HEADER_SECTOR;
 
-		if (sectorsRemaining.HighPart == 0 && sectorsRemaining.LowPart == 0)
-		{
-			memset (header, 0, sizeof (header));
-			Print ("\rDrive decrypted.\r\n");
-		}
-		else
-		{
-			// Update encrypted area size in volume header
+		// Update encrypted area size in volume header
 
-			CRYPTO_INFO *headerCryptoInfo = crypto_open();
-			ReadSectors (header, drive, headerSector, 1);
+		CRYPTO_INFO *headerCryptoInfo = crypto_open();
+		ReadSectors (SectorBuffer, drive, headerSector, 1);
 
-			if (VolumeReadHeader (TRUE, (char *) header, &bootArguments->BootPassword, NULL, headerCryptoInfo) == 0)
+		if (VolumeReadHeader (TRUE, (char *) SectorBuffer, &bootArguments->BootPassword, NULL, headerCryptoInfo) == 0)
+		{
+			DecryptBuffer (SectorBuffer + HEADER_ENCRYPTED_DATA_OFFSET, HEADER_ENCRYPTED_DATA_SIZE, headerCryptoInfo);
+
+			byte *sizeField = SectorBuffer + TC_HEADER_OFFSET_ENCRYPTED_AREA_LENGTH;
+			uint64 encryptedAreaLength = sectorsRemaining << TC_LB_SIZE_BIT_SHIFT_DIVISOR;
+
+			for (int i = 7; i >= 0; --i)
 			{
-				DecryptBuffer (header + HEADER_ENCRYPTED_DATA_OFFSET, HEADER_ENCRYPTED_DATA_SIZE, headerCryptoInfo);
-
-				byte *sizeField = header + TC_HEADER_OFFSET_ENCRYPTED_AREA_LENGTH;
-				uint64 encryptedAreaLength = sectorsRemaining << TC_LB_SIZE_BIT_SHIFT_DIVISOR;
-
-				for (int i = 7; i >= 0; --i)
-				{
-					sizeField[i] = (byte) encryptedAreaLength.LowPart;
-					encryptedAreaLength = encryptedAreaLength >> 8;
-				}
-				
-				EncryptBuffer (header + HEADER_ENCRYPTED_DATA_OFFSET, HEADER_ENCRYPTED_DATA_SIZE, headerCryptoInfo);
+				sizeField[i] = (byte) encryptedAreaLength.LowPart;
+				encryptedAreaLength = encryptedAreaLength >> 8;
 			}
 
-			crypto_close (headerCryptoInfo);
-			Print ("\r\nAborted.\r\n");
+			EncryptBuffer (SectorBuffer + HEADER_ENCRYPTED_DATA_OFFSET, HEADER_ENCRYPTED_DATA_SIZE, headerCryptoInfo);
 		}
 
-		WriteSectors (header, drive, headerSector, 1);
+		crypto_close (headerCryptoInfo);
+
+		WriteSectors (SectorBuffer, drive, headerSector, 1);
+		ReleaseSectorBuffer();
 	}
+
+	if (sectorsRemaining.HighPart == 0 && sectorsRemaining.LowPart == 0)
+		Print ("\rDrive decrypted.\r\n");
+	else
+		Print ("\r\nDecryption deferred.\r\n");
 
 err:
 	memset (bootArguments, 0, sizeof (*bootArguments));
@@ -595,21 +605,35 @@ static void RepairMenu ()
 				return;
 
 			case DecryptVolume:
-				DecryptDrive (BootDrive);
+				Print ("\r\nIMPORTANT: Use this only if Windows cannot start. Decryption under Windows is\r\n"
+					   "much faster. To decrypt under Windows, run TrueCrypt and select 'System' >\r\n"
+					   "'Permanently Decrypt'.\r\n\r\n");
+
+				if (AskYesNo ("Start decryption"))
+				{
+					PrintEndl();
+					DecryptDrive (BootDrive);
+				}
 				continue;
 
 			case RestoreOriginalSystemLoader:
 				if (!AskYesNo ("Is the drive decrypted"))
+				{
+					Print ("Please decrypt it first.\r\n");
+					GetKeyboardChar();
 					continue;
+				}
 		}
 
 		bool writeConfirmed = false;
 		BiosResult result;
-		byte sectorBuf[TC_LB_SIZE];
 
 		uint64 sector;
 		sector.HighPart = 0;
 		ChsAddress chs;
+
+		byte mbrPartTable[TC_LB_SIZE - TC_MAX_MBR_BOOT_CODE_SIZE];
+		AcquireSectorBuffer();
 
 		for (int i = (selection == RestoreVolumeHeader ? TC_BOOT_VOLUME_HEADER_SECTOR : TC_MBR_SECTOR);
 			i < TC_BOOT_LOADER_AREA_SECTOR_COUNT; ++i)
@@ -619,30 +643,30 @@ static void RepairMenu ()
 			// The backup medium may be a floppy-emulated bootable CD. The emulation may fail if LBA addressing is used.
 			// Therefore, only CHS addressing can be used.
 			LbaToChs (bootLoaderDriveGeometry, sector, chs);
-
-			result = ReadSectors (sectorBuf, BootLoaderDrive, chs, 1);
-			if (result != BiosResultSuccess)
-				goto err;
-
 			sector.LowPart = i;
 
-			// MBR
 			if (i == TC_MBR_SECTOR)
 			{
-				// Preserve partition table
-				byte bootSecBuf[TC_LB_SIZE];
-
-				result = ReadSectors (bootSecBuf, TC_FIRST_BIOS_DRIVE, sector, 1);
+				// Read current partition table
+				result = ReadSectors (SectorBuffer, TC_FIRST_BIOS_DRIVE, sector, 1);
 				if (result != BiosResultSuccess)
 					goto err;
 
-				memcpy (sectorBuf + TC_MAX_MBR_BOOT_CODE_SIZE,
-					bootSecBuf + TC_MAX_MBR_BOOT_CODE_SIZE,
-					sizeof (bootSecBuf) - TC_MAX_MBR_BOOT_CODE_SIZE);
+				memcpy (mbrPartTable, SectorBuffer + TC_MAX_MBR_BOOT_CODE_SIZE, sizeof (mbrPartTable));
+			}
+
+			result = ReadSectors (SectorBuffer, BootLoaderDrive, chs, 1);
+			if (result != BiosResultSuccess)
+				goto err;
+
+			if (i == TC_MBR_SECTOR)
+			{
+				// Preserve current partition table
+				memcpy (SectorBuffer + TC_MAX_MBR_BOOT_CODE_SIZE, mbrPartTable, sizeof (mbrPartTable));
 
 				// Clear rescue disk flags
 				if (selection == RestoreTrueCryptLoader)
-					sectorBuf[TC_BOOT_SECTOR_CONFIG_OFFSET] &= ~(TC_BOOT_CFG_FLAG_RESCUE_DISK | TC_BOOT_CFG_FLAG_RESCUE_DISK_ORIG_SYS_LOADER);
+					SectorBuffer[TC_BOOT_SECTOR_CONFIG_OFFSET] &= ~(TC_BOOT_CFG_FLAG_RESCUE_DISK | TC_BOOT_CFG_FLAG_RESCUE_DISK_ORIG_SYS_LOADER);
 			}
 
 			// Volume header
@@ -663,6 +687,9 @@ static void RepairMenu ()
 
 						CRYPTO_INFO *cryptoInfo;
 
+						CopyMemory (SectorBuffer, TC_BOOT_LOADER_BUFFER_SEGMENT, 0, TC_LB_SIZE);
+						ReleaseSectorBuffer();
+
 						// Restore volume header only if the current one cannot be used
 						if (OpenVolume (TC_FIRST_BIOS_DRIVE, password, &cryptoInfo))
 						{
@@ -671,7 +698,10 @@ static void RepairMenu ()
 							goto err;
 						}
 
-						if (VolumeReadHeader (TRUE, (char *) sectorBuf, &password, &cryptoInfo, nullptr) == 0)
+						AcquireSectorBuffer();
+						CopyMemory (TC_BOOT_LOADER_BUFFER_SEGMENT, 0, SectorBuffer, TC_LB_SIZE);
+
+						if (VolumeReadHeader (TRUE, (char *) SectorBuffer, &password, &cryptoInfo, nullptr) == 0)
 						{
 							crypto_close (cryptoInfo);
 							break;
@@ -682,11 +712,11 @@ static void RepairMenu ()
 				}
 			}
 
-			if (!writeConfirmed && !AskYesNo ("Modify Drive 0"))
+			if (!writeConfirmed && !AskYesNo ("Modify drive 0"))
 				goto abort;
 			writeConfirmed = true;
 
-			if (WriteSectors (sectorBuf, TC_FIRST_BIOS_DRIVE, sector, 1) != BiosResultSuccess)
+			if (WriteSectors (SectorBuffer, TC_FIRST_BIOS_DRIVE, sector, 1) != BiosResultSuccess)
 				goto err;
 		}
 done:
@@ -707,7 +737,7 @@ done:
 		Print (" restored.\r\n");
 
 err:	GetKeyboardChar();
-abort:	;
+abort:	ReleaseSectorBuffer();
 	}
 }
 
@@ -722,8 +752,12 @@ void main ()
 	__asm mov BootLoaderDrive, dl
 	__asm mov BootSectorFlags, dh
 
-#ifdef TC_TRACING_ENABLED
+#ifdef TC_BOOT_TRACING_ENABLED
 	InitDebugPort();
+#endif
+
+#ifdef TC_BOOT_STACK_CHECKING_ENABLED
+	InitStackChecker();
 #endif
 
 	BootDrive = BootLoaderDrive;

@@ -82,7 +82,10 @@ int GetModeOfOperationByDriveNo (int nDosDriveNo);
 void ChangeMainWindowVisibility ();
 void LaunchVolCreationWizard (HWND hwndDlg);
 BOOL WholeSysDriveEncryption (BOOL bSilent);
+BOOL CheckSysEncMountWithoutPBA (char *devicePath, BOOL quiet);
+BOOL TCBootLoaderOnInactiveSysEncDrive (void);
 void CreateRescueDisk (void);
+BOOL RegisterBootDriver (void);
 
 #ifdef __cplusplus
 }

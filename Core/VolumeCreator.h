@@ -31,7 +31,8 @@ namespace TrueCrypt
 		{
 			enum Enum
 			{
-				None = 0,
+				Unknown = 0,
+				None,
 				FAT
 			};
 		};

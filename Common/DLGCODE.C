@@ -23,6 +23,7 @@
 #include "Resource.h"
 
 #include "Apidrvr.h"
+#include "BootEncryption.h"
 #include "Combo.h"
 #include "Crc.h"
 #include "Crypto.h"
@@ -41,8 +42,14 @@
 #include "Xml.h"
 #include "Xts.h"
 
+using namespace TrueCrypt;
+
 #ifdef VOLFORMAT
 #include "Format/Tcformat.h"
+#endif
+
+#ifdef SETUP
+#include "Setup/Setup.h"
 #endif
 
 LONG DriverVersion;
@@ -83,8 +90,10 @@ int CurrentOSServicePack = 0;
 BOOL RemoteSession = FALSE;
 BOOL UacElevated = FALSE;
 
+BOOL bTravelerModeConfirmed = FALSE;		// TRUE if it is certain that the instance is running in traveler mode
+
 /* Globals used by Mount and Format (separately per instance) */ 
-BOOL	KeyFilesEnable = FALSE;
+BOOL KeyFilesEnable = FALSE;
 KeyFile	*FirstKeyFile = NULL;
 KeyFilesDlgParam		defaultKeyFilesParam;
 
@@ -95,6 +104,10 @@ HANDLE hDriver = INVALID_HANDLE_VALUE;
 
 /* This mutex is used to prevent multiple instances of the wizard or main app from dealing with system encryption */
 HANDLE hSysEncMutex = NULL;		
+
+/* This mutex is used to prevent multiple instances of the wizard or main app from trying to install or
+register the driver or from trying to launch it in traveler mode at the same time. */
+HANDLE hDriverSetupMutex = NULL;		
 
 HINSTANCE hInst = NULL;
 HCURSOR hCursor = NULL;
@@ -219,6 +232,7 @@ cleanup ()
 		else
 		{
 			CloseHandle (hDriver);
+			hDriver = INVALID_HANDLE_VALUE;
 		}
 	}
 
@@ -371,6 +385,7 @@ handleWin32Error (HWND hwndDlg)
 	if (dwError == ERROR_ACCESS_DENIED && !IsAdmin ())
 	{
 		Error ("ERR_ACCESS_DENIED");
+		SetLastError (dwError);		// Preserve the original error code
 		return dwError;
 	}
 
@@ -395,20 +410,26 @@ handleWin32Error (HWND hwndDlg)
 	if (dwError == ERROR_NOT_READY)
 		CheckSystemAutoMount();
 
+	SetLastError (dwError);		// Preserve the original error code
+
 	return dwError;
 }
 
 BOOL
-translateWin32Error (wchar_t *lpszMsgBuf, int nSizeOfBuf)
+translateWin32Error (wchar_t *lpszMsgBuf, int nWSizeOfBuf)
 {
 	DWORD dwError = GetLastError ();
 
 	if (FormatMessageW (FORMAT_MESSAGE_FROM_SYSTEM, NULL, dwError,
 			   MAKELANGID (LANG_NEUTRAL, SUBLANG_DEFAULT),	/* Default language */
-			   lpszMsgBuf, nSizeOfBuf, NULL))
+			   lpszMsgBuf, nWSizeOfBuf, NULL))
+	{
+		SetLastError (dwError);		// Preserve the original error code
 		return TRUE;
-	else
-		return FALSE;
+	}
+
+	SetLastError (dwError);			// Preserve the original error code
+	return FALSE;
 }
 
 
@@ -714,8 +735,6 @@ AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 	WORD lw = LOWORD (wParam);
 	static HBITMAP hbmTextualLogoBitmapRescaled = NULL;
 
-	if (lParam);		/* remove warning */
-
 	switch (msg)
 	{
 	case WM_INITDIALOG:
@@ -772,9 +791,10 @@ AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			"Portions of this software:\r\n"
 			"Copyright \xA9 2003-2008 TrueCrypt Foundation. All Rights Reserved.\r\n"
 			"Copyright \xA9 1998-2000 Paul Le Roux. All Rights Reserved.\r\n"
-			"Copyright \xA9 1999-2006 Brian Gladman. All Rights Reserved.\r\n"
+			"Copyright \xA9 1998-2008 Brian Gladman. All Rights Reserved.\r\n"
 			"Copyright \xA9 1995-1997 Eric Young. All Rights Reserved.\r\n"
-			"Copyright \xA9 2001 Markus Friedl. All Rights Reserved.\r\n\r\n"
+			"Copyright \xA9 2001 Markus Friedl. All Rights Reserved.\r\n"
+			"Copyright \xA9 2002-2004 Mark Adler. All Rights Reserved.\r\n\r\n"
 
 			"This software as a whole:\r\n"
 			"Copyright \xA9 2008 TrueCrypt Foundation. All rights reserved.\r\n\r\n"
@@ -887,7 +907,7 @@ ToSBCS (LPWSTR lpszText)
   ToUNICODE: converts a SBCS string to a UNICODE string.
   ***************************************************************************/
 
-void
+void 
 ToUNICODE (char *lpszText)
 {
 	int j = strlen (lpszText);
@@ -903,7 +923,7 @@ ToUNICODE (char *lpszText)
 		if (j > 0)
 			wcscpy ((LPWSTR) lpszText, lpszNewText);
 		else
-			wcscpy ((LPWSTR) lpszText, (LPWSTR) "");
+			wcscpy ((LPWSTR) lpszText, (LPWSTR) WIDE (""));
 		free (lpszNewText);
 	}
 }
@@ -1239,7 +1259,7 @@ RegisterRedTick (HINSTANCE hInstance)
   wc.hInstance = hInstance;
   wc.hIcon = LoadIcon (NULL, IDI_APPLICATION);
   wc.hCursor = NULL;
-  wc.hbrBackground = GetStockObject (LTGRAY_BRUSH);
+  wc.hbrBackground = (HBRUSH) GetStockObject (LTGRAY_BRUSH);
   wc.lpszClassName = "REDTICK";
   wc.lpfnWndProc = &RedTick; 
   
@@ -1443,12 +1463,12 @@ void ExceptionHandlerThread (void *ept)
 			BY_HANDLE_FILE_INFORMATION fi;
 			if (GetFileInformationByHandle (h, &fi))
 			{
-				char *buf = malloc (fi.nFileSizeLow);
+				char *buf = (char *) malloc (fi.nFileSizeLow);
 				if (buf)
 				{
 					DWORD bytesRead;
 					if (ReadFile (h, buf, fi.nFileSizeLow, &bytesRead, NULL) && bytesRead == fi.nFileSizeLow)
-						crc = GetCrc32 (buf, fi.nFileSizeLow);
+						crc = GetCrc32 ((unsigned char *) buf, fi.nFileSizeLow);
 					free (buf);
 				}
 			}
@@ -1515,11 +1535,40 @@ static LRESULT CALLBACK NonInstallUacWndProc (HWND hWnd, UINT message, WPARAM wP
 // Returns TRUE if the mutex is (or had been) successfully acquired (otherwise FALSE). 
 BOOL CreateSysEncMutex (void)
 {
-	if (hSysEncMutex != NULL)
-		return TRUE;	// We already are the privileged instance
+	return TCCreateMutex (&hSysEncMutex, "Global\\TrueCrypt System Encryption Wizard");
+}
 
-	hSysEncMutex = CreateMutex (NULL, TRUE, "Global\\TrueCrypt System Encryption Wizard");
-	if (hSysEncMutex == NULL)
+
+// Mutex handling to prevent multiple instances of the wizard from dealing with system encryption
+void CloseSysEncMutex (void)
+{
+	TCCloseMutex (&hSysEncMutex);
+}
+
+
+// Mutex handling to prevent multiple instances of the wizard or main app from trying to install
+// or register the driver or from trying to launch it in traveler mode at the same time.
+// Returns TRUE if the mutex is (or had been) successfully acquired (otherwise FALSE). 
+BOOL CreateDriverSetupMutex (void)
+{
+	return TCCreateMutex (&hDriverSetupMutex, "Global\\TrueCrypt Driver Setup");
+}
+
+
+void CloseDriverSetupMutex (void)
+{
+	TCCloseMutex (&hDriverSetupMutex);
+}
+
+
+// Returns TRUE if the mutex is (or had been) successfully acquired (otherwise FALSE). 
+BOOL TCCreateMutex (HANDLE *hMutex, char *name)
+{
+	if (*hMutex != NULL)
+		return TRUE;	// This instance already has the mutex
+
+	*hMutex = CreateMutex (NULL, TRUE, name);
+	if (*hMutex == NULL)
 	{
 		// In multi-user configurations, the OS returns "Access is denied" here when a user attempts
 		// to acquire the mutex if another user already has.
@@ -1529,10 +1578,10 @@ BOOL CreateSysEncMutex (void)
 
 	if (GetLastError () == ERROR_ALREADY_EXISTS)
 	{
-		ReleaseMutex (hSysEncMutex);
-		CloseHandle (hSysEncMutex);
+		ReleaseMutex (*hMutex);
+		CloseHandle (*hMutex);
 
-		hSysEncMutex = NULL;
+		*hMutex = NULL;
 		return FALSE;
 	}
 
@@ -1540,16 +1589,16 @@ BOOL CreateSysEncMutex (void)
 }
 
 
-// Mutex handling to prevent multiple instances of the wizard from dealing with system encryption
-void CloseSysEncMutex (void)
+void TCCloseMutex (HANDLE *hMutex)
 {
-	if (hSysEncMutex != NULL)
+	if (*hMutex != NULL)
 	{
-		if (ReleaseMutex (hSysEncMutex)
-			&& CloseHandle (hSysEncMutex))
-			hSysEncMutex = NULL;
+		if (ReleaseMutex (*hMutex)
+			&& CloseHandle (*hMutex))
+			*hMutex = NULL;
 	}
 }
+
 
 BOOL LoadSysEncSettings (HWND hwndDlg)
 {
@@ -1835,14 +1884,15 @@ void InitHelpFileName (void)
 	}
 }
 
-BOOL
-OpenDevice (char *lpszPath, OPEN_TEST_STRUCT * driver)
+BOOL OpenDevice (char *lpszPath, OPEN_TEST_STRUCT *driver)
 {
 	DWORD dwResult;
 	BOOL bResult;
 
 	strcpy ((char *) &driver->wszFileName[0], lpszPath);
 	ToUNICODE ((char *) &driver->wszFileName[0]);
+
+	driver->bDetectTCBootLoader = FALSE;
 
 	bResult = DeviceIoControl (hDriver, TC_IOCTL_OPEN_TEST,
 				   driver, sizeof (OPEN_TEST_STRUCT),
@@ -1860,6 +1910,18 @@ OpenDevice (char *lpszPath, OPEN_TEST_STRUCT * driver)
 	}
 		
 	return TRUE;
+}
+
+
+// Tells the driver that it's running in traveler mode
+void NotifyDriverOfTravelerMode (void)
+{
+	if (hDriver != INVALID_HANDLE_VALUE)
+	{
+		DWORD dwResult;
+
+		DeviceIoControl (hDriver, TC_IOCTL_SET_TRAVELER_MODE_STATUS, NULL, 0, NULL, 0, &dwResult, NULL);
+	}
 }
 
 
@@ -2145,8 +2207,6 @@ int GetAvailableRemovables (HWND hComboBox, char *lpszRootPath)
 	int i;
 	LVITEM LvItem;
 
-	if (lpszRootPath);	/* Remove unused parameter warning */
-
 	memset (&LvItem,0,sizeof(LvItem));
 	LvItem.mask = LVIF_TEXT;   
 	LvItem.iItem = SendMessage (hComboBox, LVM_GETITEMCOUNT, 0, 0)+1;   
@@ -2364,14 +2424,14 @@ char * GetLegalNotices ()
 {
 	static char *resource;
 	static DWORD size;
-	char *buf;
+	char *buf = NULL;
 
 	if (resource == NULL)
-		resource = MapResource ("Text", IDR_LICENSE, &size);
+		resource = (char *) MapResource ("Text", IDR_LICENSE, &size);
 
 	if (resource != NULL)
 	{
-		buf = malloc (size + 1);
+		buf = (char *) malloc (size + 1);
 		if (buf != NULL)
 		{
 			memcpy (buf, resource, size);
@@ -2388,8 +2448,6 @@ RawDevicesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	static char *lpszFileName;		// This is actually a pointer to a GLOBAL array
 	WORD lw = LOWORD (wParam);
-
-	if (lParam);		/* remove warning */
 
 	switch (msg)
 	{
@@ -2639,6 +2697,67 @@ RawDevicesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 }
 
 
+BOOL DoDriverInstall (HWND hwndDlg)
+{
+#ifdef SETUP
+	if (SystemEncryptionUpgrade)
+		return TRUE;
+#endif
+
+	SC_HANDLE hManager, hService = NULL;
+	BOOL bOK = FALSE, bRet;
+
+	hManager = OpenSCManager (NULL, NULL, SC_MANAGER_ALL_ACCESS);
+	if (hManager == NULL)
+		goto error;
+
+#ifdef SETUP
+	StatusMessage (hwndDlg, "INSTALLING_DRIVER");
+#endif
+
+	hService = CreateService (hManager, "truecrypt", "truecrypt",
+		SERVICE_ALL_ACCESS, SERVICE_KERNEL_DRIVER, SERVICE_SYSTEM_START, SERVICE_ERROR_NORMAL,
+		!Is64BitOs () ? "System32\\drivers\\truecrypt.sys" : "SysWOW64\\drivers\\truecrypt.sys",
+		NULL, NULL, NULL, NULL, NULL);
+
+	if (hService == NULL)
+		goto error;
+	else
+		CloseServiceHandle (hService);
+
+	hService = OpenService (hManager, "truecrypt", SERVICE_ALL_ACCESS);
+	if (hService == NULL)
+		goto error;
+
+#ifdef SETUP
+	StatusMessage (hwndDlg, "STARTING_DRIVER");
+#endif
+
+	bRet = StartService (hService, 0, NULL);
+	if (bRet == FALSE)
+		goto error;
+
+	bOK = TRUE;
+
+error:
+	if (bOK == FALSE && GetLastError () != ERROR_SERVICE_ALREADY_RUNNING)
+	{
+		handleWin32Error (hwndDlg);
+		MessageBoxW (hwndDlg, GetString ("DRIVER_INSTALL_FAILED"), lpszTitle, MB_ICONHAND);
+	}
+	else
+		bOK = TRUE;
+
+	if (hService != NULL)
+		CloseServiceHandle (hService);
+
+	if (hManager != NULL)
+		CloseServiceHandle (hManager);
+
+	return bOK;
+}
+
+
 // Install and start driver service and mark it for removal (non-install mode)
 static int DriverLoad ()
 {
@@ -2725,6 +2844,13 @@ BOOL DriverUnload ()
 
 	if (hDriver == INVALID_HANDLE_VALUE)
 		return TRUE;
+	
+	try
+	{
+		if (BootEncryption (NULL).GetStatus().DeviceFilterActive)
+			return FALSE;
+	}
+	catch (...) { }
 
 	// Test for mounted volumes
 	bResult = DeviceIoControl (hDriver, TC_IOCTL_IS_ANY_VOLUME_MOUNTED, NULL, 0, &volumesMounted, sizeof (volumesMounted), &dwResult, NULL);
@@ -2801,30 +2927,83 @@ error:
 }
 
 
-int
-DriverAttach (void)
+int DriverAttach (void)
 {
 	/* Try to open a handle to the device driver. It will be closed later. */
+
+#ifndef SETUP
+
+	int nLoadRetryCount = 0;
+start:
+
+#endif
 
 	hDriver = CreateFile (WIN32_ROOT_PREFIX, 0, 0, NULL, OPEN_EXISTING, 0, NULL);
 
 	if (hDriver == INVALID_HANDLE_VALUE)
 	{
 #ifndef SETUP
-load:
-		// Attempt to load driver (non-install mode)
-		{
-			BOOL res = DriverLoad ();
 
-			if (res != ERROR_SUCCESS)
-				return res;
+		LoadSysEncSettings (NULL);
+
+		if (!CreateDriverSetupMutex ())
+		{
+			// Another instance is already attempting to install, register or start the driver
+
+			while (!CreateDriverSetupMutex ())
+			{
+				Sleep (100);	// Wait until the other instance finishes
+			}
+
+			// Try to open a handle to the driver again (keep the mutex in case the other instance failed)
+			goto start;		
+		}
+		else
+		{
+			// No other instance is currently attempting to install, register or start the driver
+
+			if (SystemEncryptionStatus != SYSENC_STATUS_NONE)
+			{
+				// This is an inconsistent state. The config file indicates system encryption should be
+				// active, but the driver is not running. This may happen e.g. when the pretest fails and 
+				// the user selects "Last Known Good Configuration" from the Windows boot menu.
+				// To fix this, we're going to reinstall the driver, start it, and register it for boot.
+
+				if (DoDriverInstall (NULL))
+				{
+					Sleep (1000);
+					RegisterBootDriver ();
+				}
+
+				CloseDriverSetupMutex ();
+			}
+			else
+			{
+				// Attempt to load the driver (non-install/traveler mode)
+load:
+				BOOL res = DriverLoad ();
+
+				CloseDriverSetupMutex ();
+
+				if (res != ERROR_SUCCESS)
+					return res;
+
+				bTravelerModeConfirmed = TRUE;
+			}
 
 			hDriver = CreateFile (WIN32_ROOT_PREFIX, 0, 0, NULL, OPEN_EXISTING, 0, NULL);
+
+			if (bTravelerModeConfirmed)
+				NotifyDriverOfTravelerMode ();
 		}
-#endif
+
+#endif	// #ifndef SETUP
+
 		if (hDriver == INVALID_HANDLE_VALUE)
 			return ERR_OS_ERROR;
 	}
+
+	CloseDriverSetupMutex ();
 
 	if (hDriver != INVALID_HANDLE_VALUE)
 	{
@@ -2843,9 +3022,10 @@ load:
 		else if (DriverVersion != VERSION_NUM)
 		{
 			// Unload an incompatbile version of the driver loaded in non-install mode and load the required version
-			if (IsNonInstallMode () && DriverUnload ())
+			if (IsNonInstallMode () && CreateDriverSetupMutex () && DriverUnload () && nLoadRetryCount++ < 3)
 				goto load;
 
+			CloseDriverSetupMutex ();
 			CloseHandle (hDriver);
 			hDriver = INVALID_HANDLE_VALUE;
 			return ERR_DRIVER_VERSION;
@@ -3091,27 +3271,27 @@ BrowseDirectories (HWND hwndDlg, char *lpszTitle, char *dirName)
 	LPMALLOC pMalloc;
 	BOOL bOK  = FALSE;
 
-	if (SUCCEEDED(SHGetMalloc(&pMalloc))) 
+	if (SUCCEEDED (SHGetMalloc (&pMalloc))) 
 	{
-		ZeroMemory(&bi,sizeof(bi));
+		ZeroMemory (&bi, sizeof(bi));
 		bi.hwndOwner = hwndDlg;
 		bi.pszDisplayName = 0;
 		bi.lpszTitle = GetString (lpszTitle);
 		bi.pidlRoot = 0;
-		bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_STATUSTEXT /*| BIF_EDITBOX*/;
+		bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_STATUSTEXT;
 		bi.lpfn = BrowseCallbackProc;
 		bi.lParam = (LPARAM)dirName;
 
 		pidl = SHBrowseForFolderW (&bi);
-		if (pidl!=NULL) 
+		if (pidl != NULL) 
 		{
 			if (SHGetPathFromIDList(pidl, dirName)) 
 			{
 				bOK = TRUE;
 			}
 
-			pMalloc->lpVtbl->Free(pMalloc,pidl);
-			pMalloc->lpVtbl->Release(pMalloc);
+			pMalloc->Free (pidl);
+			pMalloc->Release();
 		}
 	}
 
@@ -3119,8 +3299,7 @@ BrowseDirectories (HWND hwndDlg, char *lpszTitle, char *dirName)
 }
 
 
-void
-handleError (HWND hwndDlg, int code)
+void handleError (HWND hwndDlg, int code)
 {
 	WCHAR szTmp[4096];
 
@@ -3139,6 +3318,18 @@ handleError (HWND hwndDlg, int code)
 		swprintf (szTmp, GetString (KeyFilesEnable ? "PASSWORD_OR_KEYFILE_WRONG" : "PASSWORD_WRONG"));
 		if (CheckCapsLock (hwndDlg, TRUE))
 			wcscat (szTmp, GetString ("PASSWORD_WRONG_CAPSLOCK_ON"));
+
+#ifdef TCMOUNT
+		if (TCBootLoaderOnInactiveSysEncDrive ())
+		{
+			swprintf (szTmp, GetString (KeyFilesEnable ? "PASSWORD_OR_KEYFILE_OR_MODE_WRONG" : "PASSWORD_OR_MODE_WRONG"));
+
+			if (CheckCapsLock (hwndDlg, TRUE))
+				wcscat (szTmp, GetString ("PASSWORD_WRONG_CAPSLOCK_ON"));
+
+			wcscat (szTmp, GetString ("SYSENC_MOUNT_WITHOUT_PBA_NOTE"));
+		}
+#endif
 
 		MessageBoxW (hwndDlg, szTmp, lpszTitle, MB_ICONWARNING);
 		break;
@@ -3212,6 +3403,14 @@ handleError (HWND hwndDlg, int code)
 		Error ("ERR_VOL_FORMAT_BAD");
 		break;
 
+	case ERR_ENCRYPTION_NOT_COMPLETED:
+		Error ("ERR_ENCRYPTION_NOT_COMPLETED");
+		break;
+
+	case ERR_PARAMETER_INCORRECT:
+		Error ("ERR_PARAMETER_INCORRECT");
+		break;
+
 	case ERR_DONT_REPORT:
 		break;
 
@@ -3235,7 +3434,7 @@ static BOOL CALLBACK LocalizeDialogEnum( HWND hwnd, LPARAM font)
 
 			if (_stricmp (name, "Button") == 0 || _stricmp (name, "Static") == 0)
 			{
-				wchar_t *str = GetDictionaryValueByInt (ctrlId);
+				wchar_t *str = (wchar_t *) GetDictionaryValueByInt (ctrlId);
 				if (str != NULL)
 					SetWindowTextW (hwnd, str);
 			}
@@ -3518,7 +3717,7 @@ static BOOL PerformBenchmark(HWND hwndDlg)
 		return FALSE;
 	}
 
-	lpTestBuffer = malloc(benchmarkBufferSize - (benchmarkBufferSize % 16));
+	lpTestBuffer = (BYTE *) malloc(benchmarkBufferSize - (benchmarkBufferSize % 16));
 	if (lpTestBuffer == NULL)
 	{
 		MessageBoxW (hwndDlg, GetString ("ERR_MEM_ALLOC"), lpszTitle, ICON_HAND);
@@ -3920,8 +4119,6 @@ KeyfileGeneratorDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 	int hash_algo = RandGetHashFunction();
 	int hid;
 
-	if (lParam);		/* remove warning */
-
 	switch (msg)
 	{
 	case WM_INITDIALOG:
@@ -4099,8 +4296,6 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	PCRYPTO_INFO ci;
 	WORD lw = LOWORD (wParam);
 	WORD hw = HIWORD (wParam);
-
-	if (lParam);		/* Remove unused parameter warning */
 
 	switch (uMsg)
 	{
@@ -4366,7 +4561,7 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						if (EAGetCipherCount (ci->ea) == 1 && EAGetFirstCipher (ci->ea) == idTestCipher)
 							break;
 
-					if ((tmpRetVal = EAInit (ci->ea, key, ci->ks)) != ERR_SUCCESS)
+					if ((tmpRetVal = EAInit (ci->ea, (unsigned char *) key, ci->ks)) != ERR_SUCCESS)
 					{
 						handleError (hwndDlg, tmpRetVal);
 						return 1;
@@ -4379,9 +4574,9 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					structDataUnitNo.Value = BE64(((unsigned __int64 *)dataUnitNo)[0]);
 
 					if (bEncrypt)
-						EncryptBufferXTS (tmp, pt, &structDataUnitNo, blockNo, (unsigned char *) (ci->ks), (unsigned char *) ci->ks2, idTestCipher);
+						EncryptBufferXTS ((unsigned char *) tmp, pt, &structDataUnitNo, blockNo, (unsigned char *) (ci->ks), (unsigned char *) ci->ks2, idTestCipher);
 					else
-						DecryptBufferXTS (tmp, pt, &structDataUnitNo, blockNo, (unsigned char *) (ci->ks), (unsigned char *) ci->ks2, idTestCipher);
+						DecryptBufferXTS ((unsigned char *) tmp, pt, &structDataUnitNo, blockNo, (unsigned char *) (ci->ks), (unsigned char *) ci->ks2, idTestCipher);
 
 					crypto_close (ci);
 				}
@@ -4394,7 +4589,7 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						/* Convert to little-endian, this is needed here and not in
 						above auto-tests because BF_ecb_encrypt above correctly converts
 						from big to little endian, and EncipherBlock does not! */
-						LongReverse((void*)tmp, pt);
+						LongReverse((unsigned int *) tmp, pt);
 					}
 
 					CipherInit2(idTestCipher, key, ks_tmp, ks);
@@ -4413,7 +4608,7 @@ CipherTestDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						/* Deprecated/legacy */
 
 						/* Convert back to big-endian */
-						LongReverse((void*)tmp, pt);
+						LongReverse((unsigned int *) tmp, pt);
 					}
 				}
 				*szTmp = 0;
@@ -4645,7 +4840,7 @@ BOOL CALLBACK MultiChoiceDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
 								bResolve ? GetString(*(pStrOrig+1)) : *(pwStrOrig+1),
 								hUserFont) / (trec.right + horizSubOffset) + 1)	* nTextGfxLineHeight) - trec.bottom;
 
-			vertMsgHeightOffset = min (CompensateYDPI (350), vertMsgHeightOffset + nTextGfxLineHeight + (trec.bottom + vertMsgHeightOffset) / 10);
+			vertMsgHeightOffset = min (CompensateYDPI (350), vertMsgHeightOffset + 2*nTextGfxLineHeight + (trec.bottom + vertMsgHeightOffset) / 10);
 
 			// Reduction in height according to the number of shown buttons
 			vertSubOffset = ((MAX_MULTI_CHOICES - nActiveChoices) * nBaseButtonHeight);
@@ -4945,6 +5140,14 @@ int MountVolume (HWND hwndDlg,
 	BOOL bResult, bDevice;
 	char root[MAX_PATH];
 
+#ifdef TCMOUNT
+	if (mountOptions->PartitionInInactiveSysEncScope)
+	{
+		if (!CheckSysEncMountWithoutPBA (volumePath, quiet))
+			return -1;
+	}
+#endif
+
 	if (IsMountedVolume (volumePath))
 	{
 		if (!quiet)
@@ -4967,6 +5170,8 @@ int MountVolume (HWND hwndDlg,
 retry:
 	mount.nDosDriveNo = driveNo;
 	mount.bCache = cachePassword;
+
+	mount.bPartitionInInactiveSysEncScope = FALSE;
 
 	if (password != NULL)
 		mount.VolumePassword = *password;
@@ -5019,6 +5224,19 @@ retry:
 	}
 
 	ToUNICODE ((char *) mount.wszVolume);
+
+	if (mountOptions->PartitionInInactiveSysEncScope)
+	{
+		if (mount.wszVolume == NULL || swscanf_s ((const wchar_t *) mount.wszVolume,
+			WIDE("\\Device\\Harddisk%d\\Partition"),
+			&mount.nPartitionInInactiveSysEncScopeDriveNo,
+			sizeof(mount.nPartitionInInactiveSysEncScopeDriveNo)) != 1)
+		{
+			return -1;
+		}
+
+		mount.bPartitionInInactiveSysEncScope = TRUE;
+	}
 
 	bResult = DeviceIoControl (hDriver, TC_IOCTL_MOUNT_VOLUME, &mount,
 		sizeof (mount), &mount, sizeof (mount), &dwResult, NULL);
@@ -5148,6 +5366,7 @@ BOOL IsPasswordCacheEmpty (void)
 	return !DeviceIoControl (hDriver, TC_IOCTL_GET_PASSWORD_CACHE_STATUS, 0, 0, 0, 0, &dw, 0);
 }
 
+
 BOOL IsMountedVolume (char *volname)
 {
 	MOUNT_LIST_STRUCT mlist;
@@ -5167,7 +5386,7 @@ BOOL IsMountedVolume (char *volname)
 		NULL);
 
 	for (i=0 ; i<26; i++)
-		if (0 == wcscmp (mlist.wszVolume[i], (WCHAR *)volume))
+		if (0 == wcscmp ((wchar_t *) mlist.wszVolume[i], (WCHAR *)volume))
 			return TRUE;
 
 	return FALSE;
@@ -5196,7 +5415,7 @@ int GetMountedVolumeDriveNo (char *volname)
 		NULL);
 
 	for (i=0 ; i<26; i++)
-		if (0 == wcscmp (mlist.wszVolume[i], (WCHAR *)volume))
+		if (0 == wcscmp ((wchar_t *) mlist.wszVolume[i], (WCHAR *)volume))
 			return i;
 
 	return -1;
@@ -5365,7 +5584,7 @@ BOOL FileExists (const char *filePathPtr)
 __int64 FindStringInFile (char *filePath, char* str, int strLen)
 {
 	int bufSize = 64 * BYTES_PER_KB;
-	char *buffer = malloc (bufSize);
+	char *buffer = (char *) malloc (bufSize);
 	HANDLE src = NULL;
 	DWORD bytesRead;
 	BOOL readRetVal;
@@ -5460,7 +5679,7 @@ BOOL TCCopyFile (char *sourceFileName, char *destinationFile)
 		return FALSE;
 	}
 
-	buffer = malloc (64 * 1024);
+	buffer = (char *) malloc (64 * 1024);
 	if (!buffer)
 	{
 		CloseHandle (src);
@@ -5494,8 +5713,8 @@ BOOL TCCopyFile (char *sourceFileName, char *destinationFile)
 	return res != 0;
 }
 
-// If bAppend is TRUE, the buffer is appended to an existing file. If bAppend is FALSE any existing file 
-// is replaced and if an error occurs, the incomplete file is deleted.
+// If bAppend is TRUE, the buffer is appended to an existing file. If bAppend is FALSE, any existing file 
+// is replaced. If an error occurs, the incomplete file is deleted (provided that bAppend is FALSE).
 BOOL SaveBufferToFile (char *inputBuffer, char *destinationFile, DWORD inputLength, BOOL bAppend)
 {
 	HANDLE dst;
@@ -5806,7 +6025,7 @@ int RestoreVolumeHeader (HWND hwndDlg, char *lpszVolume)
 	/* Ask the user to select the type of volume (normal/hidden) */
 	{
 		char *tmpStr[] = {0, "HEADER_RESTORE_TYPE", "RESTORE_NORMAL_VOLUME_HEADER", "RESTORE_HIDDEN_VOLUME_HEADER", "IDCANCEL", 0};
-		switch (AskMultiChoice (tmpStr))
+		switch (AskMultiChoice ((void **) tmpStr))
 		{
 		case 1:
 			bRestoreHiddenVolHeader = FALSE;
@@ -5973,14 +6192,74 @@ error:
 BOOL IsNonInstallMode ()
 {
 	HKEY hkey;
+	DWORD dw;
 
+	if (bTravelerModeConfirmed)
+		return TRUE;
+
+	if (hDriver != INVALID_HANDLE_VALUE)
+	{
+		// The driver is running
+		if (DeviceIoControl (hDriver, TC_IOCTL_GET_TRAVELER_MODE_STATUS, NULL, 0, NULL, 0, &dw, 0))
+		{
+			bTravelerModeConfirmed = TRUE;
+			return TRUE;
+		}
+		else
+		{
+			// This is also returned if we fail to determine the status (it does not mean that traveler mode is disproved).
+			return FALSE;	
+		}
+	}
+	else
+	{
+		// The tests in this block are necessary because this function is in some cases called before DriverAttach().
+
+		HANDLE hDriverTmp = CreateFile (WIN32_ROOT_PREFIX, 0, 0, NULL, OPEN_EXISTING, 0, NULL);
+
+		if (hDriverTmp == INVALID_HANDLE_VALUE)
+		{
+			// The driver was not found in the system path
+
+			char path[MAX_PATH * 2] = { 0 };
+
+			// We can't use GetConfigPath() here because it would call us back (indirect recursion)
+			if (SUCCEEDED(SHGetFolderPath (NULL, CSIDL_APPDATA | CSIDL_FLAG_CREATE, NULL, 0, path)))
+			{
+				strcat (path, "\\TrueCrypt\\");
+				CreateDirectory (path, NULL);
+				strcat (path, FILE_SYSTEM_ENCRYPTION_CFG);
+
+				if (FileExists (path))
+				{
+					// To maintain consistency and safety, if the system encryption config file exits, we cannot
+					// allow traveler mode. (This happens e.g. when the pretest fails and the user selects 
+					// "Last Known Good Configuration" from the Windows boot menu.)
+
+					// However, if UAC elevation is needed, we have to confirm traveler mode first (after we are elevated, we won't).
+					if (!IsAdmin () && IsUacSupported ())
+						return TRUE;
+
+					return FALSE;
+				}
+			}
+
+			// As the driver was not found in the system path, we can predict that we will run in traveler mode
+			return TRUE;	
+		}
+		else
+			CloseHandle (hDriverTmp);
+	}
+
+	// The following test may be unreliable in some cases (e.g. after the user selects restore "Last Known Good
+	// Configuration" from the Windows boot menu).
 	if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\TrueCrypt", 0, KEY_READ, &hkey) == ERROR_SUCCESS)
 	{
 		RegCloseKey (hkey);
 		return FALSE;
 	}
-
-	return TRUE;
+	else
+		return TRUE;
 }
 
 
@@ -6045,7 +6324,7 @@ void CleanLastVisitedMRU (void)
 	char key[64];
 	int id, len;
 
-	GetModuleFileNameW (NULL, exeFilename, sizeof (exeFilename));
+	GetModuleFileNameW (NULL, exeFilename, sizeof (exeFilename) / sizeof(exeFilename[0]));
 	strToMatch = wcsrchr (exeFilename, '\\') + 1;
 
 	sprintf (regPath, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ComDlg32\\LastVisited%sMRU", nCurrentOS == WIN_VISTA_OR_LATER ? "Pidl" : "");
@@ -6216,7 +6495,7 @@ int GetDriverRefCount ()
 BOOL LoadInt32 (char *filePath, unsigned __int32 *result, __int64 fileOffset)
 {
 	int bufSize = sizeof(__int32);
-	unsigned char *buffer = malloc (bufSize);
+	unsigned char *buffer = (unsigned char *) malloc (bufSize);
 	unsigned char *bufferPtr = buffer;
 	HANDLE src = NULL;
 	DWORD bytesRead;
@@ -6260,7 +6539,7 @@ fsif_end:
 BOOL LoadInt16 (char *filePath, int *result, __int64 fileOffset)
 {
 	int bufSize = sizeof(__int16);
-	unsigned char *buffer = malloc (bufSize);
+	unsigned char *buffer = (unsigned char *) malloc (bufSize);
 	unsigned char *bufferPtr = buffer;
 	HANDLE src = NULL;
 	DWORD bytesRead;
@@ -6308,7 +6587,7 @@ char *LoadFile (char *fileName, DWORD *size)
 		return NULL;
 
 	*size = GetFileSize (h, NULL);
-	buf = malloc (*size + 1);
+	buf = (char *) malloc (*size + 1);
 
 	if (buf == NULL)
 	{
@@ -6348,7 +6627,7 @@ char *LoadFileBlock (char *fileName, __int64 fileOffset, int count)
 		return NULL;
 	}
 
-	buf = malloc (count);
+	buf = (char *) malloc (count);
 
 	if (buf == NULL)
 	{
@@ -6664,7 +6943,6 @@ char *ConfigReadString (char *configKey, char *defaultValue, char *str, int maxL
 void OpenPageHelp (HWND hwndDlg, int nPage)
 {
 	int r = (int)ShellExecute (NULL, "open", szHelpFile, NULL, NULL, SW_SHOWNORMAL);
-	if (nPage);		/* Remove warning */
 
 	if (r == ERROR_FILE_NOT_FOUND)
 	{
@@ -6722,7 +7000,7 @@ BOOL LoadDefaultKeyFilesParam (void)
 
 	while (xml = XmlFindElement (xml, "keyfile"))
 	{
-		kf = malloc (sizeof (KeyFile));
+		kf = (KeyFile *) malloc (sizeof (KeyFile));
 
 		if (XmlGetNodeText (xml, kf->FileName, sizeof (kf->FileName)) != NULL)
 			defaultKeyFilesParam.FirstKeyFile = KeyFileAdd (defaultKeyFilesParam.FirstKeyFile, kf);

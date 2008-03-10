@@ -26,12 +26,14 @@ namespace TrueCrypt
 		static int GetExitCode () { return ExitCode; }
 		static wstring GetName () { return L"TrueCrypt"; }
 		static UserInterface *GetUserInterface () { return mUserInterface; }
+		static UserInterfaceType::Enum GetUserInterfaceType () { return mUserInterfaceType; }
 		static void Initialize (UserInterfaceType::Enum type);
 		static void SetExitCode (int code) { ExitCode = code; }
 
 	protected:
 		static int ExitCode;
 		static UserInterface *mUserInterface;
+		static UserInterfaceType::Enum mUserInterfaceType;
 	};
 }
 

@@ -117,7 +117,7 @@ CreateLink (char *lpszPathObj, char *lpszArguments,
 
 			/* Ensure that the string is ANSI.  */
 			MultiByteToWideChar (CP_ACP, 0, lpszPathLink, -1,
-					     wsz, TC_MAX_PATH);
+					     wsz, sizeof(wsz) / sizeof(wsz[0]));
 
 			/* Save the link by calling IPersistFile::Save.  */
 			hres = ppf->Save (wsz, TRUE);
@@ -393,7 +393,7 @@ BOOL
 DoRegInstall (HWND hwndDlg, char *szDestDir, BOOL bInstallType)
 {
 	char szDir[TC_MAX_PATH], *key;
-	char szTmp[TC_MAX_PATH];
+	char szTmp[TC_MAX_PATH*4];
 	HKEY hkey = 0;
 	BOOL bSlash, bOK = FALSE;
 	DWORD dw;
@@ -753,8 +753,7 @@ error:
 }
 
 
-BOOL
-DoDriverUnload (HWND hwndDlg)
+BOOL DoDriverUnload (HWND hwndDlg)
 {
 	BOOL bOK = TRUE;
 	int status;
@@ -798,13 +797,20 @@ DoDriverUnload (HWND hwndDlg)
 			BootEncryption bootEnc (hwndDlg);
 			if (bootEnc.GetDriverServiceStartType() == SERVICE_BOOT_START)
 			{
-				if (!bUpgrade || driverVersion < 0x500)
+				if (bUninstallInProgress && driverVersion >= 0x500 && !bootEnc.GetStatus().DeviceFilterActive)
+				{
+					bootEnc.RegisterFilterDriver (false);
+					bootEnc.SetDriverServiceStartType (SERVICE_SYSTEM_START);
+				}
+				else if (!bUpgrade || driverVersion < 0x500)
 				{
 					Error ("SETUP_FAILED_BOOT_DRIVE_ENCRYPTED");
 					return FALSE;
 				}
-
-				SystemEncryptionUpgrade = TRUE;
+				else
+				{
+					SystemEncryptionUpgrade = TRUE;
+				}
 			}
 		}
 		catch (...)	{ }
@@ -872,62 +878,6 @@ DoDriverUnload (HWND hwndDlg)
 }
 
 
-BOOL
-DoDriverInstall (HWND hwndDlg)
-{
-	if (SystemEncryptionUpgrade)
-		return TRUE;
-
-	SC_HANDLE hManager, hService = NULL;
-	BOOL bOK = FALSE, bRet;
-
-	hManager = OpenSCManager (NULL, NULL, SC_MANAGER_ALL_ACCESS);
-	if (hManager == NULL)
-		goto error;
-
-	StatusMessage (hwndDlg, "INSTALLING_DRIVER");
-
-	hService = CreateService (hManager, "truecrypt", "truecrypt",
-		SERVICE_ALL_ACCESS, SERVICE_KERNEL_DRIVER, SERVICE_SYSTEM_START, SERVICE_ERROR_NORMAL,
-		!Is64BitOs () ? "System32\\drivers\\truecrypt.sys" : "SysWOW64\\drivers\\truecrypt.sys",
-		NULL, NULL, NULL, NULL, NULL);
-
-	if (hService == NULL)
-		goto error;
-	else
-		CloseServiceHandle (hService);
-
-	hService = OpenService (hManager, "truecrypt", SERVICE_ALL_ACCESS);
-	if (hService == NULL)
-		goto error;
-
-	StatusMessage (hwndDlg, "STARTING_DRIVER");
-
-	bRet = StartService (hService, 0, NULL);
-	if (bRet == FALSE)
-		goto error;
-
-	bOK = TRUE;
-
-error:
-	if (bOK == FALSE && GetLastError () != ERROR_SERVICE_ALREADY_RUNNING)
-	{
-		handleWin32Error (hwndDlg);
-		MessageBoxW (hwndDlg, GetString ("DRIVER_INSTALL_FAILED"), lpszTitle, MB_ICONHAND);
-	}
-	else
-		bOK = TRUE;
-
-	if (hService != NULL)
-		CloseServiceHandle (hService);
-
-	if (hManager != NULL)
-		CloseServiceHandle (hManager);
-
-	return bOK;
-}
-
-
 BOOL UpgradeBootLoader (HWND hwndDlg)
 {
 	if (!SystemEncryptionUpgrade)
@@ -954,8 +904,7 @@ BOOL UpgradeBootLoader (HWND hwndDlg)
 }
 
 
-BOOL
-DoShortcutsUninstall (HWND hwndDlg, char *szDestDir)
+BOOL DoShortcutsUninstall (HWND hwndDlg, char *szDestDir)
 {
 	char szLinkDir[TC_MAX_PATH];
 	char szTmp2[TC_MAX_PATH];
@@ -1295,6 +1244,8 @@ DoUninstall (void *arg)
 			GetTempPath (sizeof (temp), temp);
 			_snprintf (UninstallBatch, sizeof (UninstallBatch), "%s\\TrueCrypt-Uninstall.bat", temp);
 
+			UninstallBatch [sizeof(UninstallBatch)-1] = 0;
+
 			// Create uninstall batch
 			f = fopen (UninstallBatch, "w");
 			if (!f)
@@ -1453,13 +1404,10 @@ DoInstall (void *arg)
 	}
 	else if (!bUninstall && !bDevm)
 	{
-		if (SystemEncryptionUpgrade)
+		if (SystemEncryptionUpgrade && AskYesNo ("UPGRADE_OK_REBOOT_REQUIRED") == IDYES)
 		{
-			if (AskYesNo ("UPGRADE_OK_REBOOT_REQUIRED") == IDYES)
-			{
-				BootEncryption bootEnc (hwndDlg);
-				bootEnc.RestartComputer();
-			}
+			BootEncryption bootEnc (hwndDlg);
+			bootEnc.RestartComputer();
 		}
 		else
 		{
@@ -1505,7 +1453,7 @@ void SetInstallationPath (HWND hwndDlg)
 		4.2a	C:\WINDOWS\TrueCrypt Setup.exe /u C:\Program Files\TrueCrypt
 		4.3		"C:\Program Files\TrueCrypt\TrueCrypt Setup.exe" /u C:\Program Files\TrueCrypt\
 		4.3a	"C:\Program Files\TrueCrypt\TrueCrypt Setup.exe" /u C:\Program Files\TrueCrypt\
-		5.0		"C:\Program Files\TrueCrypt\TrueCrypt Setup.exe" /u
+		5.0+	"C:\Program Files\TrueCrypt\TrueCrypt Setup.exe" /u
 
 		Note: In versions 1.0-3.0a the user was able to choose whether to install the uninstaller.
 			  The default was to install it. If it wasn't installed, there was no UninstallString.
@@ -1592,8 +1540,8 @@ void SetInstallationPath (HWND hwndDlg)
 		// Default "Program Files" path. 
 		SHGetSpecialFolderLocation (hwndDlg, CSIDL_PROGRAM_FILES, &itemList);
 		SHGetPathFromIDList (itemList, path);
-		strcat (path, "\\TrueCrypt\\");
-		strcpy (InstallationPath, path);
+		strncat (path, "\\TrueCrypt\\", min (strlen("\\TrueCrypt\\"), sizeof(path)-strlen(path)-1));
+		strncpy (InstallationPath, path, sizeof(InstallationPath)-1);
 	}
 
 	// Make sure the path ends with a backslash
@@ -1696,9 +1644,7 @@ UninstallDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 }
 
 
-int WINAPI
-WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine,
-	 int nCmdShow)
+int WINAPI WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine, int nCmdShow)
 {
 	SelfExtractStartupInit();
 
@@ -1831,6 +1777,11 @@ WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine,
 
 				if (!CreateProcess (UninstallBatch, NULL, NULL, NULL, FALSE, IDLE_PRIORITY_CLASS, NULL, NULL, &si, &pi))
 					DeleteFile (UninstallBatch);
+				else
+				{
+					CloseHandle (pi.hProcess);
+					CloseHandle (pi.hThread);
+				}
 			}
 		}
 	}

@@ -57,6 +57,8 @@ typedef struct
 	LONG OutstandingIoCount;
 	KEVENT NoOutstandingIoEvent;
 	
+	KEVENT RequestCompletedEvent;
+
 	__int64 TotalBytesRead;
 	__int64 TotalBytesWritten;
 
@@ -78,10 +80,9 @@ typedef struct
 	BOOL Write;
 	ULONG OriginalLength;
 	LARGE_INTEGER OriginalOffset;
-	KEVENT IoRequestCompletedEvent;
+	LONG OutstandingRequestCount;
 	NTSTATUS Status;
 	LIST_ENTRY ListEntry;
-	__int64 DebugOffset;
 } EncryptedIoQueueItem;
 
 

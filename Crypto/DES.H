@@ -73,9 +73,7 @@
 extern "C" {
 #endif
 
-#ifndef LINUX_DRIVER
 #include <stdio.h>
-#endif
 
 /* If this is set to 'unsigned int' on a DEC Alpha, this gives about a
  * %20 speed up (longs are 8 bytes, int's are 4). */
@@ -217,9 +215,7 @@ void des_ofb64_encrypt(unsigned char *in, unsigned char *out, long length,
 int des_read_pw(char *buf, char *buff, int size, char *prompt, int verify);
 
 /* Extra functions from Mark Murray <mark@grondar.za> */
-#ifndef LINUX_DRIVER
 void des_cblock_print_file(des_cblock *cb, FILE *fp);
-#endif
 /* The following functions are not in the normal unix build or the
  * SSLeay build.  When using the SSLeay build, use RAND_seed()
  * and RAND_bytes() instead. */

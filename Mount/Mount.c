@@ -97,6 +97,8 @@ KeyFile *FirstCmdKeyFile;
 
 HBITMAP hbmLogoBitmapRescaled = NULL;
 char OrigKeyboardLayout [8+1] = "00000409";
+BOOL bKeyboardLayoutChanged = FALSE;		/* TRUE if the keyboard layout was changed to the standard US keyboard layout (from any other layout). */ 
+BOOL bKeybLayoutAltKeyWarningShown = FALSE;	/* TRUE if the user has been informed that it is not possible to type characters by pressing keys while the right Alt key is held down. */ 
 
 static KeyFilesDlgParam				hidVolProtKeyFilesParam;
 
@@ -108,6 +110,7 @@ static HANDLE TaskBarIconMutex = NULL;
 static BOOL MainWindowHidden = FALSE;
 static int pwdChangeDlgMode	= PCDM_CHANGE_PASSWORD;
 static int bSysEncPwdChangeDlgMode = FALSE;
+static int bPrebootPasswordDlgMode = FALSE;
 static int NoCmdLineArgs;
 static BOOL CmdLineVolumeSpecified;
 
@@ -130,7 +133,10 @@ void localcleanup (void)
 	cleanup ();
 
 	if (BootEncObj != NULL)
+	{
 		delete BootEncObj;
+		BootEncObj = NULL;
+	}
 }
 
 void RefreshMainDlg (HWND hwndDlg)
@@ -223,7 +229,8 @@ static void InitMainDialog (HWND hwndDlg)
 	}
 
 	// Resize the logo bitmap if the user has a non-default DPI
-	if (ScreenDPI != USER_DEFAULT_SCREEN_DPI)
+	if (ScreenDPI != USER_DEFAULT_SCREEN_DPI
+		&& hbmLogoBitmapRescaled == NULL)	// If not re-called (e.g. after language pack change)
 	{
 		hbmLogoBitmapRescaled = RenderBitmap (MAKEINTRESOURCE (IDB_LOGO_288DPI),
 			GetDlgItem (hwndDlg, IDC_LOGO),
@@ -370,6 +377,7 @@ void LoadSettings (HWND hwndDlg)
 	defaultMountOptions.Removable =	ConfigReadInt ("MountVolumesRemovable", FALSE);
 	defaultMountOptions.ReadOnly =	ConfigReadInt ("MountVolumesReadOnly", FALSE);
 	defaultMountOptions.ProtectHiddenVolume = FALSE;
+	defaultMountOptions.PartitionInInactiveSysEncScope = FALSE;
 
 	mountOptions = defaultMountOptions;
 
@@ -619,9 +627,8 @@ static void PopulateSysEncContextMenu (HMENU popup, BOOL bToolsOnly)
 
 			if (SystemEncryptionStatus != SYSENC_STATUS_DECRYPTING)
 				AppendMenuW (popup, MF_STRING, IDM_PERMANENTLY_DECRYPT_SYS, GetString ("PERMANENTLY_DECRYPT"));
-			else
-				AppendMenuW (popup, MF_STRING, IDM_ENCRYPT_SYSTEM_DEVICE, GetString ("ENCRYPT"));
-
+			
+			AppendMenuW (popup, MF_STRING, IDM_ENCRYPT_SYSTEM_DEVICE, GetString ("ENCRYPT"));
 			AppendMenu (popup, MF_SEPARATOR, 0, NULL);
 		}
 	}
@@ -641,6 +648,150 @@ static void PopulateSysEncContextMenu (HMENU popup, BOOL bToolsOnly)
 		AppendMenu (popup, MF_SEPARATOR, 0, NULL);
 		AppendMenuW (popup, MF_STRING, IDM_VOLUME_PROPERTIES, GetString ("IDPM_PROPERTIES"));
 	}
+}
+
+
+// WARNING: This function may take a long time to complete. To prevent data corruption, it MUST be called before
+// mounting a partition withing key scope of system encryption (as a regular volume).
+// Returns TRUE if the partition can be mounted as a partition within key scope of inactive system encryption.
+// If devicePath is empty, the currently selected partition in the GUI is checked.
+BOOL CheckSysEncMountWithoutPBA (char *devicePath, BOOL quiet)
+{
+	BOOL tmpbDevice;
+	char szDevicePath [TC_MAX_PATH+1];
+	char szDiskFile [TC_MAX_PATH+1];
+
+	if (strlen (devicePath) < 2)
+	{
+		GetWindowText (GetDlgItem (MainDlg, IDC_VOLUME), szDevicePath, sizeof (szDevicePath));
+		CreateFullVolumePath (szDiskFile, szDevicePath, &tmpbDevice);
+
+		if (!tmpbDevice)
+		{
+			if (!quiet)
+				Warning ("NO_SYSENC_PARTITION_SELECTED");
+
+			return FALSE;
+		}
+
+		if (LOWORD (GetSelectedLong (GetDlgItem (MainDlg, IDC_DRIVELIST))) != TC_MLIST_ITEM_FREE)
+		{
+			if (!quiet)
+				Warning ("SELECT_FREE_DRIVE");
+
+			return FALSE;
+		}
+	}
+	else
+		strncpy (szDevicePath, devicePath, sizeof (szDevicePath));
+
+	char *partionPortion = strrchr (szDevicePath, '\\');
+
+	if (!partionPortion
+		|| !_stricmp (partionPortion, "\\Partition0"))
+	{
+		// Only partitions are supported (not whole drives)
+		if (!quiet)
+			Warning ("NO_SYSENC_PARTITION_SELECTED");
+
+		return FALSE;
+	}
+
+	try
+	{
+		BootEncStatus = BootEncObj->GetStatus();
+
+		if (BootEncStatus.DriveMounted)
+		{
+			int retCode = 0;
+			int driveNo;
+			char parentDrivePath [TC_MAX_PATH+1];
+
+			if (sscanf (szDevicePath, "\\Device\\Harddisk%d\\Partition", &driveNo) != 1)
+			{
+				if (!quiet)
+					Error ("INVALID_PATH");
+
+				return FALSE;
+			}
+
+			_snprintf (parentDrivePath,
+				sizeof (parentDrivePath),
+				"\\Device\\Harddisk%d\\Partition0",
+				driveNo);
+
+			WaitCursor ();
+
+			// This is critical (re-mounting a mounted system volume as a normal volume could cause data corruption)
+			// so we force the slower but reliable method
+			retCode = IsSystemDevicePath (parentDrivePath, MainDlg, TRUE);
+
+			NormalCursor();
+
+			if (retCode != 2)
+				return TRUE;
+			else
+			{
+				// The partition is located on a drive that is within key scope of active system encryption
+				if (!quiet)
+					Warning ("ALREADY_MOUNTED");
+
+				return FALSE;
+			}
+		}
+		else
+			return TRUE;
+	}
+	catch (Exception &e)
+	{
+		NormalCursor();
+		e.Show (MainDlg);
+	}
+
+	return FALSE;
+}
+
+
+// Returns TRUE if the host drive of the specified partition contains a portion of the TrueCrypt Boot Loader
+// and if the drive is not within key scope of active system encryption (e.g. the system drive of the running OS).
+// If bPrebootPasswordDlgMode is TRUE, this function returns FALSE (because the check would be redundant).
+BOOL TCBootLoaderOnInactiveSysEncDrive (void) 
+{
+	try
+	{
+		int driveNo;
+		char szDevicePath [TC_MAX_PATH+1];
+		char parentDrivePath [TC_MAX_PATH+1];
+
+		if (bPrebootPasswordDlgMode)
+			return FALSE;
+
+		GetWindowText (GetDlgItem (MainDlg, IDC_VOLUME), szDevicePath, sizeof (szDevicePath));
+
+		if (sscanf (szDevicePath, "\\Device\\Harddisk%d\\Partition", &driveNo) != 1)
+			return FALSE;
+
+		_snprintf (parentDrivePath,
+			sizeof (parentDrivePath),
+			"\\Device\\Harddisk%d\\Partition0",
+			driveNo);
+
+		BootEncStatus = BootEncObj->GetStatus();
+
+		if (BootEncStatus.DriveMounted
+			&& IsSystemDevicePath (parentDrivePath, MainDlg, FALSE) == 2)
+		{
+			// The partition is within key scope of active system encryption
+			return FALSE;
+		}
+
+		return ((BOOL) BootEncObj->IsBootLoaderOnDrive (parentDrivePath));
+	}
+	catch (...)
+	{
+		return FALSE;
+	}
+
 }
 
 
@@ -1227,13 +1378,18 @@ PasswordChangeDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 				ToBootPwdField (hwndDlg, IDC_VERIFY);
 				ToBootPwdField (hwndDlg, IDC_OLD_PASSWORD);
 
-				DWORD keybLayout = (DWORD) LoadKeyboardLayout ("00000409", KLF_ACTIVATE);
-
-				if (keybLayout != 0x00000409 && keybLayout != 0x04090409)
+				if ((DWORD) GetKeyboardLayout (NULL) != 0x00000409 && (DWORD) GetKeyboardLayout (NULL) != 0x04090409)
 				{
-					Error ("CANT_CHANGE_KEYB_LAYOUT_FOR_SYS_ENCRYPTION");
-					EndDialog (hwndDlg, IDCANCEL);
-					return 0;
+					DWORD keybLayout = (DWORD) LoadKeyboardLayout ("00000409", KLF_ACTIVATE);
+
+					if (keybLayout != 0x00000409 && keybLayout != 0x04090409)
+					{
+						Error ("CANT_CHANGE_KEYB_LAYOUT_FOR_SYS_ENCRYPTION");
+						EndDialog (hwndDlg, IDCANCEL);
+						return 0;
+					}
+
+					bKeyboardLayoutChanged = TRUE;
 				}
 
 				ShowWindow(GetDlgItem(hwndDlg, IDC_SHOW_PASSWORD_CHPWD_NEW), SW_HIDE);
@@ -1268,6 +1424,8 @@ PasswordChangeDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			{
 				DWORD keybLayout = (DWORD) GetKeyboardLayout (NULL);
 
+				/* Watch the keyboard layout */
+
 				if (keybLayout != 0x00000409 && keybLayout != 0x04090409)
 				{
 					// Keyboard layout is not standard US
@@ -1294,7 +1452,30 @@ PasswordChangeDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 						return 1;
 					}
 
-					Warning ("KEYB_LAYOUT_CHANGE_PREVENTED");
+					bKeyboardLayoutChanged = TRUE;
+
+					wchar_t szTmp [4096];
+					wcscpy (szTmp, GetString ("KEYB_LAYOUT_CHANGE_PREVENTED"));
+					wcscat (szTmp, L"\n\n");
+					wcscat (szTmp, GetString ("KEYB_LAYOUT_SYS_ENC_EXPLANATION"));
+					MessageBoxW (MainDlg, szTmp, lpszTitle, MB_ICONWARNING | MB_SETFOREGROUND | MB_TOPMOST);
+				}
+
+
+				/* Watch the right Alt key (which is used to enter various characters on non-US keyboards) */
+
+				if (bKeyboardLayoutChanged && !bKeybLayoutAltKeyWarningShown)
+				{
+					if (GetAsyncKeyState (VK_RMENU) < 0)
+					{
+						bKeybLayoutAltKeyWarningShown = TRUE;
+
+						wchar_t szTmp [4096];
+						wcscpy (szTmp, GetString ("ALT_KEY_CHARS_NOT_FOR_SYS_ENCRYPTION"));
+						wcscat (szTmp, L"\n\n");
+						wcscat (szTmp, GetString ("KEYB_LAYOUT_SYS_ENC_EXPLANATION"));
+						MessageBoxW (MainDlg, szTmp, lpszTitle, MB_ICONINFORMATION  | MB_SETFOREGROUND | MB_TOPMOST);
+					}
 				}
 			}
 			return 1;
@@ -1604,7 +1785,93 @@ PasswordDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			SetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE, KeyFilesEnable);
 			EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
 
+			mountOptions.PartitionInInactiveSysEncScope = bPrebootPasswordDlgMode;
+
+			if (bPrebootPasswordDlgMode)
+			{
+				SendMessage (hwndDlg, TC_APPMSG_PREBOOT_PASSWORD_MODE, 0, 0);
+			}
+
 			SetForegroundWindow (hwndDlg);
+		}
+		return 0;
+
+	case TC_APPMSG_PREBOOT_PASSWORD_MODE:
+		{
+			ToBootPwdField (hwndDlg, IDC_PASSWORD);
+
+			// Attempt to wipe the password stored in the input field buffer
+			char tmp[MAX_PASSWORD+1];
+			memset (tmp, 'X', MAX_PASSWORD);
+			tmp [MAX_PASSWORD] = 0;
+			SetWindowText (GetDlgItem (hwndDlg, IDC_PASSWORD), tmp);
+			SetWindowText (GetDlgItem (hwndDlg, IDC_PASSWORD), "");
+
+			sprintf (OrigKeyboardLayout, "%08X", (DWORD) GetKeyboardLayout (NULL) & 0xFFFF);
+
+			DWORD keybLayout = (DWORD) LoadKeyboardLayout ("00000409", KLF_ACTIVATE);
+
+			if (keybLayout != 0x00000409 && keybLayout != 0x04090409)
+			{
+				Error ("CANT_CHANGE_KEYB_LAYOUT_FOR_SYS_ENCRYPTION");
+				EndDialog (hwndDlg, IDCANCEL);
+				return 1;
+			}
+
+			if (SetTimer (hwndDlg, TIMER_ID_KEYB_LAYOUT_GUARD, TIMER_INTERVAL_KEYB_LAYOUT_GUARD, NULL) == 0)
+			{
+				Error ("CANNOT_SET_TIMER");
+				EndDialog (hwndDlg, IDCANCEL);
+				return 1;
+			}
+
+			SetCheckBox (hwndDlg, IDC_SHOW_PASSWORD, FALSE);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_SHOW_PASSWORD), FALSE);
+
+			SendMessage (GetDlgItem (hwndDlg, IDC_PASSWORD), EM_SETPASSWORDCHAR, '*', 0);
+			InvalidateRect (GetDlgItem (hwndDlg, IDC_PASSWORD), NULL, TRUE);
+
+			bPrebootPasswordDlgMode = TRUE;
+		}
+		return 1;
+
+	case WM_TIMER:
+		switch (wParam)
+		{
+		case TIMER_ID_KEYB_LAYOUT_GUARD:
+			if (bPrebootPasswordDlgMode)
+			{
+				DWORD keybLayout = (DWORD) GetKeyboardLayout (NULL);
+
+				if (keybLayout != 0x00000409 && keybLayout != 0x04090409)
+				{
+					// Keyboard layout is not standard US
+
+					// Attempt to wipe the password stored in the input field buffer
+					char tmp[MAX_PASSWORD+1];
+					memset (tmp, 'X', MAX_PASSWORD);
+					tmp [MAX_PASSWORD] = 0;
+					SetWindowText (GetDlgItem (hwndDlg, IDC_PASSWORD), tmp);
+					SetWindowText (GetDlgItem (hwndDlg, IDC_PASSWORD), "");
+
+					keybLayout = (DWORD) LoadKeyboardLayout ("00000409", KLF_ACTIVATE);
+
+					if (keybLayout != 0x00000409 && keybLayout != 0x04090409)
+					{
+						KillTimer (hwndDlg, TIMER_ID_KEYB_LAYOUT_GUARD);
+						Error ("CANT_CHANGE_KEYB_LAYOUT_FOR_SYS_ENCRYPTION");
+						EndDialog (hwndDlg, IDCANCEL);
+						return 1;
+					}
+
+					wchar_t szTmp [4096];
+					wcscpy (szTmp, GetString ("KEYB_LAYOUT_CHANGE_PREVENTED"));
+					wcscat (szTmp, L"\n\n");
+					wcscat (szTmp, GetString ("KEYB_LAYOUT_SYS_ENC_EXPLANATION"));
+					MessageBoxW (MainDlg, szTmp, lpszTitle, MB_ICONWARNING | MB_SETFOREGROUND | MB_TOPMOST);
+				}
+			}
+			return 1;
 		}
 		return 0;
 
@@ -1615,6 +1882,10 @@ PasswordDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			DialogBoxParamW (hInst, 
 				MAKEINTRESOURCEW (IDD_MOUNT_OPTIONS), hwndDlg,
 				(DLGPROC) MountOptionsDlgProc, (LPARAM) &mountOptions);
+
+			if (!bPrebootPasswordDlgMode && mountOptions.PartitionInInactiveSysEncScope)
+				SendMessage (hwndDlg, TC_APPMSG_PREBOOT_PASSWORD_MODE, 0, 0);
+
 			return 1;
 		}
 
@@ -1681,6 +1952,15 @@ PasswordDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			{
 				KeyFileRemoveAll (&hidVolProtKeyFilesParam.FirstKeyFile);
 				hidVolProtKeyFilesParam.EnableKeyFiles = FALSE;
+			}
+
+			if (bPrebootPasswordDlgMode)
+			{
+				KillTimer (hwndDlg, TIMER_ID_KEYB_LAYOUT_GUARD);
+
+				// Restore the original keyboard layout
+				if (LoadKeyboardLayout (OrigKeyboardLayout, KLF_ACTIVATE | KLF_SUBSTITUTE_OK) == NULL) 
+					Warning ("CANNOT_RESTORE_KEYBOARD_LAYOUT");
 			}
 
 			EndDialog (hwndDlg, lw);
@@ -1936,6 +2216,16 @@ MountOptionsDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			SendDlgItemMessage (hwndDlg, IDC_PROTECT_HIDDEN_VOL, BM_SETCHECK,
 				mountOptions->ProtectHiddenVolume ? BST_CHECKED : BST_UNCHECKED, 0);
 
+			SendDlgItemMessage (hwndDlg, IDC_PROTECT_HIDDEN_VOL, BM_SETCHECK,
+				mountOptions->ProtectHiddenVolume ? BST_CHECKED : BST_UNCHECKED, 0);
+
+			mountOptions->PartitionInInactiveSysEncScope = bPrebootPasswordDlgMode;
+
+			SendDlgItemMessage (hwndDlg, IDC_MOUNT_SYSENC_PART_WITHOUT_PBA, BM_SETCHECK,
+				bPrebootPasswordDlgMode ? BST_CHECKED : BST_UNCHECKED, 0);
+
+			EnableWindow (GetDlgItem (hwndDlg, IDC_MOUNT_SYSENC_PART_WITHOUT_PBA), !bPrebootPasswordDlgMode);
+
 			protect = IsButtonChecked (GetDlgItem (hwndDlg, IDC_PROTECT_HIDDEN_VOL));
 
 			EnableWindow (GetDlgItem (hwndDlg, IDC_PROTECT_HIDDEN_VOL), !IsButtonChecked (GetDlgItem (hwndDlg, IDC_MOUNT_READONLY)));
@@ -2014,6 +2304,7 @@ MountOptionsDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			mountOptions->ReadOnly = IsButtonChecked (GetDlgItem (hwndDlg, IDC_MOUNT_READONLY));
 			mountOptions->Removable = IsButtonChecked (GetDlgItem (hwndDlg, IDC_MOUNT_REMOVABLE));
 			mountOptions->ProtectHiddenVolume = IsButtonChecked (GetDlgItem (hwndDlg, IDC_PROTECT_HIDDEN_VOL));
+			mountOptions->PartitionInInactiveSysEncScope = IsButtonChecked (GetDlgItem (hwndDlg, IDC_MOUNT_SYSENC_PART_WITHOUT_PBA));
 
 			if (mountOptions->ProtectHiddenVolume)
 			{
@@ -3079,6 +3370,7 @@ static BOOL MountAllDevices (HWND hwndDlg, BOOL bPasswordPrompt)
 
 	VolumePassword.Length = 0;
 	mountOptions = defaultMountOptions;
+	bPrebootPasswordDlgMode = FALSE;
 
 	if (selDrive == -1) selDrive = 0;
 
@@ -3355,8 +3647,16 @@ static void ChangeSysEncPassword (HWND hwndDlg, BOOL bOnlyChangeKDF)
 
 		bSysEncPwdChangeDlgMode = FALSE;
 
-		// Restore the original keyboard layout
-		LoadKeyboardLayout (OrigKeyboardLayout, KLF_ACTIVATE | KLF_SUBSTITUTE_OK);
+		if (bKeyboardLayoutChanged)
+		{
+			// Restore the original keyboard layout
+			if (LoadKeyboardLayout (OrigKeyboardLayout, KLF_ACTIVATE | KLF_SUBSTITUTE_OK) == NULL) 
+				Warning ("CANNOT_RESTORE_KEYBOARD_LAYOUT");
+			else
+				bKeyboardLayoutChanged = FALSE;
+		}
+
+		bKeybLayoutAltKeyWarningShown = FALSE;
 
 		CloseSysEncMutex ();
 	}
@@ -4483,6 +4783,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				else if (LOWORD (GetSelectedLong (GetDlgItem (hwndDlg, IDC_DRIVELIST))) == TC_MLIST_ITEM_FREE)
 				{
 					mountOptions = defaultMountOptions;
+					bPrebootPasswordDlgMode = FALSE;
 
 					if (GetAsyncKeyState (VK_CONTROL) < 0)
 					{
@@ -4624,6 +4925,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						else
 						{
 							mountOptions = defaultMountOptions;
+							bPrebootPasswordDlgMode = FALSE;
 
 							if (CheckMountList ())
 								Mount (hwndDlg, 0, 0);
@@ -4710,6 +5012,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			else if (LOWORD (GetSelectedLong (GetDlgItem (hwndDlg, IDC_DRIVELIST))) == TC_MLIST_ITEM_FREE)
 			{
 				mountOptions = defaultMountOptions;
+				bPrebootPasswordDlgMode = FALSE;
 
 				if (lw == IDM_MOUNT_VOLUME_OPTIONS || GetAsyncKeyState (VK_CONTROL) < 0)
 				{
@@ -4781,6 +5084,19 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			break;
 		case IDM_VERIFY_RESCUE_DISK:
 			VerifyRescueDisk ();
+			break;
+		case IDM_MOUNT_SYSENC_PART_WITHOUT_PBA:
+
+			if (CheckSysEncMountWithoutPBA ("", FALSE))
+			{
+				mountOptions = defaultMountOptions;
+				bPrebootPasswordDlgMode = TRUE;
+
+				if (CheckMountList ())
+					Mount (hwndDlg, 0, 0);
+
+				bPrebootPasswordDlgMode = FALSE;
+			}
 			break;
 		}
 
@@ -5292,8 +5608,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 	return 0;
 }
 
-void
-ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
+void ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 {
 	char **lpszCommandLineArgs;	/* Array of command line arguments */
 	int nNoCommandLineArgs;	/* The number of arguments in the array */
@@ -5446,6 +5761,9 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 
 						if (!_stricmp (szTmp, "ts") || !_stricmp (szTmp, "timestamp"))
 							mountOptions.PreserveTimestamp = FALSE;
+
+						if (!_stricmp (szTmp, "sm") || !_stricmp (szTmp, "system"))
+							mountOptions.PartitionInInactiveSysEncScope = bPrebootPasswordDlgMode = TRUE;
 					}
 				}
 				break;
@@ -5533,6 +5851,22 @@ ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 	{
 		free (lpszCommandLineArgs[nNoCommandLineArgs]);
 	}
+}
+
+
+BOOL RegisterBootDriver (void)
+{
+	try
+	{
+		BootEncObj->RegisterBootDriver();
+	}
+	catch (Exception &e)
+	{
+		e.Show (NULL);
+		return FALSE;
+	}
+
+	return TRUE;
 }
 
 
@@ -5723,6 +6057,7 @@ BOOL MountFavoriteVolumes ()
 	if (xml == NULL) return FALSE;
 
 	mountOptions = defaultMountOptions;
+	bPrebootPasswordDlgMode = FALSE;
 
 	while (xml = XmlFindElement (xml, "volume"))
 	{

@@ -58,12 +58,8 @@
  * [including the GNU Public Licence.]
  */
 
-#ifndef LINUX_DRIVER
 #include <stdio.h>
 #include <string.h>
-#else
-#include <linux/string.h>
-#endif
 
 #include "Blowfish.h"
 #include "Bf_locl.h"

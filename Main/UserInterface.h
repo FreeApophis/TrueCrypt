@@ -11,6 +11,7 @@
 
 #include "System.h"
 #include "Core/Core.h"
+#include "Core/VolumeCreator.h"
 #include "Main.h"
 #include "CommandLineInterface.h"
 #include "FavoriteVolume.h"
@@ -28,11 +29,13 @@ namespace TrueCrypt
 
 		virtual bool AskYesNo (const wxString &message, bool defaultYes = false, bool warning = false) const = 0;
 		virtual void BeginBusyState () const = 0;
-		virtual void ChangePassword (shared_ptr <VolumePath> volumePath = shared_ptr <VolumePath>(), shared_ptr <VolumePassword> password = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> keyfiles = shared_ptr <KeyfileList>(), shared_ptr <VolumePassword> newPassword = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> newKeyfiles = shared_ptr <KeyfileList>()) const = 0;
+		virtual void ChangePassword (shared_ptr <VolumePath> volumePath = shared_ptr <VolumePath>(), shared_ptr <VolumePassword> password = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> keyfiles = shared_ptr <KeyfileList>(), shared_ptr <VolumePassword> newPassword = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> newKeyfiles = shared_ptr <KeyfileList>(), shared_ptr <Hash> newHash = shared_ptr <Hash>()) const = 0;
 		virtual void CloseExplorerWindows (shared_ptr <VolumeInfo> mountedVolume) const;
+		virtual void CreateVolume (shared_ptr <VolumeCreationOptions> options, const FilesystemPath &randomSourcePath = FilesystemPath()) const = 0;
 		virtual void DismountAllVolumes (bool ignoreOpenFiles = false, bool interactive = true) const;
 		virtual void DismountVolume (shared_ptr <VolumeInfo> volume, bool ignoreOpenFiles = false, bool interactive = true) const;
 		virtual void DismountVolumes (VolumeInfoList volumes, bool ignoreOpenFiles = false, bool interactive = true) const;
+		virtual void DisplayVolumeProperties (const VolumeInfoList &volumes) const;
 		virtual void DoShowError (const wxString &message) const = 0;
 		virtual void DoShowInfo (const wxString &message) const = 0;
 		virtual void DoShowString (const wxString &str) const = 0;
@@ -61,6 +64,7 @@ namespace TrueCrypt
 		virtual wxString SizeToString (uint64 size) const;
 		virtual wxString SpeedToString (uint64 speed) const;
 		virtual void Test () const;
+		virtual wxString TimeSpanToString (uint64 seconds) const;
 		virtual bool VolumeHasUnrecommendedExtension (const VolumePath &path) const;
 		virtual void Yield () const = 0;
 		virtual wxDateTime VolumeTimeToDateTime (VolumeTime volumeTime) const { return wxDateTime ((time_t) (volumeTime / 1000ULL / 1000 / 10 - 134774ULL * 24 * 3600)); }

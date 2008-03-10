@@ -66,7 +66,7 @@ BEGIN
     PUSHBUTTON      "Cancel",IDCANCEL,248,190,50,14
 END
 
-IDD_MOUNT_OPTIONS DIALOGEX 0, 0, 277, 145
+IDD_MOUNT_OPTIONS DIALOGEX 0, 0, 277, 158
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "TrueCrypt - Mount Options"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
@@ -74,17 +74,19 @@ BEGIN
     CONTROL         "Mount volume as read-&only",IDC_MOUNT_READONLY,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,11,194,10
     CONTROL         "Mount volume as removable &medium",IDC_MOUNT_REMOVABLE,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,25,195,10
+    CONTROL         "Mount partition &using system encryption without pre-boot authentication",IDC_MOUNT_SYSENC_PART_WITHOUT_PBA,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,39,259,11
     CONTROL         "&Protect hidden volume against damage caused by writing to outer volume",IDC_PROTECT_HIDDEN_VOL,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,59,252,10
-    RTEXT           "P&assword to hidden volume:\n(if empty, cache is used)",IDT_HIDDEN_PROT_PASSWD,15,76,91,17,0,WS_EX_RIGHT
-    EDITTEXT        IDC_PASSWORD_PROT_HIDVOL,112,77,151,14,ES_PASSWORD | ES_AUTOHSCROLL
-    CONTROL         "&Display password",IDC_SHOW_PASSWORD_MO,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,112,96,90,10
-    CONTROL         "U&se keyfiles",IDC_KEYFILES_ENABLE_HIDVOL_PROT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,112,109,90,10
-    PUSHBUTTON      "&Keyfiles...",IDC_KEYFILES_HIDVOL_PROT,203,98,60,14
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,72,252,10
+    EDITTEXT        IDC_PASSWORD_PROT_HIDVOL,112,90,151,14,ES_PASSWORD | ES_AUTOHSCROLL
+    CONTROL         "&Display password",IDC_SHOW_PASSWORD_MO,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,112,109,90,10
+    CONTROL         "U&se keyfiles",IDC_KEYFILES_ENABLE_HIDVOL_PROT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,112,122,90,10
+    PUSHBUTTON      "&Keyfiles...",IDC_KEYFILES_HIDVOL_PROT,203,111,60,14
+    LTEXT           "What is hidden volume protection?",IDC_LINK_HIDVOL_PROTECTION_INFO,16,137,247,10,SS_NOTIFY
     DEFPUSHBUTTON   "OK",IDOK,211,7,60,14
     PUSHBUTTON      "Cancel",IDCANCEL,211,24,60,14
-    GROUPBOX        "Hidden Volume Protection",IDT_HIDDEN_VOL_PROTECTION,6,45,265,95
-    LTEXT           "What is hidden volume protection?",IDC_LINK_HIDVOL_PROTECTION_INFO,16,124,247,10,SS_NOTIFY
+    RTEXT           "P&assword to hidden volume:\n(if empty, cache is used)",IDT_HIDDEN_PROT_PASSWD,15,89,91,17,0,WS_EX_RIGHT
+    GROUPBOX        "Hidden Volume Protection",IDT_HIDDEN_VOL_PROTECTION,6,58,265,95
 END
 
 IDD_KEYFILES DIALOGEX 0, 0, 341, 218
@@ -254,7 +256,7 @@ BEGIN
     BEGIN
         LEFTMARGIN, 7
         TOPMARGIN, 7
-        BOTTOMMARGIN, 139
+        BOTTOMMARGIN, 152
     END
 
     IDD_KEYFILES, DIALOG
@@ -330,7 +332,14 @@ END
 //
 
 IDR_BOOT_SECTOR         BIN                     "..\\Boot\\Windows\\Release\\BootSector.bin"
-IDR_BOOT_LOADER         BIN                     "..\\Boot\\Windows\\Release\\BootLoader.com"
+IDR_BOOT_SECTOR_AES     BIN                     "..\\Boot\\Windows\\Release_AES\\BootSector.bin"
+IDR_BOOT_SECTOR_SERPENT BIN                     "..\\Boot\\Windows\\Release_Serpent\\BootSector.bin"
+IDR_BOOT_SECTOR_TWOFISH BIN                     "..\\Boot\\Windows\\Release_Twofish\\BootSector.bin"
+IDR_BOOT_LOADER_DECOMPRESSOR BIN                "..\\Boot\\Windows\\Release\\Decompressor.com"
+IDR_BOOT_LOADER         BIN                     "..\\Boot\\Windows\\Release\\BootLoader.com.gz"
+IDR_BOOT_LOADER_AES     BIN                     "..\\Boot\\Windows\\Release_AES\\BootLoader.com.gz"
+IDR_BOOT_LOADER_SERPENT BIN                     "..\\Boot\\Windows\\Release_Serpent\\BootLoader.com.gz"
+IDR_BOOT_LOADER_TWOFISH BIN                     "..\\Boot\\Windows\\Release_Twofish\\BootLoader.com.gz"
 
 /////////////////////////////////////////////////////////////////////////////
 //

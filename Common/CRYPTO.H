@@ -166,17 +166,32 @@ typedef struct
 } Hash;
 
 // Maxium length of scheduled key
-#ifndef TC_WINDOWS_BOOT
+#if !defined (TC_WINDOWS_BOOT) || defined (TC_WINDOWS_BOOT_AES)
 #	define AES_KS				(sizeof(aes_encrypt_ctx) + sizeof(aes_decrypt_ctx))
 #else
 #	define AES_KS				(sizeof(aes_context))
 #endif
 #define SERPENT_KS			(140 * 4)
+
+#ifdef TC_WINDOWS_BOOT_SINGLE_CIPHER_MODE
+
+#	ifdef TC_WINDOWS_BOOT_AES
+#		define MAX_EXPANDED_KEY	AES_KS
+#	elif defined (TC_WINDOWS_BOOT_SERPENT)
+#		define MAX_EXPANDED_KEY	SERPENT_KS
+#	elif defined (TC_WINDOWS_BOOT_TWOFISH)
+#		define MAX_EXPANDED_KEY	TWOFISH_KS
+#	endif
+
+#else
+
 #define MAX_EXPANDED_KEY	(AES_KS + SERPENT_KS + TWOFISH_KS)
+
+#endif
 
 #define PRAND_DISK_WIPE_PASSES	200
 
-#ifndef TC_WINDOWS_BOOT
+#if !defined (TC_WINDOWS_BOOT) || defined (TC_WINDOWS_BOOT_AES)
 #	include "Aes.h"
 #else
 #	include "AesSmall.h"
@@ -188,13 +203,11 @@ typedef struct
 #include "Serpent.h"
 #include "Twofish.h"
 
-#ifndef LINUX_DRIVER
-#	include "Rmd160.h"
-#	ifndef TC_WINDOWS_BOOT
-#		include "Sha1.h"
-#		include "Sha2.h"
-#		include "Whirlpool.h"
-#	endif
+#include "Rmd160.h"
+#ifndef TC_WINDOWS_BOOT
+#	include "Sha1.h"
+#	include "Sha2.h"
+#	include "Whirlpool.h"
 #endif
 
 #include "GfMul.h"
@@ -218,7 +231,6 @@ typedef struct CRYPTO_INFO_t
 
 #ifndef TC_WINDOWS_BOOT
 	GfCtx gf_ctx; 
-#endif // TC_WINDOWS_BOOT
 
 	unsigned __int8 master_keydata[MASTER_KEYDATA_SIZE];	/* This holds the volume header area containing concatenated master key(s) and secondary key(s) (XTS mode). For LRW (deprecated/legacy), it contains the tweak key before the master key(s). For CBC (deprecated/legacy), it contains the IV seed before the master key(s). */
 	unsigned __int8 k2[MASTER_KEYDATA_SIZE];				/* For XTS, this contains the secondary key (if cascade, multiple concatenated). For LRW (deprecated/legacy), it contains the tweak key. For CBC (deprecated/legacy), it contains the IV seed. */
@@ -226,20 +238,22 @@ typedef struct CRYPTO_INFO_t
 	int noIterations;
 	int pkcs5;
 
-#ifndef TC_NO_COMPILER_INT64
 	unsigned __int64 volume_creation_time;
 	unsigned __int64 header_creation_time;
-#endif
 
 	// Hidden volume status & parameters
 	BOOL hiddenVolume;					// Indicates whether the volume is mounted/mountable as hidden volume
 	BOOL bProtectHiddenVolume;			// Indicates whether the volume contains a hidden volume to be protected against overwriting
 	BOOL bHiddenVolProtectionAction;		// TRUE if a write operation has been denied by the driver in order to prevent the hidden volume from being overwritten (set to FALSE upon volume mount).
 
-#ifndef TC_NO_COMPILER_INT64
 	unsigned __int64 hiddenVolumeSize;		// Size of the hidden volume excluding the header (in bytes). Set to 0 for standard volumes.
 	unsigned __int64 hiddenVolumeOffset;	// Absolute position, in bytes, of the first hidden volume data sector within the host volume (provided that there is a hidden volume within). This must be set for all hidden volumes; in case of a normal volume, this variable is only used when protecting a hidden volume within it.
-#endif
+	unsigned __int64 volDataAreaOffset;		// Absolute position, in bytes, of the first data sector of the volume.
+
+	BOOL bPartitionInInactiveSysEncScope;	// If TRUE, the volume is a partition located on an encrypted system drive and mounted without pre-boot authentication.
+
+	UINT64_STRUCT FirstDataUnitNo;			// First data unit number of the volume. This is 0 for file-hosted and non-system partition-hosted volumes. For partitions within key scope of system encryption this reflects real physical offset within the device (this is used e.g. when such a partition is mounted as a regular volume without pre-boot authentication).
+#endif // TC_WINDOWS_BOOT
 
 	UINT64_STRUCT VolumeSize;
 

@@ -172,7 +172,7 @@ namespace TrueCrypt
 			passwordBuf[i] = (wchar_t) passwordStr[i];
 			const_cast <wchar_t *> (passwordStr.c_str())[i] = L'X';
 		}
-		password.reset (new VolumePassword (passwordBuf, passwordStr.size()));
+		password.reset (new VolumePassword (passwordBuf, passwordStr.size() <= VolumePassword::MaxSize ? passwordStr.size() : VolumePassword::MaxSize));
 #endif
 		return password;
 	}

@@ -19,12 +19,14 @@ namespace TrueCrypt
 	wxApp* Application::CreateConsoleApp ()
 	{
 		mUserInterface = new TextUserInterface;
+		mUserInterfaceType = UserInterfaceType::Text;
 		return mUserInterface;
 	} 
 
 	wxApp* Application::CreateGuiApp ()
 	{
 		mUserInterface = new GraphicUserInterface;
+		mUserInterfaceType = UserInterfaceType::Graphic;
 		return mUserInterface;
 	} 
 
@@ -85,4 +87,5 @@ namespace TrueCrypt
 
 	int Application::ExitCode = 0;
 	UserInterface *Application::mUserInterface = nullptr;
+	UserInterfaceType::Enum Application::mUserInterfaceType;
 }

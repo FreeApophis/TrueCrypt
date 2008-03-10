@@ -376,6 +376,10 @@ begin_format:
 
 		nStatus = FormatFat (startSector, &ft, (void *) dev, cryptoInfo, quickFormat);
 		break;
+
+	default:
+		nStatus = ERR_PARAMETER_INCORRECT; 
+		goto error;
 	}
 
 error:
@@ -434,6 +438,7 @@ error:
 		mountOptions.Removable = FALSE;
 		mountOptions.ProtectHiddenVolume = FALSE;
 		mountOptions.PreserveTimestamp = bPreserveTimestamp;
+		mountOptions.PartitionInInactiveSysEncScope = FALSE;
 
 		if (MountVolume (hwndDlg, driveNo, volumePath, password, FALSE, TRUE, &mountOptions, FALSE, TRUE) < 1)
 		{

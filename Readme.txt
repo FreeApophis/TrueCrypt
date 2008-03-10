@@ -1,14 +1,13 @@
-This archive contains the complete source code of TrueCrypt 5.0a for all
-supported operating systems and all supported hardware platforms.
+This archive contains the source code of TrueCrypt 5.1.
 
 
 Important
 =========
 
-You may use the source code contained in this archive only if you agree to the
-license contained in the file 'License.txt', which is included in this archive.
-Note that the license specifies conditions under which you may modify TrueCrypt
-(for example, that a derived work must not be called "TrueCrypt").
+You may use the source code contained in this archive only if you accept and
+agree to be bound by the license terms contained in the file 'License.txt',
+which is included in this archive. Note that the license specifies, for
+example, that a derived work must not be called 'TrueCrypt'.
 
 
 
@@ -39,6 +38,9 @@ Requirements for Building TrueCrypt for Windows:
 - Microsoft Visual C++ 1.52
 - Microsoft Windows Driver Kit for Windows Vista (build 6000)
 - Microsoft Windows SDK 6.0 (integrated with Visual Studio)
+- NASM 0.99 assembler
+- Yasm assembler
+- gzip compressor
 
 IMPORTANT:
 
@@ -62,12 +64,13 @@ differences).
 Instructions for Building TrueCrypt for Windows:
 ------------------------------------------------
 
-1) Set environment variable 'MSVC16_ROOT' to point to the installation directory
-   of MS Visual C++ 1.52.
+1) Create an environment variable called 'MSVC16_ROOT' pointing to the
+   installation directory of MS Visual C++ 1.52.
 
-2) If you have installed the Windows Driver Development Kit in other directory
-   than '%SYSTEMDRIVE%\WinDDK', set environment variable 'WINDDK_ROOT' or
-   'WINDDK_6000_ROOT' to point to the DDK installation directory.
+2) If you have installed the Windows Driver Development Kit in another
+   directory than '%SYSTEMDRIVE%\WinDDK', create an environment variable called
+   'WINDDK_ROOT' or 'WINDDK_6000_ROOT' pointing to the DDK installation
+   directory.
    
 3) Open the 'TrueCrypt.sln' solution in Microsoft Visual Studio 2005.
 
@@ -88,9 +91,11 @@ Requirements for Building TrueCrypt for Linux and Mac OS X:
 
 - GNU Make
 - GNU C++ Compiler 4.0 or compatible
+- Apple XCode SDK (Mac OS X only)
 - pkg-config
 - wxWidgets 2.8 library source code (available at http://www.wxwidgets.org)
-- FUSE library (available at http://fuse.sourceforge.net and http://code.google.com/p/macfuse)
+- FUSE library (available at http://fuse.sourceforge.net and 
+  http://code.google.com/p/macfuse)
 
 
 Instructions for Building TrueCrypt for Linux and Mac OS X:
@@ -98,17 +103,21 @@ Instructions for Building TrueCrypt for Linux and Mac OS X:
 
 1) Change the current directory to the root of the TrueCrypt source code.
 
-2) Configure and build wxWidgets library for TrueCrypt. WX_ROOT variable must
-   be set to point to the location of the source code of wxWidgets library.
-   Output files are placed in './wxrelease/' directory.
+2) Run the following command to configure the wxWidgets library for TrueCrypt 
+   and to build it: 
 
    $ make WX_ROOT=/usr/src/wxWidgets wxbuild
 
-3) Build TrueCrypt:
+   The variable WX_ROOT must point to the location of the source code of the
+   wxWidgets library. Output files will be placed in the './wxrelease/'
+   directory.
+
+3) To build TrueCrypt, run the following command:
 
    $ make
 
-4) If successful, the TrueCrypt executable should be located in the directory 'Main'.
+4) If successful, the TrueCrypt executable should be located in the directory
+   'Main'.
 
 
 

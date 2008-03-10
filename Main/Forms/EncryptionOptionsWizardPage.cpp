@@ -78,15 +78,15 @@ namespace TrueCrypt
 			if (ciphers.size() == 2)
 			{
 				EncryptionAlgorithmStaticText->SetLabel (StringFormatter (LangString["TWO_LAYER_CASCADE_HELP"],
-					ciphers[0]->GetName(), ciphers[0]->GetKeySize() * 8,
-					ciphers[1]->GetName(), ciphers[1]->GetKeySize() * 8));
+					ciphers[0]->GetName(), (int) ciphers[0]->GetKeySize() * 8,
+					ciphers[1]->GetName(), (int) ciphers[1]->GetKeySize() * 8));
 			}
 			else if (ciphers.size() == 3)
 			{
 				EncryptionAlgorithmStaticText->SetLabel (StringFormatter (LangString["THREE_LAYER_CASCADE_HELP"],
-					ciphers[0]->GetName(), ciphers[0]->GetKeySize() * 8,
-					ciphers[1]->GetName(), ciphers[1]->GetKeySize() * 8,
-					ciphers[2]->GetName(), ciphers[2]->GetKeySize() * 8));
+					ciphers[0]->GetName(), (int) ciphers[0]->GetKeySize() * 8,
+					ciphers[1]->GetName(), (int) ciphers[1]->GetKeySize() * 8,
+					ciphers[2]->GetName(), (int) ciphers[2]->GetKeySize() * 8));
 			}
 			else
 				EncryptionAlgorithmStaticText->SetLabel (L"");

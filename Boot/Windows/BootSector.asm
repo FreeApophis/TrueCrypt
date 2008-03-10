@@ -8,85 +8,168 @@
 
 .MODEL tiny
 .386
-_TEXT SEGMENT
+_TEXT SEGMENT USE16
 
 INCLUDE BootDefs.i
 
-ORG 7C00h ; Boot sector offset
+ORG 7C00h	; Standard boot sector offset
 
 start:
 	; BIOS executes boot sector from 0:7C00 or 7C0:0000 (default CD boot loader address).
-	; Far jump to the next instruction ensures the offset matches the ORG directive.
+	; Far jump to the next instruction sets IP to the standard offset 7C00.
 	db 0EAh				; jmp 0:main
 	dw main, 0
 
-	db 'TrueCrypt'
+loader_name_msg:
+	db ' TrueCrypt Boot Loader', 13, 10, 0
 	
 main:	
 	xor ax, ax
 	mov ds, ax
 	
-	lea si, intro_msg
+	lea si, loader_name_msg
 	call print
 	
 	mov ax, TC_BOOT_LOADER_SEGMENT
-	mov es, ax ; Default load segment
+	mov es, ax			; Default boot loader segment
 
 	; Check available memory
 	cmp word ptr [ds:413h], TC_BOOT_LOADER_SEGMENT / 1024 * 16 + TC_BOOT_MEMORY_REQUIRED
-	jge clear_memory
+	jge memory_ok
 	
 	; Insufficient memory
 	mov ax, TC_BOOT_LOADER_LOWMEM_SEGMENT
 	mov es, ax
+memory_ok:
 
-	; Ensure clear BSS section
-clear_memory:
+	; Clear BSS section
 	xor al, al
-	mov di, TC_BOOT_LOADER_OFFSET
-	mov cx, TC_BOOT_MEMORY_REQUIRED * 1024 - 1
+	mov di, TC_COM_EXECUTABLE_OFFSET
+	mov cx, TC_BOOT_MEMORY_REQUIRED * 1024 - TC_COM_EXECUTABLE_OFFSET - 1
 	cld
 	rep stosb
 	
-	; Read boot loader
-	mov bx, TC_BOOT_LOADER_OFFSET
-	mov ch, 0           ; Cylinder
-	mov dh, 0           ; Head
-	mov cl, 2           ; Sector
-	mov al, TC_BOOT_LOADER_AREA_SECTOR_COUNT - 2
-						; DL = drive number passed from BIOS
-	mov ah, 2
-	int 13h
-	jnc exec_loader
+	mov ax, es
+	sub ax, TC_BOOT_LOADER_DECOMPRESSOR_MEMORY_SIZE / 16	; Decompressor segment
+	mov es, ax
 	
-	lea si, read_error_msg
+	; Load decompressor
+	mov cl, TC_BOOT_LOADER_DECOMPRESSOR_START_SECTOR
+retry_backup:
+	mov al, TC_BOOT_LOADER_DECOMPRESSOR_SECTOR_COUNT
+	mov bx, TC_COM_EXECUTABLE_OFFSET
+	call read_sectors
+
+	; Decompressor checksum
+	xor ebx, ebx
+	mov si, TC_COM_EXECUTABLE_OFFSET
+	mov cx, TC_BOOT_LOADER_DECOMPRESSOR_SECTOR_COUNT * TC_LB_SIZE
+	call checksum
+	push ebx
+	
+	; Load compressed boot loader
+	mov bx, TC_BOOT_LOADER_COMPRESSED_BUFFER_OFFSET
+	mov cl, TC_BOOT_LOADER_START_SECTOR
+	mov al, TC_MAX_BOOT_LOADER_SECTOR_COUNT
+	
+	test backup_loader_used, 1
+	jz non_backup
+	mov al, TC_BOOT_LOADER_BACKUP_SECTOR_COUNT - TC_BOOT_LOADER_DECOMPRESSOR_SECTOR_COUNT
+	mov cl, TC_BOOT_LOADER_START_SECTOR + TC_BOOT_LOADER_BACKUP_SECTOR_COUNT
+	
+non_backup:
+	call read_sectors
+
+	; Boot loader checksum
+	pop ebx
+	mov si, TC_BOOT_LOADER_COMPRESSED_BUFFER_OFFSET
+	mov cx, word ptr [start + TC_BOOT_SECTOR_LOADER_LENGTH_OFFSET]
+	call checksum
+	
+	; Verify checksum
+	cmp ebx, dword ptr [start + TC_BOOT_SECTOR_LOADER_CHECKSUM_OFFSET]
+	je checksum_ok
+
+	; Checksum incorrect - try using backup if available
+	test backup_loader_used, 1
+	jnz loader_damaged
+	
+	mov backup_loader_used, 1
+	mov cl, TC_BOOT_LOADER_DECOMPRESSOR_START_SECTOR + TC_BOOT_LOADER_BACKUP_SECTOR_COUNT
+	
+	test TC_BOOT_CFG_FLAG_BACKUP_LOADER_AVAILABLE, byte ptr [start + TC_BOOT_SECTOR_CONFIG_OFFSET]
+	jnz retry_backup
+	
+loader_damaged:
+	lea si, loader_damaged_msg
+	call print
+	lea si, loader_name_msg
+	call print
+	lea si, beep_msg
 	call print
 	jmp $
-	
-	; Execute boot loader
-exec_loader:
+checksum_ok:
 
-	; DH = boot sector flags
-	mov dh, byte ptr [start + TC_BOOT_SECTOR_CONFIG_OFFSET]
-	
+	; Set up decompressor segment
 	mov ax, es
 	mov ds, ax
 	cli
 	mov ss, ax
-	mov sp, TC_BOOT_MEMORY_REQUIRED * 1024 - 4
+	mov sp, TC_BOOT_LOADER_DECOMPRESSOR_MEMORY_SIZE
 	sti
 	
-	mov word ptr [cs:jump_seg], es
+	push dx
 	
-	db 0EAh				 ; jmp TC_BOOT_LOADER_SEGMENT:TC_BOOT_LOADER_OFFSET
-	dw TC_BOOT_LOADER_OFFSET
-jump_seg:
-	dw TC_BOOT_LOADER_SEGMENT
+	; Decompress boot loader
+	push TC_BOOT_LOADER_COMPRESSED_BUFFER_OFFSET + TC_GZIP_HEADER_SIZE			; Compressed data
+	push TC_MAX_BOOT_LOADER_DECOMPRESSED_SIZE									; Output buffer size
+	push TC_BOOT_LOADER_DECOMPRESSOR_MEMORY_SIZE + TC_COM_EXECUTABLE_OFFSET		; Output buffer
 
+	mov word ptr [cs:decompressor_seg], es
+	db 9Ah				; call [decompressor_seg]:TC_COM_EXECUTABLE_OFFSET
+	dw TC_COM_EXECUTABLE_OFFSET
+decompressor_seg:
+	dw 0
+
+	add sp, 6
+	pop dx
+	
+	; Restore boot sector segment
+	mov bx, cs
+	mov ds, bx
+
+	; Check decompression result
+	test ax, ax
+	jz decompression_ok
+
+	lea si, decompression_err_msg
+	call print
+	jmp $
+decompression_ok:
+
+	; DH = boot sector flags
+	mov dh, byte ptr [start + TC_BOOT_SECTOR_CONFIG_OFFSET]
+	
+	; Set up boot loader segment
+	mov ax, es
+	add ax, TC_BOOT_LOADER_DECOMPRESSOR_MEMORY_SIZE / 16
+	mov es, ax
+	mov ds, ax
+	cli
+	mov ss, ax
+	mov sp, TC_BOOT_LOADER_STACK_TOP
+	sti
+
+	; Execute boot loader
+	push es
+	push TC_COM_EXECUTABLE_OFFSET
+	retf
+	
 	; Print string
 print:
 	xor bx, bx
 	mov ah, 0eh
+	cld
 	
 @@:	lodsb
 	test al, al
@@ -97,11 +180,45 @@ print:
 
 print_end:
 	ret
-	
-intro_msg db 13, 10, "TrueCrypt Boot Loader", 13, 10, 0
-read_error_msg db "Disk read error", 13, 10, 7, 0
 
-	db 508 - ($ - start) dup (0)
+	; Read sectors of the first cylinder
+read_sectors:
+	mov ch, 0           ; Cylinder
+	mov dh, 0           ; Head
+						; DL = drive number passed from BIOS
+	mov ah, 2
+	int 13h
+	jnc read_ok
+	
+	lea si, disk_error_msg
+	call print
+read_ok:
+	ret
+	
+	; Calculate checksum
+checksum:
+	push ds
+	push es
+	pop ds
+	xor eax, eax
+	cld
+	
+@@:	lodsb
+	add ebx, eax
+	rol ebx, 1
+	loop @B
+	
+	pop ds
+	ret
+
+backup_loader_used		db 0
+	
+beep_msg				db 7, 0
+disk_error_msg			db 'Disk error', 13, 10, 7, 0
+loader_damaged_msg		db 'Loader damaged! Use Rescue Disk: Repair Options > Restore', 0
+decompression_err_msg	db 'Decompression error', 7, 0
+
+ORG 7C00h + 508
 	dw 0, 0AA55h		; Boot sector signature
 
 _TEXT ENDS

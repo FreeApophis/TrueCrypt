@@ -27,6 +27,8 @@ namespace TrueCrypt
 		static void Start ();
 		static void Stop ();
 
+		static const size_t PoolSize = RNG_POOL_SIZE;
+
 	protected:
 		static void AddSystemDataToPool (bool fast);
 		static void GetData (const BufferPtr &buffer, bool fast);
@@ -34,7 +36,6 @@ namespace TrueCrypt
 		static void Test ();
 		RandomNumberGenerator ();
 
-		static const size_t PoolSize = RNG_POOL_SIZE;
 		static const size_t MaxBytesAddedBeforePoolHashMix = RANDMIX_BYTE_INTERVAL;
 
 		static Mutex AccessMutex;

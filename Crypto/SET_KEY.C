@@ -72,11 +72,7 @@
 #include "Podd.h"
 #include "Sk.h"
 
-#ifdef LINUX_DRIVER
-#include <linux/string.h>
-#else
 #pragma intrinsic(memcmp,_lrotr)
-#endif
 
 #ifndef NOPROTO
 static int check_parity(des_cblock (*key));

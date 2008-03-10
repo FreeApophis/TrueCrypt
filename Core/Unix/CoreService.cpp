@@ -72,7 +72,9 @@ namespace TrueCrypt
 			}
 			catch (exception &e)
 			{
+#ifdef DEBUG
 				SystemLog::WriteException (e);
+#endif
 			}
 			catch (...)	{ }
 			_exit (1);
@@ -205,7 +207,9 @@ namespace TrueCrypt
 		}
 		catch (exception &e)
 		{
+#ifdef DEBUG
 			SystemLog::WriteException (e);
+#endif
 			throw;
 		}
 	}

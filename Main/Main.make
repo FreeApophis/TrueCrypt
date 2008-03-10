@@ -49,7 +49,9 @@ OBJS += Forms/VolumeSizeWizardPage.o
 OBJS += Forms/WizardFrame.o
 OBJS += Resources.o
 
+ifndef DISABLE_PRECOMPILED_HEADERS
 PCH := SystemPrecompiled.h.gch
+endif
 
 RESOURCES :=
 RESOURCES += ../License.txt.h
@@ -96,7 +98,7 @@ ifndef NOSTRIP
 	strip $(APPNAME)
 endif
 
-ifndef ARCH
+ifndef NOTEST
 	./$(APPNAME) --text --test >/dev/null
 endif
 endif
