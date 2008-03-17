@@ -80,6 +80,7 @@
 			/>
 			<Tool
 				Name="VCManifestTool"
+				AdditionalManifestFiles="Format.manifest"
 			/>
 			<Tool
 				Name="VCXDCMakeTool"
@@ -168,6 +169,7 @@
 			/>
 			<Tool
 				Name="VCManifestTool"
+				AdditionalManifestFiles="Format.manifest"
 			/>
 			<Tool
 				Name="VCXDCMakeTool"
@@ -433,11 +435,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\resource.h"
+				RelativePath="..\Common\Resource.h"
 				>
 			</File>
 			<File
-				RelativePath="..\Common\Resource.h"
+				RelativePath=".\resource.h"
 				>
 			</File>
 			<File

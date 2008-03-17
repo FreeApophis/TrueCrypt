@@ -55,6 +55,7 @@ namespace TrueCrypt
 		shared_ptr <DirectoryPath> ArgMountPoint;
 		shared_ptr <KeyfileList> ArgNewKeyfiles;
 		shared_ptr <VolumePassword> ArgNewPassword;
+		bool ArgNoHiddenVolumeProtection;
 		shared_ptr <VolumePassword> ArgPassword;
 		bool ArgQuick;
 		FilesystemPath ArgRandomSourcePath;

@@ -83,6 +83,7 @@ extern BOOL bPreserveTimestamp;
 extern BOOL bStartOnLogon;
 extern BOOL bMountDevicesOnLogon;
 extern BOOL bMountFavoritesOnLogon;
+extern int HiddenSectorDetectionStatus;
 extern wchar_t *lpszTitle;
 extern int nCurrentOS;
 extern int CurrentOSMajor;

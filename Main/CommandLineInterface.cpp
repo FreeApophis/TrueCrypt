@@ -20,6 +20,7 @@ namespace TrueCrypt
 	CommandLineInterface::CommandLineInterface (wxCmdLineParser &parser, UserInterfaceType::Enum interfaceType) :
 		ArgCommand (CommandId::None),
 		ArgFilesystem (VolumeCreationOptions::FilesystemType::Unknown),
+		ArgNoHiddenVolumeProtection (false),
 		ArgSize (0),
 		ArgVolumeType (VolumeType::Unknown),
 		StartBackgroundTask (false)
@@ -50,7 +51,7 @@ namespace TrueCrypt
 		parser.AddOption (L"",	L"new-password",		_("New password"));
 		parser.AddSwitch (L"",	L"non-interactive",		_("Do not interact with user"));
 		parser.AddOption (L"p", L"password",			_("Password"));
-		parser.AddSwitch (L"",	L"protect-hidden",		_("Protect hidden volume"));
+		parser.AddOption (L"",	L"protect-hidden",		_("Protect hidden volume"));
 		parser.AddOption (L"",	L"protection-keyfiles",	_("Keyfiles for protected hidden volume"));
 		parser.AddOption (L"",	L"protection-password",	_("Password for protected hidden volume"));
 		parser.AddOption (L"",	L"random-source",		_("Use file as source of random data"));
@@ -278,8 +279,18 @@ namespace TrueCrypt
 		if (parser.Found (L"password", &str))
 			ArgPassword.reset (new VolumePassword (wstring (str)));
 
-		if (parser.Found (L"protect-hidden") && ArgMountOptions.Protection != VolumeProtection::ReadOnly)
-			ArgMountOptions.Protection = VolumeProtection::HiddenVolumeReadOnly;
+		if (parser.Found (L"protect-hidden", &str))
+		{
+			if (str == L"yes")
+			{
+				if (ArgMountOptions.Protection != VolumeProtection::ReadOnly)
+					ArgMountOptions.Protection = VolumeProtection::HiddenVolumeReadOnly;
+			}
+			else if (str == L"no")
+				ArgNoHiddenVolumeProtection = true;
+			else
+				throw_err (LangString["UNKNOWN_OPTION"] + L": " + str);
+		}
 
 		if (parser.Found (L"protection-keyfiles", &str))
 		{

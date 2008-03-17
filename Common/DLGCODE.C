@@ -83,6 +83,10 @@ BOOL bMountFavoritesOnLogon = FALSE;
 
 BOOL bHistory = FALSE;
 
+// Status of detection of hidden sectors (whole-system-drive encryption). 
+// 0 - Unknown/undetermined/success, 1: Detection is or was in progress (but did not complete e.g. due to system crash).
+int HiddenSectorDetectionStatus = 0;	
+
 int nCurrentOS = 0;
 int CurrentOSMajor = 0;
 int CurrentOSMinor = 0;
@@ -6854,6 +6858,8 @@ BOOL ConfigWriteEnd ()
 
 	fputs ("\n\t</configuration>", ConfigFileHandle);
 	XmlWriteFooter (ConfigFileHandle);
+
+	fflush (ConfigFileHandle);
 
 	fclose (ConfigFileHandle);
 	ConfigFileHandle = NULL;

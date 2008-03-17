@@ -7,17 +7,20 @@
 */
 
 #include <wx/wx.h>
-#include <wx/dnd.h>
 #include <wx/filename.h>
-#include <wx/imaglist.h>
-#include <wx/listctrl.h>
 #include <wx/mstream.h>
-#include <wx/power.h>
 #include <wx/snglinst.h>
-#include <wx/taskbar.h>
 #include <wx/txtstrm.h>
-#include <wx/valgen.h>
 #include <wx/wfstream.h>
+
+#ifndef TC_NO_GUI
+#include <wx/dnd.h>
+#include <wx/listctrl.h>
+#include <wx/imaglist.h>
+#include <wx/power.h>
+#include <wx/taskbar.h>
+#include <wx/valgen.h>
+#endif
 
 #include <iostream>
 #include <memory.h>

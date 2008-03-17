@@ -996,6 +996,13 @@ namespace TrueCrypt
 			throw ParameterIncorrect (SRC_POS);
 
 		Device device (GetSystemDriveConfiguration().DevicePath);
+
+		// Preserve current partition table
+		byte mbr[SECTOR_SIZE];
+		device.SeekAt (0);
+		device.Read (mbr, sizeof (mbr));
+		memcpy (bootLoaderBuf + TC_MAX_MBR_BOOT_CODE_SIZE, mbr + TC_MAX_MBR_BOOT_CODE_SIZE, sizeof (mbr) - TC_MAX_MBR_BOOT_CODE_SIZE);
+
 		device.SeekAt (0);
 		device.Write (bootLoaderBuf, sizeof (bootLoaderBuf));
 	}
@@ -1260,9 +1267,6 @@ namespace TrueCrypt
 
 	void BootEncryption::PrepareInstallation (bool systemPartitionOnly, Password &password, int ea, int mode, int pkcs5, const string &rescueIsoImagePath)
 	{
-		if (!systemPartitionOnly && !RealSystemDriveSizeValid)
-			ProbeRealSystemDriveSize();
-
 		BootEncryptionStatus encStatus = GetStatus();
 		if (encStatus.DriveMounted)
 			throw ParameterIncorrect (SRC_POS);

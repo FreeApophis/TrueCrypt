@@ -371,6 +371,8 @@ void LoadSettings (HWND hwndDlg)
 	bForceAutoDismount =			ConfigReadInt ("ForceAutoDismount", TRUE);
 	MaxVolumeIdleTime =				ConfigReadInt ("MaxVolumeIdleTime", -120);
 
+	HiddenSectorDetectionStatus =	ConfigReadInt ("HiddenSectorDetectionStatus", 0);
+
 	defaultKeyFilesParam.EnableKeyFiles = ConfigReadInt ("UseKeyfiles", FALSE);
 
 	bPreserveTimestamp = defaultMountOptions.PreserveTimestamp = ConfigReadInt ("PreserveTimestamps", TRUE);
@@ -446,6 +448,8 @@ void SaveSettings (HWND hwndDlg)
 	ConfigWriteInt ("DismountOnScreenSaver",			bDismountOnScreenSaver);
 	ConfigWriteInt ("ForceAutoDismount",				bForceAutoDismount);
 	ConfigWriteInt ("MaxVolumeIdleTime",				MaxVolumeIdleTime);
+
+	ConfigWriteInt ("HiddenSectorDetectionStatus",				HiddenSectorDetectionStatus);
 
 	ConfigWriteInt ("UseKeyfiles",						defaultKeyFilesParam.EnableKeyFiles);
 
@@ -4681,7 +4685,8 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 	case TC_APPMSG_SYSENC_CONFIG_UPDATE:
 		LoadSysEncSettings (hwndDlg);
 
-		// The wizard adds TrueCrypt.exe to the system startup sequence so we must update our cached settings
+		// The wizard added TrueCrypt.exe to the system startup sequence or performed other operations that 
+		// require us to update our cached settings.
 		LoadSettings (hwndDlg);
 
 		return 1;

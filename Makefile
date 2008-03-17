@@ -9,6 +9,7 @@
 #------ Command line arguments ------
 # DEBUG:		Disable optimizations and enable debug checks
 # DEBUGGER:		Enable debugging information for use by debuggers
+# NOGUI:		Disable graphical user interface (build console-only application)
 # NOSTRIP:		Do not strip release binary
 # NOTEST:		Do not test release binary
 # VERBOSE:		Enable verbose messages
@@ -56,6 +57,12 @@ WX_ROOT ?= ..
 
 ifneq "$(origin VERBOSE)" "command line"
 MAKEFLAGS += -s
+endif
+
+ifeq "$(origin NOGUI)" "command line"
+export TC_NO_GUI := 1
+C_CXX_FLAGS += -DTC_NO_GUI
+WX_CONFIGURE_FLAGS += --disable-gui
 endif
 
 

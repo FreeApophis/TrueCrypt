@@ -35,6 +35,48 @@ namespace TrueCrypt
 	}
 #endif // TC_WINDOWS
 
+
+	string Resources::GetLanguageXml ()
+	{
+#ifdef TC_WINDOWS
+		ConstBufferPtr res = GetWindowsResource (L"XML", L"IDR_LANGUAGE");
+		Buffer strBuf (res.Size() + 1);
+		strBuf.Zero();
+		strBuf.CopyFrom (res);
+		return string (reinterpret_cast <char *> (strBuf.Ptr()));
+#else
+		static const char LanguageXml[] =
+		{
+#			include "Common/Language.xml.h"
+			, 0
+		};
+
+		return string (LanguageXml);
+#endif
+	}
+
+	string Resources::GetLegalNotices ()
+	{
+#ifdef TC_WINDOWS
+		ConstBufferPtr res = GetWindowsResource (L"TEXT", L"IDR_LICENSE");
+		Buffer strBuf (res.Size() + 1);
+		strBuf.Zero();
+		strBuf.CopyFrom (res);
+		return string (reinterpret_cast <char *> (strBuf.Ptr()));
+#else
+		static const char License[] =
+		{
+#			include "License.txt.h"
+			, 0
+		};
+
+		return string (License);
+#endif
+	}
+
+
+#ifndef TC_NO_GUI
+
 	wxBitmap Resources::GetDriveIconBitmap ()
 	{
 #ifdef TC_WINDOWS
@@ -73,43 +115,6 @@ namespace TrueCrypt
 #endif
 	}
 
-	string Resources::GetLanguageXml ()
-	{
-#ifdef TC_WINDOWS
-		ConstBufferPtr res = GetWindowsResource (L"XML", L"IDR_LANGUAGE");
-		Buffer strBuf (res.Size() + 1);
-		strBuf.Erase();
-		strBuf.CopyFrom (res);
-		return string (reinterpret_cast <char *> (strBuf.Ptr()));
-#else
-		static const char LanguageXml[] =
-		{
-#			include "Common/Language.xml.h"
-			, 0
-		};
-
-		return string (LanguageXml);
-#endif
-	}
-
-	string Resources::GetLegalNotices ()
-	{
-#ifdef TC_WINDOWS
-		ConstBufferPtr res = GetWindowsResource (L"TEXT", L"IDR_LICENSE");
-		Buffer strBuf (res.Size() + 1);
-		strBuf.Erase();
-		strBuf.CopyFrom (res);
-		return string (reinterpret_cast <char *> (strBuf.Ptr()));
-#else
-		static const char License[] =
-		{
-#			include "License.txt.h"
-			, 0
-		};
-
-		return string (License);
-#endif
-	}
 
 	wxBitmap Resources::GetLogoBitmap ()
 	{
@@ -173,4 +178,7 @@ namespace TrueCrypt
 		return wxBitmap (image);
 #endif
 	}
+
+#endif // !TC_NO_GUI
+
 }

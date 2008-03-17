@@ -619,9 +619,14 @@ namespace TrueCrypt
 		shared_ptr <VolumeInfo> volume;
 
 		// Volume path
-		if (!options.Path)
+		while (!options.Path || options.Path->IsEmpty())
+		{
+			if (Preferences.NonInteractive)
+				throw MissingArgument (SRC_POS);
+
 			options.Path = AskVolumePath ();
-		
+		}
+
 		if (Core->IsVolumeMounted (*options.Path))
 		{
 			ShowInfo (StringFormatter (LangString["VOLUME_ALREADY_MOUNTED"], wstring (*options.Path)));
@@ -673,6 +678,7 @@ namespace TrueCrypt
 
 			// Hidden volume protection
 			if (options.Protection == VolumeProtection::None
+				&& !CmdLine->ArgNoHiddenVolumeProtection
 				&& AskYesNo (_("Protect hidden volume?")))
 				options.Protection = VolumeProtection::HiddenVolumeReadOnly;
 
@@ -712,8 +718,6 @@ namespace TrueCrypt
 
 			InterfaceType = UserInterfaceType::Text;
 			Init();
-
-			SetExitOnFrameDelete (false);
 		}
 		catch (exception &e)
 		{

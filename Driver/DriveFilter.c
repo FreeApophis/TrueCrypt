@@ -595,22 +595,22 @@ wipe:
 }
 
 
-typedef NTSTATUS (*HiberDriverAtapiWriteRoutine) (ULONG arg0, PLARGE_INTEGER writeOffset, PMDL dataMdl, PVOID arg3);
-typedef NTSTATUS (*HiberDriverScsiWriteRoutine) (PLARGE_INTEGER writeOffset, PMDL dataMdl);
+typedef NTSTATUS (*HiberDriverWriteFunctionA) (ULONG arg0, PLARGE_INTEGER writeOffset, PMDL dataMdl, PVOID arg3);
+typedef NTSTATUS (*HiberDriverWriteFunctionB) (PLARGE_INTEGER writeOffset, PMDL dataMdl);
 
 typedef struct
 {
 	// Until MS releases an API for filtering hibernation drivers, we have to resort to this.
 #ifdef _WIN64
 	byte FieldPad1[64];
-	HiberDriverScsiWriteRoutine ScsiWriteRoutine;
+	HiberDriverWriteFunctionB WriteFunctionB;
 	byte FieldPad2[56];
 #else
 	byte FieldPad1[48];
-	HiberDriverScsiWriteRoutine ScsiWriteRoutine;
+	HiberDriverWriteFunctionB WriteFunctionB;
 	byte FieldPad2[32];
 #endif
-	HiberDriverAtapiWriteRoutine AtapiWriteRoutine;
+	HiberDriverWriteFunctionA WriteFunctionA;
 	byte FieldPad3[24];
 	LARGE_INTEGER PartitionStartOffset;
 } HiberDriverContext;
@@ -636,13 +636,17 @@ typedef struct
 } ModuleTableItem;
 
 
-static HiberDriverEntry OriginalHiberDriverEntry = NULL;
-static HiberDriverAtapiWriteRoutine OriginalHiberDriverAtapiWriteRoutine = NULL;
-static HiberDriverScsiWriteRoutine OriginalHiberDriverScsiWriteRoutine = NULL;
+#define TC_MAX_HIBER_FILTER_COUNT 3
+static int LastHiberFilterNumber = 0;
+
+static HiberDriverEntry OriginalHiberDriverEntries[TC_MAX_HIBER_FILTER_COUNT];
+static HiberDriverWriteFunctionA OriginalHiberDriverWriteFunctionsA[TC_MAX_HIBER_FILTER_COUNT];
+static HiberDriverWriteFunctionB OriginalHiberDriverWriteFunctionsB[TC_MAX_HIBER_FILTER_COUNT];
+
 static LARGE_INTEGER HiberPartitionOffset;
 
 
-static NTSTATUS HiberDriverWriteRoutineFilter (PLARGE_INTEGER writeOffset, PMDL dataMdl, BOOL scsi, ULONG atapiArg0, PVOID atapiArg3)
+static NTSTATUS HiberDriverWriteFunctionFilter (int filterNumber, PLARGE_INTEGER writeOffset, PMDL dataMdl, BOOL writeB, ULONG atapiArg0, PVOID atapiArg3)
 {
 	MDL *encryptedDataMdl = dataMdl;
 
@@ -686,37 +690,59 @@ static NTSTATUS HiberDriverWriteRoutineFilter (PLARGE_INTEGER writeOffset, PMDL 
 
 				encryptedDataMdl = HibernationWriteBufferMdl;
 				MmInitializeMdl (encryptedDataMdl, HibernationWriteBuffer, dataLength);
+				encryptedDataMdl->MdlFlags = dataMdl->MdlFlags;
 			}
 		}
 	}
 
-	if (scsi)
-		return (*OriginalHiberDriverScsiWriteRoutine) (writeOffset, encryptedDataMdl);
+	if (writeB)
+		return (*OriginalHiberDriverWriteFunctionsB[filterNumber]) (writeOffset, encryptedDataMdl);
 	
-	return (*OriginalHiberDriverAtapiWriteRoutine) (atapiArg0, writeOffset, encryptedDataMdl, atapiArg3);
+	return (*OriginalHiberDriverWriteFunctionsA[filterNumber]) (atapiArg0, writeOffset, encryptedDataMdl, atapiArg3);
 }
 
 
-static NTSTATUS HiberDriverAtapiWriteRoutineFilter (ULONG arg0, PLARGE_INTEGER writeOffset, PMDL dataMdl, PVOID arg3)
+static NTSTATUS HiberDriverWriteFunctionAFilter0 (ULONG arg0, PLARGE_INTEGER writeOffset, PMDL dataMdl, PVOID arg3)
 {
-	return HiberDriverWriteRoutineFilter (writeOffset, dataMdl, FALSE, arg0, arg3);
+	return HiberDriverWriteFunctionFilter (0, writeOffset, dataMdl, FALSE, arg0, arg3);
+}
+
+static NTSTATUS HiberDriverWriteFunctionAFilter1 (ULONG arg0, PLARGE_INTEGER writeOffset, PMDL dataMdl, PVOID arg3)
+{
+	return HiberDriverWriteFunctionFilter (1, writeOffset, dataMdl, FALSE, arg0, arg3);
+}
+
+static NTSTATUS HiberDriverWriteFunctionAFilter2 (ULONG arg0, PLARGE_INTEGER writeOffset, PMDL dataMdl, PVOID arg3)
+{
+	return HiberDriverWriteFunctionFilter (2, writeOffset, dataMdl, FALSE, arg0, arg3);
 }
 
 
-static NTSTATUS HiberDriverScsiWriteRoutineFilter (PLARGE_INTEGER writeOffset, PMDL dataMdl)
+static NTSTATUS HiberDriverWriteFunctionBFilter0 (PLARGE_INTEGER writeOffset, PMDL dataMdl)
 {
-	return HiberDriverWriteRoutineFilter (writeOffset, dataMdl, TRUE, 0, NULL);
+	return HiberDriverWriteFunctionFilter (0, writeOffset, dataMdl, TRUE, 0, NULL);
+}
+
+static NTSTATUS HiberDriverWriteFunctionBFilter1 (PLARGE_INTEGER writeOffset, PMDL dataMdl)
+{
+	return HiberDriverWriteFunctionFilter (1, writeOffset, dataMdl, TRUE, 0, NULL);
+}
+
+static NTSTATUS HiberDriverWriteFunctionBFilter2 (PLARGE_INTEGER writeOffset, PMDL dataMdl)
+{
+	return HiberDriverWriteFunctionFilter (2, writeOffset, dataMdl, TRUE, 0, NULL);
 }
 
 
-static NTSTATUS HiberDriverEntryFilter (PVOID arg0, HiberDriverContext *hiberDriverContext)
+static NTSTATUS HiberDriverEntryFilter (int filterNumber, PVOID arg0, HiberDriverContext *hiberDriverContext)
 {
+	BOOL filterInstalled = FALSE;
 	NTSTATUS status;
 
-	if (!OriginalHiberDriverEntry)
+	if (!OriginalHiberDriverEntries[filterNumber])
 		return STATUS_UNSUCCESSFUL;
 
-	status = (*OriginalHiberDriverEntry) (arg0, hiberDriverContext);
+	status = (*OriginalHiberDriverEntries[filterNumber]) (arg0, hiberDriverContext);
 
 	if (!NT_SUCCESS (status) || !hiberDriverContext)
 		return status;
@@ -724,20 +750,62 @@ static NTSTATUS HiberDriverEntryFilter (PVOID arg0, HiberDriverContext *hiberDri
 	if (SetupInProgress)
 		TC_BUG_CHECK (STATUS_INVALID_PARAMETER);
 
-	if (hiberDriverContext->AtapiWriteRoutine)
+	if (hiberDriverContext->WriteFunctionA)
 	{
-		OriginalHiberDriverAtapiWriteRoutine = hiberDriverContext->AtapiWriteRoutine;
-		hiberDriverContext->AtapiWriteRoutine = HiberDriverAtapiWriteRoutineFilter;
+		Dump ("Filtering WriteFunctionA %d\n", filterNumber);
+		OriginalHiberDriverWriteFunctionsA[filterNumber] = hiberDriverContext->WriteFunctionA;
+
+		switch (filterNumber)
+		{
+		case 0: hiberDriverContext->WriteFunctionA = HiberDriverWriteFunctionAFilter0; break;
+		case 1: hiberDriverContext->WriteFunctionA = HiberDriverWriteFunctionAFilter1; break;
+		case 2: hiberDriverContext->WriteFunctionA = HiberDriverWriteFunctionAFilter2; break;
+		default: TC_THROW_FATAL_EXCEPTION;
+		}
+
+		filterInstalled = TRUE;
 	}
 
-	if (hiberDriverContext->ScsiWriteRoutine)
+	if (hiberDriverContext->WriteFunctionB)
 	{
-		OriginalHiberDriverScsiWriteRoutine = hiberDriverContext->ScsiWriteRoutine;
-		hiberDriverContext->ScsiWriteRoutine = HiberDriverScsiWriteRoutineFilter;
+		Dump ("Filtering WriteFunctionB %d\n", filterNumber);
+		OriginalHiberDriverWriteFunctionsB[filterNumber] = hiberDriverContext->WriteFunctionB;
+
+		switch (filterNumber)
+		{
+		case 0: hiberDriverContext->WriteFunctionB = HiberDriverWriteFunctionBFilter0; break;
+		case 1: hiberDriverContext->WriteFunctionB = HiberDriverWriteFunctionBFilter1; break;
+		case 2: hiberDriverContext->WriteFunctionB = HiberDriverWriteFunctionBFilter2; break;
+		default: TC_THROW_FATAL_EXCEPTION;
+		}
+
+		filterInstalled = TRUE;
 	}
 
-	HiberPartitionOffset = hiberDriverContext->PartitionStartOffset;
+	if (filterInstalled && hiberDriverContext->PartitionStartOffset.QuadPart != 0)
+	{
+		HiberPartitionOffset = hiberDriverContext->PartitionStartOffset;
+	}
+
 	return STATUS_SUCCESS;
+}
+
+
+static NTSTATUS HiberDriverEntryFilter0 (PVOID arg0, HiberDriverContext *hiberDriverContext)
+{
+	return HiberDriverEntryFilter (0, arg0, hiberDriverContext);
+}
+
+
+static NTSTATUS HiberDriverEntryFilter1 (PVOID arg0, HiberDriverContext *hiberDriverContext)
+{
+	return HiberDriverEntryFilter (1, arg0, hiberDriverContext);
+}
+
+
+static NTSTATUS HiberDriverEntryFilter2 (PVOID arg0, HiberDriverContext *hiberDriverContext)
+{
+	return HiberDriverEntryFilter (2, arg0, hiberDriverContext);
 }
 
 
@@ -751,7 +819,6 @@ static VOID LoadImageNotifyRoutine (PUNICODE_STRING fullImageName, HANDLE proces
 		return;
 
 	moduleItem = *(ModuleTableItem **) TCDriverObject->DriverSection;
-
 	if (!moduleItem || !moduleItem->ModuleList.Flink)
 		return;
 
@@ -766,55 +833,42 @@ static VOID LoadImageNotifyRoutine (PUNICODE_STRING fullImageName, HANDLE proces
 
 		if (moduleItem && imageInfo->ImageBase == moduleItem->ModuleBaseAddress)
 		{
-			KeLowerIrql (origIrql);
-
-			if (moduleItem->ModuleName.Length > 0 && moduleItem->ModuleName.Buffer)
+			if (moduleItem->ModuleName.Buffer && moduleItem->ModuleName.Length > 6)
 			{
-				static wchar_t *hiberDriverNames[] =
+				// Skip MS BitLocker filter
+				if (moduleItem->ModuleName.Length >= 13 && memcmp (moduleItem->ModuleName.Buffer, L"hiber_dumpfve", 13) == 0)
+					break;
+
+				if (memcmp (moduleItem->ModuleName.Buffer, L"hiber_", 6) == 0
+					|| memcmp (moduleItem->ModuleName.Buffer, L"Hiber_", 6) == 0
+					|| memcmp (moduleItem->ModuleName.Buffer, L"HIBER_", 6) == 0)
 				{
-					L"hiber_ataport.sys",
-					L"hiber_storport.sys",
-					L"hiber_scsiport.sys",
-					NULL
-				};
+					HiberDriverEntry filterEntry;
 
-				static wchar_t *hiberDriverNamesBeforeVista[] =
-				{
-					L"hiber_atapi.sys",
-					L"hiber_scsi.sys",
-					L"hiber_atapiport.sys",
-					L"hiber_scsiport.sys",
-					L"hiber_storport.sys",
-					NULL
-				};
-
-				wchar_t **hiberDriverName = OsMajorVersion < 6 ? hiberDriverNamesBeforeVista : hiberDriverNames;
-
-				while (*hiberDriverName != NULL)
-				{
-					UNICODE_STRING hiberDriverNameStr;
-					RtlInitUnicodeString (&hiberDriverNameStr, *hiberDriverName);
-
-					if (RtlCompareUnicodeString (&hiberDriverNameStr, &moduleItem->ModuleName, TRUE) == 0)
+					switch (LastHiberFilterNumber)
 					{
-						if (moduleItem->ModuleEntryAddress != HiberDriverEntryFilter)
-						{
-							Dump ("Installing filter for %ls\n", *hiberDriverName);
-							OriginalHiberDriverEntry = moduleItem->ModuleEntryAddress;
-							moduleItem->ModuleEntryAddress = HiberDriverEntryFilter;
-						}
-						break;
+					case 0: filterEntry = HiberDriverEntryFilter0; break;
+					case 1: filterEntry = HiberDriverEntryFilter1; break;
+					case 2: filterEntry = HiberDriverEntryFilter2; break;
+					default: TC_THROW_FATAL_EXCEPTION;
 					}
 
-					++hiberDriverName;
+					if (moduleItem->ModuleEntryAddress != filterEntry)
+					{
+						// Install filter
+						OriginalHiberDriverEntries[LastHiberFilterNumber] = moduleItem->ModuleEntryAddress;
+						moduleItem->ModuleEntryAddress = filterEntry;
+
+						if (++LastHiberFilterNumber > TC_MAX_HIBER_FILTER_COUNT - 1)
+							LastHiberFilterNumber = 0;
+					}
 				}
 			}
 			break;
 		}
 	}
 
-	if (KeGetCurrentIrql() != origIrql)
-		KeLowerIrql (origIrql);
+	KeLowerIrql (origIrql);
 }
 
 
@@ -828,7 +882,7 @@ void StartHibernationDriverFilter ()
 	
 	// All buffers required for hibernation must be allocated here
 #ifdef _WIN64
-	highestAcceptableWriteBufferAddr.QuadPart = 0xffffFFFFffffFFFFULL;
+	highestAcceptableWriteBufferAddr.QuadPart = 0x7FFffffFFFFULL;
 #else
 	highestAcceptableWriteBufferAddr.QuadPart = 0xffffFFFFULL;
 #endif

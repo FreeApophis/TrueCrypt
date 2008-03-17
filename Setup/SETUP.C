@@ -1722,7 +1722,7 @@ int WINAPI WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszComm
 			}
 			else if (!bDevm)
 			{
-				MessageBox (NULL, "Error: This installer file does not contain any compressed files.\n\nTo create a self-extracting installer package (with embedded compressed files), run 'TrueCrypt Setup.exe /p'.", "TrueCrypt", MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST);
+				MessageBox (NULL, "Error: This installer file does not contain any compressed files.\n\nTo create a self-extracting installer package (with embedded compressed files), run:\n\"TrueCrypt Setup.exe\" /p", "TrueCrypt", MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST);
 				cleanup ();
 				exit (1);
 			}

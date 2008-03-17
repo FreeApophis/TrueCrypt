@@ -10,17 +10,20 @@ OBJS :=
 OBJS += Application.o
 OBJS += CommandLineInterface.o
 OBJS += FavoriteVolume.o
-OBJS += FatalErrorHandler.o
-OBJS += GraphicUserInterface.o
 OBJS += LanguageStrings.o
-OBJS += Hotkey.o
 OBJS += StringFormatter.o
 OBJS += TextUserInterface.o
 OBJS += UserInterface.o
 OBJS += UserPreferences.o
-OBJS += VolumeHistory.o
 OBJS += Xml.o
 OBJS += Unix/Main.o
+OBJS += Resources.o
+
+ifndef TC_NO_GUI
+OBJS += FatalErrorHandler.o
+OBJS += GraphicUserInterface.o
+OBJS += Hotkey.o
+OBJS += VolumeHistory.o
 OBJS += Forms/AboutDialog.o
 OBJS += Forms/ChangePasswordDialog.o
 OBJS += Forms/DeviceSelectionDialog.o
@@ -47,7 +50,7 @@ OBJS += Forms/VolumeLocationWizardPage.o
 OBJS += Forms/VolumePasswordWizardPage.o
 OBJS += Forms/VolumeSizeWizardPage.o
 OBJS += Forms/WizardFrame.o
-OBJS += Resources.o
+endif
 
 ifndef DISABLE_PRECOMPILED_HEADERS
 PCH := SystemPrecompiled.h.gch
@@ -67,15 +70,21 @@ CXXFLAGS += -I$(BASE_DIR)/Main
 
 #------ wxWidgets configuration ------
 
+ifdef TC_NO_GUI
+WX_CONFIG_LIBS := base
+else
+WX_CONFIG_LIBS := adv,core,base
+endif
+
 ifeq "$(TC_BUILD_CONFIG)" "Release"
 
 CXXFLAGS += $(shell $(WX_BUILD_DIR)/wx-config --unicode --static --cxxflags)
-WX_LIBS = $(shell $(WX_BUILD_DIR)/wx-config --unicode --static --libs adv,core,base)
+WX_LIBS = $(shell $(WX_BUILD_DIR)/wx-config --unicode --static --libs $(WX_CONFIG_LIBS))
 
 else
 
 CXXFLAGS += $(shell $(WX_BUILD_DIR)/wx-config --debug --unicode --static --cxxflags)
-WX_LIBS = $(shell $(WX_BUILD_DIR)/wx-config --debug --unicode --static --libs adv,core,base)
+WX_LIBS = $(shell $(WX_BUILD_DIR)/wx-config --debug --unicode --static --libs $(WX_CONFIG_LIBS))
 
 endif
 

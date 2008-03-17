@@ -360,6 +360,8 @@ static BOOL SaveSysEncSettings (HWND hwndDlg)
 		return FALSE;
 	}
 
+	fflush (f);
+
 	fclose (f);
 
 	bSystemEncryptionStatusChanged = FALSE;
@@ -458,6 +460,8 @@ static void LoadSettings (HWND hwndDlg)
 
 	bStartOnLogon =	ConfigReadInt ("StartOnLogon", FALSE);
 
+	HiddenSectorDetectionStatus = ConfigReadInt ("HiddenSectorDetectionStatus", 0);
+
 	bHistory = ConfigReadInt ("SaveVolumeHistory", FALSE);
 
 	if (hwndDlg != NULL)
@@ -480,6 +484,8 @@ static void SaveSettings (HWND hwndDlg)
 	ConfigWriteBegin ();
 
 	ConfigWriteInt ("StartOnLogon",	bStartOnLogon);
+
+	ConfigWriteInt ("HiddenSectorDetectionStatus", HiddenSectorDetectionStatus);
 
 	ConfigWriteInt ("SaveVolumeHistory", bHistory);
 
@@ -1429,6 +1435,12 @@ void DisplayRandPool (HWND hPoolDisplay, BOOL bShow)
 
 static void __cdecl sysEncDriveAnalysisThread (void *hwndDlgArg)
 {
+	// Mark the detection process as 'in progress'
+	HiddenSectorDetectionStatus = 1;
+	SaveSettings (NULL);
+	BroadcastSysEncCfgUpdate ();
+	Sleep (500);
+
 	try
 	{
 		BootEncObj->ProbeRealSystemDriveSize ();
@@ -1444,6 +1456,11 @@ static void __cdecl sysEncDriveAnalysisThread (void *hwndDlgArg)
 		EndMainDlg (MainDlg);
 		exit(0);
 	}
+
+	// Mark the detection process as successful
+	HiddenSectorDetectionStatus = 0;
+	SaveSettings (NULL);
+	BroadcastSysEncCfgUpdate ();
 
 	// This artificial delay prevents user confusion on systems where the analysis ends almost instantly
 	Sleep (4000);
@@ -2238,18 +2255,47 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 		case SYSENC_DRIVE_ANALYSIS_PAGE:
 
 			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("SYSENC_DRIVE_ANALYSIS_TITLE"));
+			SetWindowTextW (GetDlgItem (hwndDlg, IDT_SYSENC_DRIVE_ANALYSIS_INFO), GetString ("SYSENC_DRIVE_ANALYSIS_INFO"));
 			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
 			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
 			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDCANCEL), GetString ("CANCEL"));
 			EnableWindow (GetDlgItem (MainDlg, IDC_NEXT), FALSE);
 			EnableWindow (GetDlgItem (MainDlg, IDC_PREV), FALSE);
 			EnableWindow (GetDlgItem (MainDlg, IDCANCEL), FALSE);
+
+			LoadSettings (hwndDlg);
+
+			if (HiddenSectorDetectionStatus == 1)
+			{
+				// Detection of hidden sectors was already in progress but it did not finish successfully.
+				// Ask the user if he wants to try again (to prevent repeated system freezing, etc.)
+
+				char *tmpStr[] = {0, "HIDDEN_SECTOR_DETECTION_FAILED_PREVIOUSLY", "SKIP_HIDDEN_SECTOR_DETECTION", "RETRY_HIDDEN_SECTOR_DETECTION", "IDC_EXIT", 0};
+				switch (AskMultiChoice ((void **) tmpStr))
+				{
+				case 1:
+					// Do not try again
+					LoadPage (MainDlg, SYSENC_DRIVE_ANALYSIS_PAGE + 1);
+					return 0;
+
+				case 2:
+					// Try again
+					break;
+
+				default:
+					EndMainDlg (MainDlg);
+					return 0;
+				}
+			}
+
 			SetTimer (MainDlg, TIMER_ID_SYSENC_DRIVE_ANALYSIS_PROGRESS, TIMER_INTERVAL_SYSENC_DRIVE_ANALYSIS_PROGRESS, NULL);
 			bSysEncDriveAnalysisInProgress = TRUE;
 			ArrowWaitCursor ();
 			SysEncDriveAnalysisStart = GetTickCount ();
 			InitProgressBar (SYSENC_DRIVE_ANALYSIS_ETA, 0, FALSE, FALSE, FALSE, TRUE);
+
 			_beginthread (sysEncDriveAnalysisThread, 4096, hwndDlg);
+
 			break;
 
 

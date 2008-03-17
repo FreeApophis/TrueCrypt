@@ -21,6 +21,7 @@ For big-endian platforms (PowerPC, SPARC, etc.) define BYTE_ORDER as BIG_ENDIAN.
 
 #ifdef TC_MINIMIZE_CODE_SIZE
 #	define XTS_LOW_RESOURCE_VERSION
+#	pragma optimize ("tl", on)
 #endif
 
 #ifdef TC_NO_COMPILER_INT64

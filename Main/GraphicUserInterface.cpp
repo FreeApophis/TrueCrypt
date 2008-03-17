@@ -374,8 +374,11 @@ namespace TrueCrypt
 	{
 		shared_ptr <VolumeInfo> volume;
 
-		if (!Preferences.NonInteractive && (!options.Path || options.Path->IsEmpty()))
+		if (!options.Path || options.Path->IsEmpty())
 		{
+			if (Preferences.NonInteractive)
+				throw MissingArgument (SRC_POS);
+
 			wxString path = wxGetTextFromUser (_("Enter volume path: "), Application::GetName());
 			
 			if (path.empty())

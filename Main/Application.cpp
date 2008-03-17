@@ -11,7 +11,9 @@
 #include "Main.h"
 #include "Application.h"
 #include "CommandLineInterface.h"
+#ifndef TC_NO_GUI
 #include "GraphicUserInterface.h"
+#endif
 #include "TextUserInterface.h"
 
 namespace TrueCrypt
@@ -23,12 +25,14 @@ namespace TrueCrypt
 		return mUserInterface;
 	} 
 
+#ifndef TC_NO_GUI
 	wxApp* Application::CreateGuiApp ()
 	{
 		mUserInterface = new GraphicUserInterface;
 		mUserInterfaceType = UserInterfaceType::Graphic;
 		return mUserInterface;
 	} 
+#endif
 
 	FilePath Application::GetConfigFilePath (const wxString &configFileName, bool createConfigDir)
 	{
@@ -74,11 +78,14 @@ namespace TrueCrypt
 				wxAppInitializer wxTheAppInitializer((wxAppInitializerFunction) CreateConsoleApp);
 				break;
 			}
+
+#ifndef TC_NO_GUI
 		case UserInterfaceType::Graphic:
 			{
 				wxAppInitializer wxTheAppInitializer((wxAppInitializerFunction) CreateGuiApp);
 				break;
 			}
+#endif
 
 		default:
 			throw ParameterIncorrect (SRC_POS);

@@ -56,21 +56,26 @@ int main (int argc, char **argv)
 		CoreService::Start();
 		finally_do ({ CoreService::Stop(); });
 
+#ifdef TC_NO_GUI
+		bool forceTextUI = true;
+#else
 		bool forceTextUI = false;
+#endif
+
 #ifdef __WXGTK__
 		if (!getenv ("DISPLAY"))
 			forceTextUI = true;
 #endif
 
-		// Set user interface type
+		// Initialize application
 		if (forceTextUI || (argc > 1 && (strcmp (argv[1], "-t") == 0 || strcmp (argv[1], "--text") == 0)))
 			Application::Initialize (UserInterfaceType::Text);
 		else
 			Application::Initialize (UserInterfaceType::Graphic);
 
-		// Start main application
 		Application::SetExitCode (1);
 
+		// Start application
 		if (::wxEntry (argc, argv) == 0)
 			Application::SetExitCode (0);
 	}

@@ -17,16 +17,16 @@ namespace TrueCrypt
 	class Resources
 	{
 	public:
-		static wxBitmap GetDriveIconBitmap ();
-		static wxBitmap GetDriveIconMaskBitmap ();
 		static string GetLanguageXml ();
 		static string GetLegalNotices ();
+#ifndef TC_NO_GUI
+		static wxBitmap GetDriveIconBitmap ();
+		static wxBitmap GetDriveIconMaskBitmap ();
 		static wxBitmap GetLogoBitmap ();
 		static wxBitmap GetTextualLogoBitmap ();
 		static wxIcon GetTrueCryptIcon ();
 		static wxBitmap GetVolumeCreationWizardBitmap (int height = -1);
-
-	protected:
+#endif
 	};
 }
 

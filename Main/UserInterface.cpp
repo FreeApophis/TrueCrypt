@@ -356,12 +356,13 @@ namespace TrueCrypt
 		{
 			wxString message = ExceptionTypeToString (typeid (ex));
 
+#ifndef TC_NO_GUI
 #ifdef __WXGTK__
 			if (Application::GetUserInterfaceType() != UserInterfaceType::Text)
 #endif
 			if (wxGetKeyState (WXK_CAPITAL))
 				message += wxString (L"\n\n") + LangString["CAPSLOCK_ON"];
-
+#endif
 			return message;
 		}
 
@@ -863,6 +864,12 @@ namespace TrueCrypt
 		case CommandId::Help:
 			{
 				wstring helpText = StringConverter::ToWide (
+					"Synopsis:\n"
+					"\n"
+					"truecrypt [OPTIONS] COMMAND\n"
+					"truecrypt [OPTIONS] VOLUME_PATH [MOUNT_DIRECTORY]\n"
+					"\n"
+					"\n"
 					"Commands:\n"
 					"\n"
 					"--auto-mount=devices|favorites\n"
@@ -920,6 +927,7 @@ namespace TrueCrypt
 					" Filesystem type to mount. The TYPE argument is passed to mount(8) command\n"
 					" with option -t. Default type is 'auto'. When creating a new volume, this\n"
 					" option specifies the filesystem to be created on the new volume.\n"
+					" Filesystem type 'none' disables mounting or creating a filesystem.\n"
 					"\n"
 					"--force\n"
 					" Force mounting of a volume in use, dismounting of a volume in use, or\n"
@@ -940,7 +948,7 @@ namespace TrueCrypt
 					" An empty keyfile (-k \"\") disables interactive requests for keyfiles. See also\n"
 					" options --new-keyfiles, --protection-keyfiles.\n"
 					"\n"
-					"--mount-options=readonly|ro,timestamp|ts\n"
+					"-m, --mount-options=readonly|ro|timestamp|ts\n"
 					" Specify comma-separated mount options for a TrueCrypt volume:\n"
 					"  readonly|ro: Mount read-only.\n"
 					"  timestamp|ts: Update (do not preserve) host-file timestamps.\n"
@@ -951,7 +959,7 @@ namespace TrueCrypt
 					" potentially insecure as the password may be visible in the process list\n"
 					" (see ps(1)) and/or stored in a command history file or system logs.\n"
 					"\n"
-					"--protect-hidden\n"
+					"--protect-hidden=yes|no\n"
 					" Write-protect a hidden volume when mounting an outer volume. Before mounting\n"
 					" the outer volume, the user will be prompted for a password to open the hidden\n"
 					" volume. The size and position of the hidden volume is then determined and the\n"
@@ -997,17 +1005,29 @@ namespace TrueCrypt
 					" Enable verbose output.\n"
 					"\n"
 					"\nExamples:\n\n"
-					"Create a new volume using text interface:\ntruecrypt -t -c\n"
+					"Create a new volume using text interface:\n"
+					"truecrypt -t -c\n"
 					"\n"
-					"Mount a volume:\ntruecrypt volume.tc /media/truecrypt1\n"
+					"Mount a volume:\n"
+					"truecrypt volume.tc /media/truecrypt1\n"
 					"\n"
-					"Mount a volume read-only, using keyfiles:\ntruecrypt -m ro -k keyfile1,keyfile2 volume.tc\n"
+					"Mount a volume read-only, using keyfiles:\n"
+					"truecrypt -m ro -k keyfile1,keyfile2 volume.tc\n"
 					"\n"
-					"Dismount a volume:\ntruecrypt -d volume.tc\n"
+					"Mount a volume without mounting its filesystem:\n"
+					"truecrypt --filesystem=none volume.tc\n"
 					"\n"
-					"Dismount all mounted volumes:\ntruecrypt -d\n"
+					"Mount a volume prompting only for its password:\n"
+					"truecrypt -t -k \"\" --protect-hidden=no volume.tc /media/truecrypt1\n"
+					"\n"
+					"Dismount a volume:\n"
+					"truecrypt -d volume.tc\n"
+					"\n"
+					"Dismount all mounted volumes:\n"
+					"truecrypt -d\n"
 				);
 
+#ifndef TC_NO_GUI
 				if (Application::GetUserInterfaceType() == UserInterfaceType::Graphic)
 				{
 					wxDialog dialog (nullptr, wxID_ANY, _("TrueCrypt Command Line Help"), wxDefaultPosition, wxSize (600,400));
@@ -1024,6 +1044,7 @@ namespace TrueCrypt
 					dialog.ShowModal();
 				}
 				else
+#endif // !TC_NO_GUI
 				{
 					ShowString (L"\n\n");
 					ShowString (helpText);

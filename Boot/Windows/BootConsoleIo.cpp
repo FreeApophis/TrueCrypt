@@ -198,6 +198,9 @@ byte GetShiftFlags ()
 
 byte GetKeyboardChar (byte *scanCode)
 {
+	// Work around a bug in the Apple BIOS
+	while (!IsKeyboardCharAvailable());
+
 	byte asciiCode;
 	byte scan;
 	__asm

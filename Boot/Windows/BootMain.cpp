@@ -254,7 +254,7 @@ static bool MountVolume (byte drive, byte &exitKey)
 		if (OpenVolume (BootDrive, bootArguments->BootPassword, &BootCryptoInfo, &bootArguments->HeaderSaltCrc32))
 			break;
 
-		Print ("Incorrect password or not a TrueCrypt volume.\r\n\r\n");
+		Print ("Incorrect password.\r\n\r\n");
 
 		if (++incorrectPasswordCount == 5)
 		{
@@ -609,7 +609,7 @@ static void RepairMenu ()
 					   "much faster. To decrypt under Windows, run TrueCrypt and select 'System' >\r\n"
 					   "'Permanently Decrypt'.\r\n\r\n");
 
-				if (AskYesNo ("Start decryption"))
+				if (AskYesNo ("Decrypt now"))
 				{
 					PrintEndl();
 					DecryptDrive (BootDrive);
@@ -623,6 +623,7 @@ static void RepairMenu ()
 					GetKeyboardChar();
 					continue;
 				}
+				break;
 		}
 
 		bool writeConfirmed = false;
@@ -707,7 +708,7 @@ static void RepairMenu ()
 							break;
 						}
 
-						Print ("Incorrect password or not a TrueCrypt volume.\r\n\r\n");
+						Print ("Incorrect password.\r\n\r\n");
 					}
 				}
 			}

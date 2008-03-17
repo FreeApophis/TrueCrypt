@@ -9,7 +9,6 @@
 #include "System.h"
 #include "Application.h"
 #include "FavoriteVolume.h"
-#include "GraphicUserInterface.h"
 #include "Xml.h"
 
 namespace TrueCrypt

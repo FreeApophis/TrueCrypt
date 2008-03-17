@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 5,1,0,0
- PRODUCTVERSION 5,1,0,0
+ FILEVERSION 5,1,1,0
+ PRODUCTVERSION 5,1,1,0
  FILEFLAGSMASK 0x37L
 #ifdef _DEBUG
  FILEFLAGS 0x21L
@@ -46,13 +46,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Format"
-            VALUE "FileVersion", "5.1"
+            VALUE "FileVersion", "5.1a"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt Format.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "5.1"
-            VALUE "SpecialBuild", "2008-03-10"
+            VALUE "ProductVersion", "5.1a"
+            VALUE "SpecialBuild", "2008-03-17"
         END
     END
     BLOCK "VarFileInfo"
@@ -345,9 +345,9 @@ IDD_SYSENC_DRIVE_ANALYSIS_PAGE_DLG DIALOGEX 0, 0, 226, 152
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    LTEXT           "Please wait while TrueCrypt is detecting possible hidden sectors at the end of the system drive. Note that it may take a long time to complete.",IDT_SYSENC_DRIVE_ANALYSIS_INFO,2,25,215,64
-    CONTROL         "",IDC_PROGRESS_BAR,"msctls_progress32",WS_BORDER | 0x1,1,105,216,12
-    LTEXT           "Progress:",IDT_PROGRESS,2,94,57,8
+    LTEXT           "",IDT_SYSENC_DRIVE_ANALYSIS_INFO,2,10,215,88
+    CONTROL         "",IDC_PROGRESS_BAR,"msctls_progress32",WS_BORDER | 0x1,1,115,216,12
+    LTEXT           "Progress:",IDT_PROGRESS,2,104,57,8
 END
 
 

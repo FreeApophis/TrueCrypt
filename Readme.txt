@@ -1,4 +1,4 @@
-This archive contains the source code of TrueCrypt 5.1.
+This archive contains the source code of TrueCrypt 5.1a.
 
 
 Important
@@ -118,6 +118,12 @@ Instructions for Building TrueCrypt for Linux and Mac OS X:
 
 4) If successful, the TrueCrypt executable should be located in the directory
    'Main'.
+
+By default, an universal executable supporting both graphical and text user
+interface is built. To build a console-only executable, use 'NOGUI' parameter:
+
+   $ make NOGUI=1 WX_ROOT=/usr/src/wxWidgets wxbuild
+   $ make NOGUI=1
 
 
 

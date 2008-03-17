@@ -137,6 +137,8 @@ static VOID IoThreadProc (PVOID threadArg)
 	PLIST_ENTRY listEntry;
 	EncryptedIoRequest *request;
 
+	KeSetPriorityThread (KeGetCurrentThread(), LOW_REALTIME_PRIORITY);
+
 	while (!queue->ThreadExitRequested)
 	{
 		if (!NT_SUCCESS (KeWaitForSingleObject (&queue->IoThreadQueueNotEmptyEvent, Executive, KernelMode, FALSE, NULL)))
