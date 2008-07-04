@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -28,7 +28,7 @@ namespace TrueCrypt
 #elif defined(TC_MACOSX)
 			18
 #elif defined(__WXGTK__)
-			12
+			14
 #endif
 			* Gui->GetCharHeight (this) / 13, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false, L"Times New Roman"));
 
@@ -51,12 +51,19 @@ namespace TrueCrypt
 		StepHistory.clear();
 		UpdateControls();
 	}
+
+	void WizardFrame::OnActivate (wxActivateEvent& event)
+	{
+		Gui->SetActiveFrame (this);
+		event.Skip();
+	}
 	
 	void WizardFrame::OnClose (wxCloseEvent& event)
 	{
 		if (WorkInProgress)
 			return;
 
+		Gui->SetActiveFrame (nullptr);
 		event.Skip();
 	}
 

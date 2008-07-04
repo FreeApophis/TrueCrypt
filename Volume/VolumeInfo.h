@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -38,6 +38,7 @@ namespace TrueCrypt
 		VolumeTime HeaderCreationTime;
 		bool HiddenVolumeProtectionTriggered;
 		DevicePath LoopDevice;
+		uint32 MinRequiredProgramVersion;
 		DirectoryPath MountPoint;
 		VolumePath Path;
 		uint32 Pkcs5IterationCount;
@@ -47,6 +48,7 @@ namespace TrueCrypt
 		uint64 SerialInstanceNumber;
 		uint64 Size;
 		VolumeSlotNumber SlotNumber;
+		uint64 TopWriteOffset;
 		uint64 TotalDataRead;
 		uint64 TotalDataWritten;
 		VolumeType::Enum Type;

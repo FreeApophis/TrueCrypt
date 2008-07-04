@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.4 the full text of which is contained in the
+ by the TrueCrypt License 2.5 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -29,7 +29,9 @@ typedef struct _THREAD_BLOCK_
 typedef struct EXTENSION
 {
 	BOOL bRootDevice;	/* Is this the root device ? which the user-mode apps talk to */
+	BOOL IsVolumeDevice;
 	BOOL IsDriveFilterDevice;
+	BOOL IsVolumeFilterDevice;
 
 	ULONG lMagicNumber;	/* To ensure the completion routine is not sending us bad IRP's */
 
@@ -87,21 +89,8 @@ extern ULONG OsMinorVersion;
 /* Helper macro returning x seconds in units of 100 nanoseconds */
 #define WAIT_SECONDS(x) ((x)*10000000)
 
-/* In order to see any debug output you will need to run a checked build of
-   NT */
-#ifdef DEBUG
-#	if 1 // DbgPrintEx is not available on Windows 2000
-#		define Dump DbgPrint
-#	else
-#		define Dump(...) DbgPrintEx (DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, __VA_ARGS__)
-#	endif
-#		define DumpMem(...) DumpMemory (__VA_ARGS__)
-#else
-#	define Dump(...) ((void) 0)
-#	define DumpMem(...) ((void) 0)
-#endif
-
 NTSTATUS DriverEntry (PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath);
+NTSTATUS DriverAddDevice (PDRIVER_OBJECT driverObject, PDEVICE_OBJECT pdo);
 void DumpMemory (void *memory, int size);
 BOOL IsAccessibleByUser (PUNICODE_STRING objectFileName, BOOL readOnly);
 NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension, PIRP Irp);
@@ -133,8 +122,8 @@ NTSTATUS RemoveDriveLink (int nDosDriveNo);
 NTSTATUS MountManagerMount (MOUNT_STRUCT *mount);
 NTSTATUS MountManagerUnmount (int nDosDriveNo);
 NTSTATUS MountDevice (PDEVICE_OBJECT deviceObject, MOUNT_STRUCT *mount);
-NTSTATUS UnmountDevice (PDEVICE_OBJECT deviceObject, BOOL ignoreOpenFiles);
-NTSTATUS UnmountAllDevices (PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles);
+NTSTATUS UnmountDevice (UNMOUNT_STRUCT *unmountRequest, PDEVICE_OBJECT deviceObject, BOOL ignoreOpenFiles);
+NTSTATUS UnmountAllDevices (UNMOUNT_STRUCT *unmountRequest, PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles);
 NTSTATUS SymbolicLinkToTarget (PWSTR symlinkName, PWSTR targetName, USHORT maxTargetNameLength);
 void DriverMutexWait ();
 void DriverMutexRelease ();
@@ -144,11 +133,15 @@ NTSTATUS TCCompleteIrp (PIRP irp, NTSTATUS status, ULONG_PTR information);
 NTSTATUS TCCompleteDiskIrp (PIRP irp, NTSTATUS status, ULONG_PTR information);
 NTSTATUS ProbeRealDriveSize (PDEVICE_OBJECT driveDeviceObject, LARGE_INTEGER *driveSize);
 BOOL UserCanAccessDriveDevice ();
-
-#define TC_TO_STRING2(n) #n
-#define TC_TO_STRING(n) TC_TO_STRING2(n)
-
-#define trace_point Dump (__FUNCTION__ ":" TC_TO_STRING(__LINE__) "\n")
+size_t GetCpuCount ();
+void EnsureNullTerminatedString (wchar_t *str, size_t maxSizeInBytes);
+void *AllocateMemoryWithTimeout (size_t size, int retryDelay, int timeout);
+BOOL IsDriveLetterAvailable (int nDosDriveNo);
+NTSTATUS TCReadRegistryKey (PUNICODE_STRING keyPath, wchar_t *keyValueName, PKEY_VALUE_PARTIAL_INFORMATION *keyData);
+NTSTATUS TCWriteRegistryKey (PUNICODE_STRING keyPath, wchar_t *keyValueName, ULONG keyValueType, void *valueData, ULONG valueSize);
+BOOL IsVolumeClassFilterRegistered ();
+uint32 ReadRegistryConfigFlags ();
+NTSTATUS WriteRegistryConfigFlags (uint32 flags);
 
 #define TC_BUG_CHECK(status) KeBugCheckEx (SECURITY_SYSTEM, __LINE__, status, 0, 'TC')
 

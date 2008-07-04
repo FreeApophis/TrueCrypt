@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -25,8 +25,10 @@ namespace TrueCrypt
 	protected:
 		virtual DevicePath AttachFileToLoopDevice (const FilePath &filePath) const;
 		virtual void DetachLoopDevice (const DevicePath &devicePath) const;
+		virtual void DismountNativeVolume (shared_ptr <VolumeInfo> mountedVolume) const;
 		virtual MountedFilesystemList GetMountedFilesystems (const DevicePath &devicePath = DevicePath(), const DirectoryPath &mountPoint = DirectoryPath()) const;
 		virtual void MountFilesystem (const DevicePath &devicePath, const DirectoryPath &mountPoint, const string &filesystemType, bool readOnly, const string &systemMountOptions) const;
+		virtual void MountVolumeNative (shared_ptr <Volume> volume, MountOptions &options, const DirectoryPath &auxMountPoint) const;
 
 	private:
 		CoreLinux (const CoreLinux &);

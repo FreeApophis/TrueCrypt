@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -23,10 +23,13 @@ namespace TrueCrypt
 		virtual ~EncryptionMode ();
 
 		virtual void Decrypt (byte *data, uint64 length) const = 0;
-		virtual void DecryptSectors (byte *data, uint64 sectorIndex, uint64 sectorCount, size_t sectorSize) const = 0;
+		virtual void DecryptSectors (byte *data, uint64 sectorIndex, uint64 sectorCount, size_t sectorSize) const;
+		virtual void DecryptSectorsCurrentThread (byte *data, uint64 sectorIndex, uint64 sectorCount, size_t sectorSize) const = 0;
 		virtual void Encrypt (byte *data, uint64 length) const = 0;
-		virtual void EncryptSectors (byte *data, uint64 sectorIndex, uint64 sectorCount, size_t sectorSize) const = 0;
+		virtual void EncryptSectors (byte *data, uint64 sectorIndex, uint64 sectorCount, size_t sectorSize) const;
+		virtual void EncryptSectorsCurrentThread (byte *data, uint64 sectorIndex, uint64 sectorCount, size_t sectorSize) const = 0;
 		static EncryptionModeList GetAvailableModes ();
+		virtual const SecureBuffer &GetKey () const { throw NotApplicable (SRC_POS); }
 		virtual size_t GetKeySize () const = 0;
 		virtual wstring GetName () const = 0;
 		virtual shared_ptr <EncryptionMode> GetNew () const = 0;

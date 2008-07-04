@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -60,32 +60,39 @@ namespace TrueCrypt
 
 	void MainFrame::AddToFavorites (const VolumeInfoList &volumes)
 	{
-		FavoriteVolumeList newFavorites;
-
-		// Delete duplicates
-		foreach (shared_ptr <FavoriteVolume> favorite, FavoriteVolume::LoadList())
+		try
 		{
-			bool mounted = false;
+			FavoriteVolumeList newFavorites;
+
+			// Delete duplicates
+			foreach (shared_ptr <FavoriteVolume> favorite, FavoriteVolume::LoadList())
+			{
+				bool mounted = false;
+				foreach_ref (const VolumeInfo &volume, volumes)
+				{
+					if (volume.Path == favorite->Path)
+					{
+						mounted = true;
+						break;
+					}
+				}
+				if (!mounted)
+					newFavorites.push_back (favorite);
+			}
+
+			size_t newItemCount = 0;
 			foreach_ref (const VolumeInfo &volume, volumes)
 			{
-				if (volume.Path == favorite->Path)
-				{
-					mounted = true;
-					break;
-				}
+				newFavorites.push_back (shared_ptr <FavoriteVolume> (new FavoriteVolume (volume.Path, volume.MountPoint, volume.SlotNumber)));
+				++newItemCount;
 			}
-			if (!mounted)
-				newFavorites.push_back (favorite);
-		}
 
-		size_t newItemCount = 0;
-		foreach_ref (const VolumeInfo &volume, volumes)
+			OrganizeFavorites (newFavorites, newItemCount);
+		}
+		catch (exception &e)
 		{
-			newFavorites.push_back (shared_ptr <FavoriteVolume> (new FavoriteVolume (volume.Path, volume.MountPoint, volume.SlotNumber)));
-			++newItemCount;
+			Gui->ShowError (e);
 		}
-
-		OrganizeFavorites (newFavorites, newItemCount);
 	}
 
 	bool MainFrame::CanExit () const
@@ -198,14 +205,14 @@ namespace TrueCrypt
 		colPermilles.push_back (75);
 #else
 		SlotListCtrl->InsertColumn (ColumnSlot, _("Slot"), wxLIST_FORMAT_LEFT, 1);
-		colPermilles.push_back (81);
+		colPermilles.push_back (82);
 #endif
 
 		SlotListCtrl->InsertColumn (ColumnPath, LangString["VOLUME"], wxLIST_FORMAT_LEFT, 1);
 #ifdef TC_WINDOWS		 
 		colPermilles.push_back (487);
 #else
-		colPermilles.push_back (430);
+		colPermilles.push_back (429);
 #endif
 
 		SlotListCtrl->InsertColumn (ColumnSize, LangString["SIZE"], wxLIST_FORMAT_RIGHT, 1);
@@ -231,22 +238,25 @@ namespace TrueCrypt
 		SlotListCtrl->AssignImageList (imageList, wxIMAGE_LIST_SMALL);
 
 		SetMinSize (wxSize (-1, -1));
-		Gui->SetListCtrlHeight (SlotListCtrl, 12);
+
+		size_t slotListRowCount = 12;
+#ifndef TC_WINDOWS
+		if (wxSystemSettings::GetMetric (wxSYS_SCREEN_Y) < 600)
+			slotListRowCount = 6;
+#endif
+		Gui->SetListCtrlHeight (SlotListCtrl, slotListRowCount);
 
 #ifdef __WXGTK__
-		if (CreateVolumeButton->GetSize().GetHeight() > 26)
-		{
-			wxSize size (-1, (int) ((double) Gui->GetCharHeight (this) * 1.53));
-			CreateVolumeButton->SetMinSize (size);
-			VolumePropertiesButton->SetMinSize (size);
-			WipeCacheButton->SetMinSize (size);
-			VolumePathComboBox->SetMinSize (size);
-			SelectFileButton->SetMinSize (size);
-			SelectDeviceButton->SetMinSize (size);
-			VolumeToolsButton->SetMinSize (size);
-			size = wxSize (-1, 38);
-			VolumeButton->SetMinSize (size);
-		}
+		wxSize size (-1, (int) ((double) Gui->GetCharHeight (this) * 1.53));
+		CreateVolumeButton->SetMinSize (size);
+		VolumePropertiesButton->SetMinSize (size);
+		WipeCacheButton->SetMinSize (size);
+		VolumePathComboBox->SetMinSize (size);
+		SelectFileButton->SetMinSize (size);
+		SelectDeviceButton->SetMinSize (size);
+		VolumeToolsButton->SetMinSize (size);
+		size = wxSize (-1, 38);
+		VolumeButton->SetMinSize (size);
 #endif
 		Fit();
 		Layout();
@@ -586,6 +596,8 @@ namespace TrueCrypt
 
 	void MainFrame::OnActivate (wxActivateEvent& event)
 	{
+		Gui->SetActiveFrame (this);
+
 #ifdef TC_MACOSX
 		if (event.GetActive() && Gui->IsInBackgroundMode())
 			Gui->SetBackgroundMode (false);
@@ -614,28 +626,9 @@ namespace TrueCrypt
 		if (!CheckVolumePathNotEmpty ())
 			return;
 
-		shared_ptr <VolumePath> volumePath = GetSelectedVolumePath();
-
-		if (Core->IsVolumeMounted (*volumePath))
-		{
-			Gui->ShowInfo ("DISMOUNT_FIRST");
-			return;
-		}
-
-		wxString confirmMsg = LangString["CONFIRM_VOL_HEADER_BAK"];
-		confirmMsg.Replace (L"%hs", L"%s");
-
-		if (!Gui->AskYesNo (wxString::Format (confirmMsg, wstring (*volumePath).c_str()), true))
-			return;
-
-		FilePathList files = Gui->SelectFiles (this, wxEmptyString, true, false);
-		if (files.empty())
-			return;
-
 		try
 		{
-			Core->BackupVolumeHeaders (*volumePath, *files.front());
-			Gui->ShowWarning ("VOL_HEADER_BACKED_UP");
+			Gui->BackupVolumeHeaders (this, GetSelectedVolumePath());
 		}
 		catch (Exception &e)
 		{
@@ -1005,54 +998,9 @@ namespace TrueCrypt
 		if (!CheckVolumePathNotEmpty ())
 			return;
 
-		shared_ptr <VolumePath> volumePath = GetSelectedVolumePath();
-
-		if (Core->IsVolumeMounted (*volumePath))
-		{
-			Gui->ShowInfo ("DISMOUNT_FIRST");
-			return;
-		}
-
-		wxString confirmMsg = LangString["CONFIRM_VOL_HEADER_RESTORE"];
-		confirmMsg.Replace (L"%hs", L"%s");
-
-		if (!Gui->AskYesNo (wxString::Format (confirmMsg, wstring (*volumePath).c_str()), true, true))
-			return;
-
-		FilePathList files = Gui->SelectFiles (this, wxEmptyString, false, false);
-		if (files.empty())
-			return;
-
-		wxArrayString choices;
-		choices.Add (LangString["RESTORE_NORMAL_VOLUME_HEADER"]);
-		choices.Add (LangString["RESTORE_HIDDEN_VOLUME_HEADER"]);
-
-		wxSingleChoiceDialog choiceDialog (this, LangString["HEADER_RESTORE_TYPE"], Application::GetName(), choices);
-		choiceDialog.SetSelection (-1);
-		
-		if (choiceDialog.ShowModal() != wxID_OK)
-			return;
-
-		VolumeType::Enum volumeType;
-
-		switch (choiceDialog.GetSelection())
-		{
-		case 0:
-			volumeType = VolumeType::Normal;
-			break;
-
-		case 1:
-			volumeType = VolumeType::Hidden;
-			break;
-
-		default:
-			return;
-		}
-
 		try
 		{
-			Core->RestoreVolumeHeaders (*volumePath, volumeType, *files.front());
-			Gui->ShowInfo ("VOL_HEADER_RESTORED");
+			Gui->RestoreVolumeHeaders (this, GetSelectedVolumePath());
 		}
 		catch (Exception &e)
 		{

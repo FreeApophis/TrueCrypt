@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -16,6 +16,7 @@
 #include "Serializable.h"
 #include "SharedPtr.h"
 #include "StringConverter.h"
+#include "SyncEvent.h"
 #include "Thread.h"
 
 namespace TrueCrypt
@@ -143,7 +144,14 @@ namespace TrueCrypt
 		}
 	}
 	
-	// shared_ptr, Mutex, ScopeLock, Thread
+	// shared_ptr, Mutex, ScopeLock, SyncEvent, Thread
+	static struct 
+	{
+		shared_ptr <int> SharedIntPtr;
+		Mutex IntMutex;
+		SyncEvent ExitAllowedEvent;
+	} ThreadTestData;
+
 	void PlatformTest::ThreadTest ()
 	{
 		Mutex mutex;
@@ -151,35 +159,58 @@ namespace TrueCrypt
 		mutex.Unlock();
 
 		const int maxThreads = 3;
-		make_shared_auto (int, SharedIntPtr);
-		*SharedIntPtr = 0;
+		ThreadTestData.SharedIntPtr.reset (new int (0));
 
 		for (int i = 0; i < maxThreads; i++)
 		{
 			Thread t;
-			t.Start (&ThreadTestProc, (void *)&SharedIntPtr);
+			t.Start (&ThreadTestProc, (void *) &ThreadTestData);
 		}
 
 		for (int i = 0; i < 50; i++)
 		{
-			if (SharedIntPtr.use_count() == 1 && *SharedIntPtr == maxThreads)
-				break;
+			{
+				ScopeLock sl (ThreadTestData.IntMutex);
+				if (*ThreadTestData.SharedIntPtr == maxThreads)
+					break;
+			}
 
 			Thread::Sleep(100);
 		}
 
-		if (SharedIntPtr.use_count() != 1 || *SharedIntPtr != maxThreads)
+		if (*ThreadTestData.SharedIntPtr != maxThreads)
+			throw TestFailed (SRC_POS);
+
+		for (int i = 0; i < 60000; i++)
+		{
+			ThreadTestData.ExitAllowedEvent.Signal();
+			Thread::Sleep(1);
+
+			ScopeLock sl (ThreadTestData.IntMutex);
+			if (*ThreadTestData.SharedIntPtr == 0)
+				break;
+		}
+
+		if (*ThreadTestData.SharedIntPtr != 0)
 			throw TestFailed (SRC_POS);
 	}
 
-	TC_THREAD_PROC PlatformTest::ThreadTestProc (void *param)
+	TC_THREAD_PROC PlatformTest::ThreadTestProc (void *arg)
 	{
-		static Mutex mutex;
-		shared_ptr <int> sharedIntPtr = *(shared_ptr <int> *) param;
+		
+		if (arg != (void *) &ThreadTestData)
+			return 0;
 
 		{
-			ScopeLock sl (mutex);
-			(*sharedIntPtr)++;
+			ScopeLock sl (ThreadTestData.IntMutex);
+			++(*ThreadTestData.SharedIntPtr);
+		}
+
+		ThreadTestData.ExitAllowedEvent.Wait();
+
+		{
+			ScopeLock sl (ThreadTestData.IntMutex);
+			--(*ThreadTestData.SharedIntPtr);
 		}
 
 		return 0;

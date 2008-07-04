@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -23,7 +23,8 @@ namespace TrueCrypt
 		virtual ~CoreUnix ();
 
 		virtual void CheckFilesystem (shared_ptr <VolumeInfo> mountedVolume, bool repair = false) const; 
-		virtual void DismountVolume (shared_ptr <VolumeInfo> mountedVolume, bool ignoreOpenFiles = false);
+		virtual shared_ptr <VolumeInfo> DismountVolume (shared_ptr <VolumeInfo> mountedVolume, bool ignoreOpenFiles = false, bool syncVolumeInfo = false);
+		virtual DirectoryPath GetDeviceMountPoint (const DevicePath &devicePath) const;
 		virtual uint64 GetDeviceSize (const DevicePath &devicePath) const;
 		virtual int GetOSMajorVersion () const { throw NotApplicable (SRC_POS); }
 		virtual int GetOSMinorVersion () const { throw NotApplicable (SRC_POS); }
@@ -45,7 +46,7 @@ namespace TrueCrypt
 		virtual DevicePath AttachFileToLoopDevice (const FilePath &filePath) const { throw NotApplicable (SRC_POS); }
 		virtual void DetachLoopDevice (const DevicePath &devicePath) const { throw NotApplicable (SRC_POS); }
 		virtual void DismountFilesystem (const DirectoryPath &mountPoint, bool force) const;
-		virtual DirectoryPath GetDeviceMountPoint (const DevicePath &devicePath) const;
+		virtual void DismountNativeVolume (shared_ptr <VolumeInfo> mountedVolume) const { throw NotApplicable (SRC_POS); }
 		virtual string GetDefaultMountPointPrefix () const;
 		virtual string GetFuseMountDirPrefix () const { return ".truecrypt_aux_mnt"; }
 		virtual MountedFilesystemList GetMountedFilesystems (const DevicePath &devicePath = DevicePath(), const DirectoryPath &mountPoint = DirectoryPath()) const = 0;
@@ -54,9 +55,8 @@ namespace TrueCrypt
 		virtual string GetTempDirectory () const;
 		virtual void MountFilesystem (const DevicePath &devicePath, const DirectoryPath &mountPoint, const string &filesystemType, bool readOnly, const string &systemMountOptions) const;
 		virtual void MountAuxVolumeImage (const DirectoryPath &auxMountPoint, const MountOptions &options) const;
+		virtual void MountVolumeNative (shared_ptr <Volume> volume, MountOptions &options, const DirectoryPath &auxMountPoint) const { throw NotApplicable (SRC_POS); }
 		
-		static const wchar_t FirstDefaultMountPointNumber = 0;
-
 	private:
 		CoreUnix (const CoreUnix &);
 		CoreUnix &operator= (const CoreUnix &);

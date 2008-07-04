@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -31,12 +31,14 @@ namespace TrueCrypt
 			CoreService::RequestCheckFilesystem (mountedVolume, repair);
 		}
 
-		virtual void DismountVolume (shared_ptr <VolumeInfo> mountedVolume, bool ignoreOpenFiles = false)
+		virtual shared_ptr <VolumeInfo> DismountVolume (shared_ptr <VolumeInfo> mountedVolume, bool ignoreOpenFiles = false, bool syncVolumeInfo = false)
 		{
-			CoreService::RequestDismountVolume (mountedVolume, ignoreOpenFiles);
+			shared_ptr <VolumeInfo> dismountedVolumeInfo = CoreService::RequestDismountVolume (mountedVolume, ignoreOpenFiles, syncVolumeInfo);
 
-			VolumeEventArgs eventArgs (mountedVolume);
+			VolumeEventArgs eventArgs (dismountedVolumeInfo);
 			T::VolumeDismountedEvent.Raise (eventArgs);
+
+			return dismountedVolumeInfo;
 		}
 
 		virtual uint64 GetDeviceSize (const DevicePath &devicePath) const

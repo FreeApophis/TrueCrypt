@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -16,11 +16,16 @@ namespace TrueCrypt
 	class InfoWizardPage : public InfoWizardPageBase
 	{
 	public:
-		InfoWizardPage (wxPanel *parent) : InfoWizardPageBase (parent) { InfoStaticText->SetFocus();  }
+		InfoWizardPage (wxPanel *parent, const wxString &actionButtonText = wxEmptyString, shared_ptr <Functor> actionFunctor = shared_ptr <Functor> ());
 
 		bool IsValid () { return true; }
 		void SetMaxStaticTextWidth (int width);
 		void SetPageText (const wxString &text) { InfoStaticText->SetLabel (text); }
+
+	protected:
+		virtual void OnActionButtonClick (wxCommandEvent& event) { (*ActionFunctor)(); }
+
+		shared_ptr <Functor> ActionFunctor;
 	};
 }
 

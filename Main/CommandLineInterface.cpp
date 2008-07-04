@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -29,7 +29,9 @@ namespace TrueCrypt
 
 		parser.AddOption (L"",  L"auto-mount",			_("Auto mount device-hosted/favorite volumes"));
 		parser.AddSwitch (L"",  L"background-task",		_("Start Background Task"));
+#ifdef TC_WINDOWS
 		parser.AddSwitch (L"",  L"cache",				_("Cache passwords and keyfiles"));
+#endif
 		parser.AddSwitch (L"C", L"change",				_("Change password or keyfiles"));
 		parser.AddSwitch (L"c", L"create",				_("Create new volume"));
 		parser.AddSwitch (L"d", L"dismount",			_("Dismount volume"));
@@ -41,7 +43,7 @@ namespace TrueCrypt
 		parser.AddOption (L"",	L"fs-options",			_("Filesystem mount options"));
 #endif
 		parser.AddOption (L"",	L"hash",				_("Hash algorithm"));
-		parser.AddSwitch (L"h", L"help",				_("Display help"), wxCMD_LINE_OPTION_HELP);
+		parser.AddSwitch (L"h", L"help",				_("Display detailed command line help"), wxCMD_LINE_OPTION_HELP);
 		parser.AddOption (L"k", L"keyfiles",			_("Keyfiles"));
 		parser.AddSwitch (L"l", L"list",				_("List mounted volumes"));
 		parser.AddSwitch (L"",	L"load-preferences",	_("Load user preferences"));
@@ -187,9 +189,11 @@ namespace TrueCrypt
 		if (parser.Found (L"background-task"))
 			StartBackgroundTask = true;
 
+#ifdef TC_WINDOWS
 		if (parser.Found (L"cache"))
 			ArgMountOptions.CachePassword = true;
-		
+#endif
+
 		if (parser.Found (L"encryption", &str))
 		{
 			ArgEncryptionAlgorithm.reset();
@@ -254,7 +258,11 @@ namespace TrueCrypt
 			{
 				wxString token = tokenizer.GetNextToken();
 
-				if (token == L"readonly" || token == L"ro")
+				if (token == L"headerbak")
+					ArgMountOptions.UseBackupHeaders = true;
+				else if (token == L"nokernelcrypto")
+					ArgMountOptions.NoKernelCrypto = true;
+				else if (token == L"readonly" || token == L"ro")
 					ArgMountOptions.Protection = VolumeProtection::ReadOnly;
 				else if (token == L"timestamp" || token == L"ts")
 					ArgMountOptions.PreserveTimestamps = false;

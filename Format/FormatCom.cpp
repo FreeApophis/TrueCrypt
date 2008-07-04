@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2007-2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -93,14 +93,24 @@ public:
 		return BaseCom::ReadWriteFile (write, device, filePath, bufferBstr, offset, size, sizeDone);
 	}
 
-	virtual DWORD STDMETHODCALLTYPE RegisterFilterDriver (BOOL registerDriver)
+	virtual DWORD STDMETHODCALLTYPE RegisterFilterDriver (BOOL registerDriver, BOOL volumeClass)
 	{
-		return BaseCom::RegisterFilterDriver (registerDriver);
+		return BaseCom::RegisterFilterDriver (registerDriver, volumeClass);
 	}
 
 	virtual DWORD STDMETHODCALLTYPE SetDriverServiceStartType (DWORD startType)
 	{
 		return BaseCom::SetDriverServiceStartType (startType);
+	}
+
+	virtual BOOL STDMETHODCALLTYPE IsPagingFileActive ()
+	{
+		return BaseCom::IsPagingFileActive ();
+	}
+
+	virtual DWORD STDMETHODCALLTYPE WriteLocalMachineRegistryDwordValue (BSTR keyPath, BSTR valueName, DWORD value)
+	{
+		return BaseCom::WriteLocalMachineRegistryDwordValue (keyPath, valueName, value);
 	}
 
 protected:

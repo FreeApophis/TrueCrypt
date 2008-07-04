@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -20,6 +20,7 @@ namespace TrueCrypt
 	Volume::Volume ()
 		: HiddenVolumeProtectionTriggered (false),
 		VolumeDataSize (0),
+		TopWriteOffset (0),
 		TotalDataRead (0),
 		TotalDataWritten (0)
 	{
@@ -60,7 +61,7 @@ namespace TrueCrypt
 		return EA->GetMode();
 	}
 
-	void Volume::Open (const VolumePath &volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection, shared_ptr <VolumePassword> protectionPassword, shared_ptr <KeyfileList> protectionKeyfiles, bool sharedAccessAllowed, VolumeType::Enum volumeType)
+	void Volume::Open (const VolumePath &volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection, shared_ptr <VolumePassword> protectionPassword, shared_ptr <KeyfileList> protectionKeyfiles, bool sharedAccessAllowed, VolumeType::Enum volumeType, bool useBackupHeaders)
 	{
 		make_shared_auto (File, file);
 
@@ -91,10 +92,10 @@ namespace TrueCrypt
 				throw;
 		}
 
-		return Open (file, password, keyfiles, protection, protectionPassword, protectionKeyfiles, volumeType);
+		return Open (file, password, keyfiles, protection, protectionPassword, protectionKeyfiles, volumeType, useBackupHeaders);
 	}
 
-	void Volume::Open (shared_ptr <File> volumeFile, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection, shared_ptr <VolumePassword> protectionPassword, shared_ptr <KeyfileList> protectionKeyfiles, VolumeType::Enum volumeType)
+	void Volume::Open (shared_ptr <File> volumeFile, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection, shared_ptr <VolumePassword> protectionPassword, shared_ptr <KeyfileList> protectionKeyfiles, VolumeType::Enum volumeType, bool useBackupHeaders)
 	{
 		if (!volumeFile)
 			throw ParameterIncorrect (SRC_POS);
@@ -107,24 +108,58 @@ namespace TrueCrypt
 			VolumeHostSize = VolumeFile->Length();
 			shared_ptr <VolumePassword> passwordKey = Keyfile::ApplyListToPassword (keyfiles, password);
 
+			bool skipLayoutV1Normal = false;
+
 			// Test volume layouts
 			foreach (shared_ptr <VolumeLayout> layout, VolumeLayout::GetAvailableLayouts (volumeType))
 			{
-				if (layout->GetHeaderOffset() >= 0)
-					VolumeFile->SeekAt (layout->GetHeaderOffset());
+				if (skipLayoutV1Normal && typeid (*layout) == typeid (VolumeLayoutV1Normal))
+				{
+					// Skip VolumeLayoutV1Normal as it shares header location with VolumeLayoutV2Normal
+					continue;
+				}
+
+				if (useBackupHeaders && !layout->HasBackupHeader())
+					continue;
+
+				int headerOffset = useBackupHeaders ? layout->GetBackupHeaderOffset() : layout->GetHeaderOffset();
+
+				if (headerOffset >= 0)
+					VolumeFile->SeekAt (headerOffset);
 				else
-					VolumeFile->SeekEnd (layout->GetHeaderOffset());
+					VolumeFile->SeekEnd (headerOffset);
 
 				SecureBuffer headerBuffer (layout->GetHeaderSize());
 
 				if (VolumeFile->Read (headerBuffer) != layout->GetHeaderSize())
-					throw MissingVolumeData (SRC_POS);
+					continue;
+
+				EncryptionAlgorithmList layoutEncryptionAlgorithms = layout->GetSupportedEncryptionAlgorithms();
+				EncryptionModeList layoutEncryptionModes = layout->GetSupportedEncryptionModes();
+
+				if (typeid (*layout) == typeid (VolumeLayoutV2Normal))
+				{
+					skipLayoutV1Normal = true;
+
+					// Test all algorithms and modes of VolumeLayoutV1Normal as it shares header location with VolumeLayoutV2Normal
+					layoutEncryptionAlgorithms = EncryptionAlgorithm::GetAvailableAlgorithms();
+					layoutEncryptionModes = EncryptionMode::GetAvailableModes();
+				}
 
 				shared_ptr <VolumeHeader> header = layout->GetHeader();
 
-				if (header->Decrypt (headerBuffer, *passwordKey, layout->GetSupportedEncryptionAlgorithms(), layout->GetSupportedEncryptionModes ()))
+				if (header->Decrypt (headerBuffer, *passwordKey, layoutEncryptionAlgorithms, layoutEncryptionModes))
 				{
 					// Header decrypted
+
+					if (typeid (*layout) == typeid (VolumeLayoutV2Normal) && header->GetRequiredMinProgramVersion() < 0x600)
+					{
+						// VolumeLayoutV1Normal has been opened as VolumeLayoutV2Normal
+						layout.reset (new VolumeLayoutV1Normal);
+						header->SetSize (layout->GetHeaderSize());
+						layout->SetHeader (header);
+					}
+
 					Type = layout->GetType();
 					SectorSize = header->GetSectorSize();
 					VolumeDataOffset = layout->GetDataOffset (VolumeHostSize);
@@ -142,7 +177,7 @@ namespace TrueCrypt
 					if (Protection == VolumeProtection::HiddenVolumeReadOnly)
 					{
 						if (Type == VolumeType::Hidden)
-							Protection = VolumeProtection::ReadOnly;
+							throw PasswordIncorrect (SRC_POS);
 						else
 						{
 							try
@@ -153,13 +188,17 @@ namespace TrueCrypt
 									protectionPassword, protectionKeyfiles,
 									VolumeProtection::ReadOnly,
 									shared_ptr <VolumePassword> (), shared_ptr <KeyfileList> (),
-									VolumeType::Hidden);
+									VolumeType::Hidden,
+									useBackupHeaders);
 
 								if (protectedVolume.GetType() != VolumeType::Hidden)
 									ParameterIncorrect (SRC_POS);
 
 								ProtectedRangeStart = protectedVolume.VolumeDataOffset;
-								ProtectedRangeEnd = protectedVolume.VolumeDataOffset + protectedVolume.VolumeDataSize + protectedVolume.Layout->GetHeaderSize();
+								ProtectedRangeEnd = protectedVolume.VolumeDataOffset + protectedVolume.VolumeDataSize;
+
+								if (typeid (*protectedVolume.Layout) == typeid (VolumeLayoutV1Hidden))
+									ProtectedRangeEnd += protectedVolume.Layout->GetHeaderSize();
 							}
 							catch (PasswordException&)
 							{
@@ -201,7 +240,7 @@ namespace TrueCrypt
 		TotalDataRead += length;
 	}
 
-	void Volume::ReEncryptHeader (const ConstBufferPtr &newSalt, const ConstBufferPtr &newHeaderKey, shared_ptr <Pkcs5Kdf> newPkcs5Kdf)
+	void Volume::ReEncryptHeader (bool backupHeader, const ConstBufferPtr &newSalt, const ConstBufferPtr &newHeaderKey, shared_ptr <Pkcs5Kdf> newPkcs5Kdf)
 	{
 		if_debug (ValidateState ());
 		
@@ -212,10 +251,12 @@ namespace TrueCrypt
 		
 		Header->EncryptNew (newHeaderBuffer, newSalt, newHeaderKey, newPkcs5Kdf);
 
-		if (Layout->GetHeaderOffset() >= 0)
-			VolumeFile->SeekAt (Layout->GetHeaderOffset());
+		int headerOffset = backupHeader ? Layout->GetBackupHeaderOffset() : Layout->GetHeaderOffset();
+
+		if (headerOffset >= 0)
+			VolumeFile->SeekAt (headerOffset);
 		else
-			VolumeFile->SeekEnd (Layout->GetHeaderOffset());
+			VolumeFile->SeekEnd (headerOffset);
 
 		VolumeFile->Write (newHeaderBuffer);
 	}
@@ -254,5 +295,9 @@ namespace TrueCrypt
 		VolumeFile->WriteAt (encBuf, hostOffset);
 
 		TotalDataWritten += length;
+		
+		uint64 writeEndOffset = byteOffset + buffer.Size();
+		if (writeEndOffset > TopWriteOffset)
+			TopWriteOffset = writeEndOffset;
 	}
 }

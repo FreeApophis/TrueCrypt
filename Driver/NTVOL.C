@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.4 the full text of which is contained in the
+ by the TrueCrypt License 2.5 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -14,8 +14,10 @@
 #include "Volumes.h"
 
 #include "Apidrvr.h"
+#include "DriveFilter.h"
 #include "Ntdriver.h"
 #include "Ntvol.h"
+#include "VolumeFilter.h"
 
 #include "Boot/Windows/BootCommon.h"
 
@@ -26,6 +28,9 @@
 #endif
 
 #pragma warning( disable : 4127 )
+
+volatile BOOL ProbingHostDeviceForWrite = FALSE;
+
 
 NTSTATUS
 TCOpenVolume (PDEVICE_OBJECT DeviceObject,
@@ -42,7 +47,6 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	PCRYPTO_INFO cryptoInfoPtr = NULL;
 	PCRYPTO_INFO tmpCryptoInfo = NULL;
 	LARGE_INTEGER lDiskLength;
-	LARGE_INTEGER hiddenVolHeaderOffset;
 	__int64 partitionStartingOffset;
 	int volumeType;
 	char *readBuffer = 0;
@@ -92,11 +96,17 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			partitionStartingOffset = pi.StartingOffset.QuadPart;
 		}
 
-		if (!mount->bMountReadOnly && TCSendHostDeviceIoControlRequest (DeviceObject, Extension, IOCTL_DISK_IS_WRITABLE, NULL, 0) == STATUS_MEDIA_WRITE_PROTECTED)
+		ProbingHostDeviceForWrite = TRUE;
+
+		if (!mount->bMountReadOnly
+			&& TCSendHostDeviceIoControlRequest (DeviceObject, Extension,
+				IsHiddenSystemRunning() ? TC_IOCTL_DISK_IS_WRITABLE : IOCTL_DISK_IS_WRITABLE, NULL, 0) == STATUS_MEDIA_WRITE_PROTECTED)
 		{
 			mount->bMountReadOnly = TRUE;
 			DeviceObject->Characteristics |= FILE_READ_ONLY_DEVICE;
 		}
+
+		ProbingHostDeviceForWrite = FALSE;
 	}
 
 	if (mount->BytesPerSector == 0)
@@ -233,7 +243,7 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	}
 
 	// Check volume size
-	if (lDiskLength.QuadPart < MIN_VOLUME_SIZE || lDiskLength.QuadPart > MAX_VOLUME_SIZE)
+	if (lDiskLength.QuadPart < TC_MIN_VOLUME_SIZE_LEGACY || lDiskLength.QuadPart > TC_MAX_VOLUME_SIZE)
 	{
 		mount->nReturnCode = ERR_VOL_SIZE_WRONG;
 		ntStatus = STATUS_SUCCESS;
@@ -242,9 +252,7 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 
 	Extension->DiskLength = lDiskLength.QuadPart;
 
-	hiddenVolHeaderOffset.QuadPart = lDiskLength.QuadPart - HIDDEN_VOL_HEADER_OFFSET;
-
-	readBuffer = TCalloc (HEADER_SIZE);
+	readBuffer = TCalloc (TC_VOLUME_HEADER_EFFECTIVE_SIZE);
 	if (readBuffer == NULL)
 	{
 		ntStatus = STATUS_INSUFFICIENT_RESOURCES;
@@ -252,19 +260,51 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	}
 
 	// Go through all volume types (e.g., normal, hidden)
-	for (volumeType = VOLUME_TYPE_NORMAL;
-		volumeType < NBR_VOLUME_TYPES;
+	for (volumeType = TC_VOLUME_TYPE_NORMAL;
+		volumeType < TC_VOLUME_TYPE_COUNT;
 		volumeType++)	
 	{
+		Dump ("Trying to open volume type %d\n", volumeType);
+
 		if (mount->bPartitionInInactiveSysEncScope
-			&& volumeType != VOLUME_TYPE_NORMAL)
+			&& volumeType == TC_VOLUME_TYPE_HIDDEN_LEGACY)
 			continue;		
 
 		/* Read the volume header */
 
-		if (!mount->bPartitionInInactiveSysEncScope)
+		if (!mount->bPartitionInInactiveSysEncScope
+			|| (mount->bPartitionInInactiveSysEncScope && volumeType == TC_VOLUME_TYPE_HIDDEN))
 		{
-			// Header of a volume that is not within the scope of system encryption
+			// Header of a volume that is not within the scope of system encryption, or
+			// header of a system hidden volume (containing a hidden OS)
+
+			LARGE_INTEGER headerOffset;
+
+			if (mount->UseBackupHeader && lDiskLength.QuadPart <= TC_TOTAL_VOLUME_HEADERS_SIZE)
+				continue;
+
+			switch (volumeType)
+			{
+			case TC_VOLUME_TYPE_NORMAL:
+				headerOffset.QuadPart = mount->UseBackupHeader ? lDiskLength.QuadPart - TC_VOLUME_HEADER_GROUP_SIZE : TC_VOLUME_HEADER_OFFSET;
+				break;
+
+			case TC_VOLUME_TYPE_HIDDEN:
+				if (lDiskLength.QuadPart <= TC_VOLUME_HEADER_GROUP_SIZE)
+					continue;
+
+				headerOffset.QuadPart = mount->UseBackupHeader ? lDiskLength.QuadPart - TC_HIDDEN_VOLUME_HEADER_OFFSET : TC_HIDDEN_VOLUME_HEADER_OFFSET;
+				break;
+
+			case TC_VOLUME_TYPE_HIDDEN_LEGACY:
+				if (mount->UseBackupHeader)
+					continue;
+
+				headerOffset.QuadPart = lDiskLength.QuadPart - TC_HIDDEN_VOLUME_HEADER_OFFSET_LEGACY;
+				break;
+			}
+
+			Dump ("Reading volume header at %I64d\n", headerOffset.QuadPart);
 
 			ntStatus = ZwReadFile (Extension->hDeviceFile,
 			NULL,
@@ -272,8 +312,8 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			NULL,
 			&IoStatusBlock,
 			readBuffer,
-			HEADER_SIZE,
-			volumeType == VOLUME_TYPE_HIDDEN ? &hiddenVolHeaderOffset : NULL,
+			TC_VOLUME_HEADER_EFFECTIVE_SIZE,
+			&headerOffset,
 			NULL);
 		}
 		else
@@ -322,7 +362,7 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 				goto error;
 			}
 
-			parentKeyDataOffset.QuadPart = ((volumeType == VOLUME_TYPE_HIDDEN) ? TC_BOOT_VOLUME_HEADER_SECTOR_OFFSET : TC_BOOT_VOLUME_HEADER_SECTOR_OFFSET);
+			parentKeyDataOffset.QuadPart = TC_BOOT_VOLUME_HEADER_SECTOR_OFFSET;
 
 			ntStatus = ZwReadFile (hParentDeviceFile,
 				NULL,
@@ -330,7 +370,7 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 				NULL,
 				&IoStatusBlock,
 				readBuffer,
-				HEADER_SIZE,
+				TC_VOLUME_HEADER_EFFECTIVE_SIZE,
 				&parentKeyDataOffset,
 				NULL);
 
@@ -341,24 +381,23 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		if (!NT_SUCCESS (ntStatus))
 		{
 			Dump ("Read failed: NTSTATUS 0x%08x\n", ntStatus);
-		}
-		else if (IoStatusBlock.Information != HEADER_SIZE)
-		{
-			Dump ("Read didn't read enough data in: %lu / %lu\n", IoStatusBlock.Information, HEADER_SIZE);
-			ntStatus = STATUS_UNSUCCESSFUL;
+			goto error;
 		}
 
-		if (!NT_SUCCESS (ntStatus))
+		if (IoStatusBlock.Information != TC_VOLUME_HEADER_EFFECTIVE_SIZE)
 		{
+			Dump ("Read didn't read enough data\n");
+			mount->nReturnCode = ERR_VOL_SIZE_WRONG;
+			ntStatus = STATUS_SUCCESS;
 			goto error;
 		}
 
 		/* Attempt to recognize the volume (decrypt the header) */
 
-		if (volumeType == VOLUME_TYPE_HIDDEN && mount->bProtectHiddenVolume)
+		if ((volumeType == TC_VOLUME_TYPE_HIDDEN || volumeType == TC_VOLUME_TYPE_HIDDEN_LEGACY) && mount->bProtectHiddenVolume)
 		{
 			mount->nReturnCode = VolumeReadHeaderCache (
-				mount->bPartitionInInactiveSysEncScope,
+				FALSE,
 				mount->bCache,
 				readBuffer,
 				&mount->ProtectedHidVolPassword,
@@ -367,7 +406,7 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		else
 		{
 			mount->nReturnCode = VolumeReadHeaderCache (
-				mount->bPartitionInInactiveSysEncScope,
+				mount->bPartitionInInactiveSysEncScope && volumeType == TC_VOLUME_TYPE_NORMAL,
 				mount->bCache,
 				readBuffer,
 				&mount->VolumePassword,
@@ -378,12 +417,22 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		{
 			/* Volume header successfully decrypted */
 
+			Dump ("Volume header decrypted\n");
+			Dump ("Required program version = %x\n", (int) Extension->cryptoInfo->RequiredProgramVersion);
+			Dump ("Legacy volume = %d\n", (int) Extension->cryptoInfo->LegacyVolume);
+
+			if (IsHiddenSystemRunning() && !Extension->cryptoInfo->hiddenVolume)
+			{
+				Extension->bReadOnly = mount->bMountReadOnly = TRUE;
+				HiddenSysLeakProtectionCount++;
+			}
+
 			Extension->cryptoInfo->bProtectHiddenVolume = FALSE;
 			Extension->cryptoInfo->bHiddenVolProtectionAction = FALSE;
 
 			Extension->cryptoInfo->bPartitionInInactiveSysEncScope = mount->bPartitionInInactiveSysEncScope;
 
-			if (mount->bPartitionInInactiveSysEncScope)
+			if (mount->bPartitionInInactiveSysEncScope && volumeType == TC_VOLUME_TYPE_NORMAL)
 			{
 				if (Extension->cryptoInfo->EncryptedAreaStart.Value > (unsigned __int64) partitionStartingOffset
 					|| Extension->cryptoInfo->EncryptedAreaStart.Value + Extension->cryptoInfo->VolumeSize.Value <= (unsigned __int64) partitionStartingOffset)
@@ -403,43 +452,57 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 				}
 			}
 
-			switch (volumeType)
+			Extension->cryptoInfo->FirstDataUnitNo.Value = 0;
+
+			if (Extension->cryptoInfo->hiddenVolume && IsHiddenSystemRunning())
 			{
-			case VOLUME_TYPE_NORMAL:
-
-				if (!mount->bPartitionInInactiveSysEncScope)
+				// Prevent mount of a hidden system partition if the system hosted on it is currently running
+				if (memcmp (Extension->cryptoInfo->master_keydata, GetSystemDriveCryptoInfo()->master_keydata, EAGetKeySize (Extension->cryptoInfo->ea)) == 0)
 				{
-					// Correct the volume size for this volume type. Later on, this must be undone
-					// if Extension->DiskLength is used in deriving hidden volume offset
-					Extension->DiskLength -= HEADER_SIZE;	
-				}
-
-				Extension->cryptoInfo->hiddenVolume = FALSE;
-				Extension->cryptoInfo->volDataAreaOffset = mount->bPartitionInInactiveSysEncScope ? 0 : HEADER_SIZE;
-
-				Extension->cryptoInfo->FirstDataUnitNo.Value = mount->bPartitionInInactiveSysEncScope ? 
-					partitionStartingOffset / ENCRYPTION_DATA_UNIT_SIZE : 0;
-
-				break;
-
-			case VOLUME_TYPE_HIDDEN:
-
-				cryptoInfoPtr = mount->bProtectHiddenVolume ? tmpCryptoInfo : Extension->cryptoInfo;
-
-				// Validate the size of the hidden volume specified in the header
-				if (Extension->DiskLength < (__int64) cryptoInfoPtr->hiddenVolumeSize + HIDDEN_VOL_HEADER_OFFSET + HEADER_SIZE
-					|| cryptoInfoPtr->hiddenVolumeSize <= 0)
-				{
-					mount->nReturnCode = ERR_VOL_SIZE_WRONG;
+					mount->nReturnCode = ERR_VOL_ALREADY_MOUNTED;
 					ntStatus = STATUS_SUCCESS;
 					goto error;
 				}
+			}
 
-				// Determine the offset of the hidden volume
-				Extension->cryptoInfo->hiddenVolumeOffset = Extension->DiskLength - cryptoInfoPtr->hiddenVolumeSize - HIDDEN_VOL_HEADER_OFFSET;
+			switch (volumeType)
+			{
+			case TC_VOLUME_TYPE_NORMAL:
 
-				Dump("Hidden volume size = %I64d", cryptoInfoPtr->hiddenVolumeSize);
-				Dump("Hidden volume offset = %I64d", Extension->cryptoInfo->hiddenVolumeOffset);
+				Extension->cryptoInfo->hiddenVolume = FALSE;
+
+				if (mount->bPartitionInInactiveSysEncScope)
+				{
+					Extension->cryptoInfo->volDataAreaOffset = 0;
+					Extension->DiskLength = lDiskLength.QuadPart;
+					Extension->cryptoInfo->FirstDataUnitNo.Value = partitionStartingOffset / ENCRYPTION_DATA_UNIT_SIZE;
+				}
+				else if (Extension->cryptoInfo->LegacyVolume)
+				{
+					Extension->cryptoInfo->volDataAreaOffset = TC_VOLUME_HEADER_SIZE_LEGACY;
+					Extension->DiskLength = lDiskLength.QuadPart - TC_VOLUME_HEADER_SIZE_LEGACY;
+				}
+				else
+				{
+					Extension->cryptoInfo->volDataAreaOffset = Extension->cryptoInfo->EncryptedAreaStart.Value;
+					Extension->DiskLength = Extension->cryptoInfo->VolumeSize.Value;
+				}
+
+				break;
+
+			case TC_VOLUME_TYPE_HIDDEN:
+			case TC_VOLUME_TYPE_HIDDEN_LEGACY:
+
+				cryptoInfoPtr = mount->bProtectHiddenVolume ? tmpCryptoInfo : Extension->cryptoInfo;
+
+				if (volumeType == TC_VOLUME_TYPE_HIDDEN_LEGACY)
+					Extension->cryptoInfo->hiddenVolumeOffset = lDiskLength.QuadPart - cryptoInfoPtr->hiddenVolumeSize - TC_HIDDEN_VOLUME_HEADER_OFFSET_LEGACY;
+				else
+					Extension->cryptoInfo->hiddenVolumeOffset = cryptoInfoPtr->EncryptedAreaStart.Value;
+
+				Dump ("Hidden volume offset = %I64d\n", Extension->cryptoInfo->hiddenVolumeOffset);
+				Dump ("Hidden volume size = %I64d\n", cryptoInfoPtr->hiddenVolumeSize);
+				Dump ("Hidden volume end = %I64d\n", Extension->cryptoInfo->hiddenVolumeOffset + cryptoInfoPtr->hiddenVolumeSize - 1);
 
 				// Validate the offset
 				if (Extension->cryptoInfo->hiddenVolumeOffset % ENCRYPTION_DATA_UNIT_SIZE != 0)
@@ -455,30 +518,31 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 					Extension->DiskLength = cryptoInfoPtr->hiddenVolumeSize;
 					Extension->cryptoInfo->hiddenVolume = TRUE;
 					Extension->cryptoInfo->volDataAreaOffset = Extension->cryptoInfo->hiddenVolumeOffset;
-
-					Extension->cryptoInfo->FirstDataUnitNo.Value = mount->bPartitionInInactiveSysEncScope ? 
-						(partitionStartingOffset + Extension->cryptoInfo->hiddenVolumeOffset) / ENCRYPTION_DATA_UNIT_SIZE 
-						: 0;
-
 				}
 				else
 				{
 					// Hidden volume protection
 					Extension->cryptoInfo->hiddenVolume = FALSE;
 					Extension->cryptoInfo->bProtectHiddenVolume = TRUE;
+					
+					Extension->cryptoInfo->hiddenVolumeProtectedSize = tmpCryptoInfo->hiddenVolumeSize;
 
-					if (!mount->bPartitionInInactiveSysEncScope)
-						Extension->cryptoInfo->hiddenVolumeOffset += HEADER_SIZE;	// Offset was incorrect due to loop processing
+					if (volumeType == TC_VOLUME_TYPE_HIDDEN_LEGACY)
+						Extension->cryptoInfo->hiddenVolumeProtectedSize += TC_VOLUME_HEADER_SIZE_LEGACY;
 
-					Dump("Hidden volume protection active (offset = %I64d)", Extension->cryptoInfo->hiddenVolumeOffset);
+					Dump ("Hidden volume protection active: %I64d-%I64d (%I64d)\n", Extension->cryptoInfo->hiddenVolumeOffset, Extension->cryptoInfo->hiddenVolumeProtectedSize + Extension->cryptoInfo->hiddenVolumeOffset - 1, Extension->cryptoInfo->hiddenVolumeProtectedSize);
 				}
 
 				break;
 			}
 
+			Dump ("Volume data offset = %I64d\n", Extension->cryptoInfo->volDataAreaOffset);
+			Dump ("Volume data size = %I64d\n", Extension->DiskLength);
+			Dump ("Volume data end = %I64d\n", Extension->cryptoInfo->volDataAreaOffset + Extension->DiskLength - 1);
+
 			// If this is a hidden volume, make sure we are supposed to actually
 			// mount it (i.e. not just to protect it)
-			if (!(volumeType == VOLUME_TYPE_HIDDEN && mount->bProtectHiddenVolume))	
+			if (volumeType == TC_VOLUME_TYPE_NORMAL || !mount->bProtectHiddenVolume)	
 			{
 				// Calculate virtual volume geometry
 				Extension->TracksPerCylinder = 1;
@@ -506,17 +570,20 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 
 			// If we are to protect a hidden volume we cannot exit yet, for we must also
 			// decrypt the hidden volume header.
-			if (!(volumeType == VOLUME_TYPE_NORMAL && mount->bProtectHiddenVolume))
+			if (!(volumeType == TC_VOLUME_TYPE_NORMAL && mount->bProtectHiddenVolume))
 			{
 				TCfree (readBuffer);
 
 				if (tmpCryptoInfo != NULL)
+				{
 					crypto_close (tmpCryptoInfo);
+					tmpCryptoInfo = NULL;
+				}
 				
 				return STATUS_SUCCESS;
 			}
 		}
-		else if (mount->bProtectHiddenVolume
+		else if ((mount->bProtectHiddenVolume && volumeType == TC_VOLUME_TYPE_NORMAL)
 			  || mount->nReturnCode != ERR_PASSWORD_WRONG)
 		{
 			 /* If we are not supposed to protect a hidden volume, the only error that is
@@ -538,6 +605,21 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		ntStatus = STATUS_SUCCESS;
 
 error:
+	if (mount->nReturnCode == ERR_SUCCESS)
+		mount->nReturnCode = ERR_PASSWORD_WRONG;
+
+	if (tmpCryptoInfo != NULL)
+	{
+		crypto_close (tmpCryptoInfo);
+		tmpCryptoInfo = NULL;
+	}
+
+	if (Extension->cryptoInfo)
+	{
+		crypto_close (Extension->cryptoInfo);
+		Extension->cryptoInfo = NULL;
+	}
+
 	if (Extension->bTimeStampValid)
 	{
 		/* Restore the container timestamp to preserve plausible deniability of possible hidden volume. */
@@ -562,8 +644,7 @@ error:
 	return ntStatus;
 }
 
-void
-TCCloseVolume (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension)
+void TCCloseVolume (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension)
 {
 	if (DeviceObject);	/* Remove compiler warning */
 
@@ -582,8 +663,7 @@ TCCloseVolume (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension)
 }
 
 
-NTSTATUS
-TCSendHostDeviceIoControlRequest (PDEVICE_OBJECT DeviceObject,
+NTSTATUS TCSendHostDeviceIoControlRequest (PDEVICE_OBJECT DeviceObject,
 			       PEXTENSION Extension,
 			       ULONG IoControlCode,
 			       char *OutputBuffer,
@@ -624,8 +704,7 @@ TCSendHostDeviceIoControlRequest (PDEVICE_OBJECT DeviceObject,
 	return ntStatus;
 }
 
-NTSTATUS
-COMPLETE_IRP (PDEVICE_OBJECT DeviceObject,
+NTSTATUS COMPLETE_IRP (PDEVICE_OBJECT DeviceObject,
 	      PIRP Irp,
 	      NTSTATUS IrpStatus,
 	      ULONG_PTR IrpInformation)

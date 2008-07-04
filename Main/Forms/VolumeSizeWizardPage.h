@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -16,11 +16,13 @@ namespace TrueCrypt
 	class VolumeSizeWizardPage : public VolumeSizeWizardPageBase
 	{
 	public:
-		VolumeSizeWizardPage (wxPanel* parent, const VolumePath &volumePath);
+		VolumeSizeWizardPage (wxPanel* parent, const VolumePath &volumePath, const wxString &freeSpaceText = wxEmptyString);
 
 		uint64 GetVolumeSize () const;
 		bool IsValid ();
-		void SetMaxStaticTextWidth (int width) { InfoStaticText->Wrap (width); }
+		void SetMaxStaticTextWidth (int width);
+		void SetMaxVolumeSize (uint64 size) { MaxVolumeSize = size; }
+		void SetMinVolumeSize (uint64 size) { MinVolumeSize = size; }
 		void SetPageText (const wxString &text) { InfoStaticText->SetLabel (text); }
 		void SetVolumeSize (uint64 size);
 
@@ -38,6 +40,9 @@ namespace TrueCrypt
 		void OnBrowseButtonClick (wxCommandEvent& event);
 		void OnVolumeSizePrefixSelected (wxCommandEvent& event) { PageUpdatedEvent.Raise(); }
 		void OnVolumeSizeTextChanged (wxCommandEvent& event) { PageUpdatedEvent.Raise(); }
+
+		uint64 MaxVolumeSize;
+		uint64 MinVolumeSize;
 	};
 }
 

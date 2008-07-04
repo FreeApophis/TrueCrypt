@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -45,62 +45,111 @@ namespace TrueCrypt
 	{
 		try
 		{
-			WriteOffset = Layout->GetHeaderSize();
-			uint64 EndOffset = Options->Size;
-			VolumeFile->SeekAt (WriteOffset);
+			uint64 endOffset;
+			uint64 filesystemSize = Layout->GetDataSize (HostSize);
 
+			if (filesystemSize < 1)
+				throw ParameterIncorrect (SRC_POS);
+
+			DataStart = Layout->GetDataOffset (HostSize);
+			WriteOffset = DataStart;
+			endOffset = DataStart + Layout->GetDataSize (HostSize);
+
+			VolumeFile->SeekAt (DataStart);
+
+			// Create filesystem
 			if (Options->Filesystem == VolumeCreationOptions::FilesystemType::FAT)
 			{
+				if (filesystemSize < TC_MIN_FAT_FS_SIZE || filesystemSize > TC_MAX_FAT_FS_SIZE)
+					throw ParameterIncorrect (SRC_POS);
+
 				struct WriteSectorCallback : public FatFormatter::WriteSectorCallback
 				{
-					WriteSectorCallback (VolumeCreator *creator) : Creator (creator) { }
+					WriteSectorCallback (VolumeCreator *creator) : Creator (creator), OutputBuffer (256 * 1024), OutputBufferWritePos (0) { }
+
 					virtual bool operator() (const BufferPtr &sector)
 					{
-						Creator->Options->EA->EncryptSectors (sector, Creator->WriteOffset / sector.Size(), 1, sector.Size());
-						Creator->VolumeFile->Write (sector);
+						OutputBuffer.GetRange (OutputBufferWritePos, sector.Size()).CopyFrom (sector);
+						OutputBufferWritePos += sector.Size();
 
-						Creator->WriteOffset += sector.Size();
-						Creator->SizeDone.Set (Creator->WriteOffset);
+						if (OutputBufferWritePos >= OutputBuffer.Size())
+							FlushOutputBuffer();
 
 						return !Creator->AbortRequested;
 					}
+
+					void FlushOutputBuffer ()
+					{
+						if (OutputBufferWritePos > 0)
+						{
+							Creator->Options->EA->EncryptSectors (OutputBuffer.GetRange (0, OutputBufferWritePos),
+								Creator->WriteOffset / SECTOR_SIZE, OutputBufferWritePos / SECTOR_SIZE, SECTOR_SIZE);
+
+							Creator->VolumeFile->Write (OutputBuffer.GetRange (0, OutputBufferWritePos));
+
+							Creator->WriteOffset += OutputBufferWritePos;
+							Creator->SizeDone.Set (Creator->WriteOffset - Creator->DataStart);
+
+							OutputBufferWritePos = 0;
+						}
+					}
+
 					VolumeCreator *Creator;
+					SecureBuffer OutputBuffer;
+					size_t OutputBufferWritePos;
 				};
 
-				WriteSectorCallback fatWriter (this);
-				FatFormatter::Format (fatWriter, Options->Size - Layout->GetHeaderSize(), Options->FilesystemClusterSize);
+				WriteSectorCallback sectorWriter (this);
+				FatFormatter::Format (sectorWriter, filesystemSize, Options->FilesystemClusterSize);
+				sectorWriter.FlushOutputBuffer();
 			}
 
-			if (Options->Quick)
-			{
-				SizeDone.Set (EndOffset);
-			}
-			else
+			if (!Options->Quick)
 			{
 				// Empty sectors are encrypted with different key to randomize plaintext
-				SecureBuffer emptySectorsKey (Options->EA->GetKeySize());
-				RandomNumberGenerator::GetData (emptySectorsKey);
-				Options->EA->SetKey (emptySectorsKey);
-				
-				SecureBuffer emptySectorsModeKey (Options->EA->GetMode()->GetKeySize());
-				RandomNumberGenerator::GetData (emptySectorsModeKey);
-				Options->EA->GetMode()->SetKey (emptySectorsModeKey);
+				Core->RandomizeEncryptionAlgorithmKey (Options->EA);
 
 				SecureBuffer outputBuffer (256 * 1024);
 				uint64 dataFragmentLength = outputBuffer.Size();
 
-				while (!AbortRequested && WriteOffset < EndOffset)
+				while (!AbortRequested && WriteOffset < endOffset)
 				{
-					if (WriteOffset + dataFragmentLength > EndOffset)
-						dataFragmentLength = EndOffset - WriteOffset;
+					if (WriteOffset + dataFragmentLength > endOffset)
+						dataFragmentLength = endOffset - WriteOffset;
 
 					outputBuffer.Zero();
 					Options->EA->EncryptSectors (outputBuffer, WriteOffset / SECTOR_SIZE, dataFragmentLength / SECTOR_SIZE, SECTOR_SIZE);
 					VolumeFile->Write (outputBuffer, (size_t) dataFragmentLength);
 
 					WriteOffset += dataFragmentLength;
-					SizeDone.Set (WriteOffset);
+					SizeDone.Set (WriteOffset - DataStart);
 				}
+			}
+
+			SizeDone.Set (Options->Size);
+
+			// Backup header
+			SecureBuffer backupHeader (Layout->GetHeaderSize());
+
+			SecureBuffer backupHeaderSalt (VolumeHeader::GetSaltSize());
+			RandomNumberGenerator::GetData (backupHeaderSalt);
+
+			Options->VolumeHeaderKdf->DeriveKey (HeaderKey, *PasswordKey, backupHeaderSalt);
+
+			Layout->GetHeader()->EncryptNew (backupHeader, backupHeaderSalt, HeaderKey, Options->VolumeHeaderKdf);
+
+			if (Options->Quick || Options->Type == VolumeType::Hidden)
+				VolumeFile->SeekEnd (Layout->GetBackupHeaderOffset());
+
+			VolumeFile->Write (backupHeader);
+
+			if (Options->Type == VolumeType::Normal)
+			{
+				// Write random data to space reserved for hidden volume backup header
+				Core->RandomizeEncryptionAlgorithmKey (Options->EA);
+				Options->EA->Encrypt (backupHeader);
+
+				VolumeFile->Write (backupHeader);
 			}
 
 			VolumeFile->Flush();
@@ -153,7 +202,11 @@ namespace TrueCrypt
 #endif
 
 			VolumeFile.reset (new File);
-			VolumeFile->Open (options->Path, options->Path.IsDevice() ? File::OpenReadWrite : File::CreateReadWrite, File::ShareNone);
+			VolumeFile->Open (options->Path,
+				(options->Path.IsDevice() || options->Type == VolumeType::Hidden) ? File::OpenReadWrite : File::CreateReadWrite,
+				File::ShareNone);
+
+			HostSize = VolumeFile->Length();
 		}
 
 		try
@@ -162,17 +215,18 @@ namespace TrueCrypt
 			if (options->Path.IsDevice() && VolumeFile->GetDeviceSectorSize() != SECTOR_SIZE)
 				throw UnsupportedSectorSize (SRC_POS);
 
-			// Volume Layout
-			Layout.reset (new VolumeLayoutV1Normal);
-
+			// Volume layout
 			switch (options->Type)
 			{
 			case VolumeType::Normal:
-				Layout.reset (new VolumeLayoutV1Normal());
+				Layout.reset (new VolumeLayoutV2Normal());
 				break;
 
 			case VolumeType::Hidden:
-				Layout.reset (new VolumeLayoutV1Hidden());
+				Layout.reset (new VolumeLayoutV2Hidden());
+
+				if (HostSize < TC_MIN_HIDDEN_VOLUME_HOST_SIZE)
+					throw ParameterIncorrect (SRC_POS);
 				break;
 
 			default:
@@ -180,14 +234,23 @@ namespace TrueCrypt
 			}
 
 			// Volume header
-			VolumeHeader header (Layout->GetHeaderSize());
+			shared_ptr <VolumeHeader> header (Layout->GetHeader());
 			SecureBuffer headerBuffer (Layout->GetHeaderSize());
 
 			VolumeHeaderCreationOptions headerOptions;
 			headerOptions.EA = options->EA;
 			headerOptions.Kdf = options->VolumeHeaderKdf;
 			headerOptions.Type = options->Type;
-			headerOptions.VolumeSize = options->Size;
+
+			if (options->Type == VolumeType::Hidden)
+				headerOptions.VolumeDataStart = HostSize - Layout->GetHeaderSize() * 2 - options->Size;
+			else
+				headerOptions.VolumeDataStart = Layout->GetHeaderSize() * 2;
+
+			headerOptions.VolumeDataSize = Layout->GetMaxDataSize (options->Size);
+
+			if (headerOptions.VolumeDataSize < 1)
+				throw ParameterIncorrect (SRC_POS);
 
 			// Master data key
 			MasterKey.Allocate (options->EA->GetKeySize() * 2);
@@ -201,11 +264,11 @@ namespace TrueCrypt
 
 			// Header key
 			HeaderKey.Allocate (VolumeHeader::GetLargestSerializedKeySize());
-			shared_ptr <VolumePassword> password (Keyfile::ApplyListToPassword (options->Keyfiles, options->Password));
-			options->VolumeHeaderKdf->DeriveKey (HeaderKey, *password, salt);
+			PasswordKey = Keyfile::ApplyListToPassword (options->Keyfiles, options->Password);
+			options->VolumeHeaderKdf->DeriveKey (HeaderKey, *PasswordKey, salt);
 			headerOptions.HeaderKey = HeaderKey;
 
-			header.Create (headerBuffer, headerOptions);
+			header->Create (headerBuffer, headerOptions);
 
 			// Write new header
 			if (Layout->GetHeaderOffset() >= 0)
@@ -214,6 +277,15 @@ namespace TrueCrypt
 				VolumeFile->SeekEnd (Layout->GetHeaderOffset());
 
 			VolumeFile->Write (headerBuffer);
+
+			if (options->Type == VolumeType::Normal)
+			{
+				// Write random data to space reserved for hidden volume header
+				Core->RandomizeEncryptionAlgorithmKey (options->EA);
+				options->EA->Encrypt (headerBuffer);
+
+				VolumeFile->Write (headerBuffer);
+			}
 
 			// Data area keys
 			options->EA->SetKey (MasterKey.GetRange (0, options->EA->GetKeySize()));

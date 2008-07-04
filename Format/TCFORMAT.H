@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.4 the full text of which is contained in the
+ by the TrueCrypt License 2.5 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -43,9 +43,12 @@ BOOL GetFileVolSize (HWND hwndDlg, unsigned __int64 *size);
 BOOL SwitchWizardToSysEncMode (void);
 void SwitchWizardToFileContainerMode (void);
 BOOL ResolveUnknownSysEncDirection (void);
+BOOL WipeHiddenOSCreationConfig (void);
+void HandleDecoyOSCompletion (void);
 void AfterWMInitTasks (HWND hwndDlg);
 void AfterSysEncProgressWMInitTasks (HWND hwndDlg);
 void InitSysEncProgressBar (void);
+BOOL SysEncInEffect (void);
 int MountHiddenVolHost ( HWND hwndDlg, char *volumePath, int *driveNo, Password *password, BOOL bReadOnly );
 int AnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, __int64 hiddenVolHostSize, int *realClusterSize, __int64 *pnbrFreeClusters);
 int ScanVolClusterBitmap ( HWND hwndDlg, int *driveNo, __int64 nbrClusters, __int64 *nbrFreeClusters);
@@ -54,15 +57,15 @@ int WINAPI WINMAIN ( HINSTANCE hInstance , HINSTANCE hPrevInstance , char *lpszC
 extern BOOL showKeys;
 extern volatile HWND hMasterKey;
 extern volatile HWND hHeaderKey;
-extern BOOL bHiddenVolHost;
-extern BOOL bHiddenVolDirect;
+extern volatile BOOL bHiddenVolHost;
+extern volatile BOOL bHiddenVolDirect;
 extern BOOL bRemovableHostDevice;
 extern BOOL bWarnDeviceFormatAdvanced;
 extern HWND hCurPage;
 extern HWND hProgressBar;
-extern BOOL bThreadCancel;
+extern volatile BOOL bThreadCancel;
 extern int nPbar;
-extern int WizardMode;
+extern volatile int WizardMode;
 
 extern char HeaderKeyGUIView [KEY_GUI_VIEW_SIZE];
 extern char MasterKeyGUIView [KEY_GUI_VIEW_SIZE];

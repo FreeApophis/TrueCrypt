@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -106,6 +106,7 @@ namespace TrueCrypt
 				if (*password != *verPassword)
 				{
 					ShowInfo (_("Passwords do not match."));
+					ShowString (L"\n");
 					verPhase = false;
 					continue;
 				}
@@ -139,7 +140,11 @@ namespace TrueCrypt
 						finally_do ({ TextUserInterface::SetTerminalEcho (false); });
 
 						if (!AskYesNo (LangString ["PASSWORD_LENGTH_WARNING"], false, true))
+						{
+							ShowString (L"\n");
 							continue;
+						}
+						ShowString (L"\n");
 					}
 				}
 			}
@@ -320,10 +325,14 @@ namespace TrueCrypt
 			}
 		}
 
+		shared_ptr <VolumeLayout> layout;
 		if (options->Type == VolumeType::Hidden)
-		{
-			throw_err (LangString["FEATURE_CURRENTLY_UNSUPPORTED_ON_PLATFORM"]);
-		}
+			layout.reset (new VolumeLayoutV2Hidden);
+		else
+			layout.reset (new VolumeLayoutV2Normal);
+
+		if (!Preferences.NonInteractive && options->Type == VolumeType::Hidden)
+			ShowInfo (_("\nIMPORTANT: Inexperienced users should use the graphical user interface to create a hidden volume. When using the text interface, the procedure described in the command line help must be followed to create a hidden volume."));
 
 		// Volume path
 		if (options->Path.IsEmpty())
@@ -339,7 +348,32 @@ namespace TrueCrypt
 		}
 
 		// Volume size
-		if (options->Path.IsDevice())
+		uint64 hostSize = 0;
+
+		if (options->Type == VolumeType::Hidden)
+		{
+			FilesystemPath fsPath (wstring (options->Path));
+
+			if (fsPath.IsFile())
+			{
+				File file;
+				file.Open (fsPath);
+				hostSize = file.Length();
+			}
+			else if (fsPath.IsDevice())
+			{
+				hostSize = Core->GetDeviceSize (fsPath);
+			}
+			else
+			{
+				throw_err (_("Hidden volume can be created only in an existing file or device."));
+			}
+
+			if (hostSize < TC_MIN_HIDDEN_VOLUME_HOST_SIZE)
+				throw_err (StringFormatter (_("Minimum outer volume size is {0}."), SizeToString (TC_MIN_HIDDEN_VOLUME_HOST_SIZE + 512)));
+		}
+
+		if (options->Path.IsDevice() && options->Type != VolumeType::Hidden)
 		{
 			if (options->Size != 0)
 				throw_err (_("Volume size cannot be changed for device-hosted volumes."));
@@ -355,8 +389,7 @@ namespace TrueCrypt
 				if (Preferences.NonInteractive)
 					throw MissingArgument (SRC_POS);
 
-				wstring sizeStr = AskString (_("\nEnter volume size (sizeK/size[M]/sizeG): "));
-
+				wstring sizeStr = AskString (options->Type == VolumeType::Hidden ? _("\nEnter hidden volume size (sizeK/size[M]/sizeG): ") : _("\nEnter volume size (sizeK/size[M]/sizeG): "));
 				int multiplier = 1024 * 1024;
 
 				if (sizeStr.find (L"K") != string::npos)
@@ -383,11 +416,30 @@ namespace TrueCrypt
 				{
 					continue;
 				}
-			}
 
-			if (options->Size < MIN_VOLUME_SIZE)
-				options->Size = MIN_VOLUME_SIZE;
+				uint64 minVolumeSize = options->Type == VolumeType::Hidden ? TC_MIN_HIDDEN_VOLUME_SIZE : TC_MIN_VOLUME_SIZE;
+
+				if (options->Size < minVolumeSize)
+				{
+					ShowError (StringFormatter (_("Minimum volume size is {0}."), SizeToString (minVolumeSize + 512)));
+					options->Size = 0;
+				}
+				
+				if (options->Type == VolumeType::Hidden)
+				{
+					uint64 maxHiddenVolumeSize = VolumeLayoutV2Normal().GetMaxDataSize (hostSize) - TC_MIN_FAT_FS_SIZE;
+
+					if (options->Size > maxHiddenVolumeSize)
+					{
+						ShowError (StringFormatter (_("Maximum volume size is {0}."), SizeToString (maxHiddenVolumeSize)));
+						options->Size = 0;
+					}
+				}
+			}
 		}
+
+		if (options->Type == VolumeType::Hidden)
+			options->Quick = true;
 
 		// Encryption algorithm
 		if (!options->EA)
@@ -461,8 +513,10 @@ namespace TrueCrypt
 			}
 		}
 
+		uint64 filesystemSize = layout->GetMaxDataSize (options->Size);
+
 		if (options->Filesystem == VolumeCreationOptions::FilesystemType::FAT
-			&& (options->Size < MIN_FAT_VOLUME_SIZE || options->Size > MAX_FAT_VOLUME_SIZE))
+			&& (filesystemSize < TC_MIN_FAT_FS_SIZE || filesystemSize > TC_MAX_FAT_FS_SIZE))
 		{
 			throw_err (_("Specified volume size cannot be used with FAT filesystem."));
 		}
@@ -500,7 +554,12 @@ namespace TrueCrypt
 			File randSourceFile;
 			
 			randSourceFile.Open (randomSourcePath, File::OpenRead);
-			randSourceFile.Read (buffer);
+
+			for (size_t i = 0; i < buffer.Size(); ++i)
+			{
+				if (randSourceFile.Read (buffer.GetRange (i, 1)) < 1)
+					break;
+			}
 
 			RandomNumberGenerator::AddToPool (buffer);
 		}
@@ -521,7 +580,7 @@ namespace TrueCrypt
 			}
 		}
 
- 		ShowString (L"\n");
+		ShowString (L"\n");
 		wxLongLong startTime = wxGetLocalTimeMillis();
 
 		VolumeCreator creator;
@@ -548,9 +607,10 @@ namespace TrueCrypt
 			Thread::Sleep (100);
 		}
 
-		ShowString (L"\n");
+		ShowString (L"\n\n");
 		creator.CheckResult();
-		ShowInfo ("FORMAT_FINISHED_INFO");
+
+		ShowInfo (options->Type == VolumeType::Hidden ? "HIDVOL_FORMAT_FINISHED_HELP" : "FORMAT_FINISHED_INFO");
 	}
 
 	void TextUserInterface::DoShowError (const wxString &message) const
@@ -618,6 +678,8 @@ namespace TrueCrypt
 	{
 		shared_ptr <VolumeInfo> volume;
 
+		CheckRequirementsForMountingVolume();
+
 		// Volume path
 		while (!options.Path || options.Path->IsEmpty())
 		{
@@ -651,6 +713,8 @@ namespace TrueCrypt
 			}
 			catch (PasswordException&) { }
 		}
+
+		int incorrectPasswordCount = 0;
 
 		while (!volume)
 		{
@@ -699,12 +763,42 @@ namespace TrueCrypt
 				ShowInfo (e);
 				options.ProtectionPassword.reset();
 			}
+			catch (PasswordIncorrect &e)
+			{
+				if (++incorrectPasswordCount > 2 && !options.UseBackupHeaders)
+				{
+					// Try to mount the volume using the backup header
+					options.UseBackupHeaders = true;
+
+					try
+					{
+						volume = UserInterface::MountVolume (options);
+						ShowWarning ("HEADER_DAMAGED_AUTO_USED_HEADER_BAK");
+					}
+					catch (...)
+					{
+						options.UseBackupHeaders = false;
+						ShowInfo (e);
+						options.Password.reset();
+					}
+				}
+				else
+				{
+					ShowInfo (e);
+					options.Password.reset();
+				}
+			}
 			catch (PasswordException &e)
 			{
 				ShowInfo (e);
 				options.Password.reset();
 			}
 		}
+
+#ifdef TC_LINUX
+		if (!Preferences.NonInteractive && !Preferences.DisableKernelEncryptionModeWarning && volume->EncryptionModeName != L"XTS")
+			ShowWarning (LangString["ENCRYPTION_MODE_NOT_SUPPORTED_BY_KERNEL"]);
+#endif
 
 		return volume;
 	}

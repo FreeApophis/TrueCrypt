@@ -1,16 +1,16 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
 
-#include <wx/mimetype.h>
-#include <wx/sckipc.h>
 #include "System.h"
 
 #ifdef TC_UNIX
+#include <wx/mimetype.h>
+#include <wx/sckipc.h>
 #include <signal.h>
 #include <sys/utsname.h>
 #include "Platform/Unix/Process.h"
@@ -25,7 +25,10 @@
 
 namespace TrueCrypt
 {
-	GraphicUserInterface::GraphicUserInterface () : BackgroundMode (false), mMainFrame (nullptr)
+	GraphicUserInterface::GraphicUserInterface () :
+		ActiveFrame (nullptr),
+		BackgroundMode (false),
+		mMainFrame (nullptr)
 	{
 #ifdef TC_UNIX
 		signal (SIGHUP, OnSignal);
@@ -35,7 +38,7 @@ namespace TrueCrypt
 #endif
 
 #ifdef TC_MACOSX
-		wxApp::s_macHelpMenuTitleName = _("Help");
+		wxApp::s_macHelpMenuTitleName = _("&Help");
 #endif
 	}
 
@@ -88,6 +91,178 @@ namespace TrueCrypt
 			OnVolumesAutoDismounted();
 	}
 	
+	void GraphicUserInterface::BackupVolumeHeaders (wxWindow *parent, shared_ptr <VolumePath> volumePath) const
+	{
+		if (Core->IsVolumeMounted (*volumePath))
+		{
+			Gui->ShowInfo ("DISMOUNT_FIRST");
+			return;
+		}
+
+#ifdef TC_UNIX
+		UserId origDeviceOwner;
+		origDeviceOwner.SystemId = (uid_t) -1;
+
+		if (!Core->HasAdminPrivileges() && volumePath->IsDevice())
+		{
+			// Temporarily take ownership of the device
+			struct stat statData;
+			throw_sys_if (stat (string (*volumePath).c_str(), &statData) == -1);
+
+			UserId owner;
+			owner.SystemId = getuid();
+			Core->SetFileOwner (*volumePath, owner);
+			origDeviceOwner.SystemId = statData.st_uid;
+		}
+
+		finally_do_arg2 (FilesystemPath, *volumePath, UserId, origDeviceOwner,
+			{
+				if (finally_arg2.SystemId != (uid_t) -1)
+					Core->SetFileOwner (finally_arg, finally_arg2);
+			}
+		);
+#endif
+		ShowInfo ("EXTERNAL_VOL_HEADER_BAK_FIRST_INFO");
+
+		shared_ptr <Volume> normalVolume;
+		shared_ptr <Volume> hiddenVolume;
+
+		MountOptions normalVolumeMountOptions;
+		MountOptions hiddenVolumeMountOptions;
+
+		normalVolumeMountOptions.Path = volumePath;
+		hiddenVolumeMountOptions.Path = volumePath;
+
+		VolumeType::Enum volumeType = VolumeType::Normal;
+
+		// Open both types of volumes
+		while (true)
+		{
+			shared_ptr <Volume> volume;
+			MountOptions *options = (volumeType == VolumeType::Hidden ? &hiddenVolumeMountOptions : &normalVolumeMountOptions);
+
+			MountOptionsDialog dialog (parent, *options,
+				LangString[volumeType == VolumeType::Hidden ? "ENTER_HIDDEN_VOL_PASSWORD" : "ENTER_NORMAL_VOL_PASSWORD"],
+				true);
+
+			while (!volume)
+			{
+				dialog.Hide();
+				if (dialog.ShowModal() != wxID_OK)
+					return;
+
+				try
+				{
+					wxBusyCursor busy;
+					volume = Core->OpenVolume (
+						options->Path,
+						options->PreserveTimestamps,
+						options->Password,
+						options->Keyfiles,
+						options->Protection,
+						options->ProtectionPassword,
+						options->ProtectionKeyfiles,
+						true,
+						volumeType,
+						options->UseBackupHeaders
+						);
+				}
+				catch (PasswordException &e)
+				{
+					ShowWarning (e);
+				}
+			}
+
+			if (volumeType == VolumeType::Hidden)
+				hiddenVolume = volume;
+			else
+				normalVolume = volume;
+
+			// Ask whether a hidden volume is present
+			if (volumeType == VolumeType::Normal)
+			{
+				wxArrayString choices;
+				choices.Add (LangString["VOLUME_CONTAINS_HIDDEN"]);
+				choices.Add (LangString["VOLUME_DOES_NOT_CONTAIN_HIDDEN"]);
+
+				wxSingleChoiceDialog choiceDialog (parent, LangString["DOES_VOLUME_CONTAIN_HIDDEN"], Application::GetName(), choices);
+				choiceDialog.SetSelection (-1);
+
+				if (choiceDialog.ShowModal() != wxID_OK)
+					return;
+
+				switch (choiceDialog.GetSelection())
+				{
+				case 0:
+					volumeType = VolumeType::Hidden;
+					continue;
+
+				case 1:
+					break;
+
+				default:
+					return;
+				}
+			}
+
+			break;
+		}
+
+		if (hiddenVolume)
+		{
+			if (typeid (*normalVolume->GetLayout()) == typeid (VolumeLayoutV1Normal) && typeid (*hiddenVolume->GetLayout()) != typeid (VolumeLayoutV1Hidden))
+				throw ParameterIncorrect (SRC_POS);
+
+			if (typeid (*normalVolume->GetLayout()) == typeid (VolumeLayoutV2Normal) && typeid (*hiddenVolume->GetLayout()) != typeid (VolumeLayoutV2Hidden))
+				throw ParameterIncorrect (SRC_POS);
+		}
+
+		// Ask user to select backup file path
+		wxString confirmMsg = LangString["CONFIRM_VOL_HEADER_BAK"];
+		confirmMsg.Replace (L"%hs", L"%s");
+
+		if (!Gui->AskYesNo (wxString::Format (confirmMsg, wstring (*volumePath).c_str()), true))
+			return;
+
+		FilePathList files = SelectFiles (parent, wxEmptyString, true, false);
+		if (files.empty())
+			return;
+
+		File backupFile;
+		backupFile.Open (*files.front(), File::CreateWrite);
+
+
+		RandomNumberGenerator::Start();
+		finally_do ({ RandomNumberGenerator::Stop(); });
+
+		{
+			wxBusyCursor busy;
+
+			// Re-encrypt volume header
+			SecureBuffer newHeaderBuffer (normalVolume->GetLayout()->GetHeaderSize());
+			Core->ReEncryptVolumeHeaderWithNewSalt (newHeaderBuffer, normalVolume->GetHeader(), normalVolumeMountOptions.Password, normalVolumeMountOptions.Keyfiles);
+
+			backupFile.Write (newHeaderBuffer);
+
+			if (hiddenVolume)
+			{
+				// Re-encrypt hidden volume header
+				Core->ReEncryptVolumeHeaderWithNewSalt (newHeaderBuffer, hiddenVolume->GetHeader(), hiddenVolumeMountOptions.Password, hiddenVolumeMountOptions.Keyfiles);
+			}
+			else
+			{
+				// Store random data in place of hidden volume header
+				shared_ptr <EncryptionAlgorithm> ea = normalVolume->GetEncryptionAlgorithm();
+				Core->RandomizeEncryptionAlgorithmKey (ea);
+				ea->Encrypt (newHeaderBuffer);
+			}
+
+			backupFile.Write (newHeaderBuffer);
+		}
+
+		Gui->ShowWarning ("VOL_HEADER_BACKED_UP");
+	}
+
 	void GraphicUserInterface::BeginInteractiveBusyState (wxWindow *window)
 	{
 		static auto_ptr <wxCursor> arrowWaitCursor;
@@ -114,6 +289,18 @@ namespace TrueCrypt
 	{
 		foreach (long item, GetListCtrlSelectedItems (listCtrl))
 			listCtrl->SetItemState (item, 0, wxLIST_STATE_SELECTED);
+	}
+
+	wxHyperlinkCtrl *GraphicUserInterface::CreateHyperlink (wxWindow *parent, const wxString &linkUrl, const wxString &linkText) const
+	{
+		wxHyperlinkCtrl *hyperlink = new wxHyperlinkCtrl (parent, wxID_ANY, linkText, linkUrl, wxDefaultPosition, wxDefaultSize, wxHL_DEFAULT_STYLE);
+		
+		wxColour color = wxSystemSettings::GetColour (wxSYS_COLOUR_WINDOWTEXT);
+		hyperlink->SetHoverColour (color);
+		hyperlink->SetNormalColour (color);
+		hyperlink->SetVisitedColour (color);
+		
+		return hyperlink;
 	}
 
 	void GraphicUserInterface::DoShowError (const wxString &message) const
@@ -155,6 +342,12 @@ namespace TrueCrypt
 #ifdef TC_WINDOWS
 		return dynamic_cast <wxTopLevelWindow *> (wxGetActiveWindow());
 #endif
+
+#ifdef __WXGTK__
+		// GTK for some reason unhides a hidden window if it is a parent of a new window
+		if (IsInBackgroundMode())
+			return nullptr;
+#endif
 		if (wxTopLevelWindows.size() == 1)
 			return dynamic_cast <wxTopLevelWindow *> (wxTopLevelWindows.front());
 
@@ -174,7 +367,7 @@ namespace TrueCrypt
 		} while	(wxGetLocalTimeMillis() - startTime < 500);
 #endif
 
-		return dynamic_cast <wxTopLevelWindow *> (GetTopWindow());
+		return dynamic_cast <wxTopLevelWindow *> (ActiveFrame ? ActiveFrame : GetTopWindow());
 	}
 
 	shared_ptr <GetStringFunctor> GraphicUserInterface::GetAdminPasswordRequestHandler ()
@@ -372,6 +565,8 @@ namespace TrueCrypt
 
 	shared_ptr <VolumeInfo> GraphicUserInterface::MountVolume (MountOptions &options) const
 	{
+		CheckRequirementsForMountingVolume();
+
 		shared_ptr <VolumeInfo> volume;
 
 		if (!options.Path || options.Path->IsEmpty())
@@ -412,6 +607,8 @@ namespace TrueCrypt
 			KeyfileList keyfiles;
 
 			MountOptionsDialog dialog (GetTopWindow(), options);
+			int incorrectPasswordCount = 0;
+
 			while (!volume)
 			{
 				dialog.Hide();
@@ -422,6 +619,27 @@ namespace TrueCrypt
 				{
 					wxBusyCursor busy;
 					volume = UserInterface::MountVolume (options);
+				}
+				catch (PasswordIncorrect &e)
+				{
+					if (++incorrectPasswordCount > 2 && !options.UseBackupHeaders)
+					{
+						// Try to mount the volume using the backup header
+						options.UseBackupHeaders = true;
+
+						try
+						{
+							volume = UserInterface::MountVolume (options);
+							ShowWarning ("HEADER_DAMAGED_AUTO_USED_HEADER_BAK");
+						}
+						catch (...)
+						{
+							options.UseBackupHeaders = false;
+							ShowWarning (e);
+						}
+					}
+					else
+						ShowWarning (e);
 				}
 				catch (PasswordException &e)
 				{
@@ -434,6 +652,15 @@ namespace TrueCrypt
 			ShowError (e);
 		}
 
+#ifdef TC_LINUX
+		if (volume && !Preferences.NonInteractive && !Preferences.DisableKernelEncryptionModeWarning && volume->EncryptionModeName != L"XTS"
+			&& !AskYesNo (LangString["ENCRYPTION_MODE_NOT_SUPPORTED_BY_KERNEL"] + _("\n\nDo you want to show this message next time you mount such a volume?"), true, true))
+		{
+			UserPreferences prefs = GetPreferences();
+			prefs.DisableKernelEncryptionModeWarning = true;
+			Gui->SetPreferences (prefs);
+		}
+#endif
 		return volume;
 	}
 
@@ -631,6 +858,8 @@ namespace TrueCrypt
 
 	void GraphicUserInterface::OpenDocument (wxWindow *parent, const wxFileName &document)
 	{
+		if (!document.FileExists())
+			throw ParameterIncorrect (SRC_POS);
 
 #ifdef TC_WINDOWS
 
@@ -653,24 +882,14 @@ namespace TrueCrypt
 					return;
 #endif
 			}
-			catch (TimeOut&)
-			{
-				return;
-			}
-			catch (Exception &e)
-			{
-				Gui->ShowError (e);
-			}
+			catch (TimeOut&) { }
 		}
 #endif
-		if (Gui->AskYesNo (LangString ["HELP_READER_ERROR"]))
-			OpenOnlineHelp (parent);
 	}
 
-	wxString GraphicUserInterface::GetHomepageLinkURL (const wxString &linkId, const wxString &extraVars) const
+	wxString GraphicUserInterface::GetHomepageLinkURL (const wxString &linkId, bool secure, const wxString &extraVars) const
 	{
-		wxString url = wxString (L"http://www.truecrypt.org/applink.php?version=") + StringConverter::ToWide (Version::String()) + L"&dest=" + linkId;
-		
+		wxString url = wxString (StringConverter::ToWide (secure ? TC_APPLINK_SECURE : TC_APPLINK)) + L"&dest=" + linkId;
 		wxString os, osVersion, architecture;
 
 #ifdef TC_WINDOWS
@@ -684,7 +903,6 @@ namespace TrueCrypt
 			os = StringConverter::ToWide (unameData.sysname);
 			osVersion = StringConverter::ToWide (unameData.release);
 			architecture = StringConverter::ToWide (unameData.machine);
-			//os = L"MacOSX";
 
 			if (os == L"Darwin")
 				os = L"MacOSX";
@@ -721,7 +939,7 @@ namespace TrueCrypt
 		wxString url;
 		
 		BeginInteractiveBusyState (parent);
-		wxLaunchDefaultBrowser (GetHomepageLinkURL (linkId, extraVars), wxBROWSER_NEW_WINDOW);
+		wxLaunchDefaultBrowser (GetHomepageLinkURL (linkId, false, extraVars), wxBROWSER_NEW_WINDOW);
 		Thread::Sleep (200);
 		EndInteractiveBusyState (parent);
 	}
@@ -747,12 +965,263 @@ namespace TrueCrypt
 
 			wxFileName docFile = docPath;
 			docFile.Normalize();
-			Gui->OpenDocument (parent, docFile);
+
+			try
+			{
+				Gui->OpenDocument (parent, docFile);
+			}
+			catch (...)
+			{
+				if (Gui->AskYesNo (LangString ["HELP_READER_ERROR"], true))
+					OpenOnlineHelp (parent);
+			}
 		}
 		catch (Exception &e)
 		{
 			Gui->ShowError (e);
 		}
+	}
+
+	void GraphicUserInterface::RestoreVolumeHeaders (wxWindow *parent, shared_ptr <VolumePath> volumePath) const
+	{
+		if (Core->IsVolumeMounted (*volumePath))
+		{
+			Gui->ShowInfo ("DISMOUNT_FIRST");
+			return;
+		}
+
+#ifdef TC_UNIX
+		UserId origDeviceOwner;
+		origDeviceOwner.SystemId = (uid_t) -1;
+
+		if (!Core->HasAdminPrivileges() && volumePath->IsDevice())
+		{
+			// Temporarily take ownership of the device
+			struct stat statData;
+			throw_sys_if (stat (string (*volumePath).c_str(), &statData) == -1);
+
+			UserId owner;
+			owner.SystemId = getuid();
+			Core->SetFileOwner (*volumePath, owner);
+			origDeviceOwner.SystemId = statData.st_uid;
+		}
+
+		finally_do_arg2 (FilesystemPath, *volumePath, UserId, origDeviceOwner,
+			{
+				if (finally_arg2.SystemId != (uid_t) -1)
+					Core->SetFileOwner (finally_arg, finally_arg2);
+			}
+		);
+#endif
+
+		// Ask whether to restore internal or external backup
+		bool restoreInternalBackup;
+		wxArrayString choices;
+		choices.Add (LangString["HEADER_RESTORE_INTERNAL"]);
+		choices.Add (LangString["HEADER_RESTORE_EXTERNAL"]);
+
+		wxSingleChoiceDialog choiceDialog (parent, LangString["HEADER_RESTORE_EXTERNAL_INTERNAL"], Application::GetName(), choices);
+		choiceDialog.SetSelection (-1);
+
+		if (choiceDialog.ShowModal() != wxID_OK)
+			return;
+
+		switch (choiceDialog.GetSelection())
+		{
+		case 0:
+			restoreInternalBackup = true;
+			break;
+
+		case 1:
+			restoreInternalBackup = false;
+			break;
+
+		default:
+			return;
+		}
+
+		if (restoreInternalBackup)
+		{
+			// Restore header from the internal backup
+			shared_ptr <Volume> volume;
+			MountOptions options;
+			options.Path = volumePath;
+
+			MountOptionsDialog dialog (parent, options, wxEmptyString, true);
+
+			while (!volume)
+			{
+				dialog.Hide();
+				if (dialog.ShowModal() != wxID_OK)
+					return;
+
+				try
+				{
+					wxBusyCursor busy;
+					volume = Core->OpenVolume (
+						options.Path,
+						options.PreserveTimestamps,
+						options.Password,
+						options.Keyfiles,
+						options.Protection,
+						options.ProtectionPassword,
+						options.ProtectionKeyfiles,
+						options.SharedAccessAllowed,
+						VolumeType::Unknown,
+						true
+						);
+				}
+				catch (PasswordException &e)
+				{
+					ShowWarning (e);
+				}
+			}
+
+			shared_ptr <VolumeLayout> layout = volume->GetLayout();
+			if (typeid (*layout) == typeid (VolumeLayoutV1Normal) || typeid (*layout) == typeid (VolumeLayoutV1Hidden))
+			{
+				ShowError ("VOLUME_HAS_NO_BACKUP_HEADER");
+				return;
+			}
+
+			RandomNumberGenerator::Start();
+			finally_do ({ RandomNumberGenerator::Stop(); });
+
+			// Re-encrypt volume header
+			SecureBuffer newHeaderBuffer (volume->GetLayout()->GetHeaderSize());
+			Core->ReEncryptVolumeHeaderWithNewSalt (newHeaderBuffer, volume->GetHeader(), options.Password, options.Keyfiles);
+
+			// Write volume header
+			int headerOffset = volume->GetLayout()->GetHeaderOffset();
+			shared_ptr <File> volumeFile = volume->GetFile();
+
+			if (headerOffset >= 0)
+				volumeFile->SeekAt (headerOffset);
+			else
+				volumeFile->SeekEnd (headerOffset);
+
+			volumeFile->Write (newHeaderBuffer);
+		}
+		else
+		{
+			// Restore header from an external backup
+
+			wxString confirmMsg = LangString["CONFIRM_VOL_HEADER_RESTORE"];
+			confirmMsg.Replace (L"%hs", L"%s");
+
+			if (!Gui->AskYesNo (wxString::Format (confirmMsg, wstring (*volumePath).c_str()), true, true))
+				return;
+
+			FilePathList files = Gui->SelectFiles (parent, wxEmptyString, false, false);
+			if (files.empty())
+				return;
+
+			File backupFile;
+			backupFile.Open (*files.front(), File::OpenRead);
+
+			uint64 headerSize;
+			bool legacyBackup;
+
+			// Determine the format of the backup file
+			switch (backupFile.Length())
+			{
+			case TC_VOLUME_HEADER_GROUP_SIZE:
+				headerSize = TC_VOLUME_HEADER_SIZE;
+				legacyBackup = false;
+				break;
+
+			case TC_VOLUME_HEADER_SIZE_LEGACY * 2:
+				headerSize = TC_VOLUME_HEADER_SIZE_LEGACY;
+				legacyBackup = true;
+				break;
+
+			default:
+				ShowError ("HEADER_BACKUP_SIZE_INCORRECT");
+				return;
+			}
+
+			// Open the volume header stored in the backup file
+			MountOptions options;
+
+			MountOptionsDialog dialog (parent, options, LangString["ENTER_HEADER_BACKUP_PASSWORD"], true);
+			shared_ptr <VolumeLayout> decryptedLayout;
+
+			while (!decryptedLayout)
+			{
+				dialog.Hide();
+				if (dialog.ShowModal() != wxID_OK)
+					return;
+
+				try
+				{
+					wxBusyCursor busy;
+
+					// Test volume layouts
+					foreach (shared_ptr <VolumeLayout> layout, VolumeLayout::GetAvailableLayouts ())
+					{
+						if (!legacyBackup && (typeid (*layout) == typeid (VolumeLayoutV1Normal) || typeid (*layout) == typeid (VolumeLayoutV1Hidden)))
+							continue;
+
+						if (legacyBackup && (typeid (*layout) == typeid (VolumeLayoutV2Normal) || typeid (*layout) == typeid (VolumeLayoutV2Hidden)))
+							continue;
+
+						SecureBuffer headerBuffer (layout->GetHeaderSize());
+						backupFile.ReadAt (headerBuffer, layout->GetType() == VolumeType::Hidden ? layout->GetHeaderSize() : 0);
+
+						// Decrypt header
+						shared_ptr <VolumePassword> passwordKey = Keyfile::ApplyListToPassword (options.Keyfiles, options.Password);
+						if (layout->GetHeader()->Decrypt (headerBuffer, *passwordKey, layout->GetSupportedEncryptionAlgorithms(), layout->GetSupportedEncryptionModes()))
+						{
+							decryptedLayout = layout;
+							break;
+						}
+					}
+
+					if (!decryptedLayout)
+						throw PasswordIncorrect (SRC_POS);
+				}
+				catch (PasswordException &e)
+				{
+					ShowWarning (e);
+				}
+			}
+
+			File volumeFile;
+			volumeFile.Open (*volumePath, File::OpenReadWrite, File::ShareNone, File::PreserveTimestamps);
+			
+			RandomNumberGenerator::Start();
+			finally_do ({ RandomNumberGenerator::Stop(); });
+
+			// Re-encrypt volume header
+			SecureBuffer newHeaderBuffer (decryptedLayout->GetHeaderSize());
+			Core->ReEncryptVolumeHeaderWithNewSalt (newHeaderBuffer, decryptedLayout->GetHeader(), options.Password, options.Keyfiles);
+
+			// Write volume header
+			int headerOffset = decryptedLayout->GetHeaderOffset();
+			if (headerOffset >= 0)
+				volumeFile.SeekAt (headerOffset);
+			else
+				volumeFile.SeekEnd (headerOffset);
+
+			volumeFile.Write (newHeaderBuffer);
+
+			if (decryptedLayout->HasBackupHeader())
+			{
+				// Re-encrypt backup volume header
+				Core->ReEncryptVolumeHeaderWithNewSalt (newHeaderBuffer, decryptedLayout->GetHeader(), options.Password, options.Keyfiles);
+				
+				// Write backup volume header
+				headerOffset = decryptedLayout->GetBackupHeaderOffset();
+				if (headerOffset >= 0)
+					volumeFile.SeekAt (headerOffset);
+				else
+					volumeFile.SeekEnd (headerOffset);
+
+				volumeFile.Write (newHeaderBuffer);
+			}
+		}
+
+		Gui->ShowInfo ("VOL_HEADER_RESTORED");
 	}
 
 	DevicePath GraphicUserInterface::SelectDevice (wxWindow *parent) const

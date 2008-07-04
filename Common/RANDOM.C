@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.4 the full text of which is contained in the
+ by the TrueCrypt License 2.5 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -46,8 +46,6 @@ void RandAddInt (unsigned __int32 x)
 	RandaddByte((x >> 24));
 }
 
-#ifdef _WIN32
-
 #include <tlhelp32.h>
 #include "Dlgcode.h"
 
@@ -65,7 +63,6 @@ HANDLE hNetAPI32 = NULL;
 // CryptoAPI
 HCRYPTPROV hCryptProv;
 
-#endif // _WIN32
 
 /* Init the random number generator, setup the hooks, and start the thread */
 int
@@ -73,9 +70,7 @@ Randinit ()
 {
 	if(bRandDidInit) return 0;
 
-#ifdef _WIN32
 	InitializeCriticalSection (&critRandProt);
-#endif
 
 	bRandDidInit = TRUE;
 
@@ -85,7 +80,6 @@ Randinit ()
 	else
 		memset (pRandPool, 0, RANDOMPOOL_ALLOCSIZE);
 
-#ifdef _WIN32
 	VirtualLock (pRandPool, RANDOMPOOL_ALLOCSIZE);
 
 	hKeyboard = SetWindowsHookEx (WH_KEYBOARD, (HOOKPROC)&KeyboardProc, NULL, GetCurrentThreadId ());
@@ -106,7 +100,6 @@ Randinit ()
 
 	if (_beginthread (ThreadSafeThreadFunction, 8192, NULL) == -1)
 		goto error;
-#endif
 
 	return 0;
 
@@ -123,7 +116,6 @@ Randfree ()
 	if (bRandDidInit == FALSE)
 		return;
 
-#ifdef _WIN32
 	EnterCriticalSection (&critRandProt);
 
 	if (hMouse != 0)
@@ -163,8 +155,6 @@ Randfree ()
 	hKeyboard = NULL;
 	bThreadTerminate = FALSE;
 	DeleteCriticalSection (&critRandProt);
-
-#endif // _WIN32
 
 	if (pRandPool != NULL)
 	{
@@ -290,7 +280,6 @@ RandaddBuf (void *buf, int len)
 	}
 }
 
-#ifdef _WIN32
 BOOL
 RandpeekBytes (unsigned char *buf, int len)
 {
@@ -306,7 +295,6 @@ RandpeekBytes (unsigned char *buf, int len)
 
 	return TRUE;
 }
-#endif
 
 
 /* Get len random bytes from the pool (max. RNG_POOL_SIZE bytes per a single call) */
@@ -319,9 +307,7 @@ RandgetBytes (unsigned char *buf, int len, BOOL forceSlowPoll)
 	if (HashFunction == 0)
 		return FALSE;
 
-#ifdef _WIN32
 	EnterCriticalSection (&critRandProt);
-#endif
 
 	if (bDidSlowPoll == FALSE || forceSlowPoll)
 	{
@@ -337,12 +323,9 @@ RandgetBytes (unsigned char *buf, int len, BOOL forceSlowPoll)
 	/* There's never more than RNG_POOL_SIZE worth of randomess */
 	if (len > RNG_POOL_SIZE)
 	{
-#ifdef _WIN32
 		Error ("ERR_NOT_ENOUGH_RANDOM_DATA");	
 		len = RNG_POOL_SIZE;
-#else
 		return FALSE;
-#endif
 	}
 
 	// Requested number of bytes is copied from pool to output buffer,
@@ -370,13 +353,10 @@ RandgetBytes (unsigned char *buf, int len, BOOL forceSlowPoll)
 		if (randPoolReadIndex == RNG_POOL_SIZE) randPoolReadIndex = 0;
 	}
 
-#ifdef _WIN32
 	LeaveCriticalSection (&critRandProt);
-#endif
 	return ret;
 }
 
-#ifdef _WIN32
 /* Capture the mouse, and as long as the event is not the same as the last
    two events, add the crc of the event, and the crc of the time difference
    between this event and the last + the current time to the pool.
@@ -526,14 +506,12 @@ NETSTATISTICSGET pNetStatisticsGet = NULL;
 NETAPIBUFFERSIZE pNetApiBufferSize = NULL;
 NETAPIBUFFERFREE pNetApiBufferFree = NULL;
 
-#endif	// _WIN32
 
 /* This is the slowpoll function which gathers up network/hard drive
    performance data for the random pool */
 BOOL SlowPoll (void)
 {
 	int i;
-#ifdef _WIN32
 	static int isWorkstation = -1;
 	static int cbPerfData = 0x10000;
 	HANDLE hDevice;
@@ -648,24 +626,6 @@ BOOL SlowPoll (void)
 			RandaddBuf (buffer, sizeof (buffer));
 	}
 
-#else	// _WIN32
-
-	// Read all bytes available in /dev/random up to buffer size
-	int f = open ("/dev/random", O_RDONLY | O_NONBLOCK);
-	if (f == -1)
-	{
-		perror ("Cannot open /dev/random");
-		return FALSE;
-	}
-
-	i = read (f, buffer, sizeof (buffer));
-	RandaddBuf (buffer, i);
-	close (f);
-
-	FastPoll ();
-
-#endif	 // #else _WIN32
-
 	burn(buffer, sizeof (buffer));
 	Randmix();
 	return TRUE;
@@ -676,7 +636,6 @@ BOOL SlowPoll (void)
 BOOL FastPoll (void)
 {
 	int nOriginalRandIndex = nRandIndex;
-#ifdef _WIN32
 	static BOOL addedFixedItems = FALSE;
 	FILETIME creationTime, exitTime, kernelTime, userTime;
 	DWORD minimumWorkingSetSize, maximumWorkingSetSize;
@@ -777,30 +736,6 @@ BOOL FastPoll (void)
 	// CryptoAPI
 	if (hCryptProv && CryptGenRandom(hCryptProv, sizeof (buffer), buffer)) 
 		RandaddBuf (buffer, sizeof (buffer));
-
-#else	// _WIN32
-
-	// /dev/urandom
-
-	int f = open ("/dev/urandom", 0);
-
-	if (f == -1)
-	{
-		perror ("Cannot open /dev/urandom");
-		return FALSE;
-	}
-
-	if (read (f, buffer, sizeof (buffer)) != sizeof (buffer))
-	{
-		perror ("Read from /dev/urandom failed");
-		close (f);
-		return FALSE;
-	}
-
-	close (f);
-	RandaddBuf (buffer, sizeof (buffer));
-
-#endif	// #else _WIN32
 
 	/* Apply the pool mixing function */
 	Randmix();

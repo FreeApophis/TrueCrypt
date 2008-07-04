@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 #
-# Governed by the TrueCrypt License 2.4 the full text of which is contained
+# Governed by the TrueCrypt License 2.5 the full text of which is contained
 # in the file License.txt included in TrueCrypt binary and source code
 # distribution packages.
 #
@@ -41,7 +41,7 @@ export CXX ?= g++
 export RANLIB ?= ranlib
 
 export CFLAGS := -W
-export CXXFLAGS := -Wall
+export CXXFLAGS := -Wall -Wno-sign-compare -Wno-unused-parameter 
 
 C_CXX_FLAGS := -MMD -I$(BASE_DIR) -I$(BASE_DIR)/Crypto
 C_CXX_FLAGS += -DBOOL=int -DFALSE=0 -DTRUE=1
@@ -71,7 +71,6 @@ endif
 ifeq "$(TC_BUILD_CONFIG)" "Release"
 
 C_CXX_FLAGS += -O2 -fno-strict-aliasing  # Do not enable strict aliasing
-CXXFLAGS += -Wno-sign-compare -Wno-unused-parameter
 export WX_BUILD_DIR ?= $(BASE_DIR)/wxrelease
 WX_CONFIGURE_FLAGS += --disable-debug_flag --disable-debug_gdb --disable-debug_info
 
@@ -80,7 +79,7 @@ else
 #------ Debug configuration ------
 
 C_CXX_FLAGS += -DDEBUG
-CXXFLAGS += -fno-default-inline -Wno-sign-compare -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable
+CXXFLAGS += -fno-default-inline -Wno-unused-function -Wno-unused-variable
 export WX_BUILD_DIR ?= $(BASE_DIR)/wxdebug
 WX_CONFIGURE_FLAGS += --enable-debug_flag --disable-debug_gdb --disable-debug_info
 
@@ -134,13 +133,15 @@ C_CXX_FLAGS += -DTC_UNIX -DTC_BSD -DTC_MACOSX
 
 ifeq "$(TC_BUILD_CONFIG)" "Release"
 
-SDK ?= /Developer/SDKs/MacOSX10.4u.sdk
+TC_OSX_SDK ?= /Developer/SDKs/MacOSX10.4u.sdk
 export DISABLE_PRECOMPILED_HEADERS := 1
+
 S := $(C_CXX_FLAGS)
 C_CXX_FLAGS = $(subst -MMD,,$(S))
 
-C_CXX_FLAGS += -gfull -arch i386 -arch ppc -isysroot $(SDK)
-LFLAGS += -Wl,-dead_strip -arch i386 -arch ppc -Wl,-syslibroot $(SDK)
+C_CXX_FLAGS += -gfull -arch i386 -arch ppc -isysroot $(TC_OSX_SDK)
+LFLAGS += -Wl,-dead_strip -arch i386 -arch ppc -mmacosx-version-min=10.4 -Wl,-syslibroot $(TC_OSX_SDK)
+
 WX_CONFIGURE_FLAGS += --enable-universal_binary
 WXCONFIG_CFLAGS += -gfull
 WXCONFIG_CXXFLAGS += -gfull

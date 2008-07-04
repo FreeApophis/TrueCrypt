@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -42,6 +42,16 @@ namespace TrueCrypt
 
 	typedef list <VolumePath> VolumePathList;
 
+	struct VolumeHostType
+	{
+		enum Enum
+		{
+			Unknown,
+			File,
+			Device
+		};
+	};
+
 	struct VolumeProtection
 	{
 		enum Enum
@@ -62,22 +72,26 @@ namespace TrueCrypt
 		shared_ptr <EncryptionAlgorithm> GetEncryptionAlgorithm () const;
 		shared_ptr <EncryptionMode> GetEncryptionMode () const;
 		shared_ptr <File> GetFile () const { return VolumeFile; }
+		shared_ptr <VolumeHeader> GetHeader () const { return Header; }
 		uint64 GetHeaderCreationTime () const { return Header->GetHeaderCreationTime(); }
+		uint64 GetHostSize () const { return VolumeHostSize; }
+		shared_ptr <VolumeLayout> GetLayout () const { return Layout; }
 		VolumePath GetPath () const { return VolumeFile->GetPath(); }
 		VolumeProtection::Enum GetProtectionType () const { return Protection; }
 		shared_ptr <Pkcs5Kdf> GetPkcs5Kdf () const { return Header->GetPkcs5Kdf(); }
 		uint32 GetSaltSize () const { return Header->GetSaltSize(); }
 		size_t GetSectorSize () const { return SectorSize; }
 		uint64 GetSize () const { return VolumeDataSize; }
+		uint64 GetTopWriteOffset () const { return TopWriteOffset; }
 		uint64 GetTotalDataRead () const { return TotalDataRead; }
 		uint64 GetTotalDataWritten () const { return TotalDataWritten; }
 		VolumeType::Enum GetType () const { return Type; }
 		uint64 GetVolumeCreationTime () const { return Header->GetVolumeCreationTime(); }
 		bool IsHiddenVolumeProtectionTriggered () const { return HiddenVolumeProtectionTriggered; }
-		void Open (const VolumePath &volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection = VolumeProtection::None, shared_ptr <VolumePassword> protectionPassword = shared_ptr <VolumePassword> (), shared_ptr <KeyfileList> protectionKeyfiles = shared_ptr <KeyfileList> (), bool sharedAccessAllowed = false, VolumeType::Enum volumeType = VolumeType::Unknown);
-		void Open (shared_ptr <File> volumeFile, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection = VolumeProtection::None, shared_ptr <VolumePassword> protectionPassword = shared_ptr <VolumePassword> (), shared_ptr <KeyfileList> protectionKeyfiles = shared_ptr <KeyfileList> (), VolumeType::Enum volumeType = VolumeType::Unknown);
+		void Open (const VolumePath &volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection = VolumeProtection::None, shared_ptr <VolumePassword> protectionPassword = shared_ptr <VolumePassword> (), shared_ptr <KeyfileList> protectionKeyfiles = shared_ptr <KeyfileList> (), bool sharedAccessAllowed = false, VolumeType::Enum volumeType = VolumeType::Unknown, bool useBackupHeaders = false);
+		void Open (shared_ptr <File> volumeFile, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection = VolumeProtection::None, shared_ptr <VolumePassword> protectionPassword = shared_ptr <VolumePassword> (), shared_ptr <KeyfileList> protectionKeyfiles = shared_ptr <KeyfileList> (), VolumeType::Enum volumeType = VolumeType::Unknown, bool useBackupHeaders = false);
 		void ReadSectors (const BufferPtr &buffer, uint64 byteOffset);
-		void ReEncryptHeader (const ConstBufferPtr &newSalt, const ConstBufferPtr &newHeaderKey, shared_ptr <Pkcs5Kdf> newPkcs5Kdf);
+		void ReEncryptHeader (bool backupHeader, const ConstBufferPtr &newSalt, const ConstBufferPtr &newHeaderKey, shared_ptr <Pkcs5Kdf> newPkcs5Kdf);
 		void WriteSectors (const ConstBufferPtr &buffer, uint64 byteOffset);
 
 	protected:
@@ -97,6 +111,7 @@ namespace TrueCrypt
 		uint64 VolumeHostSize;
 		uint64 VolumeDataOffset; 
 		uint64 VolumeDataSize;
+		uint64 TopWriteOffset;
 		uint64 TotalDataRead;
 		uint64 TotalDataWritten;
 

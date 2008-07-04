@@ -1,12 +1,13 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
 
 #include "CoreUnix.h"
+#include <errno.h>
 #include <iostream>
 #include <signal.h>
 #include <sys/stat.h>
@@ -68,7 +69,7 @@ namespace TrueCrypt
 		Process::Execute ("umount", args);
 	}
 
-	void CoreUnix::DismountVolume (shared_ptr <VolumeInfo> mountedVolume, bool ignoreOpenFiles)
+	shared_ptr <VolumeInfo> CoreUnix::DismountVolume (shared_ptr <VolumeInfo> mountedVolume, bool ignoreOpenFiles, bool syncVolumeInfo)
 	{
 		if (!mountedVolume->MountPoint.IsEmpty())
 		{
@@ -79,6 +80,12 @@ namespace TrueCrypt
 				mountedVolume->MountPoint.Delete();
 		}
 
+		try
+		{
+			DismountNativeVolume (mountedVolume);
+		}
+		catch (NotApplicable &) { }
+
 		if (!mountedVolume->LoopDevice.IsEmpty())
 		{
 			try
@@ -88,13 +95,13 @@ namespace TrueCrypt
 			catch (ExecutedProcessFailed&) { }
 		}
 
-		if (mountedVolume->Protection == VolumeProtection::HiddenVolumeReadOnly)
+		if (syncVolumeInfo || mountedVolume->Protection == VolumeProtection::HiddenVolumeReadOnly)
 		{
 			sync();
 			VolumeInfoList ml = GetMountedVolumes (mountedVolume->Path);
 
 			if (ml.size() > 0)
-				mountedVolume->HiddenVolumeProtectionTriggered = ml.front()->HiddenVolumeProtectionTriggered;
+				mountedVolume = ml.front();
 		}
 
 		list <string> args;
@@ -124,6 +131,8 @@ namespace TrueCrypt
 
 		VolumeEventArgs eventArgs (mountedVolume);
 		VolumeDismountedEvent.Raise (eventArgs);
+
+		return mountedVolume;
 	}
 
 	string CoreUnix::GetDefaultMountPointPrefix () const
@@ -150,7 +159,12 @@ namespace TrueCrypt
 
 	DirectoryPath CoreUnix::GetDeviceMountPoint (const DevicePath &devicePath) const
 	{
-		MountedFilesystemList mountedFilesystems = GetMountedFilesystems (devicePath);
+		DevicePath devPath = devicePath;
+#ifdef TC_MACOSX
+		if (string (devPath).find ("/dev/rdisk") != string::npos)
+			devPath = string ("/dev/") + string (devicePath).substr (6);
+#endif
+		MountedFilesystemList mountedFilesystems = GetMountedFilesystems (devPath);
 
 		if (mountedFilesystems.size() < 1)
 			return DirectoryPath();
@@ -186,9 +200,9 @@ namespace TrueCrypt
 
 			mountedVol->AuxMountPoint = mf.MountPoint;
 
-			if (!mountedVol->LoopDevice.IsEmpty())
+			if (!mountedVol->VirtualDevice.IsEmpty())
 			{
-				MountedFilesystemList mpl = GetMountedFilesystems (mountedVol->LoopDevice);
+				MountedFilesystemList mpl = GetMountedFilesystems (mountedVol->VirtualDevice);
 
 				if (mpl.size() > 0)
 					mountedVol->MountPoint = mpl.front()->MountPoint;
@@ -216,7 +230,7 @@ namespace TrueCrypt
 			catch (...) { }
 		}
 
-		throw ParameterIncorrect (SRC_POS);
+		return getgid();
 	}
 
 	uid_t CoreUnix::GetRealUserId () const
@@ -232,7 +246,7 @@ namespace TrueCrypt
 			catch (...) { }
 		}
 
-		throw ParameterIncorrect (SRC_POS);
+		return getuid();
 	}
 	
 	string CoreUnix::GetTempDirectory () const
@@ -304,16 +318,39 @@ namespace TrueCrypt
 		if (IsVolumeMounted (*options.Path))
 			throw VolumeAlreadyMounted (SRC_POS);
 
-		shared_ptr <Volume> volume (OpenVolume (
-			options.Path,
-			options.PreserveTimestamps,
-			options.Password,
-			options.Keyfiles,
-			options.Protection,
-			options.ProtectionPassword,
-			options.ProtectionKeyfiles,
-			options.SharedAccessAllowed)
-		);
+		shared_ptr <Volume> volume;
+
+		while (true)
+		{
+			try
+			{
+				volume = OpenVolume (
+					options.Path,
+					options.PreserveTimestamps,
+					options.Password,
+					options.Keyfiles,
+					options.Protection,
+					options.ProtectionPassword,
+					options.ProtectionKeyfiles,
+					options.SharedAccessAllowed,
+					VolumeType::Unknown,
+					options.UseBackupHeaders
+					);
+			}
+			catch (SystemException &e)
+			{
+				if (e.GetErrorCode() == EROFS && options.Protection != VolumeProtection::ReadOnly)
+				{
+					// Read-only filesystem
+					options.Protection = VolumeProtection::ReadOnly;
+					continue;
+				}
+
+				throw;
+			}
+
+			break;
+		}
 
 		// Find a free mount point for FUSE service
 		MountedFilesystemList mountedFilesystems = GetMountedFilesystems ();
@@ -392,7 +429,14 @@ namespace TrueCrypt
 
 			try
 			{
-				MountAuxVolumeImage (fuseMountPoint, options);
+				try
+				{
+					MountVolumeNative (volume, options, fuseMountPoint);
+				}
+				catch (...)
+				{
+					MountAuxVolumeImage (fuseMountPoint, options);
+				}
 			}
 			catch (...)
 			{
@@ -423,7 +467,7 @@ namespace TrueCrypt
 		VolumeEventArgs eventArgs (mountedVolumes.front());
 		VolumeMountedEvent.Raise (eventArgs);
 
-		return shared_ptr <VolumeInfo> (mountedVolumes.front());
+		return mountedVolumes.front();
 	}
 
 	void CoreUnix::MountAuxVolumeImage (const DirectoryPath &auxMountPoint, const MountOptions &options) const
@@ -432,7 +476,7 @@ namespace TrueCrypt
 
 		try
 		{
-			FuseService::SendLoopDevice (auxMountPoint, loopDev);
+			FuseService::SendAuxDeviceInfo (auxMountPoint, loopDev, loopDev);
 		}
 		catch (...)
 		{

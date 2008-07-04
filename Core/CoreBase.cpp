@@ -1,19 +1,12 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
 
 #include <set>
-
-#ifdef TC_UNIX
-#include "Core.h"
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#endif
 
 #include "CoreBase.h"
 #include "RandomNumberGenerator.h"
@@ -30,53 +23,6 @@ namespace TrueCrypt
 	{
 	}
 
-	void CoreBase::BackupVolumeHeaders (const VolumePath &volumePath, const FilePath &backupFilePath) const
-	{
-		File volumeFile, backupFile;
-		backupFile.Open (backupFilePath, File::CreateWrite);
-
-		{
-#ifdef TC_UNIX
-			UserId origDeviceOwner;
-			origDeviceOwner.SystemId = (uid_t) -1;
-
-			if (!HasAdminPrivileges() && volumePath.IsDevice())
-			{
-				// Temporarily take ownership of the host device
-				struct stat statData;
-				throw_sys_if (stat (string (volumePath).c_str(), &statData) == -1);
-
-				UserId owner;
-				owner.SystemId = getuid();
-				SetFileOwner (volumePath, owner);
-				origDeviceOwner.SystemId = statData.st_uid;
-			}
-
-			finally_do_arg2 (VolumePath, volumePath, UserId, origDeviceOwner,
-				{
-					if (finally_arg2.SystemId != -1)
-						Core->SetFileOwner (finally_arg, finally_arg2);
-				}
-			);
-#endif
-			volumeFile.Open (volumePath, File::OpenRead);
-		}
-
-		foreach_ref (const VolumeLayout &layout, VolumeLayout::GetAvailableLayouts())
-		{
-			SecureBuffer header (layout.GetHeaderSize());
-			
-			int offset = layout.GetHeaderOffset();
-			if (offset >= 0)
-				volumeFile.SeekAt (offset);
-			else
-				volumeFile.SeekEnd (offset);
-
-			volumeFile.Read (header);
-			backupFile.Write (header);
-		}
-	}
-
 	void CoreBase::ChangePassword (shared_ptr <Volume> openVolume, shared_ptr <VolumePassword> newPassword, shared_ptr <KeyfileList> newKeyfiles, shared_ptr <Pkcs5Kdf> newPkcs5Kdf) const
 	{
 		if ((!newPassword || newPassword->Size() < 1) && (!newKeyfiles || newKeyfiles->empty()))
@@ -88,7 +34,12 @@ namespace TrueCrypt
 		if (!newPkcs5Kdf)
 			newPkcs5Kdf = openVolume->GetPkcs5Kdf();
 
+		if (openVolume->GetHeader()->GetFlags() & TC_HEADER_FLAG_ENCRYPTED_SYSTEM)
+			throw EncryptedSystemRequired (SRC_POS);
+
 		RandomNumberGenerator::Start();
+		finally_do ({ RandomNumberGenerator::Stop(); });
+
 		RandomNumberGenerator::SetHash (newPkcs5Kdf->GetHash());
 
 		SecureBuffer newSalt (openVolume->GetSaltSize());
@@ -96,20 +47,27 @@ namespace TrueCrypt
 
 		shared_ptr <VolumePassword> password (Keyfile::ApplyListToPassword (newKeyfiles, newPassword));
 
-		for (int i = 1; i <= SecureWipePassCount; i++)
+		bool backupHeader = false;
+		while (true)
 		{
-			if (i == SecureWipePassCount)
-				RandomNumberGenerator::GetData (newSalt);
-			else
-				RandomNumberGenerator::GetDataFast (newSalt);
+			for (int i = 1; i <= SecureWipePassCount; i++)
+			{
+				if (i == SecureWipePassCount)
+					RandomNumberGenerator::GetData (newSalt);
+				else
+					RandomNumberGenerator::GetDataFast (newSalt);
 
-			newPkcs5Kdf->DeriveKey (newHeaderKey, *password, newSalt);
+				newPkcs5Kdf->DeriveKey (newHeaderKey, *password, newSalt);
 
-			openVolume->ReEncryptHeader (newSalt, newHeaderKey, newPkcs5Kdf);
-			openVolume->GetFile()->Flush();
+				openVolume->ReEncryptHeader (backupHeader, newSalt, newHeaderKey, newPkcs5Kdf);
+				openVolume->GetFile()->Flush();
+			}
+
+			if (!openVolume->GetLayout()->HasBackupHeader() || backupHeader)
+				break;
+
+			backupHeader = true;
 		}
-
-		RandomNumberGenerator::Stop();
 	}
 		
 	void CoreBase::ChangePassword (shared_ptr <VolumePath> volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, shared_ptr <VolumePassword> newPassword, shared_ptr <KeyfileList> newKeyfiles, shared_ptr <Pkcs5Kdf> newPkcs5Kdf) const
@@ -200,56 +158,38 @@ namespace TrueCrypt
 		return GetMountedVolume (volumePath);
 	}
 
-	shared_ptr <Volume> CoreBase::OpenVolume (shared_ptr <VolumePath> volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection, shared_ptr <VolumePassword> protectionPassword, shared_ptr <KeyfileList> protectionKeyfiles, bool sharedAccessAllowed, VolumeType::Enum volumeType) const
+	shared_ptr <Volume> CoreBase::OpenVolume (shared_ptr <VolumePath> volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection, shared_ptr <VolumePassword> protectionPassword, shared_ptr <KeyfileList> protectionKeyfiles, bool sharedAccessAllowed, VolumeType::Enum volumeType, bool useBackupHeaders) const
 	{
 		make_shared_auto (Volume, volume);
-		volume->Open (*volumePath, preserveTimestamps, password, keyfiles, protection, protectionPassword, protectionKeyfiles, sharedAccessAllowed, volumeType);
+		volume->Open (*volumePath, preserveTimestamps, password, keyfiles, protection, protectionPassword, protectionKeyfiles, sharedAccessAllowed, volumeType, useBackupHeaders);
 		return volume;
 	}
 	
-	void CoreBase::RestoreVolumeHeaders (const VolumePath &volumePath, VolumeType::Enum volumeType, const FilePath &backupFilePath) const
+	void CoreBase::RandomizeEncryptionAlgorithmKey (shared_ptr <EncryptionAlgorithm> encryptionAlgorithm) const
 	{
-		File volumeFile, backupFile;
-		backupFile.Open (backupFilePath, File::OpenRead);
+		SecureBuffer eaKey (encryptionAlgorithm->GetKeySize());
+		RandomNumberGenerator::GetData (eaKey);
+		encryptionAlgorithm->SetKey (eaKey);
 
-		{
-#ifdef TC_UNIX
-			UserId origDeviceOwner;
-			origDeviceOwner.SystemId = (uid_t) -1;
+		SecureBuffer modeKey (encryptionAlgorithm->GetMode()->GetKeySize());
+		RandomNumberGenerator::GetData (modeKey);
+		encryptionAlgorithm->GetMode()->SetKey (modeKey);
+	}
 
-			if (!HasAdminPrivileges() && volumePath.IsDevice())
-			{
-				// Temporarily take ownership of the host device
-				struct stat statData;
-				throw_sys_if (stat (string (volumePath).c_str(), &statData) == -1);
+	void CoreBase::ReEncryptVolumeHeaderWithNewSalt (const BufferPtr &newHeaderBuffer, shared_ptr <VolumeHeader> header, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles) const
+	{
+		shared_ptr <Pkcs5Kdf> pkcs5Kdf = header->GetPkcs5Kdf();
 
-				UserId owner;
-				owner.SystemId = getuid();
-				SetFileOwner (volumePath, owner);
-				origDeviceOwner.SystemId = statData.st_uid;
-			}
+		RandomNumberGenerator::SetHash (pkcs5Kdf->GetHash());
 
-			finally_do_arg2 (VolumePath, volumePath, UserId, origDeviceOwner,
-				{
-					if (finally_arg2.SystemId != (uid_t) -1)
-						Core->SetFileOwner (finally_arg, finally_arg2);
-				}
-			);
-#endif
-			volumeFile.Open (volumePath, File::OpenWrite);
-		}
+		SecureBuffer newSalt (header->GetSaltSize());
+		SecureBuffer newHeaderKey (VolumeHeader::GetLargestSerializedKeySize());
 
-		shared_ptr <VolumeLayout> layout = VolumeLayout::GetAvailableLayouts (volumeType).front();
+		shared_ptr <VolumePassword> passwordKey (Keyfile::ApplyListToPassword (keyfiles, password));
 
-		SecureBuffer header (layout->GetHeaderSize());
-		backupFile.ReadAt (header, volumeType == VolumeType::Hidden ? layout->GetHeaderSize() : 0);
+		RandomNumberGenerator::GetData (newSalt);
+		pkcs5Kdf->DeriveKey (newHeaderKey, *passwordKey, newSalt);
 
-		int offset = layout->GetHeaderOffset();
-		if (offset >= 0)
-			volumeFile.SeekAt (offset);
-		else
-			volumeFile.SeekEnd (offset);
-
-		volumeFile.Write (header);
+		header->EncryptNew (newHeaderBuffer, newSalt, newHeaderKey, pkcs5Kdf);
 	}
 }

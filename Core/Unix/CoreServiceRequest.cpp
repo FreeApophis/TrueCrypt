@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -69,7 +69,8 @@ namespace TrueCrypt
 			return false;
 		try
 		{
-			Core->OpenVolume (Path, true, Password, Keyfiles);
+			File file;
+			file.Open (*Path);
 			return false;
 		}
 		catch (SystemException &e)
@@ -135,6 +136,7 @@ namespace TrueCrypt
 		CoreServiceRequest::Deserialize (stream);
 		Serializer sr (stream);
 		sr.Deserialize ("IgnoreOpenFiles", IgnoreOpenFiles);
+		sr.Deserialize ("SyncVolumeInfo", SyncVolumeInfo);
 		MountedVolumeInfo = Serializable::DeserializeNew <VolumeInfo> (stream);
 	}
 
@@ -151,6 +153,7 @@ namespace TrueCrypt
 		CoreServiceRequest::Serialize (stream);
 		Serializer sr (stream);
 		sr.Serialize ("IgnoreOpenFiles", IgnoreOpenFiles);
+		sr.Serialize ("SyncVolumeInfo", SyncVolumeInfo);
 		MountedVolumeInfo->Serialize (stream);
 	}
 	

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -26,6 +26,7 @@ using namespace std;
 namespace TrueCrypt
 {
 #ifdef _MSC_VER
+#	ifndef TC_INT_TYPES_DEFINED
 	typedef __int8 int8;
 	typedef __int16 int16;
 	typedef __int32 int32;
@@ -34,6 +35,7 @@ namespace TrueCrypt
 	typedef unsigned __int16 uint16;
 	typedef unsigned __int32 uint32;
 	typedef unsigned __int64 uint64;
+#	endif
 #else
 #	include <inttypes.h>
 	typedef int8_t int8;
@@ -55,8 +57,10 @@ namespace TrueCrypt
 #	define DEBUG
 #endif
 
-#define TC_TO_STRING2(n) #n
-#define TC_TO_STRING(n) TC_TO_STRING2(n)
+#ifndef TC_TO_STRING
+#	define TC_TO_STRING2(n) #n
+#	define TC_TO_STRING(n) TC_TO_STRING2(n)
+#endif
 
 #define TC_JOIN_ARGS(a,b) a##b
 #define TC_JOIN(a,b) TC_JOIN_ARGS(a,b)
@@ -81,6 +85,13 @@ namespace TrueCrypt
 #	define TC_UNUSED_VAR
 #endif
 
+#ifdef trace_point
+#	undef trace_point
+#endif
+
+#ifdef trace_msg
+#	undef trace_msg
+#endif
 
 #ifdef DEBUG
 #	define if_debug(...) __VA_ARGS__
@@ -95,11 +106,18 @@ namespace TrueCrypt
 #		define trace_msg(stream_args) cerr << (SRC_POS) << ": " << stream_args << endl
 #		define trace_msgw(stream_args) cerr << (SRC_POS); wcerr << L": " << stream_args << endl
 #	endif
+
+#	include "Platform/SystemLog.h"
+#	define trace_log_point SystemLog::WriteError (SRC_POS)
+#	define trace_log_msg(stream_args) do { stringstream s; s << (SRC_POS) << ": " << stream_args; SystemLog::WriteError (s.str()); } while (0)
+
 #else
 #	define if_debug(...)
 #	define trace_point
-#	define trace_msg(stream_args) while (false) { stringstream s; s << stream_args; }
-#	define trace_msgw(stream_args) while (false) { wstringstream s; s << stream_args; }
+#	define trace_msg(...)
+#	define trace_msgw(...)
+#	define trace_log_point
+#	define trace_log_msg(...)
 #endif
 
 #define trace_val(VAL) trace_msg (#VAL << '=' << (VAL));

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -10,6 +10,7 @@
 #define TC_HEADER_Driver_Fuse_FuseService
 
 #include "Platform/Platform.h"
+#include "Platform/Unix/Pipe.h"
 #include "Platform/Unix/Process.h"
 #include "Volume/VolumeInfo.h"
 #include "Volume/Volume.h"
@@ -36,6 +37,7 @@ namespace TrueCrypt
 		friend class ExecFunctor;
 
 	public:
+		static bool AuxDeviceInfoReceived () { return !OpenVolumeInfo.VirtualDevice.IsEmpty(); }
 		static bool CheckAccessRights ();
 		static void Dismount ();
 		static int ExceptionToErrorCode ();
@@ -43,19 +45,20 @@ namespace TrueCrypt
 		static const char *GetVolumeImagePath ();
 		static string GetDeviceType () { return "truecrypt"; }
 		static uid_t GetGroupId () { return GroupId; }
-		static DevicePath GetLoopDevice () { return OpenVolumeInfo.LoopDevice; }
 		static uid_t GetUserId () { return UserId; }
 		static shared_ptr <Buffer> GetVolumeInfo ();
 		static uint64 GetVolumeSize ();
 		static uint64 GetVolumeSectorSize () { return MountedVolume->GetSectorSize(); }
 		static void Mount (shared_ptr <Volume> openVolume, VolumeSlotNumber slotNumber, const string &fuseMountPoint);
 		static void ReadVolumeSectors (const BufferPtr &buffer, uint64 byteOffset);
-		static void ReceiveLoopDevice (const ConstBufferPtr &buffer);
-		static void SendLoopDevice (const DirectoryPath &fuseMountPoint, const DevicePath &loopDevice);
+		static void ReceiveAuxDeviceInfo (const ConstBufferPtr &buffer);
+		static void SendAuxDeviceInfo (const DirectoryPath &fuseMountPoint, const DevicePath &virtualDevice, const DevicePath &loopDevice = DevicePath());
 		static void WriteVolumeSectors (const ConstBufferPtr &buffer, uint64 byteOffset);
 
 	protected:
 		FuseService ();
+		static void CloseMountedVolume ();
+		static void OnSignal (int signal);
 
 		static VolumeInfo OpenVolumeInfo;
 		static Mutex OpenVolumeInfoMutex;
@@ -63,6 +66,7 @@ namespace TrueCrypt
 		static VolumeSlotNumber SlotNumber;
 		static uid_t UserId;
 		static gid_t GroupId;
+		static auto_ptr <Pipe> SignalHandlerPipe;
 	};
 }
 

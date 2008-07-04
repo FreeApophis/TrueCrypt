@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.4 the full text of which is contained in the
+ by the TrueCrypt License 2.5 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -52,7 +52,6 @@ GetFatParams (fatparams * ft)
 
 	ft->dir_entries = 512;
 	ft->fats = 2;
-	ft->create_time = (unsigned int) time (NULL);
 	ft->media = 0xf8;
 	ft->sector_size = SECTOR_SIZE;
 	ft->hidden = 0;
@@ -170,8 +169,10 @@ PutBoot (fatparams * ft, unsigned char *boot)
 	boot[cnt++] = 0x00;	/* drive number */   // FIXED 80 > 00
 	boot[cnt++] = 0x00;	/* reserved */
 	boot[cnt++] = 0x29;	/* boot sig */
-	*(__int32 *)(boot + cnt) = LE32(ft->create_time);	/* vol id */
+
+	RandgetBytes (boot + cnt, 4, FALSE);		/* vol id */
 	cnt += 4;
+
 	memcpy (boot + cnt, ft->volume_name, 11);	/* vol title */
 	cnt += 11;
 
@@ -191,7 +192,7 @@ PutBoot (fatparams * ft, unsigned char *boot)
 
 
 /* FAT32 FSInfo */
-PutFSInfo (unsigned char *sector)
+static PutFSInfo (unsigned char *sector, fatparams *ft)
 {
 	memset (sector, 0, 512);
 	sector[3]=0x41; /* LeadSig */
@@ -202,10 +203,10 @@ PutFSInfo (unsigned char *sector)
 	sector[484+2]=0x41; 
 	sector[484+1]=0x72; 
 	sector[484+0]=0x72; 
-	sector[488+3]=0xff; /* Free_Count */
-	sector[488+2]=0xff;
-	sector[488+1]=0xff;
-	sector[488+0]=0xff;
+
+	// Free cluster count
+	*(uint32 *)(sector + 488) = LE32 (ft->cluster_count - ft->size_root_dir / SECTOR_SIZE / ft->cluster_size);
+
 	sector[492+3]=0xff; /* Nxt_Free */
 	sector[492+2]=0xff;
 	sector[492+1]=0xff;
@@ -227,7 +228,6 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INF
 	int retVal;
 	char temporaryKey[MASTER_KEYDATA_SIZE];
 
-#ifdef _WIN32
 	LARGE_INTEGER startOffset;
 	LARGE_INTEGER newOffset;
 
@@ -238,7 +238,6 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INF
 	{
 		return ERR_VOL_SEEKING;
 	}
-#endif
 
 	/* Write the data area */
 
@@ -254,7 +253,7 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INF
 	if (ft->size_fat == 32)				
 	{
 		/* fsinfo */
-		PutFSInfo((unsigned char *) sector);
+		PutFSInfo((unsigned char *) sector, ft);
 		if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo,
 			cryptoInfo) == FALSE)
 			goto fail;
@@ -277,7 +276,7 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INF
 				 cryptoInfo) == FALSE)
 			goto fail;
 
-		PutFSInfo((unsigned char *) sector);
+		PutFSInfo((unsigned char *) sector, ft);
 		if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo,
 			cryptoInfo) == FALSE)
 			goto fail;
@@ -352,6 +351,9 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INF
 
 	if(!quickFormat)
 	{
+		if (!FlushFormatWriteBuffer (dev, write_buf, &write_buf_cnt, &nSecNo, cryptoInfo))
+			goto fail;
+
 		/* Generate a random temporary key set to be used for "dummy" encryption that will fill
 		the free disk space (data area) with random data.  This is necessary for plausible
 		deniability of hidden volumes (and also reduces the amount of predictable plaintext
@@ -388,17 +390,9 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INF
 #if RNG_POOL_SIZE < SECTOR_SIZE
 #error RNG_POOL_SIZE < SECTOR_SIZE
 #endif
-
-#ifdef _WIN32
 			if (!RandpeekBytes (sector, SECTOR_SIZE))
 				goto fail;
-#else
-			if ((nSecNo & 0x3fff) == 0)
-			{
-				if (!RandgetBytes (sector, SECTOR_SIZE, FALSE))
-					goto fail;
-			}
-#endif
+
 			// Encrypt the random plaintext and write it to the disk
 			if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo,
 				cryptoInfo) == FALSE)
@@ -409,12 +403,7 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INF
 	else
 		UpdateProgressBar (ft->num_sectors);
 
-	if (write_buf_cnt != 0
-#ifdef _WIN32
-		&& _lwrite ((HFILE)dev, write_buf, write_buf_cnt) == HFILE_ERROR)
-#else
-		&& fwrite (write_buf, 1, write_buf_cnt, (FILE *)dev) != (size_t)write_buf_cnt)
-#endif
+	if (!FlushFormatWriteBuffer (dev, write_buf, &write_buf_cnt, &nSecNo, cryptoInfo))
 		goto fail;
 
 	TCfree (write_buf);

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -26,6 +26,10 @@ namespace TrueCrypt
 		sr.Deserialize ("HeaderCreationTime", HeaderCreationTime);
 		sr.Deserialize ("HiddenVolumeProtectionTriggered", HiddenVolumeProtectionTriggered);
 		LoopDevice = sr.DeserializeWString ("LoopDevice");
+
+		if (ProgramVersion >= 0x600)
+			sr.Deserialize ("MinRequiredProgramVersion", MinRequiredProgramVersion);
+
 		MountPoint = sr.DeserializeWString ("MountPoint");
 		Path = sr.DeserializeWString ("Path");
 		sr.Deserialize ("Pkcs5IterationCount", Pkcs5IterationCount);
@@ -34,6 +38,10 @@ namespace TrueCrypt
 		sr.Deserialize ("SerialInstanceNumber", SerialInstanceNumber);
 		sr.Deserialize ("Size", Size);
 		sr.Deserialize ("SlotNumber", SlotNumber);
+		
+		if (ProgramVersion >= 0x600)
+			sr.Deserialize ("TopWriteOffset", TopWriteOffset);
+
 		sr.Deserialize ("TotalDataRead", TotalDataRead);
 		sr.Deserialize ("TotalDataWritten", TotalDataWritten);
 		Type = static_cast <VolumeType::Enum> (sr.DeserializeInt32 ("Type"));
@@ -57,6 +65,7 @@ namespace TrueCrypt
 		sr.Serialize ("HeaderCreationTime", HeaderCreationTime);
 		sr.Serialize ("HiddenVolumeProtectionTriggered", HiddenVolumeProtectionTriggered);
 		sr.Serialize ("LoopDevice", wstring (LoopDevice));
+		sr.Serialize ("MinRequiredProgramVersion", MinRequiredProgramVersion);
 		sr.Serialize ("MountPoint", wstring (MountPoint));
 		sr.Serialize ("Path", wstring (Path));
 		sr.Serialize ("Pkcs5IterationCount", Pkcs5IterationCount);
@@ -65,6 +74,7 @@ namespace TrueCrypt
 		sr.Serialize ("SerialInstanceNumber", SerialInstanceNumber);
 		sr.Serialize ("Size", Size);
 		sr.Serialize ("SlotNumber", SlotNumber);
+		sr.Serialize ("TopWriteOffset", TopWriteOffset);
 		sr.Serialize ("TotalDataRead", TotalDataRead);
 		sr.Serialize ("TotalDataWritten", TotalDataWritten);
 		sr.Serialize ("Type", static_cast <uint32> (Type));
@@ -82,12 +92,14 @@ namespace TrueCrypt
 		HeaderCreationTime = volume.GetHeaderCreationTime();
 		VolumeCreationTime = volume.GetVolumeCreationTime();
 		HiddenVolumeProtectionTriggered = volume.IsHiddenVolumeProtectionTriggered();
+		MinRequiredProgramVersion = volume.GetHeader()->GetRequiredMinProgramVersion();
 		Path = volume.GetPath();
 		Pkcs5IterationCount = volume.GetPkcs5Kdf()->GetIterationCount();
 		Pkcs5PrfName = volume.GetPkcs5Kdf()->GetName();
 		Protection = volume.GetProtectionType();
 		Size = volume.GetSize();
 		Type = volume.GetType();
+		TopWriteOffset = volume.GetTopWriteOffset();
 		TotalDataRead = volume.GetTotalDataRead();
 		TotalDataWritten = volume.GetTotalDataWritten();
 	}

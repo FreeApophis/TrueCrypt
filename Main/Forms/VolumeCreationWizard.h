@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -25,14 +25,17 @@ namespace TrueCrypt
 		{
 			enum Enum
 			{
+				VolumeHostType,
 				VolumeType,
 				VolumeLocation,
-				VolumeSize,
 				EncryptionOptions,
+				VolumeSize,
 				VolumePassword,
 				FormatOptions,
 				CreationProgress,
-				VolumeCreatedInfo
+				VolumeCreatedInfo,
+				OuterVolumeContents,
+				HiddenVolume
 			};
 		};
 
@@ -55,11 +58,15 @@ namespace TrueCrypt
 		auto_ptr <wxTimer> ProgressTimer;
 		auto_ptr <wxTimer> RandomPoolUpdateTimer;
 		shared_ptr <KeyfileList> Keyfiles;
+		uint64 MaxHiddenVolumeSize;
+		shared_ptr <VolumeInfo> MountedOuterVolume;
+		bool OuterVolume;
 		bool QuickFormatEnabled;
 		shared_ptr <EncryptionAlgorithm> SelectedEncryptionAlgorithm;
 		uint32 SelectedFilesystemClusterSize;
 		VolumeCreationOptions::FilesystemType::Enum SelectedFilesystemType;
 		VolumePath SelectedVolumePath;
+		VolumeHostType::Enum SelectedVolumeHostType;
 		VolumeType::Enum SelectedVolumeType;
 		shared_ptr <VolumePassword> Password;
 		shared_ptr <Hash> SelectedHash;

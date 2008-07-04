@@ -1,7 +1,7 @@
 ::
 :: Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 ::
-:: Governed by the TrueCrypt License 2.4 the full text of which is contained
+:: Governed by the TrueCrypt License 2.5 the full text of which is contained
 :: in the file License.txt included in TrueCrypt binary and source code
 :: distribution packages.
 ::
@@ -21,28 +21,25 @@ shift
 
 set TC_C_DEFINES=-D_WIN32 -DNT4_DRIVER
 set TC_C_FLAGS=-nologo -I..
+set TC_LIBRARIAN_FLAGS=-nologo
 set TC_LINKER_FLAGS=-nologo
 set NO_SAFESEH=1
 
 
 :: Windows DDK root
 
-set TC_WINDDK_BUILD=6000
+set TC_WINDDK_BUILD=6001.18001
 
 set TC_WINDDK_ROOT=%SYSTEMDRIVE%\WinDDK\%TC_WINDDK_BUILD%
 if exist "%TC_WINDDK_ROOT%\bin\setenv.bat" goto ddk_found
 
-set TC_WINDDK_ROOT=%SYSTEMDRIVE%\SDK\WinDDK\%TC_WINDDK_BUILD%
-if exist "%TC_WINDDK_ROOT%\bin\setenv.bat" goto ddk_found
-
-set TC_WINDDK_ROOT=%%WINDDK_%TC_WINDDK_BUILD%_ROOT%%
-for /F "usebackq" %%r in (`echo %TC_WINDDK_ROOT%`) do set TC_WINDDK_ROOT=%%r
+set TC_WINDDK_ROOT=%WINDDK_ROOT%\%TC_WINDDK_BUILD%
 if exist "%TC_WINDDK_ROOT%\bin\setenv.bat" goto ddk_found
 
 set TC_WINDDK_ROOT=%WINDDK_ROOT%
 if exist "%TC_WINDDK_ROOT%\bin\setenv.bat" goto ddk_found
 
-echo BuildDriver.cmd: error: Windows Driver Development Kit not found at the default directory. Set WINDDK_ROOT or WINDDK_%TC_WINDDK_BUILD%_ROOT environment variable to point to your Windows DDK installation directory. >&2
+echo BuildDriver.cmd: error: Windows Driver Development Kit not found in the default directory. Set WINDDK_ROOT environment variable to point to your Windows DDK installation directory. >&2
 exit /B 1
 
 :ddk_found
@@ -51,7 +48,7 @@ exit /B 1
 :: CPU architecture
 
 if "%TC_ARG_ARCH%"=="-x64" (
-	set TC_BUILD_ARCH=AMD64 WNET
+	set TC_BUILD_ARCH=x64 WNET
 	set TC_BUILD_ARCH_DIR=amd64
 	set TC_ARCH=x64
 	set TC_ARCH_SUFFIX=-x64
@@ -102,8 +99,9 @@ pushd .
 
 		set USER_C_FLAGS=%TC_C_FLAGS% -FAcs -Fa%~1\obj%TC_BUILD_ALT_DIR%\%TC_BUILD_ARCH_DIR%\
 		set C_DEFINES=%TC_C_DEFINES%
-		set LINKER_FLAGS=%TC_LINKER_FLAGS%
 		set RCOPTIONS=/I %MFC_INC_PATH%
+		set LIBRARIAN_FLAGS=%TC_LIBRARIAN_FLAGS%
+		set LINKER_FLAGS=%TC_LINKER_FLAGS%
 		set BUILD_ALT_DIR=%TC_BUILD_ALT_DIR%
 
 		build %TC_BUILD_OPTS% -Z -w -nmake /S -nmake /C 2>build_errors.log 1>&2

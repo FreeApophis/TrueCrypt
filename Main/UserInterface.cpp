@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -14,6 +14,7 @@
 #include "Platform/PlatformTest.h"
 #ifdef TC_UNIX
 #include "Platform/Unix/Process.h"
+#include <sys/utsname.h>
 #endif
 #include "Volume/EncryptionTest.h"
 #include "Application.h"
@@ -30,6 +31,25 @@ namespace TrueCrypt
 	{
 		Core->WarningEvent.Disconnect (this);
 		Core->VolumeMountedEvent.Disconnect (this);
+	}
+
+	void UserInterface::CheckRequirementsForMountingVolume () const
+	{
+#ifdef TC_LINUX
+		if (!Preferences.NonInteractive)
+		{
+			utsname unameData;
+			if (uname (&unameData) != -1)
+			{
+				vector <string> osVersion = StringConverter::Split (unameData.release, ".-");
+				if (osVersion.size() >= 3
+					&& osVersion[0] == "2" && osVersion[1] == "6" && StringConverter::ToUInt32 (osVersion[2]) < 24)
+				{
+						ShowWarning (_("Your system uses an old version of the Linux kernel.\n\nDue to a bug in the Linux kernel, your system may stop responding when writing data to a TrueCrypt volume. This problem can be solved by upgrading the kernel to version 2.6.24 or later."));
+				}
+			}
+		}
+#endif // TC_LINUX
 	}
 
 	void UserInterface::CloseExplorerWindows (shared_ptr <VolumeInfo> mountedVolume) const
@@ -144,7 +164,7 @@ namespace TrueCrypt
 				try
 				{
 					BusyScope busy (this);
-					Core->DismountVolume (volume, ignoreOpenFiles);
+					volume = Core->DismountVolume (volume, ignoreOpenFiles);
 				}
 				catch (MountedVolumeInUse&)
 				{
@@ -162,7 +182,7 @@ namespace TrueCrypt
 						if (AskYesNo (StringFormatter (LangString["UNMOUNT_LOCK_FAILED"], wstring (volume->Path)), true, true))
 						{
 							BusyScope busy (this);
-							Core->DismountVolume (volume, true);
+							volume = Core->DismountVolume (volume, true);
 						}
 						else
 							throw UserAbort (SRC_POS);
@@ -241,6 +261,9 @@ namespace TrueCrypt
 			prop << LangString["ENCRYPTION_ALGORITHM"] << L": " << volume.EncryptionAlgorithmName << L'\n';
 			prop << LangString["KEY_SIZE"] << L": " << StringFormatter (L"{0} {1}", volume.EncryptionAlgorithmKeySize * 8, LangString ["BITS"]) << L'\n';
 
+			if (volume.EncryptionModeName == L"XTS")
+				prop << LangString["SECONDARY_KEY_SIZE_XTS"] << L": " << StringFormatter (L"{0} {1}", volume.EncryptionAlgorithmKeySize * 8, LangString ["BITS"]) << L'\n';;
+
 			wstringstream blockSize;
 			blockSize << volume.EncryptionAlgorithmBlockSize * 8;
 			if (volume.EncryptionAlgorithmBlockSize != volume.EncryptionAlgorithmMinBlockSize)
@@ -249,13 +272,19 @@ namespace TrueCrypt
 			prop << LangString["BLOCK_SIZE"] << L": " << blockSize.str() + L" " + LangString ["BITS"] << L'\n';
 			prop << LangString["MODE_OF_OPERATION"] << L": " << volume.EncryptionModeName << L'\n';
 			prop << LangString["PKCS5_PRF"] << L": " << volume.Pkcs5PrfName << L'\n';
-			prop << LangString["PKCS5_ITERATIONS"] << L": " << StringConverter::FromNumber (volume.Pkcs5IterationCount) << L'\n';
+	
+			prop << LangString["VOLUME_FORMAT_VERSION"] << L": " << (volume.MinRequiredProgramVersion < 0x600 ? 1 : 2) << L'\n';
+			prop << LangString["BACKUP_HEADER"] << L": " << LangString[volume.MinRequiredProgramVersion >= 0x600 ? "UISTR_YES" : "UISTR_NO"] << L'\n';
 
-			prop << LangString["VOLUME_CREATE_DATE"] << L": " << VolumeTimeToString (volume.VolumeCreationTime) << L'\n';
-			prop << LangString["VOLUME_HEADER_DATE"] << L": " << VolumeTimeToString (volume.HeaderCreationTime) << L'\n';
-
+#ifdef TC_LINUX
+			if (string (volume.VirtualDevice).find ("/dev/mapper/truecrypt") != 0)
+			{
+#endif
 			prop << LangString["TOTAL_DATA_READ"] << L": " << SizeToString (volume.TotalDataRead) << L'\n';
 			prop << LangString["TOTAL_DATA_WRITTEN"] << L": " << SizeToString (volume.TotalDataWritten) << L'\n';
+#ifdef TC_LINUX
+			}
+#endif
 		
 			prop << L'\n';
 		}
@@ -374,6 +403,7 @@ namespace TrueCrypt
 	{
 #define EX2MSG(exception, message) do { if (ex == typeid (exception)) return (message); } while (false)
 		EX2MSG (DriveLetterUnavailable,				LangString["DRIVE_LETTER_UNAVAILABLE"]);
+		EX2MSG (EncryptedSystemRequired,			_("This operation must be performed only when the system hosted on the volume is running."));
 		EX2MSG (ExternalException,					LangString["EXCEPTION_OCCURRED"]);
 		EX2MSG (InsufficientData,					_("Not enough data available."));
 		EX2MSG (HigherVersionRequired,				LangString["NEW_VERSION_REQUIRED"]);
@@ -397,6 +427,10 @@ namespace TrueCrypt
 		EX2MSG (VolumeAlreadyMounted,				LangString["VOL_ALREADY_MOUNTED"]);
 		EX2MSG (VolumeHostInUse,					_("The host file/device is already in use."));
 		EX2MSG (VolumeSlotUnavailable,				_("Volume slot unavailable."));
+
+#ifdef TC_MACOSX
+		EX2MSG (HigherFuseVersionRequired,			_("TrueCrypt requires MacFUSE 1.3 or later."));
+#endif
 
 #undef EX2MSG
 		return L"";
@@ -875,31 +909,42 @@ namespace TrueCrypt
 					"--auto-mount=devices|favorites\n"
 					" Auto mount device-hosted or favorite volumes.\n"
 					"\n"
-					"-c, --create=[VOLUME_PATH]\n"
-					" Create a new volume. Most options are requested from user if not specified\n"
+					"-c, --create[=VOLUME_PATH]\n"
+					" Create a new volume. Most options are requested from the user if not specified\n"
 					" on command line. See also options --encryption, -k, --filesystem, --hash, -p,\n"
 					" --random-source, --quick, --size, --volume-type. Note that passing some of the\n"
-					" options may affect security (see option -p for more information).\n"
+					" options may affect security of the volume (see option -p for more information).\n"
 					"\n"
-					"-C, --change=[VOLUME_PATH]\n"
-					" Change a password and/or keyfile(s) of a volume. Volume path and passwords are\n"
-					" requested from user if not specified on command line. PKCS-5 PRF HMAC hash\n"
+					" Inexperienced users should use the graphical user interface to create a hidden\n"
+					" volume. When using the text user interface, the following procedure must be\n"
+					" followed to create a hidden volume:\n"
+					"  1) Create an outer volume with no filesystem.\n"
+					"  2) Create a hidden volume within the outer volume.\n"
+					"  3) Mount the outer volume using hidden volume protection.\n"
+					"  4) Create a filesystem on the virtual device of the outer volume.\n"
+					"  5) Mount the new filesystem and fill it with data.\n"
+					"  6) Dismount the outer volume.\n"
+					"  If at any step the hidden volume protection is triggered, start again from 1).\n"
+					"\n"
+					"-C, --change[=VOLUME_PATH]\n"
+					" Change a password and/or keyfile(s) of a volume. Most options are requested\n"
+					" from the user if not specified on command line. PKCS-5 PRF HMAC hash\n"
 					" algorithm can be changed with option --hash. See also options -k,\n"
 					" --new-keyfiles, --new-password, -p, --random-source, -v.\n"
 					"\n"
-					"-d, --dismount=[MOUNTED_VOLUME]\n"
+					"-d, --dismount[=MOUNTED_VOLUME]\n"
 					" Dismount a mounted volume. If MOUNTED_VOLUME is not specified, all\n"
-					" volumes are dismounted. See below for a description of MOUNTED_VOLUME.\n"
+					" volumes are dismounted. See below for description of MOUNTED_VOLUME.\n"
 					"\n"
-					"-l, --list=[MOUNTED_VOLUME]\n"
+					"-l, --list[=MOUNTED_VOLUME]\n"
 					" Display a list of mounted volumes. If MOUNTED_VOLUME is not specified, all\n"
 					" volumes are listed. By default, the list contains only volume path, virtual\n"
 					" device, and mount point. A more detailed list can be enabled by verbose\n"
-					" output option (-v). See below for a description of MOUNTED_VOLUME.\n"
+					" output option (-v). See below for description of MOUNTED_VOLUME.\n"
 					"\n"
-					"--mount=[VOLUME_PATH]\n"
-					" Mount a volume interactively. Options which may affect security are\n"
-					" requested from the user. See option -p for more information.\n"
+					"--mount[=VOLUME_PATH]\n"
+					" Mount a volume. Volume path and other options are requested from the user\n"
+					" if not specified on command line.\n"
 					"\n"
 					"--test\n"
 					" Test internal algorithms used in the process of encryption and decryption.\n"
@@ -907,8 +952,8 @@ namespace TrueCrypt
 					"--version\n"
 					" Display program version.\n"
 					"\n"
-					"--volume-properties=[MOUNTED_VOLUME]\n"
-					" Display properties of a mounted volume. See below for a description of\n"
+					"--volume-properties[=MOUNTED_VOLUME]\n"
+					" Display properties of a mounted volume. See below for description of\n"
 					" MOUNTED_VOLUME.\n"
 					"\n"
 					"MOUNTED_VOLUME:\n"
@@ -935,23 +980,28 @@ namespace TrueCrypt
 					"\n"
 					"--fs-options=OPTIONS\n"
 					" Filesystem mount options. The OPTIONS argument is passed to mount(8)\n"
-					" command with option -o. This option is not available on some platforms.\n"
+					" command with option -o when a filesystem on a TrueCrypt volume is mounted.\n"
+					" This option is not available on some platforms.\n"
 					"\n"
 					"--hash=HASH\n"
 					" Use specified hash algorithm when creating a new volume or changing password\n"
 					" and/or keyfiles.\n"
 					"\n"
 					"-k, --keyfiles=KEYFILE1,KEYFILE2,KEYFILE3,..\n"
-					" Use specified keyfiles when mounting a volume (or when changing password\n"
-					" and/or keyfiles). When a directory is specified, all files inside it will be\n"
+					" Use specified keyfiles when mounting a volume or when changing password\n"
+					" and/or keyfiles. When a directory is specified, all files inside it will be\n"
 					" used (non-recursively). Multiple keyfiles must be separated by comma.\n"
+					" Use double comma (,,) to specify a comma contained in keyfile's name.\n"
 					" An empty keyfile (-k \"\") disables interactive requests for keyfiles. See also\n"
 					" options --new-keyfiles, --protection-keyfiles.\n"
 					"\n"
-					"-m, --mount-options=readonly|ro|timestamp|ts\n"
+					"-m, --mount-options=headerbak|nokernelcrypto|readonly|ro|timestamp|ts\n"
 					" Specify comma-separated mount options for a TrueCrypt volume:\n"
-					"  readonly|ro: Mount read-only.\n"
+					"  headerbak: Use backup headers when mounting a volume.\n"
+					"  nokernelcrypto: Do not use kernel cryptographic services.\n"
+					"  readonly|ro: Mount volume read-only.\n"
 					"  timestamp|ts: Update (do not preserve) host-file timestamps.\n"
+					" See also option --fs-options.\n"
 					"\n"
 					"-p, --password=PASSWORD\n"
 					" Use specified password to mount/open a volume. An empty password can also be\n"
@@ -963,12 +1013,12 @@ namespace TrueCrypt
 					" Write-protect a hidden volume when mounting an outer volume. Before mounting\n"
 					" the outer volume, the user will be prompted for a password to open the hidden\n"
 					" volume. The size and position of the hidden volume is then determined and the\n"
-					" outer volume is mapped with all sectors belonging to the hidden volume\n"
+					" outer volume is mounted with all sectors belonging to the hidden volume\n"
 					" protected against write operations. When a write to the protected area is\n"
 					" prevented, the whole volume is switched to read-only mode. Verbose list\n"
 					" (-v -l) can be used to query the state of the hidden volume protection.\n"
 					" Warning message is displayed when a volume switched to read-only is being\n"
-					" dismounted. See also option --mount.\n"
+					" dismounted.\n"
 					"\n"
 					"--protection-keyfiles=KEYFILE1,KEYFILE2,KEYFILE3,..\n"
 					" Use specified keyfiles to open a hidden volume to be protected. This option\n"
@@ -982,7 +1032,8 @@ namespace TrueCrypt
 					"\n"
 					"--quick\n"
 					" Use quick format when creating a new volume. This option can be used only\n"
-					" when creating a device-hosted volume.\n"
+					" when creating a device-hosted volume and must not be used when creating an\n"
+					" outer volume.\n"
 					"\n"
 					"--random-source=FILE\n"
 					" Use FILE as a source of random data (e.g., when creating a volume).\n"
@@ -999,7 +1050,7 @@ namespace TrueCrypt
 					"\n"
 					"--volume-type=TYPE\n"
 					" Use specified volume type when creating a new volume. TYPE can be 'normal'\n"
-					" or 'hidden'.\n"
+					" or 'hidden'. See option -c for more information on creating hidden volumes.\n"
 					"\n"
 					"-v, --verbose\n"
 					" Enable verbose output.\n"

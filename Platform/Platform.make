@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 #
-# Governed by the TrueCrypt License 2.4 the full text of which is contained
+# Governed by the TrueCrypt License 2.5 the full text of which is contained
 # in the file License.txt included in TrueCrypt binary and source code
 # distribution packages.
 #
@@ -25,6 +25,7 @@ OBJS += Unix/Mutex.o
 OBJS += Unix/Pipe.o
 OBJS += Unix/Poller.o
 OBJS += Unix/Process.o
+OBJS += Unix/SyncEvent.o
 OBJS += Unix/SystemException.o
 OBJS += Unix/SystemLog.o
 OBJS += Unix/Thread.o

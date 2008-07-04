@@ -1,4 +1,4 @@
-TrueCrypt Collective License Version 1.3
+TrueCrypt Collective License Version 1.4
 
 Software distributed under this license is distributed on an "AS IS" BASIS
 WITHOUT WARRANTIES OF ANY KIND. THE LIABILITY OF THE AUTHORS AND DISTRIBUTORS
@@ -6,9 +6,10 @@ OF THE SOFTWARE IS LIMITED.
 
 ANYONE WHO USES, COPIES, MODIFIES, OR (RE)DISTRIBUTES ANY PART(S) OF A WORK
 MADE AVAILABLE UNDER THIS VERSION OF THE TRUECRYPT COLLECTIVE LICENSE, IS, BY
-SUCH ACTION(S), ACCEPTING ALL TERMS OF THE COMPONENT LICENSES (SEE BELLOW) THAT
-APPLY TO THE CORRESPONDING PART(S) OF THE WORK. IF YOU DO NOT ACCEPT THEM, DO
-NOT USE, COPY, MODIFY, NOR (RE)DISTRIBUTE THE WORK, NOR ANY PART(S) THEREOF.
+SUCH ACTION(S), ACCEPTING ALL TERMS AND CONDITIONS OF THE COMPONENT LICENSES
+(SEE BELOW) THAT APPLY TO THE CORRESPONDING PART(S) OF THE WORK. IF YOU DO NOT
+ACCEPT THEM, DO NOT USE, COPY, MODIFY, NOR (RE)DISTRIBUTE THE WORK, NOR ANY
+PART(S) THEREOF.
 
 The TrueCrypt Collective License consists of several distinct licenses, which
 are contained in this document (separated by lines consisting of underscores)
@@ -26,7 +27,7 @@ ____________________________________________________________
 
 This software is copyright (c) 2003-2008 TrueCrypt Foundation
 
-TrueCrypt License Version 2.4
+TrueCrypt License Version 2.5
 
 
 I. Definitions
@@ -140,24 +141,31 @@ distribute Your Product.
     available (for exceptions, see Sections III.2 and III.3) at least until You
     cease to distribute Your Product. To meet this condition, it is sufficient
     that You merely include the source code with every copy of Your Product
-    that You make and distribute; it is also sufficient that You merely include
-    information (valid and correct at least until You cease to distribute Your
-    Product) about where the source code can be freely obtained (e.g., an
-    Internet address, etc.) with every copy of Your Product that You make and
-    distribute. Portions of the source code that were created by You (e.g. Your
-    additions to This Product) must be available under license(s) that are/is
-    compatible with this version of the TrueCrypt License (however, see also
-    Subsection III.1.e) and that allow(s) anyone to modify and derive new works
-    from Your Product (and portions thereof) and to use, copy, and redistribute
-    such modifications and/or derivative works. The license(s) must be
-    perpetual, non-exclusive, royalty-free, no-charge, and worldwide, and must
-    not invalidate, weaken, restrict, interpret, amend, modify, interfere with
-    or otherwise affect any part, term, provision, or clause of this License.
-    The text of the license(s) must be included with every copy of Your Product
-    that You make and distribute. The source code must not be deliberately
-    obfuscated, and it must not be in an intermediate form (e.g., the output of
-    a preprocessor). Source code means the preferred form in which a programmer
-    would usually modify the program.
+    that You make and distribute (see also below in this Subsection III.1.d for
+    conditions that licenses governing the source code must meet) provided that
+    You make the copies available to the general public free of charge; it is
+    also sufficient that You merely include information (valid and correct at
+    least until You cease to distribute Your Product) about where the source
+    code can be freely obtained (e.g., an Internet address, etc.) with every
+    copy of Your Product that You make and distribute (see also below in this
+    Subsection III.1.d for conditions that licenses governing the source code
+    must meet) provided that You make the copies available to the general
+    public free of charge.
+
+    Portions of the source code that were created by You (e.g. Your additions
+    to This Product) must be available under license(s) that are/is compatible
+    with this version of the TrueCrypt License (however, see also Subsection
+    III.1.e) and that allow(s) anyone to modify and derive new works from the
+    portions of the source code that were created by You and to use, copy, and
+    redistribute such modifications and/or derivative works. The license(s)
+    must be perpetual, non-exclusive, royalty-free, no-charge, and worldwide,
+    and must not invalidate, weaken, restrict, interpret, amend, modify,
+    interfere with or otherwise affect any part, term, provision, or clause of
+    this License. The text of the license(s) must be included with every copy
+    of Your Product that You make and distribute. The source code must not be
+    deliberately obfuscated, and it must not be in an intermediate form (e.g.,
+    the output of a preprocessor). Source code means the preferred form in
+    which a programmer would usually modify the program.
 
     Note: If you cannot comply with the above requirements, we may grant an
     exception under certain conditions. You may request an exception at:
@@ -195,7 +203,7 @@ Subsections (III.2.a or III.2.b) are met:
     software distribution (such as a cover CD-ROM of a magazine) containing
     products from different sources, in which You include either This Product
     without any modifications or file(s) which You obtain by compiling the
-    unmodified source code of This Product.
+    unmodified source code of This Product (see also Section VI.4).
 
     b. You include This Product in its entirety and without any modifications
     (You may omit the source code of This Product) as non-integral part of Your
@@ -210,6 +218,10 @@ Subsections (III.2.a or III.2.b) are met:
     and You may freely choose the location within the user interface (if there
     is any) of Your Product (e.g., an "About" window, etc.) and the way in
     which Your Product will display the respective phrase.
+
+    Note: If you cannot comply with Subsection III.1.d, we may grant an
+    exception under certain conditions. You may request an exception at:
+    licensing@truecrypt.org
 
 
 3. You are not obligated to comply with Subsection III.1.d if Your Product is
@@ -253,11 +265,13 @@ RESPONSIBILITY TO COMPLY WITH ANY APPLICABLE REGULATIONS, RESTRICTIONS, AND
 LAWS.
 
 4. YOU SHALL INDEMNIFY, DEFEND AND HOLD ALL (CO)AUTHORS OF THIS PRODUCT, THEIR
-AGENTS AND ASSOCIATES, AND APPLICABLE COPYRIGHT/TRADEMARK OWNERS, HARMLESS
-FROM/AGAINST ANY LIABILITY, LOSS, EXPENSE, DAMAGES, CLAIMS OR CAUSES OF ACTION,
-ARISING OUT OF YOUR USE, INABILITY TO USE, COPYING, (RE)DISTRIBUTION, IMPORT
-AND/OR (RE)EXPORT OF THIS PRODUCT (OR PORTIONS THEREOF) AND/OR YOUR BREACH OF
-ANY TERM OF THIS LICENSE.
+AGENTS AND ASSOCIATES, AND APPLICABLE COPYRIGHT/TRADEMARK OWNERS, HARMLESS FROM
+AND AGAINST ANY AND ALL LIABILITY, DAMAGES, LOSSES, SETTLEMENTS, PENALTIES,
+FINES, COSTS, EXPENSES (INCLUDING REASONABLE ATTORNEYS' FEES), DEMANDS, CAUSES
+OF ACTION, CLAIMS, ACTIONS, PROCEEDINGS, AND SUITS, RELATED TO OR ARISING OUT
+OF YOUR USE, INABILITY TO USE, COPYING, (RE)DISTRIBUTION, IMPORT AND/OR
+(RE)EXPORT OF THIS PRODUCT (OR PORTIONS THEREOF) AND/OR YOUR BREACH OF ANY TERM
+OF THIS LICENSE.
 
 
 
@@ -283,15 +297,15 @@ software.
 
 
 
-VI. General Terms
+VI. General Terms and Conditions, Miscellaneous Provisions
 
 1. ANYONE WHO USES AND/OR COPIES AND/OR MODIFIES AND/OR CREATES DERIVATIVE
 WORKS OF AND/OR (RE)DISTRIBUTES THIS PRODUCT, OR ANY PORTION(S) THEREOF, IS, BY
-SUCH ACTION(S), AGREEING TO BE BOUND BY AND ACCEPTING ALL TERMS OF THIS LICENSE
-(AND THE RESPONSIBILITIES AND OBLIGATIONS CONTAINED IN THIS LICENSE). IF YOU DO
-NOT ACCEPT (AND AGREE TO BE BOUND BY) ALL TERMS OF THIS LICENSE, DO NOT USE,
-COPY, MODIFY, CREATE DERIVATIVE WORKS OF, NOR (RE)DISTRIBUTE THIS PRODUCT, NOR
-ANY PORTION(S) THEREOF.
+SUCH ACTION(S), AGREEING TO BE BOUND BY AND ACCEPTING ALL TERMS AND CONDITIONS
+OF THIS LICENSE (AND THE RESPONSIBILITIES AND OBLIGATIONS CONTAINED IN THIS
+LICENSE). IF YOU DO NOT ACCEPT (AND AGREE TO BE BOUND BY) ALL TERMS AND
+CONDITIONS OF THIS LICENSE, DO NOT USE, COPY, MODIFY, CREATE DERIVATIVE WORKS
+OF, NOR (RE)DISTRIBUTE THIS PRODUCT, NOR ANY PORTION(S) THEREOF.
 
 2. YOU MAY NOT USE, MODIFY, COPY, CREATE DERIVATIVE WORKS OF, (RE)DISTRIBUTE,
 OR SUBLICENSE THIS PRODUCT, OR PORTION(S) THEREOF, EXCEPT AS EXPRESSLY PROVIDED
@@ -314,22 +328,23 @@ property rights. This license does not transfer, assign, or convey any
 intellectual property rights (e.g., it does not transfer ownership of
 copyrights or trademarks).
 
-4. Subject to the terms of this License, You may allow a third party to use
-Your copy of This Product (or a copy that you make and distribute, or Your
-Product, or respective parts thereof) provided that the third party explicitly
-accepts and agrees to be bound by all terms of this License and the third party
-is not prohibited from using This Product (or portions thereof) by this License
-(see, e.g., Section VI.6) or by applicable law. However, You are not obligated
-to ensure that the third party accepts (and agrees to be bound by all terms of)
-this License if You distribute only the self-extracting package (containing
-This Product) that does not allow the user to install (nor extract) the files
-contained in the package until he or she accepts and agrees to be bound by all
-terms of this License.
+4. Subject to the terms and conditions of this License, You may allow a third
+party to use Your copy of This Product (or a copy that you make and distribute,
+or Your Product, or respective parts thereof) provided that the third party
+overtly accepts and agrees to be bound by all terms and conditions of this
+License and the third party is not prohibited from using This Product (or
+portions thereof) by this License (see, e.g., Section VI.6) or by applicable
+law. However, You are not obligated to ensure that the third party accepts (and
+agrees to be bound by all terms of) this License if You distribute only the
+self-extracting package (containing This Product) that does not allow the user
+to install (nor extract) the files contained in the package until he or she
+accepts and agrees to be bound by all terms and conditions of this License.
 
 5. IF YOU ARE NOT SURE WHETHER YOU UNDERSTAND ALL PARTS OF THIS LICENSE OR IF
-YOU ARE NOT SURE WHETHER YOU CAN COMPLY WITH ALL TERMS OF THIS LICENSE, YOU
-MUST NOT USE, COPY, MODIFY, CREATE DERIVATIVE WORKS OF, NOR (RE)DISTRIBUTE THIS
-PRODUCT, NOR ANY PORTION(S) OF IT. YOU SHOULD CONSULT WITH A LAWYER.
+YOU ARE NOT SURE WHETHER YOU CAN COMPLY WITH ALL TERMS AND CONDITIONS OF THIS
+LICENSE, YOU MUST NOT USE, COPY, MODIFY, CREATE DERIVATIVE WORKS OF, NOR
+(RE)DISTRIBUTE THIS PRODUCT, NOR ANY PORTION(S) OF IT. YOU SHOULD CONSULT WITH
+A LAWYER.
 
 6. IF (IN RELEVANT CONTEXT) ANY PROVISION OF CHAPTER IV OF THIS LICENSE IS
 UNENFORCEABLE, INVALID, OR PROHIBITED UNDER APPLICABLE LAW IN YOUR
@@ -341,8 +356,8 @@ PORTION(S) THEREOF.
 invalid or unenforceable under applicable law, it shall not affect the validity
 or enforceability of the remainder of this License, and such invalid or
 unenforceable provision shall be construed to reflect the original intent of
-such provision and shall be enforced to the maximum extent permitted by
-applicable law so as to effect the original intent of such provision as closely
+the provision and shall be enforced to the maximum extent permitted by
+applicable law so as to effect the original intent of the provision as closely
 as possible.
 
 ____________________________________________________________

@@ -8,12 +8,15 @@
 #ifndef __Forms__
 #define __Forms__
 
+#include <wx/intl.h>
+
 class WizardPage;
 
 #include "WizardPage.h"
 #include <wx/string.h>
 #include <wx/bitmap.h>
 #include <wx/image.h>
+#include <wx/icon.h>
 #include <wx/menu.h>
 #include <wx/gdicmn.h>
 #include <wx/font.h>
@@ -38,7 +41,6 @@ class WizardPage;
 #include <wx/notebook.h>
 #include <wx/choice.h>
 #include <wx/gauge.h>
-#include <wx/radiobut.h>
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -172,6 +174,7 @@ namespace TrueCrypt
 			wxButton* CancelButton;
 			
 			// Virtual event handlers, overide them in your derived class
+			virtual void OnActivate( wxActivateEvent& event ){ event.Skip(); }
 			virtual void OnClose( wxCloseEvent& event ){ event.Skip(); }
 			virtual void OnMouseMotion( wxMouseEvent& event ){ event.Skip(); }
 			virtual void OnHelpButtonClick( wxCommandEvent& event ){ event.Skip(); }
@@ -443,6 +446,8 @@ namespace TrueCrypt
 			wxStaticBoxSizer* ExplorerSizer;
 			wxCheckBox* OpenExplorerWindowAfterMountCheckBox;
 			wxCheckBox* CloseExplorerWindowsOnDismountCheckBox;
+			wxStaticBoxSizer* KernelServicesSizer;
+			wxCheckBox* NoKernelCryptoCheckBox;
 			wxListCtrl* HotkeyListCtrl;
 			wxTextCtrl* HotkeyTextCtrl;
 			wxButton* AssignHotkeyButton;
@@ -465,6 +470,7 @@ namespace TrueCrypt
 			virtual void OnForceAutoDismountCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnPreserveTimestampsCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnBackgroundTaskEnabledCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnNoKernelCryptoCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnHotkeyListItemDeselected( wxListEvent& event ){ event.Skip(); }
 			virtual void OnHotkeyListItemSelected( wxListEvent& event ){ event.Skip(); }
 			virtual void OnAssignHotkeyButtonClick( wxCommandEvent& event ){ event.Skip(); }
@@ -538,6 +544,7 @@ namespace TrueCrypt
 		private:
 		
 		protected:
+			wxBoxSizer* InfoPageSizer;
 			wxStaticText* InfoStaticText;
 		
 		public:
@@ -630,6 +637,7 @@ namespace TrueCrypt
 		private:
 		
 		protected:
+			
 			wxBoxSizer* OuterChoicesSizer;
 			wxBoxSizer* ChoicesSizer;
 			wxStaticText* InfoStaticText;
@@ -665,33 +673,6 @@ namespace TrueCrypt
 		public:
 			TravelerMountOptionsWizardPageBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL );
 			~TravelerMountOptionsWizardPageBase();
-		
-	};
-	
-	///////////////////////////////////////////////////////////////////////////////
-	/// Class VolumeCreationIntroWizardPageBase
-	///////////////////////////////////////////////////////////////////////////////
-	class VolumeCreationIntroWizardPageBase : public WizardPage
-	{
-		private:
-		
-		protected:
-			
-			wxRadioButton* StandardVolumeRadioButton;
-			wxRadioButton* HiddenVolumeRadioButton;
-			
-			wxHyperlinkCtrl* HiddenVolumeHyperlink;
-			
-			wxStaticText* InfoStaticText;
-			
-			
-			// Virtual event handlers, overide them in your derived class
-			virtual void OnHiddenVolumeHyperlinkClick( wxHyperlinkEvent& event ){ event.Skip(); }
-			
-		
-		public:
-			VolumeCreationIntroWizardPageBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL );
-			~VolumeCreationIntroWizardPageBase();
 		
 	};
 	
@@ -742,18 +723,18 @@ namespace TrueCrypt
 		protected:
 			
 			wxComboBox* VolumePathComboBox;
-			
-			wxCheckBox* NoHistoryCheckBox;
 			wxButton* SelectFileButton;
 			wxButton* SelectDeviceButton;
+			
+			wxCheckBox* NoHistoryCheckBox;
 			
 			wxStaticText* InfoStaticText;
 			
 			// Virtual event handlers, overide them in your derived class
 			virtual void OnVolumePathTextChanged( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnNoHistoryCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnSelectFileButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnSelectDeviceButtonClick( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnNoHistoryCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
 			
 		
 		public:

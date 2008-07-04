@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -13,19 +13,24 @@
 
 namespace TrueCrypt
 {
-	MountOptionsDialog::MountOptionsDialog (wxWindow *parent, MountOptions &options)
+	MountOptionsDialog::MountOptionsDialog (wxWindow *parent, MountOptions &options, const wxString &title, bool disableMountOptions)
 		: MountOptionsDialogBase (parent, wxID_ANY, wxString()
 #ifdef __WXGTK__ // GTK apparently needs wxRESIZE_BORDER to support dynamic resizing
 		, wxDefaultPosition, wxSize (-1,-1), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER
 #endif
 		), Options (options)
 	{
-		if (options.Path && !options.Path->IsEmpty())
+		if (!title.empty())
+			this->SetTitle (title);
+		else if (options.Path && !options.Path->IsEmpty())
 			this->SetTitle (StringFormatter (LangString["ENTER_PASSWORD_FOR"], wstring (*options.Path)));
 		else
 			this->SetTitle (LangString["ENTER_TC_VOL_PASSWORD"]);
 
-		PasswordPanel = new VolumePasswordPanel (this, options.Password, options.Keyfiles, true);
+		if (disableMountOptions)
+			OptionsButton->Show (false);
+
+		PasswordPanel = new VolumePasswordPanel (this, options.Password, options.Keyfiles, !disableMountOptions);
 		PasswordPanel->SetCacheCheckBoxValidator (wxGenericValidator (&Options.CachePassword));
 
 		PasswordSizer->Add (PasswordPanel, 1, wxALL | wxEXPAND);

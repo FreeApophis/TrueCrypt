@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.4 the full text of which is contained in the
+ by the TrueCrypt License 2.5 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -15,21 +15,17 @@
 #define TC_APP_NAME						"TrueCrypt"
 
 // Version displayed to user 
-#define VERSION_STRING					"5.1a"
+#define VERSION_STRING					"6.0"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x051a
-
-// Version number written to volume header during format,
-// specifies the minimum program version required to mount the volume
-#define VOL_REQ_PROG_VERSION			0x0500
-
-// Volume header version
-#define VOLUME_HEADER_VERSION			0x0003 
+#define VERSION_NUM						0x0600
 
 // Sector size of encrypted filesystem, which may differ from sector size 
 // of host filesystem/device (this is fully supported since v4.3). 
 #define SECTOR_SIZE                     512
+
+// "Second generation standard" sector size
+#define SECTOR_SIZE_GEN2_STANDARD		4096
 
 #define BYTES_PER_KB                    1024LL
 #define BYTES_PER_MB                    1048576LL
@@ -38,25 +34,6 @@
 #define BYTES_PER_PB                    1125899906842624LL
 
 /* GUI/driver errors */
-
-#define MAX_128BIT_BLOCK_VOLUME_SIZE	BYTES_PER_PB			// Security bound (128-bit block XTS mode)
-#define MAX_VOLUME_SIZE_GENERAL			0x7fffFFFFffffFFFFLL	// Signed 64-bit integer file offset values
-#define MAX_VOLUME_SIZE                 MAX_128BIT_BLOCK_VOLUME_SIZE
-#define MIN_FAT_VOLUME_SIZE				19456
-#define MAX_FAT_VOLUME_SIZE				0x20000000000LL
-#define MIN_NTFS_VOLUME_SIZE			2634752
-#define OPTIMAL_MIN_NTFS_VOLUME_SIZE	(4 * BYTES_PER_GB)
-#define MAX_NTFS_VOLUME_SIZE			(128LL * BYTES_PER_TB)	// NTFS volume can theoretically be up to 16 exabytes, but Windows XP and 2003 limit the size to that addressable with 32-bit clusters, i.e. max size is 128 TB (if 64-KB clusters are used).
-#define MAX_HIDDEN_VOLUME_HOST_SIZE     MAX_NTFS_VOLUME_SIZE
-#define MAX_HIDDEN_VOLUME_SIZE          ( MAX_HIDDEN_VOLUME_HOST_SIZE - HIDDEN_VOL_HEADER_OFFSET - HEADER_SIZE )
-#define MIN_VOLUME_SIZE                 MIN_FAT_VOLUME_SIZE
-#define MIN_HIDDEN_VOLUME_HOST_SIZE     ( MIN_VOLUME_SIZE * 2 + HIDDEN_VOL_HEADER_OFFSET + HEADER_SIZE )
-
-#ifndef TC_NO_COMPILER_INT64
-#if MAX_VOLUME_SIZE > MAX_VOLUME_SIZE_GENERAL
-#error MAX_VOLUME_SIZE must be less than or equal to MAX_VOLUME_SIZE_GENERAL
-#endif
-#endif
 
 #define WIDE(x) (LPWSTR)L##x
 
@@ -75,7 +52,9 @@ typedef __int64 int64;
 typedef unsigned __int64 uint64;
 #endif
 
-// Needed by Cryptolib
+#define TC_INT_TYPES_DEFINED
+
+// Integer types required by Cryptolib
 typedef unsigned __int8 uint_8t;
 typedef unsigned __int16 uint_16t;
 typedef unsigned __int32 uint_32t;
@@ -97,7 +76,7 @@ typedef union
 } UINT64_STRUCT;
 
 #ifdef TC_WINDOWS_BOOT
-#	define TC_THROW_FATAL_EXCEPTION	do { __asm hlt } while (1)
+#	define TC_THROW_FATAL_EXCEPTION	ThrowFatalException (__LINE__)
 #elif defined (NT4_DRIVER)
 #	define TC_THROW_FATAL_EXCEPTION KeBugCheckEx (SECURITY_SYSTEM, __LINE__, 0, 0, 'TC')
 #else
@@ -202,6 +181,47 @@ typedef unsigned __int32 LRESULT;
 
 #endif				/* NT4_DRIVER */
 
+#ifndef TC_TO_STRING
+#	define TC_TO_STRING2(n) #n
+#	define TC_TO_STRING(n) TC_TO_STRING2(n)
+#endif
+
+#ifdef DEVICE_DRIVER
+#	if defined (DEBUG) || 0
+#		if 1 // DbgPrintEx is not available on Windows 2000
+#			define Dump DbgPrint
+#		else
+#			define Dump(...) DbgPrintEx (DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, __VA_ARGS__)
+#		endif
+#			define DumpMem(...) DumpMemory (__VA_ARGS__)
+#	else
+#		define Dump(...) ((void) 0)
+#		define DumpMem(...) ((void) 0)
+#	endif
+#endif
+
+#if !defined (trace_msg) && !defined (TC_WINDOWS_BOOT)
+#	ifdef DEBUG
+#		ifdef DEVICE_DRIVER
+#			define trace_msg Dump
+#		elif defined (_WIN32)
+#			define trace_msg(...) do { char msg[2048]; _snprintf (msg, sizeof (msg), __VA_ARGS__); OutputDebugString (msg); } while (0)
+#		endif
+#		define trace_point trace_msg (__FUNCTION__ ":" TC_TO_STRING(__LINE__) "\n")
+#	else
+#		define trace_msg(...)
+#		define trace_point
+#	endif
+#endif
+
+#ifdef DEVICE_DRIVER
+#	define TC_EVENT KEVENT
+#	define TC_WAIT_EVENT(EVENT) KeWaitForSingleObject (&EVENT, Executive, KernelMode, FALSE, NULL)
+#elif defined (_WIN32)
+#	define TC_EVENT HANDLE
+#	define TC_WAIT_EVENT(EVENT) WaitForSingleObject (EVENT, INFINITE)
+#endif
+
 #ifdef _WIN32
 #define burn(mem,size) do { volatile char *burnm = (volatile char *)(mem); int burnc = size; RtlSecureZeroMemory (mem, size); while (burnc--) *burnm++ = 0; } while (0)
 #else
@@ -216,8 +236,11 @@ typedef unsigned __int32 LRESULT;
 #endif
 
 #ifdef TC_WINDOWS_BOOT
-#undef burn
-#define burn EraseMemory
+#	ifndef max
+#		define max(a,b) (((a) > (b)) ? (a) : (b))
+#	endif
+#	undef burn
+#	define burn EraseMemory
 #endif
 
 #ifdef MAX_PATH
@@ -233,42 +256,43 @@ typedef unsigned __int32 LRESULT;
 
 enum
 {
-	/* WARNING: Add any new codes at the end (do NOT insert them between existing). Do NOT delete any 
-	existing codes. Changing these values or their meanings may cause incompatibility with other 
-	versions (for example, if a new version of the TrueCrypt installer receives an error code from
-	an installed driver whose version is lower, it will interpret the error incorrectly). */
+	/* WARNING: ADD ANY NEW CODES AT THE END (DO NOT INSERT THEM BETWEEN EXISTING). DO *NOT* DELETE ANY 
+	EXISTING CODES! Changing these values or their meanings may cause incompatibility with other versions
+	(for example, if a new version of the TrueCrypt installer receives an error code from an installed 
+	driver whose version is lower, it will report and interpret the error incorrectly). */
 
-	ERR_SUCCESS = 0,
-	ERR_OS_ERROR = 1,
-	ERR_OUTOFMEMORY,
-	ERR_PASSWORD_WRONG,
-	ERR_VOL_FORMAT_BAD,
-	ERR_DRIVE_NOT_FOUND,
-	ERR_FILES_OPEN,
-	ERR_VOL_SIZE_WRONG,
-	ERR_COMPRESSION_NOT_SUPPORTED,
-	ERR_PASSWORD_CHANGE_VOL_TYPE,
-	ERR_PASSWORD_CHANGE_VOL_VERSION,
-	ERR_VOL_SEEKING,
-	ERR_VOL_WRITING,
-	ERR_FILES_OPEN_LOCK,
-	ERR_VOL_READING,
-	ERR_DRIVER_VERSION,
-	ERR_NEW_VERSION_REQUIRED,
-	ERR_CIPHER_INIT_FAILURE,
-	ERR_CIPHER_INIT_WEAK_KEY,
-	ERR_SELF_TESTS_FAILED,
-	ERR_SECTOR_SIZE_INCOMPATIBLE,
-	ERR_VOL_ALREADY_MOUNTED,
-	ERR_NO_FREE_DRIVES,
-	ERR_FILE_OPEN_FAILED,
-	ERR_VOL_MOUNT_FAILED,
-	ERR_INVALID_DEVICE,
-	ERR_ACCESS_DENIED,
-	ERR_MODE_INIT_FAILED,
-	ERR_DONT_REPORT,
-	ERR_ENCRYPTION_NOT_COMPLETED,
-	ERR_PARAMETER_INCORRECT
+	ERR_SUCCESS								= 0,
+	ERR_OS_ERROR							= 1,
+	ERR_OUTOFMEMORY							= 2,
+	ERR_PASSWORD_WRONG						= 3,
+	ERR_VOL_FORMAT_BAD						= 4,
+	ERR_DRIVE_NOT_FOUND						= 5,
+	ERR_FILES_OPEN							= 6,
+	ERR_VOL_SIZE_WRONG						= 7,
+	ERR_COMPRESSION_NOT_SUPPORTED			= 8,
+	ERR_PASSWORD_CHANGE_VOL_TYPE			= 9,
+	ERR_PASSWORD_CHANGE_VOL_VERSION			= 10,
+	ERR_VOL_SEEKING							= 11,
+	ERR_VOL_WRITING							= 12,
+	ERR_FILES_OPEN_LOCK						= 13,
+	ERR_VOL_READING							= 14,
+	ERR_DRIVER_VERSION						= 15,
+	ERR_NEW_VERSION_REQUIRED				= 16,
+	ERR_CIPHER_INIT_FAILURE					= 17,
+	ERR_CIPHER_INIT_WEAK_KEY				= 18,
+	ERR_SELF_TESTS_FAILED					= 19,
+	ERR_SECTOR_SIZE_INCOMPATIBLE			= 20,
+	ERR_VOL_ALREADY_MOUNTED					= 21,
+	ERR_NO_FREE_DRIVES						= 22,
+	ERR_FILE_OPEN_FAILED					= 23,
+	ERR_VOL_MOUNT_FAILED					= 24,
+	ERR_INVALID_DEVICE						= 25,
+	ERR_ACCESS_DENIED						= 26,
+	ERR_MODE_INIT_FAILED					= 27,
+	ERR_DONT_REPORT							= 28,
+	ERR_ENCRYPTION_NOT_COMPLETED			= 29,
+	ERR_PARAMETER_INCORRECT					= 30,
+	ERR_SYS_HIDVOL_HEAD_REENC_MODE_WRONG	= 31
 };
 
 #endif 	// #ifndef TCDEFS_H

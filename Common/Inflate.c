@@ -990,9 +990,9 @@ int inflate(__G)
 {
   int e;                /* last block flag */
   int r;                /* result code */
-#ifdef DEBUG
-  unsigned h = 0;       /* maximum struct huft's malloc'ed */
-#endif
+//#ifdef DEBUG
+//  unsigned h = 0;       /* maximum struct huft's malloc'ed */
+//#endif
 
 #if (defined(DLL) && !defined(NO_SLIDE_REDIR))
   if (G.redirect_slide)
@@ -1009,15 +1009,15 @@ int inflate(__G)
 
   /* decompress until the last block */
   do {
-#ifdef DEBUG
-    G.hufts = 0;
-#endif
+//#ifdef DEBUG
+//    G.hufts = 0;
+//#endif
     if ((r = inflate_block(__G__ &e)) != 0)
       return r;
-#ifdef DEBUG
-    if (G.hufts > h)
-      h = G.hufts;
-#endif
+//#ifdef DEBUG
+//    if (G.hufts > h)
+//      h = G.hufts;
+//#endif
   } while (!e);
 
 
@@ -1026,8 +1026,8 @@ int inflate(__G)
 
 
   /* return success */
-  Trace((stderr, "\n%u bytes in Huffman tables (%d/entry)\n",
-         h * sizeof(struct huft), sizeof(struct huft)));
+  //Trace((stderr, "\n%u bytes in Huffman tables (%d/entry)\n",
+  //       h * sizeof(struct huft), sizeof(struct huft)));
   return 0;
 }
 
@@ -1205,9 +1205,9 @@ int huft_build(
             huft_free(u[0]);
           return 3;             /* not enough memory */
         }
-#ifdef DEBUG
-        G.hufts += z + 1;         /* track memory usage */
-#endif
+//#ifdef DEBUG
+//        G.hufts += z + 1;         /* track memory usage */
+//#endif
         *t = q + 1;             /* link to list for huft_free() */
         *(t = &(q->v.t)) = (struct huft *)NULL;
         u[h] = ++q;             /* table starts after link */

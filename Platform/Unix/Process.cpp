@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -22,7 +22,7 @@
 
 namespace TrueCrypt
 {
-	string Process::Execute (const string &processName, const list <string> &arguments, int timeOut, ProcessExecFunctor *execFunctor)
+	string Process::Execute (const string &processName, const list <string> &arguments, int timeOut, ProcessExecFunctor *execFunctor, const Buffer *inputData)
 	{
 		char *args[32];
 		if (array_capacity (args) <= arguments.size())
@@ -36,7 +36,7 @@ namespace TrueCrypt
 		trace_msg (dbg.str());
 #endif
 
-		Pipe outPipe, errPipe, exceptionPipe;
+		Pipe inPipe, outPipe, errPipe, exceptionPipe;
 
 		int forkedPid = fork();
 		throw_sys_if (forkedPid == -1);
@@ -57,9 +57,18 @@ namespace TrueCrypt
 					}
 					args[argIndex] = nullptr;
 
-					int f = open ("/dev/null", 0);
-					throw_sys_sub_if (f == -1, "/dev/null");
-					throw_sys_if (dup2 (f, STDIN_FILENO) == -1);
+					if (inputData)
+					{
+						throw_sys_if (dup2 (inPipe.GetReadFD(), STDIN_FILENO) == -1);
+					}
+					else
+					{
+						inPipe.Close();
+						int nullDev = open ("/dev/null", 0);
+						throw_sys_sub_if (nullDev == -1, "/dev/null");
+						throw_sys_if (dup2 (nullDev, STDIN_FILENO) == -1);
+					}
+
 					throw_sys_if (dup2 (outPipe.GetWriteFD(), STDOUT_FILENO) == -1);
 					throw_sys_if (dup2 (errPipe.GetWriteFD(), STDERR_FILENO) == -1);
 					exceptionPipe.GetWriteFD();
@@ -112,6 +121,11 @@ namespace TrueCrypt
 
 		Poller poller (outPipe.GetReadFD(), errPipe.GetReadFD(), exceptionPipe.GetReadFD());
 		int status, waitRes;
+
+		if (inputData)
+			throw_sys_if (write (inPipe.GetWriteFD(), inputData->Ptr(), inputData->Size()) == -1);
+
+		inPipe.Close();
 
 		int timeTaken = 0;
 		do

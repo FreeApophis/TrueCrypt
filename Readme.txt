@@ -1,4 +1,4 @@
-This archive contains the source code of TrueCrypt 5.1a.
+This archive contains the source code of TrueCrypt 6.0.
 
 
 Important
@@ -34,10 +34,9 @@ I. Windows
 Requirements for Building TrueCrypt for Windows:
 ------------------------------------------------
 
-- Microsoft Visual C++ 2005 SP1 (Professional Edition or compatible)
-- Microsoft Visual C++ 1.52
-- Microsoft Windows Driver Kit for Windows Vista (build 6000)
-- Microsoft Windows SDK 6.0 (integrated with Visual Studio)
+- Microsoft Visual C++ 2008 (Professional Edition or compatible)
+- Microsoft Visual C++ 1.52 (available from MSDN Subscriber Downloads)
+- Microsoft Windows Driver Kit for Windows Server 2008 (build 6001.18001)
 - NASM 0.99 assembler
 - Yasm assembler
 - gzip compressor
@@ -69,10 +68,9 @@ Instructions for Building TrueCrypt for Windows:
 
 2) If you have installed the Windows Driver Development Kit in another
    directory than '%SYSTEMDRIVE%\WinDDK', create an environment variable called
-   'WINDDK_ROOT' or 'WINDDK_6000_ROOT' pointing to the DDK installation
-   directory.
+   'WINDDK_ROOT' pointing to the DDK installation directory.
    
-3) Open the 'TrueCrypt.sln' solution in Microsoft Visual Studio 2005.
+3) Open the 'TrueCrypt.sln' solution in Microsoft Visual Studio 2008.
 
 4) Select 'All' as the active solution configuration.
 
@@ -91,7 +89,7 @@ Requirements for Building TrueCrypt for Linux and Mac OS X:
 
 - GNU Make
 - GNU C++ Compiler 4.0 or compatible
-- Apple XCode SDK (Mac OS X only)
+- Apple XCode (Mac OS X only)
 - pkg-config
 - wxWidgets 2.8 library source code (available at http://www.wxwidgets.org)
 - FUSE library (available at http://fuse.sourceforge.net and 
@@ -119,8 +117,9 @@ Instructions for Building TrueCrypt for Linux and Mac OS X:
 4) If successful, the TrueCrypt executable should be located in the directory
    'Main'.
 
-By default, an universal executable supporting both graphical and text user
-interface is built. To build a console-only executable, use 'NOGUI' parameter:
+By default, a universal executable supporting both graphical and text user
+interface is built. To build a console-only executable, which requires no GUI
+library, use the 'NOGUI' parameter:
 
    $ make NOGUI=1 WX_ROOT=/usr/src/wxWidgets wxbuild
    $ make NOGUI=1

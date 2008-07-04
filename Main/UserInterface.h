@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -30,6 +30,7 @@ namespace TrueCrypt
 		virtual bool AskYesNo (const wxString &message, bool defaultYes = false, bool warning = false) const = 0;
 		virtual void BeginBusyState () const = 0;
 		virtual void ChangePassword (shared_ptr <VolumePath> volumePath = shared_ptr <VolumePath>(), shared_ptr <VolumePassword> password = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> keyfiles = shared_ptr <KeyfileList>(), shared_ptr <VolumePassword> newPassword = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> newKeyfiles = shared_ptr <KeyfileList>(), shared_ptr <Hash> newHash = shared_ptr <Hash>()) const = 0;
+		virtual void CheckRequirementsForMountingVolume () const;
 		virtual void CloseExplorerWindows (shared_ptr <VolumeInfo> mountedVolume) const;
 		virtual void CreateVolume (shared_ptr <VolumeCreationOptions> options, const FilesystemPath &randomSourcePath = FilesystemPath()) const = 0;
 		virtual void DismountAllVolumes (bool ignoreOpenFiles = false, bool interactive = true) const;
@@ -52,13 +53,13 @@ namespace TrueCrypt
 		virtual void OpenExplorerWindow (const DirectoryPath &path);
 		virtual void SetPreferences (const UserPreferences &preferences);
 		virtual void ShowError (const exception &ex) const;
-		virtual void ShowError (char *langStringId) const { DoShowError (LangString[langStringId]); }
+		virtual void ShowError (const char *langStringId) const { DoShowError (LangString[langStringId]); }
 		virtual void ShowError (const wxString &message) const { DoShowError (message); }
 		virtual void ShowInfo (const exception &ex) const { DoShowInfo (ExceptionToMessage (ex)); }
-		virtual void ShowInfo (char *langStringId) const { DoShowInfo (LangString[langStringId]); }
+		virtual void ShowInfo (const char *langStringId) const { DoShowInfo (LangString[langStringId]); }
 		virtual void ShowInfo (const wxString &message) const { DoShowInfo (message); }
 		virtual void ShowWarning (const exception &ex) const { DoShowWarning (ExceptionToMessage (ex)); }
-		virtual void ShowWarning (char *langStringId) const { DoShowWarning (LangString[langStringId]); }
+		virtual void ShowWarning (const char *langStringId) const { DoShowWarning (LangString[langStringId]); }
 		virtual void ShowString (const wxString &str) const { DoShowString (str); }
 		virtual void ShowWarning (const wxString &message) const { DoShowWarning (message); }
 		virtual wxString SizeToString (uint64 size) const;

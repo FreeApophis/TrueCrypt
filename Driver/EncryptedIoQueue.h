@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -12,7 +12,9 @@
 #include "TCdefs.h"
 #include "Apidrvr.h"
 
-#define TC_ENC_IO_QUEUE_MAX_FRAGMENT_SIZE (64 * 512)
+#define TC_ENC_IO_QUEUE_MAX_FRAGMENT_SIZE (128 * 1024)
+#define TC_ENC_IO_QUEUE_MEM_ALLOC_RETRY_DELAY 10
+#define TC_ENC_IO_QUEUE_MEM_ALLOC_TIMEOUT (60 * 1000)
 
 typedef struct
 {
@@ -29,6 +31,9 @@ typedef struct
 	PDEVICE_OBJECT LowerDeviceObject;
 	int64 EncryptedAreaStart;
 	int64 EncryptedAreaEnd;
+	BOOL RemapEncryptedArea;
+	int64 RemappedAreaOffset;
+	int64 RemappedAreaDataUnitOffset;
 	IO_REMOVE_LOCK RemoveLock;
 
 	// Main tread
@@ -82,7 +87,6 @@ typedef struct
 	LARGE_INTEGER OriginalOffset;
 	LONG OutstandingRequestCount;
 	NTSTATUS Status;
-	LIST_ENTRY ListEntry;
 } EncryptedIoQueueItem;
 
 

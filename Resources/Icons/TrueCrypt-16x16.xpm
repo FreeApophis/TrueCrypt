@@ -1,5 +1,5 @@
 /* XPM */
-static char *TrueCryptIcon16x16[] = {
+static const char *TrueCryptIcon16x16[] = {
 /* columns rows colors chars-per-pixel */
 "16 16 231 2",
 "   c black",

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -14,9 +14,15 @@
 
 namespace TrueCrypt
 {
+	void Thread::Join () const
+	{
+		int status = pthread_join (SystemHandle, nullptr);
+		if (status != 0)
+			throw SystemException (SRC_POS, status);
+	}
+
 	void Thread::Start (ThreadProcPtr threadProc, void *parameter)
 	{
-		pthread_t thread;
 		pthread_attr_t attr;
 		size_t stackSize = 0;
 		int status;
@@ -36,7 +42,7 @@ namespace TrueCrypt
 				throw SystemException (SRC_POS, status);
 		}
 
-		status = pthread_create (&thread, nullptr, threadProc, parameter);
+		status = pthread_create (&SystemHandle, nullptr, threadProc, parameter);
 		if (status != 0)
 			throw SystemException (SRC_POS, status);
 	}

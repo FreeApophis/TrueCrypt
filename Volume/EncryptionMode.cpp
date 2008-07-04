@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -10,6 +10,7 @@
 #include "EncryptionModeCBC.h"
 #include "EncryptionModeLRW.h"
 #include "EncryptionModeXTS.h"
+#include "EncryptionThreadPool.h"
 
 namespace TrueCrypt
 {
@@ -19,6 +20,16 @@ namespace TrueCrypt
 
 	EncryptionMode::~EncryptionMode ()
 	{
+	}
+
+	void EncryptionMode::DecryptSectors (byte *data, uint64 sectorIndex, uint64 sectorCount, size_t sectorSize) const
+	{
+		EncryptionThreadPool::DoWork (EncryptionThreadPool::WorkType::DecryptDataUnits, this, data, sectorIndex, sectorCount, sectorSize);
+	}
+
+	void EncryptionMode::EncryptSectors (byte *data, uint64 sectorIndex, uint64 sectorCount, size_t sectorSize) const
+	{
+		EncryptionThreadPool::DoWork (EncryptionThreadPool::WorkType::EncryptDataUnits, this, data, sectorIndex, sectorCount, sectorSize);
 	}
 
 	EncryptionModeList EncryptionMode::GetAvailableModes ()

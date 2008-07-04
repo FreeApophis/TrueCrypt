@@ -1,12 +1,11 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
 
-#include "Platform/Time.h"
 #include "Crc32.h"
 #include "EncryptionModeXTS.h"
 #include "Pkcs5Kdf.h"
@@ -31,6 +30,7 @@ namespace TrueCrypt
 		VolumeDataSize = 0;
 		EncryptedAreaStart = 0;
 		EncryptedAreaLength = 0;
+		Flags = 0;
 	}
 
 	void VolumeHeader::Create (const BufferPtr &headerBuffer, VolumeHeaderCreationOptions &options)
@@ -46,12 +46,12 @@ namespace TrueCrypt
 		DataAreaKey.Zero();
 		DataAreaKey.CopyFrom (options.DataKey);
 
-		VolumeCreationTime = Time::GetCurrent();
-		HiddenVolumeDataSize = (options.Type == VolumeType::Hidden ? options.VolumeSize : 0);
-		VolumeDataSize = options.VolumeSize;
+		VolumeCreationTime = 0;
+		HiddenVolumeDataSize = (options.Type == VolumeType::Hidden ? options.VolumeDataSize : 0);
+		VolumeDataSize = options.VolumeDataSize;
 
-		EncryptedAreaStart = 0;
-		EncryptedAreaLength = options.VolumeSize;
+		EncryptedAreaStart = options.VolumeDataStart;
+		EncryptedAreaLength = options.VolumeDataSize;
 
 		EA = options.EA;
 		shared_ptr <EncryptionMode> mode (new EncryptionModeXTS ());
@@ -130,6 +130,13 @@ namespace TrueCrypt
 		if (HeaderVersion < MinAllowedHeaderVersion)
 			return false;
 
+		if (HeaderVersion >= 4
+			&& Crc32::ProcessBuffer (header.GetRange (0, TC_HEADER_OFFSET_HEADER_CRC - TC_HEADER_OFFSET_MAGIC))
+			!= DeserializeEntryAt <uint32> (header, TC_HEADER_OFFSET_HEADER_CRC - TC_HEADER_OFFSET_MAGIC))
+		{
+			return false;
+		}
+
 		RequiredMinProgramVersion = DeserializeEntry <uint16> (header, offset);
 		
 		if (RequiredMinProgramVersion > Version::Number())
@@ -143,6 +150,7 @@ namespace TrueCrypt
 		VolumeDataSize = DeserializeEntry <uint64> (header, offset);
 		EncryptedAreaStart = DeserializeEntry <uint64> (header, offset);
 		EncryptedAreaLength = DeserializeEntry <uint64> (header, offset);
+		Flags = DeserializeEntry <uint32> (header, offset);
 
 		offset = DataAreaKeyOffset;
 
@@ -181,6 +189,15 @@ namespace TrueCrypt
 		return Endian::Big (*reinterpret_cast<const T *> (header.Get() + offset - sizeof (T)));
 	}
 
+	template <typename T>
+	T VolumeHeader::DeserializeEntryAt (const ConstBufferPtr &header, const size_t &offset) const
+	{
+		if (offset > header.Size())
+			throw ParameterIncorrect (SRC_POS);
+
+		return Endian::Big (*reinterpret_cast<const T *> (header.Get() + offset));
+	}
+
 	void VolumeHeader::EncryptNew (const BufferPtr &newHeaderBuffer, const ConstBufferPtr &newSalt, const ConstBufferPtr &newHeaderKey, shared_ptr <Pkcs5Kdf> newPkcs5Kdf)
 	{
 		if (newHeaderBuffer.Size() != HeaderSize || newSalt.Size() != SaltSize)
@@ -202,12 +219,11 @@ namespace TrueCrypt
 
 		ea->SetMode (mode);
 
-		BufferPtr headerData = newHeaderBuffer.GetRange (EncryptedHeaderDataOffset, EncryptedHeaderDataSize);
+		newHeaderBuffer.CopyFrom (newSalt);
 
+		BufferPtr headerData = newHeaderBuffer.GetRange (EncryptedHeaderDataOffset, EncryptedHeaderDataSize);
 		Serialize (headerData);
 		ea->Encrypt (headerData);
-
-		Memory::Copy (newHeaderBuffer, newSalt, newSalt.Size());
 
 		if (newPkcs5Kdf)
 			Pkcs5 = newPkcs5Kdf;
@@ -240,16 +256,23 @@ namespace TrueCrypt
 
 		header.GetRange (DataAreaKeyOffset, DataAreaKey.Size()).CopyFrom (DataAreaKey);
 
-		SerializeEntry (HeaderVersion, header, offset);
+		uint16 headerVersion = CurrentHeaderVersion;
+		SerializeEntry (headerVersion, header, offset);
 		SerializeEntry (RequiredMinProgramVersion, header, offset);
 		SerializeEntry (Crc32::ProcessBuffer (header.GetRange (DataAreaKeyOffset, DataKeyAreaMaxSize)), header, offset);
-		SerializeEntry (VolumeCreationTime, header, offset);
-		SerializeEntry (Time::GetCurrent(), header, offset);
+
+		uint64 reserved64 = 0;
+		SerializeEntry (reserved64, header, offset);
+		SerializeEntry (reserved64, header, offset);
+
 		SerializeEntry (HiddenVolumeDataSize, header, offset);
 		SerializeEntry (VolumeDataSize, header, offset);
 		SerializeEntry (EncryptedAreaStart, header, offset);
 		SerializeEntry (EncryptedAreaLength, header, offset);
+		SerializeEntry (Flags, header, offset);
 
+		offset = TC_HEADER_OFFSET_HEADER_CRC - TC_HEADER_OFFSET_MAGIC;
+		SerializeEntry (Crc32::ProcessBuffer (header.GetRange (0, TC_HEADER_OFFSET_HEADER_CRC - TC_HEADER_OFFSET_MAGIC)), header, offset);
 	}
 
 	template <typename T>
@@ -261,5 +284,11 @@ namespace TrueCrypt
 			throw ParameterIncorrect (SRC_POS);
 
 		*reinterpret_cast<T *> (header.Get() + offset - sizeof (T)) = Endian::Big (entry);
+	}
+
+	void VolumeHeader::SetSize (uint32 headerSize)
+	{
+		HeaderSize = headerSize;
+		EncryptedHeaderDataSize = HeaderSize - EncryptedHeaderDataOffset;
 	}
 }

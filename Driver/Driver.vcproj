@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8.00"
+	Version="9.00"
 	Name="Driver"
 	ProjectGUID="{EF5EF444-18D0-40D7-8DFA-775EC4448602}"
 	RootNamespace="Driver"
 	Keyword="MakeFileProj"
+	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
 		<Platform
@@ -166,6 +167,10 @@
 				RelativePath=".\Ntvol.c"
 				>
 			</File>
+			<File
+				RelativePath=".\VolumeFilter.c"
+				>
+			</File>
 			<Filter
 				Name="Common"
 				>
@@ -179,6 +184,10 @@
 				</File>
 				<File
 					RelativePath="..\Common\Crypto.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Common\EncryptionThreadPool.c"
 					>
 				</File>
 				<File
@@ -321,6 +330,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\Common\EncryptionThreadPool.h"
+				>
+			</File>
+			<File
 				RelativePath="..\Common\GfMul.h"
 				>
 			</File>
@@ -338,6 +351,10 @@
 			</File>
 			<File
 				RelativePath="..\Common\Tcdefs.h"
+				>
+			</File>
+			<File
+				RelativePath=".\VolumeFilter.h"
 				>
 			</File>
 			<File

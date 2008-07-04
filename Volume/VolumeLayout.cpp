@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -26,7 +26,9 @@ namespace TrueCrypt
 	{
 		VolumeLayoutList layouts;
 
+		layouts.push_back (shared_ptr <VolumeLayout> (new VolumeLayoutV2Normal ()));
 		layouts.push_back (shared_ptr <VolumeLayout> (new VolumeLayoutV1Normal ()));
+		layouts.push_back (shared_ptr <VolumeLayout> (new VolumeLayoutV2Hidden ()));
 		layouts.push_back (shared_ptr <VolumeLayout> (new VolumeLayoutV1Hidden ()));
 
 		if (type != VolumeType::Unknown)
@@ -53,13 +55,27 @@ namespace TrueCrypt
 		return Header;
 	}
 
+
 	VolumeLayoutV1Normal::VolumeLayoutV1Normal ()
 	{
 		Type = VolumeType::Normal;
-		HeaderOffset = 0;
-		HeaderSize = 512;
+		HeaderOffset = TC_VOLUME_HEADER_OFFSET;
+		HeaderSize = TC_VOLUME_HEADER_SIZE_LEGACY;
 
-		SupportedEncryptionAlgorithms = EncryptionAlgorithm::GetAvailableAlgorithms();
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AES ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new Serpent ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new Twofish ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AESTwofish ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AESTwofishSerpent ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new SerpentAES ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new SerpentTwofishAES ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new TwofishSerpent ()));
+
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AESBlowfish ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AESBlowfishSerpent ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new Blowfish ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new Cast5 ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new TripleDES ()));
 
 		SupportedEncryptionModes.push_back (shared_ptr <EncryptionMode> (new EncryptionModeXTS ()));
 		SupportedEncryptionModes.push_back (shared_ptr <EncryptionMode> (new EncryptionModeLRW ()));
@@ -76,13 +92,27 @@ namespace TrueCrypt
 		return volumeHostSize - GetHeaderSize();
 	}
 
+
 	VolumeLayoutV1Hidden::VolumeLayoutV1Hidden ()
 	{
 		Type = VolumeType::Hidden;
-		HeaderOffset = -512 * 3;
-		HeaderSize = 512;
+		HeaderOffset = -TC_HIDDEN_VOLUME_HEADER_OFFSET_LEGACY;
+		HeaderSize = TC_VOLUME_HEADER_SIZE_LEGACY;
 
-		SupportedEncryptionAlgorithms = EncryptionAlgorithm::GetAvailableAlgorithms();
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AES ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new Serpent ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new Twofish ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AESTwofish ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AESTwofishSerpent ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new SerpentAES ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new SerpentTwofishAES ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new TwofishSerpent ()));
+
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AESBlowfish ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AESBlowfishSerpent ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new Blowfish ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new Cast5 ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new TripleDES ()));
 
 		SupportedEncryptionModes.push_back (shared_ptr <EncryptionMode> (new EncryptionModeXTS ()));
 		SupportedEncryptionModes.push_back (shared_ptr <EncryptionMode> (new EncryptionModeLRW ()));
@@ -97,5 +127,89 @@ namespace TrueCrypt
 	uint64 VolumeLayoutV1Hidden::GetDataSize (uint64 volumeHostSize) const
 	{
 		return Header->GetHiddenVolumeDataSize ();
+	}
+
+
+	VolumeLayoutV2Normal::VolumeLayoutV2Normal ()
+	{
+		Type = VolumeType::Normal;
+		HeaderOffset = TC_VOLUME_HEADER_OFFSET;
+		HeaderSize = TC_VOLUME_HEADER_SIZE;
+		BackupHeaderOffset = -TC_VOLUME_HEADER_GROUP_SIZE;
+
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AES ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new Serpent ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new Twofish ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AESTwofish ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AESTwofishSerpent ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new SerpentAES ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new SerpentTwofishAES ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new TwofishSerpent ()));
+
+		SupportedEncryptionModes.push_back (shared_ptr <EncryptionMode> (new EncryptionModeXTS ()));
+	}
+
+	uint64 VolumeLayoutV2Normal::GetDataOffset (uint64 volumeHostSize) const
+	{
+		return Header->GetEncryptedAreaStart();
+	}
+
+	uint64 VolumeLayoutV2Normal::GetDataSize (uint64 volumeHostSize) const
+	{
+		return Header->GetVolumeDataSize();
+	}
+
+	uint64 VolumeLayoutV2Normal::GetMaxDataSize (uint64 volumeSize) const
+	{
+		if (volumeSize < TC_TOTAL_VOLUME_HEADERS_SIZE)
+			return 0;
+
+		return volumeSize - TC_TOTAL_VOLUME_HEADERS_SIZE;
+	}
+
+
+	VolumeLayoutV2Hidden::VolumeLayoutV2Hidden ()
+	{
+		Type = VolumeType::Hidden;
+		HeaderOffset = TC_HIDDEN_VOLUME_HEADER_OFFSET;
+		HeaderSize = TC_VOLUME_HEADER_SIZE;
+		BackupHeaderOffset = -TC_HIDDEN_VOLUME_HEADER_OFFSET;
+
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AES ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new Serpent ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new Twofish ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AESTwofish ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AESTwofishSerpent ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new SerpentAES ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new SerpentTwofishAES ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new TwofishSerpent ()));
+
+		SupportedEncryptionModes.push_back (shared_ptr <EncryptionMode> (new EncryptionModeXTS ()));
+	}
+
+	uint64 VolumeLayoutV2Hidden::GetDataOffset (uint64 volumeHostSize) const
+	{
+		return Header->GetEncryptedAreaStart();
+	}
+
+	uint64 VolumeLayoutV2Hidden::GetDataSize (uint64 volumeHostSize) const
+	{
+		return Header->GetVolumeDataSize();
+	}
+
+	uint64 VolumeLayoutV2Hidden::GetMaxDataSize (uint64 volumeSize) const
+	{
+		// Reserve free space at the end of the host filesystem
+		uint64 reservedSize;
+
+		if (volumeSize < TC_VOLUME_SMALL_SIZE_THRESHOLD)
+			reservedSize = TC_HIDDEN_VOLUME_HOST_FS_RESERVED_END_AREA_SIZE;
+		else
+			reservedSize = TC_HIDDEN_VOLUME_HOST_FS_RESERVED_END_AREA_SIZE_HIGH; // Ensure size of a hidden volume larger than TC_VOLUME_SMALL_SIZE_THRESHOLD is a multiple of the maximum supported sector size
+
+		if (volumeSize < reservedSize)
+			return 0;
+
+		return volumeSize - reservedSize;
 	}
 }

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -92,7 +92,7 @@ namespace TrueCrypt
 
 #endif // wxUSE_STACKWALKER
 
-		wxString url = Gui->GetHomepageLinkURL (L"err-report", vars.str());
+		wxString url = Gui->GetHomepageLinkURL (L"err-report", true, vars.str());
 		url.Replace (L"0x", L"");
 
 		wxString msg = L"A critical error has occured and TrueCrypt must be terminated. If this is caused by a bug in TrueCrypt, we would like to fix it. To help us, you can send us an automatically generated error report containing the following items:\n\n- Program version\n- Operating system version\n- Hardware architecture\n- Error category\n- Error address\n";
@@ -157,7 +157,7 @@ namespace TrueCrypt
 			vars.Replace (L"::", L".");
 			vars.Replace (L":", L".");
 
-			wxString url = Gui->GetHomepageLinkURL (L"err-report", vars);
+			wxString url = Gui->GetHomepageLinkURL (L"err-report", true, vars);
 
 			wxString msg = L"An unhandled exception has occured and TrueCrypt must be terminated. If this is caused by a bug in TrueCrypt, we would like to fix it. To help us, you can send us an automatically generated error report containing the following items:\n\n- Program version\n- Operating system version\n- Hardware architecture\n- Error description\n- Error location\n";
 			msg += L"\nIf you select 'Yes', the following URL (which contains the entire error report) will be opened in your default Internet browser.\n\n";

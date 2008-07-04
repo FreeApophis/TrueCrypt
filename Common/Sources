@@ -7,6 +7,7 @@ SOURCES = \
 	Cache.c \
 	Crc.c \
 	Crypto.c \
+	EncryptionThreadPool.c \
 	Endian.c \
 	GfMul.c \
 	Pkcs5.c \

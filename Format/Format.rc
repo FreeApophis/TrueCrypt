@@ -28,13 +28,13 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 5,1,1,0
- PRODUCTVERSION 5,1,1,0
- FILEFLAGSMASK 0x37L
+ FILEVERSION 6,0,0,0
+ PRODUCTVERSION 6,0,0,0
+ FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
- FILEFLAGS 0x21L
+ FILEFLAGS 0x1L
 #else
- FILEFLAGS 0x20L
+ FILEFLAGS 0x0L
 #endif
  FILEOS 0x4L
  FILETYPE 0x1L
@@ -46,13 +46,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Format"
-            VALUE "FileVersion", "5.1a"
+            VALUE "FileVersion", "6.0"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt Format.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "5.1a"
-            VALUE "SpecialBuild", "2008-03-17"
+            VALUE "ProductVersion", "6.0"
         END
     END
     BLOCK "VarFileInfo"
@@ -163,7 +162,7 @@ BEGIN
     RTEXT           "Cluster ",IDT_CLUSTER,80,15,32,8
     LTEXT           "",IDC_BOX_HELP,1,112,224,40
     GROUPBOX        "Options",IDT_FORMAT_OPTIONS,0,3,225,29
-    CONTROL         "",IDC_PROGRESS_BAR,"msctls_progress32",WS_BORDER | 0x1,6,76,158,12
+    CONTROL         "",IDC_PROGRESS_BAR,"msctls_progress32",PBS_SMOOTH | WS_BORDER,6,76,158,12
     RTEXT           "",IDC_TIMEREMAIN,177,93,42,11,SS_CENTERIMAGE,WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
     RTEXT           "",IDC_WRITESPEED,106,93,42,11,SS_CENTERIMAGE,WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
     LTEXT           "",IDC_BYTESWRITTEN,29,93,39,11,SS_CENTERIMAGE,WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
@@ -190,7 +189,7 @@ BEGIN
     LTEXT           "More information about system encryption",IDC_MORE_INFO_ON_SYS_ENCRYPTION,16,136,190,10,SS_NOTIFY
     LTEXT           "Creates a virtual encrypted disk within a file. Recommended for inexperienced users.",IDT_FILE_CONTAINER,16,20,205,16
     LTEXT           "Formats and encrypts a non-system partition, entire external or secondary drive, entire USB stick, etc.",IDT_NON_SYS_DEVICE,16,66,205,16
-    LTEXT           "Encrypts the partition/drive where Windows is installed. Anyone who wants to gain access and use the system, read and write files, etc., will need to enter the correct password each time before Windows boots (starts).",IDT_SYS_DEVICE,16,100,205,33
+    LTEXT           "Encrypts the partition/drive where Windows is installed. Anyone who wants to gain access and use the system, read and write files, etc., will need to enter the correct password each time before Windows boots. Optionally, creates a hidden system.",IDT_SYS_DEVICE,16,100,205,33
 END
 
 IDD_INFO_PAGE_DLG DIALOGEX 0, 0, 226, 152
@@ -293,9 +292,9 @@ IDD_SYSENC_WIPE_MODE_PAGE_DLG DIALOGEX 0, 0, 226, 152
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    COMBOBOX        IDC_WIPE_MODE,61,10,127,90,CBS_DROPDOWNLIST | WS_TABSTOP
-    RTEXT           "Wipe mode:",IDT_WIPE_MODE,0,12,59,8,0,WS_EX_RIGHT
-    LTEXT           "",IDT_WIPE_MODE_INFO,0,32,219,114
+    COMBOBOX        IDC_WIPE_MODE,61,0,127,90,CBS_DROPDOWNLIST | WS_TABSTOP
+    RTEXT           "Wipe mode:",IDT_WIPE_MODE,0,2,59,8,0,WS_EX_RIGHT
+    LTEXT           "",IDT_WIPE_MODE_INFO,0,19,225,128
 END
 
 IDD_SYSENC_ENCRYPTION_PAGE_DLG DIALOGEX 0, 0, 226, 152
@@ -309,7 +308,7 @@ BEGIN
     RTEXT           "",IDC_WRITESPEED,103,58,46,11,SS_CENTERIMAGE,WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
     RTEXT           "",IDC_TIMEREMAIN,177,58,42,11,SS_CENTERIMAGE,WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
     RTEXT           "Wipe mode:",IDT_WIPE_MODE,6,15,59,8,0,WS_EX_RIGHT
-    CONTROL         "",IDC_PROGRESS_BAR,"msctls_progress32",WS_BORDER | 0x1,6,41,158,12
+    CONTROL         "",IDC_PROGRESS_BAR,"msctls_progress32",PBS_SMOOTH | WS_BORDER,6,41,158,12
     RTEXT           "Done",IDT_DONE,5,59,22,8
     RTEXT           "Status",IDT_STATUS,72,59,29,8
     RTEXT           "Left",IDT_LEFT,151,59,24,8
@@ -346,8 +345,27 @@ STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     LTEXT           "",IDT_SYSENC_DRIVE_ANALYSIS_INFO,2,10,215,88
-    CONTROL         "",IDC_PROGRESS_BAR,"msctls_progress32",WS_BORDER | 0x1,1,115,216,12
+    CONTROL         "",IDC_PROGRESS_BAR,"msctls_progress32",PBS_SMOOTH | WS_BORDER,1,115,216,12
     LTEXT           "Progress:",IDT_PROGRESS,2,104,57,8
+END
+
+IDD_SYSENC_TYPE_PAGE_DLG DIALOGEX 0, 0, 226, 152
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    CONTROL         "Normal",IDC_SYSENC_NORMAL,"Button",BS_AUTORADIOBUTTON,0,7,212,10
+    CONTROL         "Hi&dden",IDC_SYSENC_HIDDEN,"Button",BS_AUTORADIOBUTTON,0,53,212,10
+    LTEXT           "More information",IDC_HIDDEN_SYSENC_INFO_LINK,16,138,205,10,SS_NOTIFY
+    LTEXT           "",IDC_BOX_HELP_SYSENC_NORMAL,16,20,205,25
+    LTEXT           "",IDC_BOX_HELP,16,66,205,72
+END
+
+IDD_SYSENC_HIDDEN_OS_REQ_CHECK_PAGE_DLG DIALOGEX 0, 0, 226, 152
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    LTEXT           "More information",IDC_HIDDEN_SYSENC_INFO_LINK,0,141,217,10,SS_NOTIFY
+    LTEXT           "",IDC_BOX_HELP,0,2,225,136
 END
 
 
@@ -546,6 +564,20 @@ BEGIN
         BOTTOMMARGIN, 133
         HORZGUIDE, 80
         HORZGUIDE, 96
+    END
+
+    IDD_SYSENC_TYPE_PAGE_DLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 219
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 145
+    END
+
+    IDD_SYSENC_HIDDEN_OS_REQ_CHECK_PAGE_DLG, DIALOG
+    BEGIN
+        RIGHTMARGIN, 223
+        BOTTOMMARGIN, 147
     END
 END
 #endif    // APSTUDIO_INVOKED

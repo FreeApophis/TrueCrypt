@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -10,6 +10,8 @@
 #include "Apidrvr.h"
 #include "Ntdriver.h"
 #include "EncryptedIoQueue.h"
+#include "EncryptionThreadPool.h"
+#include "Volumes.h"
 
 
 static void DecrementOutstandingIoCount (EncryptedIoQueue *queue)
@@ -19,7 +21,7 @@ static void DecrementOutstandingIoCount (EncryptedIoQueue *queue)
 }
 
 
-static void OnItemCompleted (EncryptedIoQueueItem *item)
+static void OnItemCompleted (EncryptedIoQueueItem *item, BOOL freeItem)
 {
 	DecrementOutstandingIoCount (item->Queue);
 	
@@ -34,15 +36,20 @@ static void OnItemCompleted (EncryptedIoQueueItem *item)
 			item->Queue->TotalBytesRead += item->OriginalLength;
 	}
 
-	TCfree (item);
+	if (freeItem)
+		TCfree (item);
 }
 
 
 static NTSTATUS CompleteOriginalIrp (EncryptedIoQueueItem *item, NTSTATUS status, ULONG_PTR information)
 {
 	//Dump ("Queue comp  offset=%I64d  status=%x  info=%p  out=%d\n", item->OriginalOffset, status, information, item->Queue->OutstandingIoCount - 1);
+	
 	TCCompleteDiskIrp (item->OriginalIrp, status, information);
-	OnItemCompleted (item);
+
+	item->Status = status;
+	OnItemCompleted (item, TRUE);
+
 	return status;
 }
 
@@ -89,6 +96,9 @@ static VOID CompletionThreadProc (PVOID threadArg)
 	EncryptedIoRequest *request;
 	UINT64_STRUCT dataUnit;
 
+	if (IsEncryptionThreadPoolRunning())
+		KeSetPriorityThread (KeGetCurrentThread(), LOW_REALTIME_PRIORITY);
+
 	while (!queue->ThreadExitRequested)
 	{
 		if (!NT_SUCCESS (KeWaitForSingleObject (&queue->CompletionThreadQueueNotEmptyEvent, Executive, KernelMode, FALSE, NULL)))
@@ -108,6 +118,8 @@ static VOID CompletionThreadProc (PVOID threadArg)
 
 				if (queue->CryptoInfo->bPartitionInInactiveSysEncScope)
 					dataUnit.Value += queue->CryptoInfo->FirstDataUnitNo.Value;
+				else if (queue->RemapEncryptedArea)
+					dataUnit.Value += queue->RemappedAreaDataUnitOffset;
 
 				DecryptDataUnits (request->Data + request->EncryptedOffset, &dataUnit, request->EncryptedLength / ENCRYPTION_DATA_UNIT_SIZE, queue->CryptoInfo);
 			}
@@ -156,10 +168,67 @@ static VOID IoThreadProc (PVOID threadArg)
 			{
 				if (queue->IsFilterDevice)
 				{
-					if (request->Item->Write)
-						request->Item->Status = TCWriteDevice (queue->LowerDeviceObject, request->Data, request->Offset, request->Length);
+					if (queue->RemapEncryptedArea && request->EncryptedLength > 0)
+					{
+						if (request->EncryptedLength != request->Length)
+						{
+							// Up to three subfragments may be required to handle a partially remapped fragment
+							int subFragment;
+							byte *subFragmentData = request->Data;
+
+							for (subFragment = 0 ; subFragment < 3; ++subFragment)
+							{
+								LARGE_INTEGER subFragmentOffset;
+								ULONG subFragmentLength;
+								subFragmentOffset.QuadPart = request->Offset.QuadPart;
+
+								switch (subFragment)
+								{
+								case 0:
+									subFragmentLength = (ULONG) request->EncryptedOffset;
+									break;
+
+								case 1:
+									subFragmentOffset.QuadPart += request->EncryptedOffset + queue->RemappedAreaOffset;
+									subFragmentLength = request->EncryptedLength;
+									break;
+
+								case 2:
+									subFragmentOffset.QuadPart += request->EncryptedOffset + request->EncryptedLength;
+									subFragmentLength = (ULONG) (request->Length - (request->EncryptedOffset + request->EncryptedLength));
+									break;
+								}
+
+								if (subFragmentLength > 0)
+								{
+									if (request->Item->Write)
+										request->Item->Status = TCWriteDevice (queue->LowerDeviceObject, subFragmentData, subFragmentOffset, subFragmentLength);
+									else
+										request->Item->Status = TCReadDevice (queue->LowerDeviceObject, subFragmentData, subFragmentOffset, subFragmentLength);
+
+									subFragmentData += subFragmentLength;
+								}
+							}
+						}
+						else
+						{
+							// Remap the fragment
+							LARGE_INTEGER remappedOffset;
+							remappedOffset.QuadPart = request->Offset.QuadPart + queue->RemappedAreaOffset;
+
+							if (request->Item->Write)
+								request->Item->Status = TCWriteDevice (queue->LowerDeviceObject, request->Data, remappedOffset, request->Length);
+							else
+								request->Item->Status = TCReadDevice (queue->LowerDeviceObject, request->Data, remappedOffset, request->Length);
+						}
+					}
 					else
-						request->Item->Status = TCReadDevice (queue->LowerDeviceObject, request->Data, request->Offset, request->Length);
+					{
+						if (request->Item->Write)
+							request->Item->Status = TCWriteDevice (queue->LowerDeviceObject, request->Data, request->Offset, request->Length);
+						else
+							request->Item->Status = TCReadDevice (queue->LowerDeviceObject, request->Data, request->Offset, request->Length);
+					}
 				}
 				else
 				{
@@ -169,6 +238,9 @@ static VOID IoThreadProc (PVOID threadArg)
 						request->Item->Status = ZwWriteFile (queue->HostFileHandle, NULL, NULL, NULL, &ioStatus, request->Data, request->Length, &request->Offset, NULL);
 					else
 						request->Item->Status = ZwReadFile (queue->HostFileHandle, NULL, NULL, NULL, &ioStatus, request->Data, request->Length, &request->Offset, NULL);
+
+					if (NT_SUCCESS (request->Item->Status) && ioStatus.Information != request->Length)
+						request->Item->Status = STATUS_END_OF_FILE;
 				}
 			}
 
@@ -192,10 +264,7 @@ static VOID IoThreadProc (PVOID threadArg)
 			else
 			{
 				if (NT_SUCCESS (request->Item->Status))
-				{
-					// Copy fragment to original IRP buffer
 					memcpy (request->OrigDataBufferFragment, request->Data, request->Length);
-				}
 
 				ReleaseFragmentBuffer (queue, request->Data);
 				request->Data = request->OrigDataBufferFragment;
@@ -215,7 +284,7 @@ static NTSTATUS OnPassedIrpCompleted (PDEVICE_OBJECT filterDeviceObject, PIRP ir
 	if (irp->PendingReturned)
 		IoMarkIrpPending (irp);
 
-	OnItemCompleted (item);
+	OnItemCompleted (item, TRUE);
 	return STATUS_CONTINUE_COMPLETION;
 }
 
@@ -234,6 +303,13 @@ static VOID MainThreadProc (PVOID threadArg)
 	uint64 intersectStart;
 	uint32 intersectLength;
 
+	int mdlWaitTime;
+	LARGE_INTEGER mdlWaitInterval;
+	mdlWaitInterval.QuadPart = TC_ENC_IO_QUEUE_MEM_ALLOC_RETRY_DELAY * -10000;
+
+	if (IsEncryptionThreadPoolRunning())
+		KeSetPriorityThread (KeGetCurrentThread(), LOW_REALTIME_PRIORITY);
+
 	while (!queue->ThreadExitRequested)
 	{
 		if (!NT_SUCCESS (KeWaitForSingleObject (&queue->MainThreadQueueNotEmptyEvent, Executive, KernelMode, FALSE, NULL)))
@@ -241,26 +317,62 @@ static VOID MainThreadProc (PVOID threadArg)
 
 		while ((listEntry = ExInterlockedRemoveHeadList (&queue->MainThreadQueue, &queue->MainThreadQueueLock)))
 		{
-			item = CONTAINING_RECORD (listEntry, EncryptedIoQueueItem, ListEntry);
-
-			if (queue->Suspended)
-			{
-				KeWaitForSingleObject (&queue->QueueResumedEvent, Executive, KernelMode, FALSE, NULL);
-			}
+			PIRP irp = CONTAINING_RECORD (listEntry, IRP, Tail.Overlay.ListEntry);
+			PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation (irp);
 			
-			IoSetCancelRoutine (item->OriginalIrp, NULL);
-			if (item->OriginalIrp->Cancel)
+			if (queue->Suspended)
+				KeWaitForSingleObject (&queue->QueueResumedEvent, Executive, KernelMode, FALSE, NULL);
+
+			item = AllocateMemoryWithTimeout (sizeof (EncryptedIoQueueItem), TC_ENC_IO_QUEUE_MEM_ALLOC_RETRY_DELAY, TC_ENC_IO_QUEUE_MEM_ALLOC_TIMEOUT);
+			if (!item)
+			{
+				EncryptedIoQueueItem stackItem;
+				stackItem.Queue = queue;
+				stackItem.OriginalIrp = irp;
+				stackItem.Status = STATUS_INSUFFICIENT_RESOURCES;
+
+				TCCompleteDiskIrp (irp, STATUS_INSUFFICIENT_RESOURCES, 0);
+				OnItemCompleted (&stackItem, FALSE);
+				continue;
+			}
+
+			item->Queue = queue;
+			item->OriginalIrp = irp;
+			item->OutstandingRequestCount = 0;
+			item->Status = STATUS_SUCCESS;
+
+			IoSetCancelRoutine (irp, NULL);
+			if (irp->Cancel)
 			{
 				CompleteOriginalIrp (item, STATUS_CANCELLED, 0);
+				continue;
+			}
+
+			switch (irpSp->MajorFunction)
+			{
+			case IRP_MJ_READ:
+				item->Write = FALSE;
+				item->OriginalOffset = irpSp->Parameters.Read.ByteOffset;
+				item->OriginalLength = irpSp->Parameters.Read.Length;
+				break;
+
+			case IRP_MJ_WRITE:
+				item->Write = TRUE;
+				item->OriginalOffset = irpSp->Parameters.Write.ByteOffset;
+				item->OriginalLength = irpSp->Parameters.Write.Length;
+				break;
+
+			default:
+				CompleteOriginalIrp (item, STATUS_INVALID_PARAMETER, 0);
 				continue;
 			}
 
 			// Pass the IRP if the drive is not encrypted
 			if (queue->IsFilterDevice && (queue->EncryptedAreaStart == -1 || queue->EncryptedAreaEnd == -1))
 			{
-				IoCopyCurrentIrpStackLocationToNext (item->OriginalIrp);
-				IoSetCompletionRoutine (item->OriginalIrp, OnPassedIrpCompleted, item, TRUE, TRUE, TRUE);
-				IoCallDriver (queue->LowerDeviceObject, item->OriginalIrp);
+				IoCopyCurrentIrpStackLocationToNext (irp);
+				IoSetCompletionRoutine (irp, OnPassedIrpCompleted, item, TRUE, TRUE, TRUE);
+				IoCallDriver (queue->LowerDeviceObject, irp);
 				continue;
 			}
 
@@ -273,6 +385,8 @@ static VOID MainThreadProc (PVOID threadArg)
 				CompleteOriginalIrp (item, STATUS_INVALID_PARAMETER, 0);
 				continue;
 			}
+
+			//Dump ("--- Queue %c %I64d  (%I64d)  %d  out=%d\n", item->Write ? 'W' : 'R', item->OriginalOffset.QuadPart, item->OriginalOffset.QuadPart / 1024 / 1024, item->OriginalLength, queue->OutstandingIoCount);
 
 			if (!queue->IsFilterDevice)
 			{
@@ -300,8 +414,9 @@ static VOID MainThreadProc (PVOID threadArg)
 					if (RegionsOverlap ((unsigned __int64) item->OriginalOffset.QuadPart,
 						(unsigned __int64) item->OriginalOffset.QuadPart + item->OriginalLength - 1,
 						queue->CryptoInfo->hiddenVolumeOffset,
-						(unsigned __int64) queue->VirtualDeviceLength + queue->CryptoInfo->volDataAreaOffset - (HIDDEN_VOL_HEADER_OFFSET - HEADER_SIZE) - 1))
+						(unsigned __int64) queue->CryptoInfo->hiddenVolumeOffset + queue->CryptoInfo->hiddenVolumeProtectedSize - 1))
 					{
+						Dump ("Hidden volume protection triggered: write %I64d-%I64d (protected %I64d-%I64d)\n", item->OriginalOffset.QuadPart, item->OriginalOffset.QuadPart + item->OriginalLength - 1, queue->CryptoInfo->hiddenVolumeOffset, queue->CryptoInfo->hiddenVolumeOffset + queue->CryptoInfo->hiddenVolumeProtectedSize - 1);
 						queue->CryptoInfo->bHiddenVolProtectionAction = TRUE;
 
 						// Deny this write operation to prevent the hidden volume from being overwritten
@@ -311,10 +426,19 @@ static VOID MainThreadProc (PVOID threadArg)
 				}
 			}
 
-			//Dump ("--- Queue %c %I64d  (%I64d)  %d  out=%d\n", item->Write ? 'W' : 'R', item->OriginalOffset.QuadPart, item->OriginalOffset.QuadPart / 1024 / 1024, item->OriginalLength, queue->OutstandingIoCount);
-
 			// Original IRP data buffer
-			dataBuffer = (PUCHAR) MmGetSystemAddressForMdlSafe (item->OriginalIrp->MdlAddress, HighPagePriority);
+			mdlWaitTime = 0;
+			while (TRUE)
+			{
+				dataBuffer = (PUCHAR) MmGetSystemAddressForMdlSafe (irp->MdlAddress, HighPagePriority);
+
+				if (dataBuffer || mdlWaitTime >= TC_ENC_IO_QUEUE_MEM_ALLOC_TIMEOUT)
+					break;
+
+				KeDelayExecutionThread (KernelMode, FALSE, &mdlWaitInterval);
+				mdlWaitTime += TC_ENC_IO_QUEUE_MEM_ALLOC_RETRY_DELAY;
+			}
+
 			if (dataBuffer == NULL)
 			{
 				CompleteOriginalIrp (item, STATUS_INSUFFICIENT_RESOURCES, 0);
@@ -334,7 +458,7 @@ static VOID MainThreadProc (PVOID threadArg)
 				activeFragmentBuffer = (activeFragmentBuffer == queue->FragmentBufferA ? queue->FragmentBufferB : queue->FragmentBufferA);
 
 				// Create IO request
-				request = (EncryptedIoRequest *) TCalloc (sizeof (EncryptedIoRequest));
+				request = (EncryptedIoRequest *) AllocateMemoryWithTimeout (sizeof (EncryptedIoRequest), TC_ENC_IO_QUEUE_MEM_ALLOC_RETRY_DELAY, TC_ENC_IO_QUEUE_MEM_ALLOC_TIMEOUT);
 				if (!request)
 				{
 					while (InterlockedExchangeAdd (&item->OutstandingRequestCount, 0) > 0)
@@ -381,7 +505,9 @@ static VOID MainThreadProc (PVOID threadArg)
 
 						if (queue->CryptoInfo->bPartitionInInactiveSysEncScope)
 							dataUnit.Value += queue->CryptoInfo->FirstDataUnitNo.Value;
-
+						else if (queue->RemapEncryptedArea)
+							dataUnit.Value += queue->RemappedAreaDataUnitOffset;
+								
 						EncryptDataUnits (activeFragmentBuffer + request->EncryptedOffset, &dataUnit, request->EncryptedLength / ENCRYPTION_DATA_UNIT_SIZE, queue->CryptoInfo);
 					}
 				}
@@ -408,8 +534,6 @@ static VOID MainThreadProc (PVOID threadArg)
 
 NTSTATUS EncryptedIoQueueAddIrp (EncryptedIoQueue *queue, PIRP irp)
 {
-	EncryptedIoQueueItem *item;
-	PIO_STACK_LOCATION origIrpSp = IoGetCurrentIrpStackLocation (irp);
 	NTSTATUS status;
 
 	InterlockedIncrement (&queue->OutstandingIoCount);
@@ -427,45 +551,10 @@ NTSTATUS EncryptedIoQueueAddIrp (EncryptedIoQueue *queue, PIRP irp)
 			goto err;
 	}
 
-	item = TCalloc (sizeof (EncryptedIoQueueItem));
-	if (!item)
-	{
-		status = STATUS_INSUFFICIENT_RESOURCES;
-		goto err;
-	}
-
-	memset (item, 0, sizeof (EncryptedIoQueueItem));
-
-	switch (origIrpSp->MajorFunction)
-	{
-	case IRP_MJ_READ:
-		item->Write = FALSE;
-		item->OriginalOffset = origIrpSp->Parameters.Read.ByteOffset;
-		item->OriginalLength = origIrpSp->Parameters.Read.Length;
-		break;
-
-	case IRP_MJ_WRITE:
-		item->Write = TRUE;
-		item->OriginalOffset = origIrpSp->Parameters.Write.ByteOffset;
-		item->OriginalLength = origIrpSp->Parameters.Write.Length;
-		break;
-
-	default:
-		TCfree (item);
-		status = STATUS_INVALID_PARAMETER;
-		goto err;
-	}
-
-	item->Queue = queue;
-	item->OriginalIrp = irp;
-	item->OutstandingRequestCount = 0;
-	item->Status = STATUS_SUCCESS;
-
+	//Dump ("Queue irp %p  out=%d\n", irp, queue->OutstandingIoCount);
 	IoMarkIrpPending (irp);
 
-	//Dump ("Queue add %I64d %I64d  out=%d\n", item->OriginalOffset, item->OriginalLength, queue->OutstandingIoCount);
-
-	ExInterlockedInsertTailList (&queue->MainThreadQueue, &item->ListEntry, &queue->MainThreadQueueLock);
+	ExInterlockedInsertTailList (&queue->MainThreadQueue, &irp->Tail.Overlay.ListEntry, &queue->MainThreadQueueLock);
 	KeSetEvent (&queue->MainThreadQueueNotEmptyEvent, IO_DISK_INCREMENT, FALSE);
 	
 	return STATUS_PENDING;

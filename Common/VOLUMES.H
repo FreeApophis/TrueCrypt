@@ -5,17 +5,95 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.4 the full text of which is contained in the
+ by the TrueCrypt License 2.5 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
-#include "Password.h"
-
+#ifndef TC_HEADER_Common_Volumes
+#define TC_HEADER_Common_Volumes
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+// Volume header version
+#define VOLUME_HEADER_VERSION					0x0004 
+
+// Version number written to volume header during format;
+// specifies the minimum program version required to mount the volume
+#define TC_VOLUME_MIN_REQUIRED_PROGRAM_VERSION	0x0600
+
+// Version number written (encrypted) to the key data area of an encrypted system partition/drive;
+// specifies the minimum program version required to decrypt the system partition/drive
+#define TC_SYSENC_KEYSCOPE_MIN_REQ_PROG_VERSION	0x0500
+
+// Current volume format version (created by TrueCrypt 6.0+)
+#define TC_VOLUME_FORMAT_VERSION				2
+
+// Version number of volume format created by TrueCrypt 1.0-5.1a
+#define TC_VOLUME_FORMAT_VERSION_PRE_6_0		1
+
+// Volume header sizes
+#define TC_VOLUME_HEADER_SIZE					(64 * 1024L)
+#define TC_VOLUME_HEADER_EFFECTIVE_SIZE			512
+#define TC_BOOT_ENCRYPTION_VOLUME_HEADER_SIZE	512
+#define TC_VOLUME_HEADER_SIZE_LEGACY			512
+
+#define TC_VOLUME_HEADER_GROUP_SIZE				(2 * TC_VOLUME_HEADER_SIZE)
+#define TC_TOTAL_VOLUME_HEADERS_SIZE			(4 * TC_VOLUME_HEADER_SIZE)
+
+// Volume offsets
+#define TC_VOLUME_HEADER_OFFSET					0
+#define TC_HIDDEN_VOLUME_HEADER_OFFSET			TC_VOLUME_HEADER_SIZE
+
+#define TC_MAX_VOLUME_SECTOR_SIZE				(2 * TC_VOLUME_HEADER_SIZE)
+
+#define TC_VOLUME_SMALL_SIZE_THRESHOLD			(2 * BYTES_PER_MB)		// Volume sizes below this threshold are considered small
+
+#define TC_HIDDEN_VOLUME_HOST_FS_RESERVED_END_AREA_SIZE			SECTOR_SIZE_GEN2_STANDARD	// FAT file system fills the last sector with zeroes (marked as free; observed when quick format was performed using the OS format tool).
+#define	TC_HIDDEN_VOLUME_HOST_FS_RESERVED_END_AREA_SIZE_HIGH	TC_MAX_VOLUME_SECTOR_SIZE	// Reserved area size used for hidden volumes larger than TC_VOLUME_SMALL_SIZE_THRESHOLD
+
+#define TC_VOLUME_DATA_OFFSET					TC_VOLUME_HEADER_GROUP_SIZE
+
+/* The offset, in bytes, of the hidden volume header position from the end of the file (a positive value).
+   The extra offset (SECTOR_SIZE * 2) was added because FAT file system fills the last sector with zeroes
+   (marked as free; observed when quick format was performed using the OS format tool). One extra sector was
+   added to the offset for future expandability (should the header size increase, or should header backup be
+   introduced). */
+#define TC_HIDDEN_VOLUME_HEADER_OFFSET_LEGACY	(TC_VOLUME_HEADER_SIZE_LEGACY + SECTOR_SIZE * 2)		
+
+#define TC_MAX_128BIT_BLOCK_VOLUME_SIZE	BYTES_PER_PB			// Security bound (128-bit block XTS mode)
+
+// Filesystem size limits
+#define TC_MIN_FAT_FS_SIZE				(37 * SECTOR_SIZE)
+#define TC_MAX_FAT_FS_SIZE				0x20000000000LL
+#define TC_MIN_NTFS_FS_SIZE				2634752
+#define TC_MAX_NTFS_FS_SIZE				(128LL * BYTES_PER_TB)	// NTFS volume can theoretically be up to 16 exabytes, but Windows XP and 2003 limit the size to that addressable with 32-bit clusters, i.e. max size is 128 TB (if 64-KB clusters are used).
+
+// Volume size limits
+#define TC_MIN_VOLUME_SIZE				(TC_TOTAL_VOLUME_HEADERS_SIZE + TC_MIN_FAT_FS_SIZE)
+#define TC_MIN_VOLUME_SIZE_LEGACY		TC_MIN_FAT_FS_SIZE
+#define TC_MAX_VOLUME_SIZE_GENERAL		0x7fffFFFFffffFFFFLL	// Signed 64-bit integer file offset values
+#define TC_MAX_VOLUME_SIZE				TC_MAX_128BIT_BLOCK_VOLUME_SIZE
+
+#define TC_MIN_HIDDEN_VOLUME_SIZE		(TC_MIN_FAT_FS_SIZE + TC_HIDDEN_VOLUME_HOST_FS_RESERVED_END_AREA_SIZE)
+
+#define TC_MIN_HIDDEN_VOLUME_HOST_SIZE	(TC_MIN_VOLUME_SIZE + TC_MIN_HIDDEN_VOLUME_SIZE + 2 * SECTOR_SIZE_GEN2_STANDARD)
+#define TC_MAX_HIDDEN_VOLUME_HOST_SIZE	(TC_MAX_NTFS_FS_SIZE - TC_TOTAL_VOLUME_HEADERS_SIZE)
+
+#ifndef TC_NO_COMPILER_INT64
+#	if TC_MAX_VOLUME_SIZE > TC_MAX_VOLUME_SIZE_GENERAL
+#		error TC_MAX_VOLUME_SIZE > TC_MAX_VOLUME_SIZE_GENERAL
+#	endif
+#endif
+
+#define HEADER_ENCRYPTED_DATA_SIZE			(TC_VOLUME_HEADER_EFFECTIVE_SIZE - HEADER_ENCRYPTED_DATA_OFFSET)
+
+// Volume header field offsets
+#define	HEADER_SALT_OFFSET					0
+#define HEADER_ENCRYPTED_DATA_OFFSET		PKCS5_SALT_SIZE
+#define	HEADER_MASTER_KEYDATA_OFFSET		256
+	
 #define TC_HEADER_OFFSET_MAGIC					64
 #define TC_HEADER_OFFSET_VERSION				68
 #define TC_HEADER_OFFSET_REQUIRED_VERSION		70
@@ -26,16 +104,29 @@ extern "C" {
 #define TC_HEADER_OFFSET_VOLUME_SIZE			100
 #define TC_HEADER_OFFSET_ENCRYPTED_AREA_START	108
 #define TC_HEADER_OFFSET_ENCRYPTED_AREA_LENGTH	116
+#define TC_HEADER_OFFSET_FLAGS					124
+#define TC_HEADER_OFFSET_HEADER_CRC				252
+
+// Volume header flags
+#define TC_HEADER_FLAG_ENCRYPTED_SYSTEM			0x1
+
+
+#ifndef TC_HEADER_Volume_VolumeHeader
+
+#include "Password.h"
 
 uint16 GetHeaderField16 (byte *header, size_t offset);
 uint32 GetHeaderField32 (byte *header, size_t offset);
 UINT64_STRUCT GetHeaderField64 (byte *header, size_t offset);
 int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCRYPTO_INFO *retInfo, CRYPTO_INFO *retHeaderCryptoInfo);
 #ifndef TC_WINDOWS_BOOT
-int VolumeWriteHeader (BOOL bBoot, char *encryptedHeader, int ea, int mode, Password *password, int pkcs5_prf, char *masterKeydata, unsigned __int64 volumeCreationTime, PCRYPTO_INFO *retInfo, unsigned __int64 volumeSize, unsigned __int64 hiddenVolumeSize, unsigned __int64 encryptedAreaStart, unsigned __int64 encryptedAreaLength, BOOL bWipeMode);
+int VolumeWriteHeader (BOOL bBoot, char *encryptedHeader, int ea, int mode, Password *password, int pkcs5_prf, char *masterKeydata, PCRYPTO_INFO *retInfo, unsigned __int64 volumeSize, unsigned __int64 hiddenVolumeSize, unsigned __int64 encryptedAreaStart, unsigned __int64 encryptedAreaLength, uint16 requiredProgramVersion, uint32 headerFlags, BOOL bWipeMode);
 #endif
+
+#endif // !TC_HEADER_Volume_VolumeHeader
 
 #ifdef __cplusplus
 }
 #endif
 
+#endif // TC_HEADER_Common_Volumes

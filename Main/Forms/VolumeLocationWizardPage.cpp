@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -13,10 +13,24 @@
 
 namespace TrueCrypt
 {
-	VolumeLocationWizardPage::VolumeLocationWizardPage (wxPanel* parent, bool selectExisting)
+	VolumeLocationWizardPage::VolumeLocationWizardPage (wxPanel* parent, VolumeHostType::Enum hostType, bool selectExisting)
 		: VolumeLocationWizardPageBase (parent),
 		SelectExisting (selectExisting)
 	{
+		switch (hostType)
+		{
+		case VolumeHostType::Device:
+			SelectFileButton->Show (false);
+			break;
+
+		case VolumeHostType::File:
+			SelectDeviceButton->Show (false);
+			break;
+
+		default:
+			break;
+		}
+
 		Gui->PreferencesUpdatedEvent.Connect (EventConnector <VolumeLocationWizardPage> (this, &VolumeLocationWizardPage::OnPreferencesUpdated));
 		VolumeHistory::ConnectComboBox (VolumePathComboBox);
 
@@ -29,7 +43,7 @@ namespace TrueCrypt
 		VolumeHistory::DisconnectComboBox (VolumePathComboBox);
 	}
 
-	void VolumeLocationWizardPage::OnNoHistoryCheckBoxClick( wxCommandEvent& event )
+	void VolumeLocationWizardPage::OnNoHistoryCheckBoxClick (wxCommandEvent& event)
 	{
 		UserPreferences prefs = Gui->GetPreferences();
 		prefs.SaveHistory = !event.IsChecked();
@@ -56,7 +70,7 @@ namespace TrueCrypt
 		NoHistoryCheckBox->SetValue (!Gui->GetPreferences().SaveHistory);
 	}
 
-	void VolumeLocationWizardPage::OnSelectFileButtonClick( wxCommandEvent& event )
+	void VolumeLocationWizardPage::OnSelectFileButtonClick (wxCommandEvent& event)
 	{
 		FilePath path = Gui->SelectVolumeFile (this, !SelectExisting);
 
@@ -64,7 +78,7 @@ namespace TrueCrypt
 			SetVolumePath (path);
 	}
 
-	void VolumeLocationWizardPage::OnSelectDeviceButtonClick( wxCommandEvent& event )
+	void VolumeLocationWizardPage::OnSelectDeviceButtonClick (wxCommandEvent& event)
 	{
 		DevicePath path = Gui->SelectDevice (this);
 

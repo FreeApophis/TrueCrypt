@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -22,7 +22,9 @@ namespace TrueCrypt
 		SecureBuffer buffer (PoolSize);
 
 #ifdef TC_WINDOWS
+#ifndef DEBUG
 		throw NotImplemented (SRC_POS);
+#endif
 #else
 		int urandom = open ("/dev/urandom", O_RDONLY);
 		throw_sys_sub_if (urandom == -1, L"/dev/urandom");

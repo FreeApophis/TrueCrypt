@@ -303,13 +303,13 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 5,1,1,0
- PRODUCTVERSION 5,1,1,0
- FILEFLAGSMASK 0x37L
+ FILEVERSION 6,0,0,0
+ PRODUCTVERSION 6,0,0,0
+ FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
- FILEFLAGS 0x21L
+ FILEFLAGS 0x1L
 #else
- FILEFLAGS 0x20L
+ FILEFLAGS 0x0L
 #endif
  FILEOS 0x4L
  FILETYPE 0x1L
@@ -321,13 +321,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt"
-            VALUE "FileVersion", "5.1a"
+            VALUE "FileVersion", "6.0"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "5.1a"
-            VALUE "SpecialBuild", "2008-03-17"
+            VALUE "ProductVersion", "6.0"
         END
     END
     BLOCK "VarFileInfo"
@@ -410,6 +409,8 @@ BEGIN
         MENUITEM "Permanently Decrypt System Partition/Drive", IDM_PERMANENTLY_DECRYPT_SYS
         MENUITEM "Resume Interrupted Process",  IDM_SYSENC_RESUME
         MENUITEM SEPARATOR
+        MENUITEM "Create Hidden Operating System...", IDM_CREATE_HIDDEN_OS
+        MENUITEM SEPARATOR
         MENUITEM "Create Rescue Disk...",       IDM_CREATE_RESCUE_DISK
         MENUITEM "Verify Rescue Disk",          IDM_VERIFY_RESCUE_DISK
         MENUITEM SEPARATOR
@@ -446,7 +447,7 @@ BEGIN
         MENUITEM "Clear Volume History",        IDM_CLEAR_HISTORY
         MENUITEM "Wipe Cached Passwords",       IDM_WIPE_CACHE
     END
-    POPUP "Setti&ngs"
+    POPUP "Settin&gs"
     BEGIN
         MENUITEM "Language...",                 IDM_LANGUAGE
         MENUITEM "Hot Keys...",                 IDM_HOTKEY_SETTINGS

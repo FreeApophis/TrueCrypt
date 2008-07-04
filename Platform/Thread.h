@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -19,6 +19,7 @@
 #include "PlatformBase.h"
 #include "Functor.h"
 #include "SharedPtr.h"
+#include "SyncEvent.h"
 
 namespace TrueCrypt
 {
@@ -26,13 +27,16 @@ namespace TrueCrypt
 	{
 	public:
 #ifdef TC_WINDOWS
+		typedef HANDLE ThreadSystemHandle;
 		typedef LPTHREAD_START_ROUTINE ThreadProcPtr;
 #else
+		typedef pthread_t ThreadSystemHandle;
 		typedef void* (*ThreadProcPtr) (void *);
 #endif
 		Thread () { };
 		virtual ~Thread () { };
 
+		void Join () const;
 		void Start (ThreadProcPtr threadProc, void *parameter = nullptr);
 
 		void Start (Functor *functor)
@@ -57,6 +61,8 @@ namespace TrueCrypt
 		}
 
 		static const size_t MinThreadStackSize = 1024 * 1024;
+
+		ThreadSystemHandle SystemHandle;
 
 	private:
 		Thread (const Thread &);

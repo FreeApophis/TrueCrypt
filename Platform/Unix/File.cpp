@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -26,9 +26,24 @@
 
 namespace TrueCrypt
 {
+#if 0
+#	define TC_TRACE_FILE_OPERATIONS
+
+	static void TraceFileOperation (int fileHandle, FilePath filePath, bool write, uint64 length, int64 position = -1)
+	{
+		string path = filePath;
+		if (path.empty() || path.find ("truecrypt_aux_mnt") != string::npos)
+			return;
+
+		stringstream s;
+		s << path << ": " << (write ? "W " : "R ") << (position == -1 ? lseek (fileHandle, 0, SEEK_CUR) : position) << " (" << length << ")";
+		SystemLog::WriteError (s.str());
+	}
+#endif
+
 	void File::Close ()
 	{
-		ValidateState();
+		if_debug (ValidateState());
 
 		if (!SharedHandle)
 		{
@@ -64,7 +79,7 @@ namespace TrueCrypt
 
 	void File::Flush () const
 	{
-		ValidateState();
+		if_debug (ValidateState());
 		throw_sys_sub_if (fsync (FileHandle) != 0, wstring (Path));
 	}
 
@@ -89,7 +104,7 @@ namespace TrueCrypt
 
 	uint64 File::Length () const
 	{
-		ValidateState();
+		if_debug (ValidateState());
 
 		// BSD does not support seeking to the end of a device
 #ifdef TC_BSD
@@ -201,8 +216,11 @@ namespace TrueCrypt
 
 	uint64 File::Read (const BufferPtr &buffer) const
 	{
-		ValidateState();
+		if_debug (ValidateState());
 
+#ifdef TC_TRACE_FILE_OPERATIONS
+		TraceFileOperation (FileHandle, Path, false, buffer.Size());
+#endif
 		ssize_t bytesRead = read (FileHandle, buffer, buffer.Size());
 		throw_sys_sub_if (bytesRead == -1, wstring (Path));
 
@@ -211,8 +229,11 @@ namespace TrueCrypt
 
 	uint64 File::ReadAt (const BufferPtr &buffer, uint64 position) const
 	{
-		ValidateState();
-		
+		if_debug (ValidateState());
+
+#ifdef TC_TRACE_FILE_OPERATIONS
+		TraceFileOperation (FileHandle, Path, false, buffer.Size(), position);
+#endif
 		ssize_t bytesRead = pread (FileHandle, buffer, buffer.Size(), position);
 		throw_sys_sub_if (bytesRead == -1, wstring (Path));
 
@@ -221,13 +242,13 @@ namespace TrueCrypt
 
 	void File::SeekAt (uint64 position) const
 	{
-		ValidateState();
+		if_debug (ValidateState());
 		throw_sys_sub_if (lseek (FileHandle, position, SEEK_SET) == -1, wstring (Path));
 	}
 
 	void File::SeekEnd (int offset) const
 	{
-		ValidateState();
+		if_debug (ValidateState());
 
 		// BSD does not support seeking to the end of a device
 #ifdef TC_BSD
@@ -243,13 +264,21 @@ namespace TrueCrypt
 
 	void File::Write (const ConstBufferPtr &buffer) const
 	{
-		ValidateState();
+		if_debug (ValidateState());
+
+#ifdef TC_TRACE_FILE_OPERATIONS
+		TraceFileOperation (FileHandle, Path, true, buffer.Size());
+#endif
 		throw_sys_sub_if (write (FileHandle, buffer, buffer.Size()) != buffer.Size(), wstring (Path));
 	}
 	
 	void File::WriteAt (const ConstBufferPtr &buffer, uint64 position) const
 	{
-		ValidateState();
+		if_debug (ValidateState());
+
+#ifdef TC_TRACE_FILE_OPERATIONS
+		TraceFileOperation (FileHandle, Path, true, buffer.Size(), position);
+#endif
 		throw_sys_sub_if (pwrite (FileHandle, buffer, buffer.Size(), position) != buffer.Size(), wstring (Path));
 	}
 }

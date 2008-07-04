@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2007-2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -12,7 +12,7 @@ import "..\Common\Password.h";
 [
 	uuid(A7DF958C-0716-49E9-8C3E-53A775797576),
 	helpstring("TrueCrypt Format UAC Support Library"),
-	version(2.0)
+	version(2.1)
 ]
 library TrueCryptFormatCom
 {
@@ -27,9 +27,11 @@ library TrueCryptFormatCom
 		int AnalyzeHiddenVolumeHost (LONG_PTR hwndDlg, int *driveNo, __int64 hiddenVolHostSize, int *realClusterSize, __int64 *nbrFreeClusters);
 		DWORD CallDriver (DWORD ioctl, BSTR input, BSTR *output);
 		BOOL FormatNtfs (int driveNo, int clusterSize);
+		BOOL IsPagingFileActive ();
 		DWORD ReadWriteFile (BOOL write, BOOL device, BSTR filePath, BSTR *bufferBstr, unsigned __int64 offset, unsigned __int32 size, DWORD *sizeDone);
-		DWORD RegisterFilterDriver (BOOL registerDriver);
+		DWORD RegisterFilterDriver (BOOL registerDriver, BOOL volumeClass);
 		DWORD SetDriverServiceStartType (DWORD startType);
+		DWORD WriteLocalMachineRegistryDwordValue (BSTR keyPath, BSTR valueName, DWORD value);
 	};
 
 	[

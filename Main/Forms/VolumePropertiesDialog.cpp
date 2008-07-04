@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -47,6 +47,9 @@ namespace TrueCrypt
 		AppendToList ("ENCRYPTION_ALGORITHM", volumeInfo.EncryptionAlgorithmName);
 		AppendToList ("KEY_SIZE", StringFormatter (L"{0} {1}", volumeInfo.EncryptionAlgorithmKeySize * 8, LangString ["BITS"]));
 
+		if (volumeInfo.EncryptionModeName == L"XTS")
+			AppendToList ("SECONDARY_KEY_SIZE_XTS", StringFormatter (L"{0} {1}", volumeInfo.EncryptionAlgorithmKeySize * 8, LangString ["BITS"]));
+
 		wstringstream blockSize;
 		blockSize << volumeInfo.EncryptionAlgorithmBlockSize * 8;
 		if (volumeInfo.EncryptionAlgorithmBlockSize != volumeInfo.EncryptionAlgorithmMinBlockSize)
@@ -55,13 +58,25 @@ namespace TrueCrypt
 		AppendToList ("BLOCK_SIZE", blockSize.str() + L" " + LangString ["BITS"]);
 		AppendToList ("MODE_OF_OPERATION", volumeInfo.EncryptionModeName);
 		AppendToList ("PKCS5_PRF", volumeInfo.Pkcs5PrfName);
-		AppendToList ("PKCS5_ITERATIONS", StringConverter::FromNumber (volumeInfo.Pkcs5IterationCount));
 
+#if 0
+		AppendToList ("PKCS5_ITERATIONS", StringConverter::FromNumber (volumeInfo.Pkcs5IterationCount));
 		AppendToList ("VOLUME_CREATE_DATE", Gui->VolumeTimeToString (volumeInfo.VolumeCreationTime));
 		AppendToList ("VOLUME_HEADER_DATE", Gui->VolumeTimeToString (volumeInfo.HeaderCreationTime));
+#endif
 
+		AppendToList ("VOLUME_FORMAT_VERSION", StringConverter::ToWide (volumeInfo.MinRequiredProgramVersion < 0x600 ? 1 : 2));
+		AppendToList ("BACKUP_HEADER", LangString[volumeInfo.MinRequiredProgramVersion >= 0x600 ? "UISTR_YES" : "UISTR_NO"]);
+
+#ifdef TC_LINUX
+		if (string (volumeInfo.VirtualDevice).find ("/dev/mapper/truecrypt") != 0)
+		{
+#endif
 		AppendToList ("TOTAL_DATA_READ", Gui->SizeToString (volumeInfo.TotalDataRead));
 		AppendToList ("TOTAL_DATA_WRITTEN", Gui->SizeToString (volumeInfo.TotalDataWritten));
+#ifdef TC_LINUX
+		}
+#endif
 		
 		Layout();
 		Fit();

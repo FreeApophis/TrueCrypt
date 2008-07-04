@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2007-2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -15,6 +15,7 @@
 #include "MainCom.h"
 #include "MainCom_h.h"
 #include "MainCom_i.c"
+#include "Mount.h"
 #include "Password.h"
 
 using namespace TrueCrypt;
@@ -69,12 +70,14 @@ public:
 	virtual int STDMETHODCALLTYPE BackupVolumeHeader (LONG_PTR hwndDlg, BOOL bRequireConfirmation, BSTR lpszVolume)
 	{
 		USES_CONVERSION;
+		MainDlg = (HWND) hwndDlg;
 		return ::BackupVolumeHeader ((HWND) hwndDlg, bRequireConfirmation, CW2A (lpszVolume));
 	}
 
 	virtual int STDMETHODCALLTYPE RestoreVolumeHeader (LONG_PTR hwndDlg, BSTR lpszVolume)
 	{
 		USES_CONVERSION;
+		MainDlg = (HWND) hwndDlg;
 		return ::RestoreVolumeHeader ((HWND) hwndDlg, CW2A (lpszVolume));
 	}
 
@@ -86,7 +89,13 @@ public:
 	virtual int STDMETHODCALLTYPE ChangePassword (BSTR volumePath, Password *oldPassword, Password *newPassword, int pkcs5, LONG_PTR hWnd)
 	{
 		USES_CONVERSION;
+		MainDlg = (HWND) hWnd;
 		return ::ChangePwd (CW2A (volumePath), oldPassword, newPassword, pkcs5, (HWND) hWnd);
+	}
+	
+	virtual BOOL STDMETHODCALLTYPE IsPagingFileActive ()
+	{
+		return BaseCom::IsPagingFileActive ();
 	}
 
 	virtual DWORD STDMETHODCALLTYPE ReadWriteFile (BOOL write, BOOL device, BSTR filePath, BSTR *bufferBstr, unsigned __int64 offset, unsigned __int32 size, DWORD *sizeDone)
@@ -94,14 +103,19 @@ public:
 		return BaseCom::ReadWriteFile (write, device, filePath, bufferBstr, offset, size, sizeDone);
 	}
 
-	virtual DWORD STDMETHODCALLTYPE RegisterFilterDriver (BOOL registerDriver)
+	virtual DWORD STDMETHODCALLTYPE RegisterFilterDriver (BOOL registerDriver, BOOL volumeClass)
 	{
-		return BaseCom::RegisterFilterDriver (registerDriver);
+		return BaseCom::RegisterFilterDriver (registerDriver, volumeClass);
 	}
 
 	virtual DWORD STDMETHODCALLTYPE SetDriverServiceStartType (DWORD startType)
 	{
 		return BaseCom::SetDriverServiceStartType (startType);
+	}
+
+	virtual DWORD STDMETHODCALLTYPE WriteLocalMachineRegistryDwordValue (BSTR keyPath, BSTR valueName, DWORD value)
+	{
+		return BaseCom::WriteLocalMachineRegistryDwordValue (keyPath, valueName, value);
 	}
 
 protected:

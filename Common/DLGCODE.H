@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.4 the full text of which is contained in the
+ by the TrueCrypt License 2.5 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -20,6 +20,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 
 /* IDs for dynamically generated GUI elements */
 enum dynamic_gui_element_ids
@@ -38,6 +39,9 @@ enum
 	TC_TBXID_SYS_ENC_RESCUE_DISK
 };
 
+#define TC_MUTEX_NAME_SYSENC		"Global\\TrueCrypt System Encryption Wizard"
+#define TC_MUTEX_NAME_APP_SETUP		"Global\\TrueCrypt Setup"
+
 #define IDC_ABOUT 0x7fff	/* ID for AboutBox on system menu in wm_user range */
 
 #define SELDEVFLAG_CONTAINS_PARTITIONS		0x00000001L
@@ -46,14 +50,24 @@ enum
 #define SELDEVFLAG_SYSTEM_PARTITION			0x00000008L
 #define SELDEVFLAG_SYSTEM_DRIVE				0x00000010L
 
+#define EXCL_ACCESS_MAX_AUTO_RETRIES 500
+#define EXCL_ACCESS_AUTO_RETRY_DELAY 10
+
 #define UNMOUNT_MAX_AUTO_RETRIES 10
 #define UNMOUNT_AUTO_RETRY_DELAY 50
+
+// After the user receives the "Incorrect password" error this number of times in a row, we should automatically
+// try using the embedded header backup (if any). This ensures that the "Incorrect password" message is reported faster
+// initially (most such errors are really caused by supplying an incorrect password, not by header corruption).
+#define TC_TRY_HEADER_BAK_AFTER_NBR_WRONG_PWD_TRIES		2
 
 #define MAX_MULTI_CHOICES		10		/* Maximum number of options for mutliple-choice dialog */
 
 #define FILE_CONFIGURATION			"Configuration.xml"
 #define FILE_SYSTEM_ENCRYPTION_CFG	"System Encryption.xml"
 #define FILE_DEFAULT_KEYFILES		"Default Keyfiles.xml"
+#define FILE_POST_INSTALL_CFG_TUTORIAL			"Post-Install Task - Tutorial"
+#define FILE_POST_INSTALL_CFG_RELEASE_NOTES		"Post-Install Task - Release Notes"
 
 #ifndef USER_DEFAULT_SCREEN_DPI
 #define USER_DEFAULT_SCREEN_DPI 96
@@ -62,6 +76,13 @@ enum
 #if (USER_DEFAULT_SCREEN_DPI != 96)
 #error Revision of GUI and graphics necessary, since everything assumes default screen DPI as 96 (note that 96 is the default on Windows 2000, XP, and Vista).
 #endif
+
+enum
+{
+	TC_POST_INSTALL_CFG_REMOVE_ALL = 0,
+	TC_POST_INSTALL_CFG_TUTORIAL,
+	TC_POST_INSTALL_CFG_RELEASE_NOTES
+};
 
 extern char *LastDialogId;
 extern char *ConfigBuffer;
@@ -91,7 +112,6 @@ extern int CurrentOSMinor;
 extern BOOL RemoteSession;
 extern HANDLE hDriver;
 extern HINSTANCE hInst;
-extern HANDLE hSysEncMutex;
 extern int SystemEncryptionStatus;	
 extern WipeAlgorithmId nWipeMode;
 extern BOOL bSysPartitionSelected;
@@ -156,13 +176,13 @@ enum tc_app_msg_ids
 	TC_APPMSG_LOAD_LICENSE =						WM_APP + 407
 };
 
-enum SystemEncryptionStatus
+enum system_encryption_status
 {
 	/* WARNING: As these values are written to config files, if they or their meanings
 	are changed, incompatiblity with other versions may arise (upgrade, downgrade, etc.).
 	When adding a new constant, verify that the value is unique within this block. */
 	SYSENC_STATUS_NONE = 0,
-	SYSENC_STATUS_PRETEST = 200,
+	SYSENC_STATUS_PRETEST = 200,	// This may also mean that the OS is to be (or has been) copied to a hidden volume (to create a hidden OS).
 	SYSENC_STATUS_ENCRYPTING = 400,
 	SYSENC_STATUS_DECRYPTING = 600
 };
@@ -173,6 +193,24 @@ enum vol_creation_wizard_modes
 	WIZARD_MODE_NONSYS_DEVICE,
 	WIZARD_MODE_SYS_DEVICE
 };
+
+
+typedef struct
+{
+	BOOL VolumeIsOpen;
+
+	CRYPTO_INFO *CryptoInfo;
+	BOOL IsDevice;
+	HANDLE HostFileHandle;
+	uint64 HostSize;
+
+	BOOL TimestampsValid;
+	FILETIME CreationTime;
+	FILETIME LastWriteTime;
+	FILETIME LastAccessTime;
+
+} OpenVolumeContext;
+
 
 #define DEFAULT_VOL_CREATION_WIZARD_MODE	WIZARD_MODE_FILE_CONTAINER
 
@@ -221,13 +259,21 @@ void AddComboPairW (HWND hComboBox, wchar_t *lpszItem, int value);
 void SelectAlgo ( HWND hComboBox , int *nCipher );
 void PopulateWipeModeCombo (HWND hComboBox, BOOL bNA);
 LRESULT CALLBACK CustomDlgProc ( HWND hwnd , UINT uMsg , WPARAM wParam , LPARAM lParam );
-BOOL TCCreateMutex (HANDLE *hMutex, char *name);
-void TCCloseMutex (HANDLE *hMutex);
+BOOL TCCreateMutex (volatile HANDLE *hMutex, char *name);
+void TCCloseMutex (volatile HANDLE *hMutex);
+BOOL MutexExistsOnSystem (char *name);
 BOOL CreateSysEncMutex (void);
+BOOL InstanceHasSysEncMutex (void);
 void CloseSysEncMutex (void);
 BOOL CreateDriverSetupMutex (void);
 void CloseDriverSetupMutex (void);
+BOOL CreateAppSetupMutex (void);
+BOOL InstanceHasAppSetupMutex (void);
+void CloseAppSetupMutex (void);
+BOOL IsTrueCryptInstallerRunning (void);
 BOOL LoadSysEncSettings (HWND hwndDlg);
+void SavePostInstallTasksSettings (int command);
+void DoPostInstallTasks (void);
 BOOL SysEncryptionOrDecryptionRequired (void);
 void InitApp ( HINSTANCE hInstance, char *lpszCommandLine );
 void InitHelpFileName (void);
@@ -244,7 +290,6 @@ BOOL CALLBACK BenchmarkDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lP
 BOOL CALLBACK KeyfileGeneratorDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
 BOOL CALLBACK MultiChoiceDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 int DriverAttach ( void );
-BOOL SeekHiddenVolHeader (HFILE dev, unsigned __int64 volSize, BOOL deviceFlag);
 BOOL CALLBACK CipherTestDialogProc ( HWND hwndDlg , UINT uMsg , WPARAM wParam , LPARAM lParam );
 void ResetCipherTest ( HWND hwndDlg , int idTestCipher );
 BOOL BrowseFiles (HWND hwndDlg, char *stringId, char *lpszFileName, BOOL keepHistory, BOOL saveMode);
@@ -257,6 +302,9 @@ static BOOL CALLBACK CloseVolumeExplorerWindowsEnum( HWND hwnd, LPARAM driveNo);
 BOOL CloseVolumeExplorerWindows (HWND hwnd, int driveNo);
 BOOL CheckCapsLock (HWND hwnd, BOOL quiet);
 BOOL CheckFileExtension (char *fileName);
+void IncreaseWrongPwdRetryCount (int count);
+void ResetWrongPwdRetryCount (void);
+BOOL WrongPwdRetryCountOverLimit (void);
 int GetFirstAvailableDrive ();
 int GetLastAvailableDrive ();
 BOOL IsDriveAvailable (int driveNo);
@@ -277,9 +325,8 @@ BOOL FileExists (const char *filePathPtr);
 __int64 FindStringInFile (char *filePath, char* str, int strLen);
 BOOL TCCopyFile (char *sourceFileName, char *destinationFile);
 BOOL SaveBufferToFile (char *inputBuffer, char *destinationFile, DWORD inputLength, BOOL bAppend);
+BOOL TCFlushFile (FILE *f);
 BOOL PrintHardCopyTextUTF16 (wchar_t *text, char *title, int byteLen);
-int BackupVolumeHeader (HWND hwndDlg, BOOL bRequireConfirmation, char *lpszVolume);
-int RestoreVolumeHeader (HWND hwndDlg, char *lpszVolume);
 void GetSpeedString (unsigned __int64 speed, wchar_t *str);
 BOOL IsNonInstallMode ();
 BOOL DriverUnload ();
@@ -305,8 +352,13 @@ char *GetConfigPath (char *fileName);
 char GetSystemDriveLetter (void);
 void OpenPageHelp (HWND hwndDlg, int nPage);
 int Info (char *stringId);
+int InfoDirect (const wchar_t *msg);
 int Warning (char *stringId);
+int WarningTopMost (char *stringId);
+int WarningDirect (const wchar_t *warnMsg);
 int Error (char *stringId);
+int ErrorDirect (const wchar_t *errMsg);
+int ErrorTopMost (char *stringId);
 int AskYesNo (char *stringId);
 int AskNoYes (char *stringId);
 int AskOkCancel (char *stringId);
@@ -328,6 +380,8 @@ BOOL LoadDefaultKeyFilesParam (void);
 void Debug (char *format, ...);
 void DebugMsgBox (char *format, ...);
 BOOL Is64BitOs ();
+BOOL IsHiddenOSRunning (void);
+BOOL RestartComputer (void);
 void Applink (char *dest, BOOL bSendOS, char *extraOutput);
 char *RelativePath2Absolute (char *szFileName);
 void CheckSystemAutoMount ();
@@ -351,6 +405,11 @@ void ToBootPwdField (HWND hwndDlg, UINT ctrlId);
 void AccommodateTextField (HWND hwndDlg, UINT ctrlId, BOOL bFirstUpdate);
 BOOL GetDriveLabel (int driveNo, wchar_t *label, int labelSize);
 BOOL DoDriverInstall (HWND hwndDlg);
+int OpenVolume (OpenVolumeContext *context, char *volumePath, Password *password, BOOL write, BOOL preserveTimestamps, BOOL useBackupHeader);
+void CloseVolume (OpenVolumeContext *context);
+int ReEncryptVolumeHeader (char *buffer, BOOL bBoot, CRYPTO_INFO *cryptoInfo, Password *password, BOOL wipeMode);
+BOOL IsPagingFileActive ();
+BOOL DisablePagingFile ();
 
 #ifdef __cplusplus
 }

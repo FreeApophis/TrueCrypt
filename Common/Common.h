@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2005-2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -14,9 +14,10 @@
 /* Volume types */
 enum
 {
-	VOLUME_TYPE_NORMAL = 0,
-	VOLUME_TYPE_HIDDEN,
-	NBR_VOLUME_TYPES
+	TC_VOLUME_TYPE_NORMAL = 0,
+	TC_VOLUME_TYPE_HIDDEN,
+	TC_VOLUME_TYPE_HIDDEN_LEGACY,
+	TC_VOLUME_TYPE_COUNT
 };
 
 /* Prop volume types */
@@ -46,6 +47,7 @@ typedef struct
 	BOOL PreserveTimestamp;
 	BOOL PartitionInInactiveSysEncScope;	/* If TRUE, we are to attempt to mount a partition located on an encrypted system drive without pre-boot authentication. */
 	Password ProtectedHidVolPassword;	/* Password of hidden volume to protect against overwriting */
+	BOOL UseBackupHeader;
 } MountOptions;
 
 #endif

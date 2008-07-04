@@ -28,6 +28,8 @@
 #define IDD_SYSENC_KEYS_GEN_PAGE_DLG    123
 #define IDD_UNIVERSAL_DUAL_CHOICE_PAGE_DLG 124
 #define IDD_SYSENC_DRIVE_ANALYSIS_PAGE_DLG 125
+#define IDD_SYSENC_TYPE_PAGE_DLG        126
+#define IDD_SYSENC_HIDDEN_OS_REQ_CHECK_PAGE_DLG 127
 #define IDC_BOX_TITLE                   1000
 #define IDC_RESCUE_DISK_ISO_PATH        1001
 #define IDC_COMBO_BOX                   1002
@@ -122,15 +124,19 @@
 #define IDT_STATUS                      1091
 #define IDT_PROGRESS                    1092
 #define IDT_SYSENC_DRIVE_ANALYSIS_INFO  1093
+#define IDC_SYSENC_NORMAL               1094
+#define IDC_SYSENC_HIDDEN               1095
+#define IDC_BOX_HELP_SYSENC_NORMAL      1096
+#define IDC_HIDDEN_SYSENC_INFO_LINK     1097
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
-#define _APS_NEXT_RESOURCE_VALUE        126
+#define _APS_NEXT_RESOURCE_VALUE        128
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1094
+#define _APS_NEXT_CONTROL_VALUE         1098
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

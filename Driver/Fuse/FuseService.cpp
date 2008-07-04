@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <fuse.h>
 #include <iostream>
+#include <signal.h>
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -26,6 +27,8 @@
 #include "Platform/SystemLog.h"
 #include "Platform/Unix/Pipe.h"
 #include "Platform/Unix/Poller.h"
+#include "Volume/EncryptionThreadPool.h"
+#include "Core/Core.h"
 
 namespace TrueCrypt
 {
@@ -46,12 +49,46 @@ namespace TrueCrypt
 
 	static void *fuse_service_init ()
 	{
+		try
+		{
+			// Termination signals are handled by a separate process to allow clean dismount on shutdown
+			struct sigaction action;
+			Memory::Zero (&action, sizeof (action));
+			action.sa_handler = SIG_IGN;
+
+			sigaction (SIGINT, &action, nullptr);
+			sigaction (SIGQUIT, &action, nullptr);
+			sigaction (SIGTERM, &action, nullptr);
+
+			if (!EncryptionThreadPool::IsRunning())
+				EncryptionThreadPool::Start();
+		}
+		catch (exception &e)
+		{
+			SystemLog::WriteException (e);
+		}
+		catch (...)
+		{
+			SystemLog::WriteException (UnknownException (SRC_POS));
+		}
+
 		return nullptr;
 	}
 
 	static void fuse_service_destroy (void *userdata)
 	{
-		FuseService::Dismount();
+		try
+		{
+			FuseService::Dismount();
+		}
+		catch (exception &e)
+		{
+			SystemLog::WriteException (e);
+		}
+		catch (...)
+		{
+			SystemLog::WriteException (UnknownException (SRC_POS));
+		}
 	}
 
 	static int fuse_service_getattr (const char *path, struct stat *statData)
@@ -76,7 +113,7 @@ namespace TrueCrypt
 				if (!FuseService::CheckAccessRights())
 					return -EACCES;
 
-				else if (strcmp (path, FuseService::GetVolumeImagePath()) == 0)
+				if (strcmp (path, FuseService::GetVolumeImagePath()) == 0)
 				{
 					statData->st_mode = S_IFREG | 0600;
 					statData->st_nlink = 1;
@@ -249,10 +286,10 @@ namespace TrueCrypt
 
 			if (strcmp (path, FuseService::GetControlPath()) == 0)
 			{
-				if (!FuseService::GetLoopDevice().IsEmpty())
+				if (FuseService::AuxDeviceInfoReceived())
 					return -EACCES;
 
-				FuseService::ReceiveLoopDevice (ConstBufferPtr ((const byte *)buf, size));
+				FuseService::ReceiveAuxDeviceInfo (ConstBufferPtr ((const byte *)buf, size));
 				return size;
 			}
 		}
@@ -279,8 +316,8 @@ namespace TrueCrypt
 	{
 		return fuse_get_context()->uid == 0 || fuse_get_context()->uid == UserId;
 	}
-
-	void FuseService::Dismount ()
+	
+	void FuseService::CloseMountedVolume ()
 	{
 		if (MountedVolume)
 		{
@@ -293,6 +330,14 @@ namespace TrueCrypt
 
 			MountedVolume.reset();
 		}
+	}
+
+	void FuseService::Dismount ()
+	{
+		CloseMountedVolume();
+
+		if (EncryptionThreadPool::IsRunning())
+			EncryptionThreadPool::Stop();
 	}
 
 	int FuseService::ExceptionToErrorCode ()
@@ -419,16 +464,17 @@ namespace TrueCrypt
 		MountedVolume->ReadSectors (buffer, byteOffset);
 	}
 
-	void FuseService::ReceiveLoopDevice (const ConstBufferPtr &buffer)
+	void FuseService::ReceiveAuxDeviceInfo (const ConstBufferPtr &buffer)
 	{
 		shared_ptr <Stream> stream (new MemoryStream (buffer));
 		Serializer sr (stream);
 
 		ScopeLock lock (OpenVolumeInfoMutex);
-		OpenVolumeInfo.VirtualDevice = OpenVolumeInfo.LoopDevice = sr.DeserializeString ("LoopDevice");
+		OpenVolumeInfo.VirtualDevice = sr.DeserializeString ("VirtualDevice");
+		OpenVolumeInfo.LoopDevice = sr.DeserializeString ("LoopDevice");
 	}
 
-	void FuseService::SendLoopDevice (const DirectoryPath &fuseMountPoint, const DevicePath &loopDevice)
+	void FuseService::SendAuxDeviceInfo (const DirectoryPath &fuseMountPoint, const DevicePath &virtualDevice, const DevicePath &loopDevice)
 	{
 		File fuseServiceControl;
 		fuseServiceControl.Open (string (fuseMountPoint) + GetControlPath(), File::OpenWrite);
@@ -436,6 +482,7 @@ namespace TrueCrypt
 		shared_ptr <Stream> stream (new MemoryStream);
 		Serializer sr (stream);
 
+		sr.Serialize ("VirtualDevice", string (virtualDevice));
 		sr.Serialize ("LoopDevice", string (loopDevice));
 		fuseServiceControl.Write (dynamic_cast <MemoryStream&> (*stream));
 	}
@@ -446,6 +493,20 @@ namespace TrueCrypt
 			throw NotInitialized (SRC_POS);
 
 		MountedVolume->WriteSectors (buffer, byteOffset);
+	}
+	
+	void FuseService::OnSignal (int signal)
+	{
+		try
+		{
+			shared_ptr <VolumeInfo> volume = Core->GetMountedVolume (SlotNumber);
+			
+			if (volume)
+				Core->DismountVolume (volume);
+		}
+		catch (...) { }
+
+		_exit (0);
 	}
 
 	void FuseService::ExecFunctor::operator() (int argc, char *argv[])
@@ -488,6 +549,36 @@ namespace TrueCrypt
 		fuse_service_oper.readdir = fuse_service_readdir;
 		fuse_service_oper.write = fuse_service_write;
 
+		// Create a new session
+		setsid ();
+
+		// Fork handler of termination signals
+		SignalHandlerPipe.reset (new Pipe);
+
+		int forkedPid = fork();
+		throw_sys_if (forkedPid == -1);
+
+		if (forkedPid == 0)
+		{
+			CloseMountedVolume();
+
+			struct sigaction action;
+			Memory::Zero (&action, sizeof (action));
+			action.sa_handler = OnSignal;
+
+			sigaction (SIGINT, &action, nullptr);
+			sigaction (SIGQUIT, &action, nullptr);
+			sigaction (SIGTERM, &action, nullptr);
+
+			// Wait for the exit of the main service
+			byte buf[1];
+			read (SignalHandlerPipe->GetReadFD(), buf, sizeof (buf));
+
+			_exit (0);
+		}
+
+		SignalHandlerPipe->GetWriteFD();
+
 		_exit (fuse_main (argc, argv, &fuse_service_oper));
 	}
 
@@ -497,4 +588,5 @@ namespace TrueCrypt
 	VolumeSlotNumber FuseService::SlotNumber;
 	uid_t FuseService::UserId;
 	gid_t FuseService::GroupId;
+	auto_ptr <Pipe> FuseService::SignalHandlerPipe;
 }

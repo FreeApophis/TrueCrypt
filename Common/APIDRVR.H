@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.4 the full text of which is contained in the
+ by the TrueCrypt License 2.5 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -48,6 +48,9 @@
 #define TC_IOCTL_GET_BOOT_ENCRYPTION_ALGORITHM_NAME		TC_IOCTL (24)
 #define TC_IOCTL_GET_TRAVELER_MODE_STATUS				TC_IOCTL (25)
 #define TC_IOCTL_SET_TRAVELER_MODE_STATUS				TC_IOCTL (26)
+#define TC_IOCTL_IS_HIDDEN_SYSTEM_RUNNING				TC_IOCTL (27)
+#define TC_IOCTL_GET_SYSTEM_DRIVE_CONFIG				TC_IOCTL (28)
+#define TC_IOCTL_DISK_IS_WRITABLE						TC_IOCTL (29)
 
 // Legacy IOCTLs used before version 5.0
 #define TC_IOCTL_LEGACY_GET_DRIVER_VERSION		466968
@@ -80,12 +83,14 @@ typedef struct
 	// Hidden volume protection
 	BOOL bProtectHiddenVolume;			/* TRUE if the user wants the hidden volume within this volume to be protected against being overwritten (damaged) */
 	Password ProtectedHidVolPassword;	/* Password to the hidden volume to be protected against overwriting */
+	BOOL UseBackupHeader;
 } MOUNT_STRUCT;
 
 typedef struct
 {
 	int nDosDriveNo;	/* Drive letter to unmount */
 	BOOL ignoreOpenFiles;
+	BOOL HiddenVolumeProtectionTriggered;
 	int nReturnCode;	/* Return code back from driver */
 } UNMOUNT_STRUCT;
 
@@ -115,6 +120,7 @@ typedef struct
 	unsigned __int64 totalBytesRead;
 	unsigned __int64 totalBytesWritten;
 	int hiddenVolProtection;	/* Hidden volume protection status (e.g. HIDVOL_PROT_STATUS_NONE, HIDVOL_PROT_STATUS_ACTIVE, etc.) */
+	int volFormatVersion;
 } VOLUME_PROPERTIES_STRUCT;
 
 typedef struct
@@ -162,6 +168,7 @@ typedef enum
 
 typedef struct
 {
+	// New fields must be added at the end of the structure to maintain compatibility with previous versions
 	BOOL DeviceFilterActive;
 
 	uint16 BootLoaderVersion;
@@ -185,6 +192,13 @@ typedef struct
 
 	uint32 HibernationPreventionCount;
 
+	BOOL HiddenSystem;
+	int64 HiddenSystemPartitionStart;
+
+	// Number of times the filter driver answered that an unencrypted volume
+	// is read-only (or mounted an outer/normal TrueCrypt volume as read only)
+	uint32 HiddenSysLeakProtectionCount;
+
 } BootEncryptionStatus;
 
 
@@ -206,6 +220,12 @@ typedef struct
 	char BootEncryptionAlgorithmName[256];
 } GetBootEncryptionAlgorithmNameRequest;
 
+typedef struct
+{
+	wchar_t DevicePath[TC_MAX_PATH];
+	byte Configuration;
+	BOOL DriveIsDynamic;
+} GetSystemDriveConfigurationRequest;
 
 #pragma pack (pop)
 
@@ -225,5 +245,7 @@ typedef struct
 #define DOS_MOUNT_PREFIX DRIVER_STR("\\DosDevices\\")
 #define DOS_ROOT_PREFIX DRIVER_STR("\\DosDevices\\TrueCrypt")
 #define WIN32_ROOT_PREFIX DRIVER_STR("\\\\.\\TrueCrypt")
+
+#define TC_DRIVER_CONFIG_REG_VALUE_NAME DRIVER_STR("TrueCryptConfig")
 
 #endif		/* _WIN32 */

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -20,20 +20,23 @@ namespace TrueCrypt
 {
 	class Mutex
 	{
+#ifdef TC_WINDOWS
+		typedef CRITICAL_SECTION SystemMutex_t;
+#else
+		typedef pthread_mutex_t SystemMutex_t;
+#endif
+
 	public:
 		Mutex ();
 		~Mutex ();
 
+		SystemMutex_t *GetSystemHandle () { return &SystemMutex; }
 		void Lock ();
 		void Unlock ();
 
 	protected:
 		bool Initialized;
-#ifdef TC_WINDOWS
-		CRITICAL_SECTION SystemMutex;
-#else
-		pthread_mutex_t SystemMutex;
-#endif
+		SystemMutex_t SystemMutex;
 
 	private:
 		Mutex (const Mutex &);

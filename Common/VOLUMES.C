@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.4 the full text of which is contained in the
+ by the TrueCrypt License 2.5 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -17,23 +17,44 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <time.h>
+#include "EncryptionThreadPool.h"
 #endif
 
-#ifdef _WIN32
 #include <io.h>
 #include "Random.h"
-#endif
 
+#include "Crc.h"
 #include "Crypto.h"
 #include "Common/Endian.h"
 #include "Volumes.h"
-
 #include "Pkcs5.h"
-#include "Crc.h"
 
 
+/* Volume header v4 structure: */
+//
+// Offset	Length	Description
+// ------------------------------------------
+// Unencrypted:
+// 0		64		Salt
+// Encrypted:
+// 64		4		ASCII string 'TRUE'
+// 68		2		Header version
+// 70		2		Required program version
+// 72		4		CRC-32 checksum of the (decrypted) bytes 256-511
+// 76		8		Reserved (set to zero)
+// 84		8		Reserved (set to zero)
+// 92		8		Size of hidden volume in bytes (0 = normal volume)
+// 100		8		Size of the volume in bytes (identical with field 92 for hidden volumes)
+// 108		8		Byte offset of the start of the master key scope
+// 116		8		Size of the encrypted area within the master key scope
+// 124		4		Flags: bit 0 set = system encryption; bits 1-31 are reserved
+// 128		124		Reserved (set to zero)
+// 252		4		CRC-32 checksum of the (decrypted) bytes 64-251
+// 256		256		Concatenated primary master key(s) and secondary master key(s) (XTS mode)
+// 512		65024	Reserved
 
-/* Volume header v3 structure: */
+
+/* Volume header v3 structure (used by TrueCrypt 5.x): */
 //
 // Offset	Length	Description
 // ------------------------------------------
@@ -103,23 +124,35 @@ UINT64_STRUCT GetHeaderField64 (byte *header, size_t offset)
 
 #ifndef TC_WINDOWS_BOOT
 
+typedef struct
+{
+	char DerivedKey[MASTER_KEYDATA_SIZE];
+	BOOL Free;
+	LONG KeyReady;
+	int Pkcs5Prf;
+} KeyDerivationWorkItem;
+
+
 int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCRYPTO_INFO *retInfo, CRYPTO_INFO *retHeaderCryptoInfo)
 {
-	char header[HEADER_SIZE];
+	char header[TC_VOLUME_HEADER_EFFECTIVE_SIZE];
 	KEY_INFO keyInfo;
 	PCRYPTO_INFO cryptoInfo;
 	char dk[MASTER_KEYDATA_SIZE];
-	int pkcs5_prf;
-	int headerVersion, requiredVersion;
+	int enqPkcs5Prf, pkcs5_prf;
+	int headerVersion;
 	int status;
 	int primaryKeyOffset;
 
-#ifdef _WIN32
-#ifndef DEVICE_DRIVER
-	VirtualLock (&keyInfo, sizeof (keyInfo));
-	VirtualLock (&dk, sizeof (dk));
-#endif
-#endif
+	TC_EVENT keyDerivationCompletedEvent;
+	TC_EVENT noOutstandingWorkItemEvent;
+	KeyDerivationWorkItem *keyDerivationWorkItems;
+	KeyDerivationWorkItem *item;
+	int pkcs5PrfCount = LAST_PRF_ID - FIRST_PRF_ID + 1;
+	int encryptionThreadCount = GetEncryptionThreadCount();
+	int queuedWorkItems = 0;
+	LONG outstandingWorkItemCount = 0;
+	int i;
 
 	if (retHeaderCryptoInfo != NULL)
 	{
@@ -132,46 +165,138 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 			return ERR_OUTOFMEMORY;
 	}
 
+	if (encryptionThreadCount > 1)
+	{
+		keyDerivationWorkItems = TCalloc (sizeof (KeyDerivationWorkItem) * pkcs5PrfCount);
+		if (!keyDerivationWorkItems)
+			return ERR_OUTOFMEMORY;
+
+		for (i = 0; i < pkcs5PrfCount; ++i)
+			keyDerivationWorkItems[i].Free = TRUE;
+
+#ifdef DEVICE_DRIVER
+		KeInitializeEvent (&keyDerivationCompletedEvent, SynchronizationEvent, FALSE);
+		KeInitializeEvent (&noOutstandingWorkItemEvent, SynchronizationEvent, TRUE);
+#else
+		keyDerivationCompletedEvent = CreateEvent (NULL, FALSE, FALSE, NULL);
+		if (!keyDerivationCompletedEvent)
+		{
+			TCfree (keyDerivationWorkItems);
+			return ERR_OUTOFMEMORY;
+		}
+
+		noOutstandingWorkItemEvent = CreateEvent (NULL, FALSE, TRUE, NULL);
+		if (!noOutstandingWorkItemEvent)
+		{
+			CloseHandle (keyDerivationCompletedEvent);
+			TCfree (keyDerivationWorkItems);
+			return ERR_OUTOFMEMORY;
+		}
+#endif
+	}
+		
+#ifndef DEVICE_DRIVER
+	VirtualLock (&keyInfo, sizeof (keyInfo));
+	VirtualLock (&dk, sizeof (dk));
+#endif
+
 	crypto_loadkey (&keyInfo, password->Text, (int) password->Length);
 
 	// PKCS5 is used to derive the primary header key(s) and secondary header key(s) (XTS mode) from the password
 	memcpy (keyInfo.salt, encryptedHeader + HEADER_SALT_OFFSET, PKCS5_SALT_SIZE);
 
 	// Test all available PKCS5 PRFs
-	for (pkcs5_prf = FIRST_PRF_ID; pkcs5_prf <= LAST_PRF_ID; pkcs5_prf++)
+	for (enqPkcs5Prf = FIRST_PRF_ID; enqPkcs5Prf <= LAST_PRF_ID || queuedWorkItems > 0; ++enqPkcs5Prf)
 	{
 		BOOL lrw64InitDone = FALSE;		// Deprecated/legacy
 		BOOL lrw128InitDone = FALSE;	// Deprecated/legacy
 
-		keyInfo.noIterations = get_pkcs5_iteration_count (pkcs5_prf, bBoot);
-
-		switch (pkcs5_prf)
+		if (encryptionThreadCount > 1)
 		{
-		case RIPEMD160:
-			derive_key_ripemd160 (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
-				PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
-			break;
+			// Enqueue key derivation on thread pool
+			if (queuedWorkItems < encryptionThreadCount && enqPkcs5Prf <= LAST_PRF_ID)
+			{
+				for (i = 0; i < pkcs5PrfCount; ++i)
+				{
+					item = &keyDerivationWorkItems[i];
+					if (item->Free)
+					{
+						item->Free = FALSE;
+						item->KeyReady = FALSE;
+						item->Pkcs5Prf = enqPkcs5Prf;
 
-		case SHA512:
-			derive_key_sha512 (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
-				PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
-			break;
+						EncryptionThreadPoolBeginKeyDerivation (&keyDerivationCompletedEvent, &noOutstandingWorkItemEvent,
+							&item->KeyReady, &outstandingWorkItemCount, enqPkcs5Prf, keyInfo.userKey,
+							keyInfo.keyLength, keyInfo.salt, get_pkcs5_iteration_count (enqPkcs5Prf, bBoot), item->DerivedKey);
+						
+						++queuedWorkItems;
+						break;
+					}
+				}
 
-		case SHA1:
-			// Deprecated/legacy
-			derive_key_sha1 (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
-				PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
-			break;
+				if (enqPkcs5Prf < LAST_PRF_ID)
+					continue;
+			}
+			else
+				--enqPkcs5Prf;
 
-		case WHIRLPOOL:
-			derive_key_whirlpool (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
-				PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
-			break;
+			// Wait for completion of a key derivation
+			while (queuedWorkItems > 0)
+			{
+				for (i = 0; i < pkcs5PrfCount; ++i)
+				{
+					item = &keyDerivationWorkItems[i];
+					if (!item->Free && InterlockedExchangeAdd (&item->KeyReady, 0) == TRUE)
+					{
+						pkcs5_prf = item->Pkcs5Prf;
+						keyInfo.noIterations = get_pkcs5_iteration_count (pkcs5_prf, bBoot);
+						memcpy (dk, item->DerivedKey, sizeof (dk));
 
-		default:		
-			// Unknown/wrong ID
-			TC_THROW_FATAL_EXCEPTION;
-		} 
+						item->Free = TRUE;
+						--queuedWorkItems;
+						goto KeyReady;
+					}
+				}
+
+				if (queuedWorkItems > 0)
+					TC_WAIT_EVENT (keyDerivationCompletedEvent);
+			}
+			continue;
+KeyReady:	;
+		}
+		else
+		{
+			pkcs5_prf = enqPkcs5Prf;
+			keyInfo.noIterations = get_pkcs5_iteration_count (enqPkcs5Prf, bBoot);
+
+			switch (pkcs5_prf)
+			{
+			case RIPEMD160:
+				derive_key_ripemd160 (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
+					PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
+				break;
+
+			case SHA512:
+				derive_key_sha512 (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
+					PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
+				break;
+
+			case SHA1:
+				// Deprecated/legacy
+				derive_key_sha1 (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
+					PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
+				break;
+
+			case WHIRLPOOL:
+				derive_key_whirlpool (keyInfo.userKey, keyInfo.keyLength, keyInfo.salt,
+					PKCS5_SALT_SIZE, keyInfo.noIterations, dk, GetMaxPkcs5OutSize());
+				break;
+
+			default:		
+				// Unknown/wrong ID
+				TC_THROW_FATAL_EXCEPTION;
+			} 
+		}
 
 		// Test all available modes of operation
 		for (cryptoInfo->mode = FIRST_MODE_OF_OPERATION_ID;
@@ -243,7 +368,7 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 				}
 
 				// Copy the header for decryption
-				memcpy (header, encryptedHeader, HEADER_SIZE);
+				memcpy (header, encryptedHeader, sizeof (header));
 
 				// Try to decrypt header 
 
@@ -255,9 +380,14 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 
 				// Header version
 				headerVersion = GetHeaderField16 (header, TC_HEADER_OFFSET_VERSION);
+				
+				// Check CRC of the header fields
+				if (headerVersion >= 4 && GetHeaderField32 (header, TC_HEADER_OFFSET_HEADER_CRC) != GetCrc32 (header + TC_HEADER_OFFSET_MAGIC, TC_HEADER_OFFSET_HEADER_CRC - TC_HEADER_OFFSET_MAGIC))
+					continue;
 
 				// Required program version
-				requiredVersion = GetHeaderField16 (header, TC_HEADER_OFFSET_REQUIRED_VERSION);
+				cryptoInfo->RequiredProgramVersion = GetHeaderField16 (header, TC_HEADER_OFFSET_REQUIRED_VERSION);
+				cryptoInfo->LegacyVolume = cryptoInfo->RequiredProgramVersion < 0x600;
 
 				// Check CRC of the key set
 				if (GetHeaderField32 (header, TC_HEADER_OFFSET_KEY_AREA_CRC) != GetCrc32 (header + HEADER_MASTER_KEYDATA_OFFSET, MASTER_KEYDATA_SIZE))
@@ -266,20 +396,23 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 				// Now we have the correct password, cipher, hash algorithm, and volume type
 
 				// Check the version required to handle this volume
-				if (requiredVersion > VERSION_NUM)
+				if (cryptoInfo->RequiredProgramVersion > VERSION_NUM)
 				{
 					status = ERR_NEW_VERSION_REQUIRED;
 					goto err;
 				}
 
-				// Volume creation time
+				// Volume creation time (legacy)
 				cryptoInfo->volume_creation_time = GetHeaderField64 (header, TC_HEADER_OFFSET_VOLUME_CREATION_TIME).Value;
 
-				// Header creation time
+				// Header creation time (legacy)
 				cryptoInfo->header_creation_time = GetHeaderField64 (header, TC_HEADER_OFFSET_MODIFICATION_TIME).Value;
 
 				// Hidden volume size (if any)
 				cryptoInfo->hiddenVolumeSize = GetHeaderField64 (header, TC_HEADER_OFFSET_HIDDEN_VOLUME_SIZE).Value;
+
+				// Hidden volume status
+				cryptoInfo->hiddenVolume = (cryptoInfo->hiddenVolumeSize != 0);
 
 				// Volume size
 				cryptoInfo->VolumeSize = GetHeaderField64 (header, TC_HEADER_OFFSET_VOLUME_SIZE);
@@ -287,6 +420,9 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 				// Encrypted area size and length
 				cryptoInfo->EncryptedAreaStart = GetHeaderField64 (header, TC_HEADER_OFFSET_ENCRYPTED_AREA_START);
 				cryptoInfo->EncryptedAreaLength = GetHeaderField64 (header, TC_HEADER_OFFSET_ENCRYPTED_AREA_LENGTH);
+
+				// Flags
+				cryptoInfo->HeaderFlags = GetHeaderField32 (header, TC_HEADER_OFFSET_FLAGS);
 
 				// Preserve scheduled header keys if requested			
 				if (retHeaderCryptoInfo)
@@ -346,12 +482,8 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 					goto err;
 				}
 
-				// Clear out the temporary key buffers
-ret:
-				burn (dk, sizeof(dk));
-				burn (&keyInfo, sizeof (keyInfo));
-
-				return 0;
+				status = 0;
+				goto ret;
 			}
 		}
 	}
@@ -364,8 +496,28 @@ err:
 		*retInfo = NULL; 
 	}
 
+ret:
 	burn (&keyInfo, sizeof (keyInfo));
 	burn (dk, sizeof(dk));
+
+#ifndef DEVICE_DRIVER
+	VirtualUnlock (&keyInfo, sizeof (keyInfo));
+	VirtualUnlock (&dk, sizeof (dk));
+#endif
+
+	if (encryptionThreadCount > 1)
+	{
+		TC_WAIT_EVENT (noOutstandingWorkItemEvent);
+
+		burn (keyDerivationWorkItems, sizeof (KeyDerivationWorkItem) * pkcs5PrfCount);
+		TCfree (keyDerivationWorkItems);
+
+#ifndef DEVICE_DRIVER
+		CloseHandle (keyDerivationCompletedEvent);
+		CloseHandle (noOutstandingWorkItemEvent);
+#endif
+	}
+
 	return status;
 }
 
@@ -391,7 +543,7 @@ int VolumeReadHeader (BOOL bBoot, char *header, Password *password, PCRYPTO_INFO
 
 	// PKCS5 PRF
 	derive_key_ripemd160 (password->Text, (int) password->Length, header + HEADER_SALT_OFFSET,
-		PKCS5_SALT_SIZE, 1000, dk, sizeof (dk));
+		PKCS5_SALT_SIZE, bBoot ? 1000 : 2000, dk, sizeof (dk));
 
 	// Mode of operation
 	cryptoInfo->mode = FIRST_MODE_OF_OPERATION_ID;
@@ -409,8 +561,9 @@ int VolumeReadHeader (BOOL bBoot, char *header, Password *password, PCRYPTO_INFO
 		// Try to decrypt header 
 		DecryptBuffer (header + HEADER_ENCRYPTED_DATA_OFFSET, HEADER_ENCRYPTED_DATA_SIZE, cryptoInfo);
 		
-		// Check magic 'TRUE' and key CRC
+		// Check magic 'TRUE' and CRC-32 of header fields and master keydata
 		if (GetHeaderField32 (header, TC_HEADER_OFFSET_MAGIC) != 0x54525545
+			|| (GetHeaderField16 (header, TC_HEADER_OFFSET_VERSION) >= 4 && GetHeaderField32 (header, TC_HEADER_OFFSET_HEADER_CRC) != GetCrc32 (header + TC_HEADER_OFFSET_MAGIC, TC_HEADER_OFFSET_HEADER_CRC - TC_HEADER_OFFSET_MAGIC))
 			|| GetHeaderField32 (header, TC_HEADER_OFFSET_KEY_AREA_CRC) != GetCrc32 (header + HEADER_MASTER_KEYDATA_OFFSET, MASTER_KEYDATA_SIZE))
 		{
 			EncryptBuffer (header + HEADER_ENCRYPTED_DATA_OFFSET, HEADER_ENCRYPTED_DATA_SIZE, cryptoInfo);
@@ -420,12 +573,19 @@ int VolumeReadHeader (BOOL bBoot, char *header, Password *password, PCRYPTO_INFO
 		// Header decrypted
 		status = 0;
 
+		// Hidden volume status
+		cryptoInfo->VolumeSize = GetHeaderField64 (header, TC_HEADER_OFFSET_HIDDEN_VOLUME_SIZE);
+		cryptoInfo->hiddenVolume = (cryptoInfo->VolumeSize.LowPart != 0 || cryptoInfo->VolumeSize.HighPart != 0);
+
 		// Volume size
 		cryptoInfo->VolumeSize = GetHeaderField64 (header, TC_HEADER_OFFSET_VOLUME_SIZE);
 
 		// Encrypted area size and length
 		cryptoInfo->EncryptedAreaStart = GetHeaderField64 (header, TC_HEADER_OFFSET_ENCRYPTED_AREA_START);
 		cryptoInfo->EncryptedAreaLength = GetHeaderField64 (header, TC_HEADER_OFFSET_ENCRYPTED_AREA_LENGTH);
+
+		// Flags
+		cryptoInfo->HeaderFlags = GetHeaderField32 (header, TC_HEADER_OFFSET_FLAGS);
 
 		memcpy (masterKey, header + HEADER_MASTER_KEYDATA_OFFSET, sizeof (masterKey));
 		EncryptBuffer (header + HEADER_ENCRYPTED_DATA_OFFSET, HEADER_ENCRYPTED_DATA_SIZE, cryptoInfo);
@@ -469,9 +629,9 @@ ret:
 
 // Creates a volume header in memory
 int VolumeWriteHeader (BOOL bBoot, char *header, int ea, int mode, Password *password,
-		   int pkcs5_prf, char *masterKeydata, unsigned __int64 volumeCreationTime, PCRYPTO_INFO *retInfo,
+		   int pkcs5_prf, char *masterKeydata, PCRYPTO_INFO *retInfo,
 		   unsigned __int64 volumeSize, unsigned __int64 hiddenVolumeSize,
-		   unsigned __int64 encryptedAreaStart, unsigned __int64 encryptedAreaLength, BOOL bWipeMode)
+		   unsigned __int64 encryptedAreaStart, unsigned __int64 encryptedAreaLength, uint16 requiredProgramVersion, uint32 headerFlags, BOOL bWipeMode)
 {
 	unsigned char *p = (unsigned char *) header;
 	static KEY_INFO keyInfo;
@@ -486,12 +646,10 @@ int VolumeWriteHeader (BOOL bBoot, char *header, int ea, int mode, Password *pas
 	if (cryptoInfo == NULL)
 		return ERR_OUTOFMEMORY;
 
-	memset (header, 0, HEADER_SIZE);
+	memset (header, 0, TC_VOLUME_HEADER_EFFECTIVE_SIZE);
 
-#ifdef _WIN32
 	VirtualLock (&keyInfo, sizeof (keyInfo));
 	VirtualLock (&dk, sizeof (dk));
-#endif
 
 	/* Encryption setup */
 
@@ -611,57 +769,15 @@ int VolumeWriteHeader (BOOL bBoot, char *header, int ea, int mode, Password *pas
 		mputWord (p, hiddenVolumeSize > 0 ? 0x0300 : 0x0100);
 		break;
 	default:
-		mputWord (p, VOL_REQ_PROG_VERSION);
+		mputWord (p, requiredProgramVersion != 0 ? requiredProgramVersion : TC_VOLUME_MIN_REQUIRED_PROGRAM_VERSION);
 	}
 
 	// CRC of the master key data
 	x = GetCrc32(keyInfo.master_keydata, MASTER_KEYDATA_SIZE);
 	mputLong (p, x);
 
-	// Time
-	{
-#ifdef _WIN32
-		SYSTEMTIME st;
-		FILETIME ft;
-
-		// Volume creation time
-		if (volumeCreationTime == 0)
-		{
-			GetLocalTime (&st);
-			SystemTimeToFileTime (&st, &ft);
-		}
-		else
-		{
-			ft.dwHighDateTime = (DWORD)(volumeCreationTime >> 32);
-			ft.dwLowDateTime = (DWORD)volumeCreationTime;
-		}
-		mputLong (p, ft.dwHighDateTime);
-		mputLong (p, ft.dwLowDateTime);
-
-		// Header modification time/date
-		GetLocalTime (&st);
-		SystemTimeToFileTime (&st, &ft);
-		mputLong (p, ft.dwHighDateTime);
-		mputLong (p, ft.dwLowDateTime);
-
-#else
-		struct timeval tv;
-		unsigned __int64 ct, wt;
-		gettimeofday (&tv, NULL);
-
-		// Unix time => Windows file time
-		wt = ((unsigned __int64)tv.tv_sec + 134774LL * 24 * 3600) * 1000LL * 1000 * 10;
-
-		if (volumeCreationTime == 0)
-			ct = wt;
-		else
-			ct = volumeCreationTime;
-
-		mputInt64 (p, ct);
-		mputInt64 (p, wt);
-#endif
-
-	}
+	// Reserved fields
+	p += 2 * 8;
 
 	// Size of hidden volume (if any)
 	cryptoInfo->hiddenVolumeSize = hiddenVolumeSize;
@@ -680,6 +796,15 @@ int VolumeWriteHeader (BOOL bBoot, char *header, int ea, int mode, Password *pas
 	// Encrypted area size
 	cryptoInfo->EncryptedAreaLength.Value = encryptedAreaLength;
 	mputInt64 (p, encryptedAreaLength);
+
+	// Flags
+	cryptoInfo->HeaderFlags = headerFlags;
+	mputLong (p, headerFlags);
+
+	// CRC of the header fields
+	x = GetCrc32 (header + TC_HEADER_OFFSET_MAGIC, TC_HEADER_OFFSET_HEADER_CRC - TC_HEADER_OFFSET_MAGIC);
+	p = header + TC_HEADER_OFFSET_HEADER_CRC;
+	mputLong (p, x);
 
 	// The master key data
 	memcpy (header + HEADER_MASTER_KEYDATA_OFFSET, keyInfo.master_keydata, MASTER_KEYDATA_SIZE);

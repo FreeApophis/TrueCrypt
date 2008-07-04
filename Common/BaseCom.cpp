@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2007-2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -13,6 +13,7 @@
 #include "BaseCom.h"
 #include "BootEncryption.h"
 #include "Dlgcode.h"
+#include "Registry.h"
 
 using namespace TrueCrypt;
 
@@ -85,6 +86,12 @@ DWORD BaseCom::CallDriver (DWORD ioctl, BSTR input, BSTR *output)
 }
 
 
+BOOL BaseCom::IsPagingFileActive ()
+{
+	return ::IsPagingFileActive();
+}
+
+
 DWORD BaseCom::ReadWriteFile (BOOL write, BOOL device, BSTR filePath, BSTR *bufferBstr, unsigned __int64 offset, unsigned __int32 size, DWORD *sizeDone)
 {
 	USES_CONVERSION;
@@ -122,12 +129,12 @@ DWORD BaseCom::ReadWriteFile (BOOL write, BOOL device, BSTR filePath, BSTR *buff
 }
 
 
-DWORD BaseCom::RegisterFilterDriver (BOOL registerDriver)
+DWORD BaseCom::RegisterFilterDriver (BOOL registerDriver, BOOL volumeClass)
 {
 	try
 	{
 		BootEncryption bootEnc (NULL);
-		bootEnc.RegisterFilterDriver (registerDriver ? true : false);
+		bootEnc.RegisterFilterDriver (registerDriver ? true : false, volumeClass ? true : false);
 	}
 	catch (SystemException &)
 	{
@@ -167,6 +174,16 @@ DWORD BaseCom::SetDriverServiceStartType (DWORD startType)
 	{
 		return ERROR_EXCEPTION_IN_SERVICE;
 	}
+
+	return ERROR_SUCCESS;
+}
+
+
+DWORD BaseCom::WriteLocalMachineRegistryDwordValue (BSTR keyPath, BSTR valueName, DWORD value)
+{
+	USES_CONVERSION;
+	if (!::WriteLocalMachineRegistryDword (CW2A (keyPath), CW2A (valueName), value))
+		return GetLastError();
 
 	return ERROR_SUCCESS;
 }

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -17,8 +17,8 @@ namespace TrueCrypt
 	{
 	protected:
 		VolumeException ();
-		VolumeException (const string &message) : Exception (message) { }
-		VolumeException (const string &message, const wstring &subject) : Exception (message, subject) { }
+		VolumeException (const string &message);
+		VolumeException (const string &message, const wstring &subject);
 	};
 
 #define TC_EXCEPTION(NAME) TC_EXCEPTION_DECL(NAME,VolumeException)

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -12,8 +12,10 @@
 
 namespace TrueCrypt
 {
-	VolumeSizeWizardPage::VolumeSizeWizardPage (wxPanel* parent, const VolumePath &volumePath)
-		: VolumeSizeWizardPageBase (parent)
+	VolumeSizeWizardPage::VolumeSizeWizardPage (wxPanel* parent, const VolumePath &volumePath, const wxString &freeSpaceText)
+		: VolumeSizeWizardPageBase (parent),
+		MaxVolumeSize (0),
+		MinVolumeSize (1)
 	{
 		VolumeSizePrefixChoice->Append (LangString["KB"], reinterpret_cast <void *> (1024));
 		VolumeSizePrefixChoice->Append (LangString["MB"], reinterpret_cast <void *> (1024 * 1024));
@@ -29,18 +31,25 @@ namespace TrueCrypt
 
 		FreeSpaceStaticText->SetFont (Gui->GetDefaultBoldFont (this));
 
-#ifdef TC_WINDOWS
-		wxString drive = wxFileName (wstring (volumePath)).GetVolume();
-		if (!drive.empty())
+		if (!freeSpaceText.empty())
 		{
-			FreeSpaceStaticText->SetLabel (StringFormatter (_("Free space on drive {0}: is {1}."),
-				drive, Gui->SizeToString (diskSpace.GetValue())));
+			FreeSpaceStaticText->SetLabel (freeSpaceText);
 		}
 		else
-#endif
 		{
-			FreeSpaceStaticText->SetLabel (StringFormatter (_("Free space available: {0}"),
-				Gui->SizeToString (diskSpace.GetValue())));
+#ifdef TC_WINDOWS
+			wxString drive = wxFileName (wstring (volumePath)).GetVolume();
+			if (!drive.empty())
+			{
+				FreeSpaceStaticText->SetLabel (StringFormatter (_("Free space on drive {0}: is {1}."),
+					drive, Gui->SizeToString (diskSpace.GetValue())));
+			}
+			else
+#endif
+			{
+				FreeSpaceStaticText->SetLabel (StringFormatter (_("Free space available: {0}"),
+					Gui->SizeToString (diskSpace.GetValue())));
+			}
 		}
 
 		VolumeSizeTextCtrl->SetMinSize (wxSize (Gui->GetCharWidth (VolumeSizeTextCtrl) * 20, -1));
@@ -73,12 +82,18 @@ namespace TrueCrypt
 		{
 			try
 			{
-				if (GetVolumeSize() > 0)
+				if (GetVolumeSize() >= MinVolumeSize && (MaxVolumeSize == 0 || GetVolumeSize() <= MaxVolumeSize))
 					return true;
 			}
 			catch (...) { }
 		}
 		return false;
+	}
+
+	void VolumeSizeWizardPage::SetMaxStaticTextWidth (int width)
+	{
+		FreeSpaceStaticText->Wrap (width);
+		InfoStaticText->Wrap (width);
 	}
 
 	void VolumeSizeWizardPage::SetVolumeSize (uint64 size)

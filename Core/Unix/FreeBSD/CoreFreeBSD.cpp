@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -124,12 +124,7 @@ namespace TrueCrypt
 									{
 										partition->Size = 0;
 									}
-									partition->MountPoint = GetDeviceMountPoint (
-#ifdef TC_MACOSX
-										string ("/dev/") + string (partition->Path).substr (6));
-#else
-										partition->Path);
-#endif
+									partition->MountPoint = GetDeviceMountPoint (partition->Path);
 									partition->SystemNumber = 0;
 								}
 

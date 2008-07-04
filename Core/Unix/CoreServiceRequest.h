@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -61,14 +61,15 @@ namespace TrueCrypt
 	struct DismountVolumeRequest : CoreServiceRequest
 	{
 		DismountVolumeRequest () { }
-		DismountVolumeRequest (shared_ptr <VolumeInfo> volumeInfo, bool ignoreOpenFiles)
-			: IgnoreOpenFiles (ignoreOpenFiles), MountedVolumeInfo (volumeInfo) { }
+		DismountVolumeRequest (shared_ptr <VolumeInfo> volumeInfo, bool ignoreOpenFiles, bool syncVolumeInfo)
+			: IgnoreOpenFiles (ignoreOpenFiles), MountedVolumeInfo (volumeInfo), SyncVolumeInfo (syncVolumeInfo) { }
 		TC_SERIALIZABLE (DismountVolumeRequest);
 
 		virtual bool RequiresElevation () const;
 
 		bool IgnoreOpenFiles;
 		shared_ptr <VolumeInfo> MountedVolumeInfo;
+		bool SyncVolumeInfo;
 	};
 
 	struct GetDeviceSizeRequest : CoreServiceRequest

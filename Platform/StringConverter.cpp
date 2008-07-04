@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -9,6 +9,7 @@
 #ifdef __GNUC__
 #	include <cxxabi.h>
 #endif
+#include <locale>
 #include <typeinfo>
 #include "Buffer.h"
 #include "Exception.h"
@@ -168,6 +169,14 @@ namespace TrueCrypt
 		return ToWide (GetTypeName (typeid (ex)));
 	}
 
+	string StringConverter::ToLower (const string &str)
+	{
+		string s;
+		foreach (char c, str)
+			s += tolower (c, locale());
+		return s;
+	}
+
 	string StringConverter::ToSingle (const wstring &str, bool noThrow)
 	{
 		try
@@ -244,6 +253,14 @@ namespace TrueCrypt
 			throw ParameterIncorrect (SRC_POS);
 
 		return n;
+	}
+	
+	string StringConverter::ToUpper (const string &str)
+	{
+		string s;
+		foreach (char c, str)
+			s += toupper (c, locale());
+		return s;
 	}
 
 	wstring StringConverter::ToWide (const string &str, bool noThrow)

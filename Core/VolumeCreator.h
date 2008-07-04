@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -72,6 +72,8 @@ namespace TrueCrypt
 
 		volatile bool AbortRequested;
 		volatile bool CreationInProgress;
+		uint64 DataStart;
+		uint64 HostSize;
 		shared_ptr <VolumeCreationOptions> Options;
 		shared_ptr <Exception> ThreadException;
 		uint64 VolumeSize;
@@ -83,6 +85,7 @@ namespace TrueCrypt
 		ProgressInfo mProgressInfo;
 
 		SecureBuffer HeaderKey;
+		shared_ptr <VolumePassword> PasswordKey;
 		SecureBuffer MasterKey;
 
 	private:

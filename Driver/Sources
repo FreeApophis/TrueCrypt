@@ -11,6 +11,7 @@ SOURCES = \
 	EncryptedIoQueue.c \
 	Ntdriver.c \
 	Ntvol.c \
+	VolumeFilter.c \
 	Driver.rc
 
 TARGETLIBS = \

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -143,9 +143,9 @@ namespace TrueCrypt
 					DismountVolumeRequest *dismountRequest = dynamic_cast <DismountVolumeRequest*> (request.get());
 					if (dismountRequest)
 					{
-						Core->DismountVolume (dismountRequest->MountedVolumeInfo, dismountRequest->IgnoreOpenFiles);
-						
-						DismountVolumeResponse().Serialize (outputStream);
+						DismountVolumeResponse response;
+						response.DismountedVolumeInfo = Core->DismountVolume (dismountRequest->MountedVolumeInfo, dismountRequest->IgnoreOpenFiles, dismountRequest->SyncVolumeInfo);
+						response.Serialize (outputStream);
 						continue;
 					}
 
@@ -226,10 +226,10 @@ namespace TrueCrypt
 		SendRequest <CheckFilesystemResponse> (request);
 	}
 
-	void CoreService::RequestDismountVolume (shared_ptr <VolumeInfo> mountedVolume, bool ignoreOpenFiles)
+	shared_ptr <VolumeInfo> CoreService::RequestDismountVolume (shared_ptr <VolumeInfo> mountedVolume, bool ignoreOpenFiles, bool syncVolumeInfo)
 	{
-		DismountVolumeRequest request (mountedVolume, ignoreOpenFiles);
-		SendRequest <DismountVolumeResponse> (request);
+		DismountVolumeRequest request (mountedVolume, ignoreOpenFiles, syncVolumeInfo);
+		return SendRequest <DismountVolumeResponse> (request)->DismountedVolumeInfo;
 	}
 
 	uint64 CoreService::RequestGetDeviceSize (const DevicePath &devicePath)
@@ -339,8 +339,8 @@ namespace TrueCrypt
 					if (appPath.empty())
 						appPath = "truecrypt";
 
-					char *const args[] = {"sudo", "-S", "-p", "", (char *const) appPath.c_str(), TC_CORE_SERVICE_CMDLINE_OPTION, nullptr };
-					execvp (args[0], args);
+					const char *args[] = { "sudo", "-S", "-p", "", appPath.c_str(), TC_CORE_SERVICE_CMDLINE_OPTION, nullptr };
+					execvp (args[0], ((char* const*) args));
 					throw SystemException (SRC_POS, args[0]);
 				}
 				catch (Exception &)

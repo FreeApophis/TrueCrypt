@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.4 the full text of which is contained in the
+ by the TrueCrypt License 2.5 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -29,6 +29,7 @@
 #include "Crypto.h"
 #include "Dictionary.h"
 #include "Dlgcode.h"
+#include "EncryptionThreadPool.h"
 #include "Endian.h"
 #include "Language.h"
 #include "Keyfiles.h"
@@ -107,11 +108,15 @@ BOOL IgnoreWmDeviceChange = FALSE;
 HANDLE hDriver = INVALID_HANDLE_VALUE;
 
 /* This mutex is used to prevent multiple instances of the wizard or main app from dealing with system encryption */
-HANDLE hSysEncMutex = NULL;		
+volatile HANDLE hSysEncMutex = NULL;		
 
 /* This mutex is used to prevent multiple instances of the wizard or main app from trying to install or
 register the driver or from trying to launch it in traveler mode at the same time. */
-HANDLE hDriverSetupMutex = NULL;		
+volatile HANDLE hDriverSetupMutex = NULL;
+
+/* This mutex is used to prevent users from running the main TrueCrypt app or the wizard while an instance
+of the TrueCrypt installer is running (which is also useful for enforcing restart before the apps can be used). */
+volatile HANDLE hAppSetupMutex = NULL;
 
 HINSTANCE hInst = NULL;
 HCURSOR hCursor = NULL;
@@ -135,6 +140,8 @@ char bCachedSysDevicePathsValid = FALSE;
 BOOL bRawDevicesDlgProcInstantExit = FALSE;
 
 BOOL bHyperLinkBeingTracked = FALSE;
+
+int WrongPwdRetryCounter = 0;
 
 static FILE *ConfigFileHandle;
 char *ConfigBuffer;
@@ -187,8 +194,7 @@ LARGE_INTEGER benchmarkPerformanceFrequency;
 #endif	// #ifndef SETUP
 
 
-void
-cleanup ()
+void cleanup ()
 {
 	/* Cleanup the GDI fonts */
 	if (hFixedFont != NULL)
@@ -231,7 +237,10 @@ cleanup ()
 			if (!refDevDeleted)
 				DriverUnload ();
 			else
+			{
 				CloseHandle (hDriver);
+				hDriver = INVALID_HANDLE_VALUE;
+			}
 		}
 		else
 		{
@@ -249,6 +258,10 @@ cleanup ()
 	CoUninitialize ();
 
 	CloseSysEncMutex ();
+
+#ifndef SETUP
+	EncryptionThreadPoolStop();
+#endif
 }
 
 
@@ -346,6 +359,7 @@ RemoveFakeDosName (char *lpszDiskFile, char *lpszDosDevice)
 void
 AbortProcess (char *stringId)
 {
+	// Note that this function also causes localcleanup() to be called (see atexit())
 	MessageBeep (MB_ICONEXCLAMATION);
 	MessageBoxW (NULL, GetString (stringId), lpszTitle, ICON_HAND);
 	exit (1);
@@ -354,6 +368,7 @@ AbortProcess (char *stringId)
 void
 AbortProcessSilent (void)
 {
+	// Note that this function also causes localcleanup() to be called (see atexit())
 	exit (1);
 }
 
@@ -407,8 +422,11 @@ handleWin32Error (HWND hwndDlg)
 	LocalFree (lpMsgBuf);
 
 	// User-friendly hardware error explanation
-	if (dwError == ERROR_CRC || dwError == ERROR_IO_DEVICE || dwError == ERROR_BAD_CLUSTERS)
+	if (dwError == ERROR_CRC || dwError == ERROR_IO_DEVICE || dwError == ERROR_BAD_CLUSTERS
+		|| dwError == ERROR_SEM_TIMEOUT) // Semaphore timeout is sometimes reported instead of an I/O error
+	{
 		Error ("ERR_HARDWARE_ERROR");
+	}
 
 	// Device not ready
 	if (dwError == ERROR_NOT_READY)
@@ -1513,7 +1531,7 @@ void ExceptionHandlerThread (void *ept)
 
 	swprintf (msg, GetString ("EXCEPTION_REPORT"), url);
 
-	if (IDYES == MessageBoxW (0, msg, GetString ("EXCEPTION_REPORT_TITLE"), MB_ICONERROR | MB_YESNO | MB_DEFBUTTON1 | MB_SETFOREGROUND | MB_TOPMOST))
+	if (IDYES == MessageBoxW (0, msg, GetString ("EXCEPTION_REPORT_TITLE"), MB_ICONERROR | MB_YESNO | MB_DEFBUTTON1))
 		ShellExecute (NULL, "open", (LPCTSTR) url, NULL, NULL, SW_SHOWNORMAL);
 	else
 		UnhandledExceptionFilter (ep);
@@ -1539,7 +1557,13 @@ static LRESULT CALLBACK NonInstallUacWndProc (HWND hWnd, UINT message, WPARAM wP
 // Returns TRUE if the mutex is (or had been) successfully acquired (otherwise FALSE). 
 BOOL CreateSysEncMutex (void)
 {
-	return TCCreateMutex (&hSysEncMutex, "Global\\TrueCrypt System Encryption Wizard");
+	return TCCreateMutex (&hSysEncMutex, TC_MUTEX_NAME_SYSENC);
+}
+
+
+BOOL InstanceHasSysEncMutex (void)
+{
+	return (hSysEncMutex != NULL);
 }
 
 
@@ -1565,8 +1589,26 @@ void CloseDriverSetupMutex (void)
 }
 
 
+BOOL CreateAppSetupMutex (void)
+{
+	return TCCreateMutex (&hAppSetupMutex, TC_MUTEX_NAME_APP_SETUP);
+}
+
+
+void CloseAppSetupMutex (void)
+{
+	TCCloseMutex (&hAppSetupMutex);
+}
+
+
+BOOL IsTrueCryptInstallerRunning (void)
+{
+	return (MutexExistsOnSystem (TC_MUTEX_NAME_APP_SETUP));
+}
+
+
 // Returns TRUE if the mutex is (or had been) successfully acquired (otherwise FALSE). 
-BOOL TCCreateMutex (HANDLE *hMutex, char *name)
+BOOL TCCreateMutex (volatile HANDLE *hMutex, char *name)
 {
 	if (*hMutex != NULL)
 		return TRUE;	// This instance already has the mutex
@@ -1575,8 +1617,9 @@ BOOL TCCreateMutex (HANDLE *hMutex, char *name)
 	if (*hMutex == NULL)
 	{
 		// In multi-user configurations, the OS returns "Access is denied" here when a user attempts
-		// to acquire the mutex if another user already has.
-		handleWin32Error (NULL);
+		// to acquire the mutex if another user already has. However, on Vista, "Access is denied" is
+		// returned also if the mutex is owned by a process with admin rights while we have none.
+
 		return FALSE;
 	}
 
@@ -1593,7 +1636,7 @@ BOOL TCCreateMutex (HANDLE *hMutex, char *name)
 }
 
 
-void TCCloseMutex (HANDLE *hMutex)
+void TCCloseMutex (volatile HANDLE *hMutex)
 {
 	if (*hMutex != NULL)
 	{
@@ -1601,6 +1644,31 @@ void TCCloseMutex (HANDLE *hMutex)
 			&& CloseHandle (*hMutex))
 			*hMutex = NULL;
 	}
+}
+
+
+// Returns TRUE if a process running on the system has the specified mutex (otherwise FALSE). 
+BOOL MutexExistsOnSystem (char *name)
+{
+	if (name[0] == 0)
+		return FALSE;
+
+	HANDLE hMutex = OpenMutex (MUTEX_ALL_ACCESS, FALSE, name);
+
+	if (hMutex == NULL)
+	{
+		if (GetLastError () == ERROR_FILE_NOT_FOUND)
+			return FALSE;
+
+		if (GetLastError () == ERROR_ACCESS_DENIED) // On Vista, this is returned if the owner of the mutex is elevated while we are not
+			return TRUE;		
+
+		// The call failed and it is not certain whether the mutex exists or not
+		return FALSE;
+	}
+
+	CloseHandle (hMutex);
+	return TRUE;
 }
 
 
@@ -1650,6 +1718,71 @@ BOOL LoadSysEncSettings (HWND hwndDlg)
 	free (sysEncCfgFileBuf);
 	return status;
 }
+
+
+void SavePostInstallTasksSettings (int command)
+{
+	FILE *f = NULL;
+
+	switch (command)
+	{
+	case TC_POST_INSTALL_CFG_REMOVE_ALL:
+		remove (GetConfigPath (FILE_POST_INSTALL_CFG_TUTORIAL));
+		remove (GetConfigPath (FILE_POST_INSTALL_CFG_RELEASE_NOTES));
+		break;
+
+	case TC_POST_INSTALL_CFG_TUTORIAL:
+		f = fopen (GetConfigPath (FILE_POST_INSTALL_CFG_TUTORIAL), "w");
+		break;
+
+	case TC_POST_INSTALL_CFG_RELEASE_NOTES:
+		f = fopen (GetConfigPath (FILE_POST_INSTALL_CFG_RELEASE_NOTES), "w");
+		break;
+
+	default:
+		return;
+	}
+
+	if (f == NULL)
+		return;
+
+	if (fputs ("1", f) < 0)
+	{
+		// Error
+		fclose (f);
+		return;
+	}
+
+	TCFlushFile (f);
+
+	fclose (f);
+}
+
+
+void DoPostInstallTasks (void)
+{
+	BOOL bDone = FALSE;
+
+	if (FileExists (GetConfigPath (FILE_POST_INSTALL_CFG_TUTORIAL)))
+	{
+		if (AskYesNo ("AFTER_INSTALL_TUTORIAL") == IDYES)
+			Applink ("beginnerstutorial", TRUE, "");
+
+		bDone = TRUE;
+	}
+
+	if (FileExists (GetConfigPath (FILE_POST_INSTALL_CFG_RELEASE_NOTES)))
+	{
+		if (AskYesNo ("AFTER_UPGRADE_RELEASE_NOTES") == IDYES)
+			Applink ("releasenotes", TRUE, "");
+
+		bDone = TRUE;
+	}
+
+	if (bDone)
+		SavePostInstallTasksSettings (TC_POST_INSTALL_CFG_REMOVE_ALL);
+}
+
 
 /* InitApp - initialize the application, this function is called once in the
    applications WinMain function, but before the main dialog has been created */
@@ -1854,6 +1987,14 @@ void InitApp (HINSTANCE hInstance, char *lpszCommandLine)
 		(DLGPROC) AuxiliaryDlgProc, (LPARAM) 1);
 
 	InitHelpFileName ();
+
+#ifndef SETUP
+	if (!EncryptionThreadPoolStart())
+	{
+		handleWin32Error (NULL);
+		exit (1);
+	}
+#endif
 }
 
 void InitHelpFileName (void)
@@ -2245,7 +2386,7 @@ int GetAvailableRemovables (HWND hComboBox, char *lpszRootPath)
 }
 
 /* Stores the device path of the system partition in SysPartitionDevicePath and the device path of the system drive
-in SysDriveDevicePath. 
+in SysDriveDevicePath.
 IMPORTANT: As this may take a very long time if called for the first time, it should be called only before performing 
            a dangerous operation (such as header backup restore or formatting a supposedly non-system device) never 
 		   at WM_INITDIALOG or any other GUI events -- instead call IsSystemDevicePath (path, hwndDlg, FALSE) for 
@@ -2276,7 +2417,7 @@ BOOL GetSysDevicePaths (HWND hwndDlg)
 		&& strlen (SysDriveDevicePath) > 1);
 }
 
-/* Determines whether the device path is the path of the system partition or of the system drive. 
+/* Determines whether the device path is the path of the system partition or of the system drive (or neither). 
 If bReliableRequired is TRUE, very fast execution is guaranteed, but the results cannot be relied upon. 
 If it's FALSE and the function is called for the first time, execution may take up to one minute but the
 results are reliable.
@@ -2660,11 +2801,6 @@ RawDevicesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 						Error ("DEVICE_PARTITIONS_ERR");
 						return 1;
 					}
-
-					if (AskWarnNoYes ("WHOLE_DEVICE_WARNING") == IDNO)
-						return 1;
-
-					Warning ("WHOLE_DEVICE_NOTE");
 				}
 #else	// #ifdef VOLFORMAT
 
@@ -3044,37 +3180,6 @@ load:
 }
 
 
-// Sets file pointer to hidden volume header
-BOOL SeekHiddenVolHeader (HFILE dev, unsigned __int64 volSize, BOOL deviceFlag)
-{
-	LARGE_INTEGER offset, offsetNew;
-
-	if (deviceFlag)
-	{
-		// Partition/device
-
-		offset.QuadPart = volSize - HIDDEN_VOL_HEADER_OFFSET;
-
-		if (SetFilePointerEx ((HANDLE) dev, offset, &offsetNew, FILE_BEGIN) == 0)
-			return FALSE;
-
-		if (offsetNew.QuadPart != offset.QuadPart)
-			return FALSE;
-	}
-	else
-	{
-		// File-hosted volume
-
-		offset.QuadPart = - HIDDEN_VOL_HEADER_OFFSET;
-
-		if (SetFilePointerEx ((HANDLE) dev, offset, &offsetNew, FILE_END) == 0)
-			return FALSE;
-	}
-
-	return TRUE;
-}
-
-
 void ResetCurrentDirectory ()
 {
 	char p[MAX_PATH];
@@ -3102,6 +3207,9 @@ BOOL BrowseFilesInDir (HWND hwndDlg, char *stringId, char *initialDir, char *lps
 	wchar_t file[TC_MAX_PATH] = { 0 };
 	wchar_t wInitialDir[TC_MAX_PATH] = { 0 };
 	wchar_t filter[1024];
+	BOOL status = FALSE;
+
+	CoInitialize (NULL);
 
 	ZeroMemory (&ofn, sizeof (ofn));
 	*lpszFileName = 0;
@@ -3132,12 +3240,12 @@ BOOL BrowseFilesInDir (HWND hwndDlg, char *stringId, char *initialDir, char *lps
 	if (!saveMode)
 	{
 		if (!GetOpenFileNameW (&ofn))
-			return FALSE;
+			goto ret;
 	}
 	else
 	{
 		if (!GetSaveFileNameW (&ofn))
-			return FALSE;
+			goto ret;
 	}
 
 	WideCharToMultiByte (CP_ACP, 0, file, -1, lpszFileName, MAX_PATH, NULL, NULL);
@@ -3146,8 +3254,11 @@ BOOL BrowseFilesInDir (HWND hwndDlg, char *stringId, char *initialDir, char *lps
 		CleanLastVisitedMRU ();
 
 	ResetCurrentDirectory ();
+	status = TRUE;
 
-	return TRUE;
+ret:
+	CoUninitialize();
+	return status;
 }
 
 
@@ -3159,6 +3270,9 @@ BOOL SelectMultipleFiles (HWND hwndDlg, char *stringId, char *lpszFileName, BOOL
 	OPENFILENAMEW ofn;
 	wchar_t file[TC_MAX_PATH] = { 0 };
 	wchar_t filter[1024];
+	BOOL status = FALSE;
+
+	CoInitialize (NULL);
 
 	ZeroMemory (&ofn, sizeof (ofn));
 
@@ -3182,7 +3296,7 @@ BOOL SelectMultipleFiles (HWND hwndDlg, char *stringId, char *lpszFileName, BOOL
 		CleanLastVisitedMRU ();
 
 	if (!GetOpenFileNameW (&ofn))
-		return FALSE;
+		goto ret;
 
 	if (file[ofn.nFileOffset - 1] != 0)
 	{
@@ -3210,8 +3324,11 @@ BOOL SelectMultipleFiles (HWND hwndDlg, char *stringId, char *lpszFileName, BOOL
 		CleanLastVisitedMRU ();
 
 	ResetCurrentDirectory ();
-
-	return TRUE;
+	status = TRUE;
+	
+ret:
+	CoUninitialize();
+	return status;
 }
 
 
@@ -3275,6 +3392,8 @@ BrowseDirectories (HWND hwndDlg, char *lpszTitle, char *dirName)
 	LPMALLOC pMalloc;
 	BOOL bOK  = FALSE;
 
+	CoInitialize (NULL);
+
 	if (SUCCEEDED (SHGetMalloc (&pMalloc))) 
 	{
 		ZeroMemory (&bi, sizeof(bi));
@@ -3298,6 +3417,8 @@ BrowseDirectories (HWND hwndDlg, char *lpszTitle, char *dirName)
 			pMalloc->Release();
 		}
 	}
+
+	CoUninitialize();
 
 	return bOK;
 }
@@ -3359,12 +3480,6 @@ void handleError (HWND hwndDlg, int code)
 	case ERR_VOL_SEEKING:
 		MessageBoxW (hwndDlg, GetString ("VOL_SEEKING"), lpszTitle, ICON_HAND);
 		break;
-	case ERR_VOL_WRITING:
-		MessageBoxW (hwndDlg, GetString ("VOL_WRITING"), lpszTitle, ICON_HAND);
-		break;
-	case ERR_VOL_READING:
-		MessageBoxW (hwndDlg, GetString ("VOL_READING"), lpszTitle, ICON_HAND);
-		break;
 	case ERR_CIPHER_INIT_FAILURE:
 		MessageBoxW (hwndDlg, GetString ("ERR_CIPHER_INIT_FAILURE"), lpszTitle, ICON_HAND);
 		break;
@@ -3409,6 +3524,10 @@ void handleError (HWND hwndDlg, int code)
 
 	case ERR_ENCRYPTION_NOT_COMPLETED:
 		Error ("ERR_ENCRYPTION_NOT_COMPLETED");
+		break;
+
+	case ERR_SYS_HIDVOL_HEAD_REENC_MODE_WRONG:
+		Error ("ERR_SYS_HIDVOL_HEAD_REENC_MODE_WRONG");
 		break;
 
 	case ERR_PARAMETER_INCORRECT:
@@ -3709,6 +3828,10 @@ static BOOL PerformBenchmark(HWND hwndDlg)
     LARGE_INTEGER performanceCountStart, performanceCountEnd;
 	BYTE *lpTestBuffer;
 	PCRYPTO_INFO ci = NULL;
+	UINT64_STRUCT startDataUnitNo;
+
+	startDataUnitNo.Value = 0;
+
 #if !(PKCS5_BENCHMARKS || HASH_FNC_BENCHMARKS)
 	ci = crypto_open ();
 	if (!ci)
@@ -3745,8 +3868,8 @@ static BOOL PerformBenchmark(HWND hwndDlg)
 
 			for (i = 0; i < 2; i++)
 			{
-				EncryptBuffer (lpTestBuffer, (TC_LARGEST_COMPILER_UINT) benchmarkBufferSize, ci);
-				DecryptBuffer (lpTestBuffer, (TC_LARGEST_COMPILER_UINT) benchmarkBufferSize, ci);
+				EncryptDataUnits (lpTestBuffer, &startDataUnitNo, (TC_LARGEST_COMPILER_UINT) benchmarkBufferSize / ENCRYPTION_DATA_UNIT_SIZE, ci);
+				DecryptDataUnits (lpTestBuffer, &startDataUnitNo, (TC_LARGEST_COMPILER_UINT) benchmarkBufferSize / ENCRYPTION_DATA_UNIT_SIZE, ci);
 			}
 		}
 	}
@@ -3886,7 +4009,7 @@ static BOOL PerformBenchmark(HWND hwndDlg)
 		if (QueryPerformanceCounter (&performanceCountStart) == 0)
 			goto counter_error;
 
-		EncryptBuffer (lpTestBuffer, (TC_LARGEST_COMPILER_UINT) benchmarkBufferSize, ci);
+		EncryptDataUnits (lpTestBuffer, &startDataUnitNo, (TC_LARGEST_COMPILER_UINT) benchmarkBufferSize / ENCRYPTION_DATA_UNIT_SIZE, ci);
 
 		if (QueryPerformanceCounter (&performanceCountEnd) == 0)
 			goto counter_error;
@@ -3896,7 +4019,7 @@ static BOOL PerformBenchmark(HWND hwndDlg)
 		if (QueryPerformanceCounter (&performanceCountStart) == 0)
 			goto counter_error;
 
-		DecryptBuffer (lpTestBuffer, (TC_LARGEST_COMPILER_UINT) benchmarkBufferSize, ci);
+		DecryptDataUnits (lpTestBuffer, &startDataUnitNo, (TC_LARGEST_COMPILER_UINT) benchmarkBufferSize / ENCRYPTION_DATA_UNIT_SIZE, ci);
 
 		if (QueryPerformanceCounter (&performanceCountEnd) == 0)
 			goto counter_error;
@@ -4011,10 +4134,6 @@ BOOL CALLBACK BenchmarkDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lP
 
 			SendMessage (hCboxBufferSize, CB_RESETCONTENT, 0, 0);
 
-			swprintf (s, L"5 %s", GetString ("KB"));
-			nIndex = SendMessageW (hCboxBufferSize, CB_ADDSTRING, 0, (LPARAM) s);
-			SendMessage (hCboxBufferSize, CB_SETITEMDATA, nIndex, (LPARAM) 5 * BYTES_PER_KB);
-
 			swprintf (s, L"100 %s", GetString ("KB"));
 			nIndex = SendMessageW (hCboxBufferSize, CB_ADDSTRING, 0, (LPARAM) s);
 			SendMessage (hCboxBufferSize, CB_SETITEMDATA, nIndex, (LPARAM) 100 * BYTES_PER_KB);
@@ -4055,7 +4174,7 @@ BOOL CALLBACK BenchmarkDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lP
 			nIndex = SendMessageW (hCboxBufferSize, CB_ADDSTRING, 0, (LPARAM) s);
 			SendMessage (hCboxBufferSize, CB_SETITEMDATA, nIndex, (LPARAM) 1 * BYTES_PER_GB);
 
-			SendMessage (hCboxBufferSize, CB_SETCURSEL, 3, 0);		// Default size
+			SendMessage (hCboxBufferSize, CB_SETCURSEL, 3, 0);		// Default buffer size
 
 			return 1;
 		}
@@ -4770,7 +4889,9 @@ BOOL CALLBACK MultiChoiceDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
 	int vertSubOffset, horizSubOffset, vertMsgHeightOffset;
 	int vertOffset = 0;
 	int nLongestButtonCaptionWidth = 6;
+	int nLongestButtonCaptionCharLen = 1;
 	int nTextGfxLineHeight = 0;
+	int nMainTextLenInChars = 0;
 	RECT rec, wrec, wtrec, trec;
 	BOOL bResolve;
 
@@ -4804,6 +4925,9 @@ BOOL CALLBACK MultiChoiceDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
 											bResolve ? GetString(*pStr) : *pwStr,
 											hUserFont),
 							nLongestButtonCaptionWidth);
+
+						nLongestButtonCaptionCharLen = max (nLongestButtonCaptionCharLen, 
+							(int) wcslen ((const wchar_t *) (bResolve ? GetString(*pStr) : *pwStr)));
 					}
 
 					nActiveChoices++;
@@ -4817,6 +4941,20 @@ BOOL CALLBACK MultiChoiceDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
 				nStr++;
 
 			} while (nStr < MAX_MULTI_CHOICES+1);
+
+			// Length of main message in characters (not bytes)
+			nMainTextLenInChars = wcslen ((const wchar_t *) (bResolve ? GetString(*(pStrOrig+1)) : *(pwStrOrig+1)));
+
+			if (nMainTextLenInChars > 240 
+				&& nMainTextLenInChars / nLongestButtonCaptionCharLen >= 10)
+			{
+				// As the main text is longer than 240 characters, we will "pad" the widest button caption with 
+				// spaces (if it is not wide enough) so as to increase the width of the whole dialog window. 
+				// Otherwise, it would look too tall (dialog boxes look better when they are more wide than tall).
+				nLongestButtonCaptionWidth = CompensateXDPI (max (
+					nLongestButtonCaptionWidth, 
+					min (350, nMainTextLenInChars)));
+			}
 
 			// Get the window coords
 			GetWindowRect(hwndDlg, &wrec);
@@ -4963,14 +5101,13 @@ BOOL CheckFileExtension (char *fileName)
 		".prf", ".prg", ".pst", ".reg", ".scf", ".scr", ".sct", ".shb", ".shs", ".sys", ".tlb", ".tsp", ".url",
 		".vb", ".vbe", ".vbs", ".vsmacros", ".vss", ".vst", ".vsw", ".ws", ".wsc", ".wsf", ".wsh", ".xsd", ".xsl",
 		// These additional file extensions are usually watched by antivirus programs
-		".386", ".acm", ".ade", ".adp", ".ani", ".app", ".asd", ".asf", ".asx", ".awx", ".ax", ".boo", ".cdf",
-		".class", ".dhtm", ".dhtml",".dlo", ".emf", ".eml", ".flt", ".fot", ".hlp", ".htm", ".html", ".ini", 
+		".386", ".acm", ".ade", ".adp", ".ani", ".app", ".asd", ".asf", ".asx", ".awx", ".ax", ".boo", ".bz2", ".cdf",
+		".class", ".dhtm", ".dhtml",".dlo", ".emf", ".eml", ".flt", ".fot", ".gz", ".hlp", ".htm", ".html", ".ini", 
 		".j2k", ".jar", ".jff", ".jif", ".jmh", ".jng", ".jp2", ".jpe", ".jpeg", ".jpg", ".lsp", ".mod", ".nws",
 		".obj", ".olb", ".osd", ".ov1", ".ov2", ".ov3", ".ovl", ".ovl", ".ovr", ".pdr", ".pgm", ".php", ".pkg",
 		".pl", ".png", ".pot", ".pps", ".ppt", ".rar", ".rpl", ".rtf", ".sbf", ".script", ".sh", ".sha", ".shtm",
-		".shtml", ".spl", ".swf", ".tmp", ".ttf", ".vcs", ".vlm", ".vxd", ".vxo", ".wiz", ".wll", ".wmd", ".wmf",
-		".wms", ".wmz", ".wpc", ".wsc", ".wsh", ".wwk", ".xhtm", ".xhtml", ".xl", ".xml", ".zip", ".7z",
-		0};
+		".shtml", ".spl", ".swf", ".tar", ".tgz", ".tmp", ".ttf", ".vcs", ".vlm", ".vxd", ".vxo", ".wiz", ".wll", ".wmd",
+		".wmf",	".wms", ".wmz", ".wpc", ".wsc", ".wsh", ".wwk", ".xhtm", ".xhtml", ".xl", ".xml", ".zip", ".7z", 0};
 
 	if (!ext)
 		return FALSE;
@@ -4982,6 +5119,24 @@ BOOL CheckFileExtension (char *fileName)
 	}
 
 	return FALSE;
+}
+
+
+void IncreaseWrongPwdRetryCount (int count)
+{
+	WrongPwdRetryCounter += count;
+}
+
+
+void ResetWrongPwdRetryCount (void)
+{
+	WrongPwdRetryCounter = 0;
+}
+
+
+BOOL WrongPwdRetryCountOverLimit (void)
+{
+	return (WrongPwdRetryCounter > TC_TRY_HEADER_BAK_AFTER_NBR_WRONG_PWD_TRIES);
 }
 
 
@@ -5061,6 +5216,22 @@ int DriverUnmountVolume (HWND hwndDlg, int nDosDriveNo, BOOL forced)
 		return 1;
 	}
 
+#ifdef TCMOUNT
+
+	if (unmount.nReturnCode == ERR_SUCCESS
+		&& unmount.HiddenVolumeProtectionTriggered
+		&& !VolumeNotificationsList.bHidVolDamagePrevReported [nDosDriveNo])
+	{
+		wchar_t msg[4096];
+
+		VolumeNotificationsList.bHidVolDamagePrevReported [nDosDriveNo] = TRUE;
+		swprintf (msg, GetString ("DAMAGE_TO_HIDDEN_VOLUME_PREVENTED"), nDosDriveNo + 'A');
+		SetForegroundWindow (hwndDlg);
+		MessageBoxW (hwndDlg, msg, lpszTitle, MB_ICONWARNING | MB_SETFOREGROUND | MB_TOPMOST);
+	}
+
+#endif	// #ifdef TCMOUNT
+
 	return unmount.nReturnCode;
 }
 
@@ -5111,12 +5282,19 @@ void BroadcastDeviceChange (WPARAM message, int nDosDriveNo, DWORD driveMap)
 	dbv.dbcv_unitmask = driveMap;
 	dbv.dbcv_flags = 0; 
 
-	IgnoreWmDeviceChange = TRUE;
-	SendMessageTimeout (HWND_BROADCAST, WM_DEVICECHANGE, message, (LPARAM)(&dbv), 0, 1000, &dwResult);
+	UINT timeOut = 1000;
 
-	// Explorer sometimes fails to register a new drive
-	if (message == DBT_DEVICEARRIVAL)
+	// SHChangeNotify() works on Vista, so the Explorer does not require WM_DEVICECHANGE
+	if (CurrentOSMajor >= 6)
+		timeOut = 100;
+
+	IgnoreWmDeviceChange = TRUE;
+	SendMessageTimeout (HWND_BROADCAST, WM_DEVICECHANGE, message, (LPARAM)(&dbv), 0, timeOut, &dwResult);
+
+	// Explorer prior Vista sometimes fails to register a new drive
+	if (CurrentOSMajor < 6 && message == DBT_DEVICEARRIVAL)
 		SendMessageTimeout (HWND_BROADCAST, WM_DEVICECHANGE, message, (LPARAM)(&dbv), 0, 200, &dwResult);
+
 	IgnoreWmDeviceChange = FALSE;
 }
 
@@ -5161,7 +5339,9 @@ int MountVolume (HWND hwndDlg,
 
 	if (!IsDriveAvailable (driveNo))
 	{
-		Error ("DRIVE_LETTER_UNAVAILABLE");
+		if (!quiet)
+			Error ("DRIVE_LETTER_UNAVAILABLE");
+
 		return -1;
 	}
 
@@ -5171,6 +5351,8 @@ int MountVolume (HWND hwndDlg,
 
 	ZeroMemory (&mount, sizeof (mount));
 	mount.bExclusiveAccess = sharedAccess ? FALSE : TRUE;
+	mount.UseBackupHeader =  mountOptions->UseBackupHeader;
+
 retry:
 	mount.nDosDriveNo = driveNo;
 	mount.bCache = cachePassword;
@@ -5300,7 +5482,19 @@ retry:
 		{
 			// Do not report wrong password, if not instructed to 
 			if (bReportWrongPassword)
+			{
+				IncreaseWrongPwdRetryCount (1);		// We increase the count here only if bReportWrongPassword is TRUE, because "Auto-Mount All Devices" and other callers do it separately
+
+				if (WrongPwdRetryCountOverLimit () 
+					&& !mount.UseBackupHeader)
+				{
+					// Retry using embedded header backup (if any)
+					mount.UseBackupHeader = TRUE;
+					goto retry;
+				}
+
 				handleError (hwndDlg, mount.nReturnCode);
+			}
 
 			return 0;
 		}
@@ -5310,6 +5504,17 @@ retry:
 
 		return 0;
 	}
+
+	// Mount successful
+
+	if (mount.UseBackupHeader != mountOptions->UseBackupHeader
+		&& mount.UseBackupHeader)
+	{
+		if (bReportWrongPassword && !quiet)
+			Warning ("HEADER_DAMAGED_AUTO_USED_HEADER_BAK");
+	}
+
+	ResetWrongPwdRetryCount ();
 
 	BroadcastDeviceChange (DBT_DEVICEARRIVAL, driveNo, 0);
 
@@ -5761,6 +5966,21 @@ BOOL SaveBufferToFile (char *inputBuffer, char *destinationFile, DWORD inputLeng
 	return res;
 }
 
+
+// Proper flush for Windows systems. Returns TRUE if successful.
+BOOL TCFlushFile (FILE *f)
+{
+	HANDLE hf = (HANDLE) _get_osfhandle (_fileno (f));
+
+	fflush (f);
+
+	if (hf == INVALID_HANDLE_VALUE)
+		return FALSE;
+
+	return FlushFileBuffers (hf) != 0;
+}
+
+
 // Prints a UTF-16 text (note that this involves a real printer, not a screen).
 // textByteLen - length of the text in bytes
 // title - printed as part of the page header and used as the filename for a temporary file 
@@ -5813,384 +6033,6 @@ BOOL PrintHardCopyTextUTF16 (wchar_t *text, char *title, int textByteLen)
 
 	return TRUE;
 }
-
-
-#ifdef TCMOUNT
-int BackupVolumeHeader (HWND hwndDlg, BOOL bRequireConfirmation, char *lpszVolume)
-{
-	int nDosLinkCreated = 1, nStatus = ERR_OS_ERROR;
-	char szDiskFile[TC_MAX_PATH], szCFDevice[TC_MAX_PATH];
-	char szFileName[TC_MAX_PATH];
-	char szDosDevice[TC_MAX_PATH];
-	char buffer[HEADER_SIZE];
-	void *dev = INVALID_HANDLE_VALUE;
-	DWORD dwError;
-	BOOL bDevice;
-	unsigned __int64 volSize = 0;
-	wchar_t szTmp[4096];
-	int volumeType;
-	int fBackup = -1;
-
-	switch (IsSystemDevicePath (lpszVolume, hwndDlg, TRUE))
-	{
-	case 1:
-	case 2:
-		if (AskErrNoYes ("BACKUP_HEADER_NOT_FOR_SYS_DEVICE") == IDYES)
-			CreateRescueDisk ();
-
-		return 0;
-
-	case -1:
-		Error ("ERR_CANNOT_DETERMINE_VOLUME_TYPE");
-		return 0;
-	}
-
-	if (IsMountedVolume (lpszVolume))
-	{
-		Warning ("DISMOUNT_FIRST");
-		return 0;
-	}
-
-	swprintf (szTmp, GetString ("CONFIRM_VOL_HEADER_BAK"), lpszVolume);
-
-	if (bRequireConfirmation 
-		&& (MessageBoxW (hwndDlg, szTmp, lpszTitle, YES_NO|MB_ICONQUESTION|MB_DEFBUTTON1) == IDNO))
-		return 0;
-
-
-	/* Select backup file */
-	if (!BrowseFiles (hwndDlg, "OPEN_TITLE", szFileName, bHistory, TRUE))
-		return 0;
-
-	/* Conceive the backup file */
-	if ((fBackup = _open(szFileName, _O_CREAT|_O_TRUNC|_O_WRONLY|_O_BINARY, _S_IREAD|_S_IWRITE)) == -1)
-	{
-		nStatus = ERROR_CANNOT_MAKE;
-		goto error;
-	}
-
-	/* Read the volume headers and write them to the backup file */
-
-	CreateFullVolumePath (szDiskFile, lpszVolume, &bDevice);
-
-	if (bDevice == FALSE)
-		strcpy (szCFDevice, szDiskFile);
-	else
-	{
-		nDosLinkCreated = FakeDosNameForDevice (szDiskFile, szDosDevice, szCFDevice, FALSE);
-		if (nDosLinkCreated != 0)
-			goto error;
-	}
-
-	dev = CreateFile (szCFDevice, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-
-	if (bDevice)
-	{
-		/* This is necessary to determine the hidden volume header offset */
-
-		if (dev == INVALID_HANDLE_VALUE)
-			goto error;
-		else
-		{
-			PARTITION_INFORMATION diskInfo;
-			DWORD dwResult;
-			BOOL bResult;
-			
-			bResult = GetPartitionInfo (lpszVolume, &diskInfo);
-
-			if (bResult)
-			{
-				volSize = diskInfo.PartitionLength.QuadPart;
-			}
-			else
-			{
-				DISK_GEOMETRY driveInfo;
-
-				bResult = DeviceIoControl (dev, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0,
-					&driveInfo, sizeof (driveInfo), &dwResult, NULL);
-
-				if (!bResult)
-					goto error;
-
-				volSize = driveInfo.Cylinders.QuadPart * driveInfo.BytesPerSector *
-					driveInfo.SectorsPerTrack * driveInfo.TracksPerCylinder;
-			}
-
-			if (volSize == 0)
-			{
-				nStatus = ERR_VOL_SIZE_WRONG;
-				goto error;
-			}
-		}
-	}
-
-	if (dev == INVALID_HANDLE_VALUE)
-		goto error;
-
-	for (volumeType = VOLUME_TYPE_NORMAL; volumeType < NBR_VOLUME_TYPES; volumeType++)
-	{
-		/* Read in volume header */
-
-		if (volumeType == VOLUME_TYPE_HIDDEN)
-		{
-			if (!SeekHiddenVolHeader ((HFILE) dev, volSize, bDevice))
-			{
-				nStatus = ERR_VOL_SEEKING;
-				goto error;
-			}
-		}
-
-		nStatus = _lread ((HFILE) dev, buffer, sizeof (buffer));
-		if (nStatus != sizeof (buffer))
-		{
-			nStatus = ERR_VOL_SIZE_WRONG;
-			goto error;
-		}
-
-		/* Write the header to the backup file */
-
-		if (_write (fBackup, buffer, sizeof(buffer)) == -1)
-			goto error;
-	}
-
-	/* Backup has been successfully created */
-	nStatus = 0;
-	Warning("VOL_HEADER_BACKED_UP");
-
-error:
-	dwError = GetLastError ();
-
-	if (dev != INVALID_HANDLE_VALUE)
-		CloseHandle ((HANDLE) dev);
-
-	if (fBackup != -1)
-		_close (fBackup);
-
-	if (nDosLinkCreated == 0)
-		RemoveFakeDosName (szDiskFile, szDosDevice);
-
-	SetLastError (dwError);
-	if (nStatus != 0)
-		handleError (hwndDlg, nStatus);
-
-	return nStatus;
-}
-
-
-int RestoreVolumeHeader (HWND hwndDlg, char *lpszVolume)
-{
-	int nDosLinkCreated = -1, nStatus = ERR_OS_ERROR;
-	char szDiskFile[TC_MAX_PATH], szCFDevice[TC_MAX_PATH];
-	char szFileName[TC_MAX_PATH];
-	char szDosDevice[TC_MAX_PATH];
-	char buffer[HEADER_SIZE];
-	void *dev = INVALID_HANDLE_VALUE;
-	DWORD dwError;
-	BOOL bDevice;
-	unsigned __int64 volSize = 0;
-	FILETIME ftCreationTime;
-	FILETIME ftLastWriteTime;
-	FILETIME ftLastAccessTime;
-	wchar_t szTmp[4096];
-	BOOL bRestoreHiddenVolHeader = FALSE;
-	BOOL bTimeStampValid = FALSE;
-	int fBackup = -1;
-
-	switch (IsSystemDevicePath (lpszVolume, hwndDlg, TRUE))
-	{
-	case 1:
-	case 2:
-		if (AskErrNoYes ("RESTORE_HEADER_NOT_FOR_SYS_DEVICE") == IDYES)
-			CreateRescueDisk ();
-
-		return 0;
-
-	case -1:
-		Error ("ERR_CANNOT_DETERMINE_VOLUME_TYPE");
-		return 0;
-	}
-
-	if (IsMountedVolume (lpszVolume))
-	{
-		Warning ("DISMOUNT_FIRST");
-		return 0;
-	}
-
-	swprintf (szTmp, GetString ("CONFIRM_VOL_HEADER_RESTORE"), lpszVolume);
-
-	if (MessageBoxW (hwndDlg, szTmp, lpszTitle, YES_NO|MB_ICONWARNING|MB_DEFBUTTON2) == IDNO)
-		return 0;
-
-
-	/* Select backup file */
-	if (!BrowseFiles (hwndDlg, "OPEN_TITLE", szFileName, bHistory, FALSE))
-		return 0;
-
-	/* Ask the user to select the type of volume (normal/hidden) */
-	{
-		char *tmpStr[] = {0, "HEADER_RESTORE_TYPE", "RESTORE_NORMAL_VOLUME_HEADER", "RESTORE_HIDDEN_VOLUME_HEADER", "IDCANCEL", 0};
-		switch (AskMultiChoice ((void **) tmpStr))
-		{
-		case 1:
-			bRestoreHiddenVolHeader = FALSE;
-			break;
-		case 2:
-			bRestoreHiddenVolHeader = TRUE;
-			break;
-		default:
-			return 0;
-		}
-	}
-
-	/* Open the backup file */
-	if ((fBackup = _open(szFileName, _O_BINARY|_O_RDONLY)) == -1)
-	{
-		nStatus = ERROR_OPEN_FAILED;
-		goto error;
-	}
-
-	CreateFullVolumePath (szDiskFile, lpszVolume, &bDevice);
-
-	if (bDevice == FALSE)
-		strcpy (szCFDevice, szDiskFile);
-	else
-	{
-		nDosLinkCreated = FakeDosNameForDevice (szDiskFile, szDosDevice, szCFDevice, FALSE);
-		if (nDosLinkCreated != 0)
-			goto error;
-	}
-
-	dev = CreateFile (szCFDevice, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
-
-	if (bDevice)
-	{
-		/* This is necessary to determine the hidden volume header offset */
-
-		if (dev == INVALID_HANDLE_VALUE)
-			goto error;
-		else
-		{
-			PARTITION_INFORMATION diskInfo;
-			DWORD dwResult;
-			BOOL bResult;
-
-			bResult = GetPartitionInfo (lpszVolume, &diskInfo);
-
-			if (bResult)
-			{
-				volSize = diskInfo.PartitionLength.QuadPart;
-			}
-			else
-			{
-				DISK_GEOMETRY driveInfo;
-
-				bResult = DeviceIoControl (dev, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0,
-					&driveInfo, sizeof (driveInfo), &dwResult, NULL);
-
-				if (!bResult)
-					goto error;
-
-				volSize = driveInfo.Cylinders.QuadPart * driveInfo.BytesPerSector *
-					driveInfo.SectorsPerTrack * driveInfo.TracksPerCylinder;
-			}
-
-			if (volSize == 0)
-			{
-				nStatus =  ERR_VOL_SIZE_WRONG;
-				goto error;
-			}
-		}
-	}
-
-	if (dev == INVALID_HANDLE_VALUE) 
-		goto error;
-
-	if (!bDevice && bPreserveTimestamp)
-	{
-		/* Remember the container modification/creation date and time. */
-
-		if (GetFileTime ((HANDLE) dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
-		{
-			bTimeStampValid = FALSE;
-			Warning ("GETFILETIME_FAILED_GENERIC");
-		}
-		else
-			bTimeStampValid = TRUE;
-	}
-
-	/* Read the volume header from the backup file */
-
-	if (_lseek(fBackup, bRestoreHiddenVolHeader ? HEADER_SIZE : 0, SEEK_SET) == -1L)
-	{
-		nStatus = ERROR_SEEK;
-		goto error;
-	}
-
-	if (_read (fBackup, buffer, HEADER_SIZE) == -1)
-		goto error;
-
-
-	/* Restore/write the volume header */
-
-	// Seek
-	if (bRestoreHiddenVolHeader)
-	{
-		if (!SeekHiddenVolHeader ((HFILE) dev, volSize, bDevice))
-		{
-			nStatus = ERR_VOL_SEEKING;
-			goto error;
-		}
-	}
-	else
-	{
-		nStatus = _llseek ((HFILE) dev, 0, FILE_BEGIN);
-
-		if (nStatus != 0)
-		{
-			nStatus = ERR_VOL_SEEKING;
-			goto error;
-		}
-	}
-
-	// Write
-	if ((_lwrite ((HFILE) dev, buffer, HEADER_SIZE)) != HEADER_SIZE)
-	{
-		nStatus = ERR_VOL_WRITING;
-		goto error;
-	}
-
-	/* Volume header has been successfully restored */
-
-	nStatus = 0;
-	Info("VOL_HEADER_RESTORED");
-
-error:
-
-	dwError = GetLastError ();
-
-	if (bTimeStampValid)
-	{
-		// Restore the container timestamp (to preserve plausible deniability of possible hidden volume). 
-		if (SetFileTime (dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
-			MessageBoxW (hwndDlg, GetString ("SETFILETIME_FAILED_PW"), L"TrueCrypt", MB_OK | MB_ICONEXCLAMATION);
-	}
-
-	if (dev != INVALID_HANDLE_VALUE)
-		CloseHandle ((HANDLE) dev);
-
-	if (fBackup != -1)
-		_close (fBackup);
-
-	if (nDosLinkCreated == 0)
-		RemoveFakeDosName (szDiskFile, szDosDevice);
-
-	SetLastError (dwError);
-	if (nStatus != 0)
-		handleError (hwndDlg, nStatus);
-
-	return nStatus;
-}
-#endif	// #ifdef TCMOUNT
 
 
 BOOL IsNonInstallMode ()
@@ -6720,84 +6562,119 @@ char GetSystemDriveLetter (void)
 int Info (char *stringId)
 {
 	if (Silent) return 0;
-	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONINFORMATION | MB_SETFOREGROUND | MB_TOPMOST);
+	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONINFORMATION);
+}
+
+
+int InfoDirect (const wchar_t *msg)
+{
+	if (Silent) return 0;
+	return MessageBoxW (MainDlg, msg, lpszTitle, MB_ICONINFORMATION);
 }
 
 
 int Warning (char *stringId)
 {
 	if (Silent) return 0;
+	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONWARNING);
+}
+
+
+int WarningTopMost (char *stringId)
+{
+	if (Silent) return 0;
 	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONWARNING | MB_SETFOREGROUND | MB_TOPMOST);
+}
+
+
+int WarningDirect (const wchar_t *warnMsg)
+{
+	if (Silent) return 0;
+	return MessageBoxW (MainDlg, warnMsg, lpszTitle, MB_ICONERROR);
 }
 
 
 int Error (char *stringId)
 {
 	if (Silent) return 0;
+	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONERROR);
+}
+
+
+int ErrorTopMost (char *stringId)
+{
+	if (Silent) return 0;
 	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST);
+}
+
+
+int ErrorDirect (const wchar_t *errMsg)
+{
+	if (Silent) return 0;
+	return MessageBoxW (MainDlg, errMsg, lpszTitle, MB_ICONERROR);
 }
 
 
 int AskYesNo (char *stringId)
 {
 	if (Silent) return 0;
-	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONQUESTION | MB_YESNO | MB_DEFBUTTON1 | MB_SETFOREGROUND | MB_TOPMOST);
+	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONQUESTION | MB_YESNO | MB_DEFBUTTON1);
 }
 
 
 int AskNoYes (char *stringId)
 {
 	if (Silent) return 0;
-	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONQUESTION | MB_YESNO | MB_DEFBUTTON2 | MB_SETFOREGROUND | MB_TOPMOST);
+	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONQUESTION | MB_YESNO | MB_DEFBUTTON2);
 }
 
 
 int AskOkCancel (char *stringId)
 {
 	if (Silent) return 0;
-	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONQUESTION | MB_OKCANCEL | MB_DEFBUTTON1 | MB_SETFOREGROUND | MB_TOPMOST);
+	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONQUESTION | MB_OKCANCEL | MB_DEFBUTTON1);
 }
 
 
 int AskWarnYesNo (char *stringId)
 {
 	if (Silent) return 0;
-	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON1 | MB_SETFOREGROUND | MB_TOPMOST);
+	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON1);
 }
 
 
 int AskWarnNoYes (char *stringId)
 {
 	if (Silent) return 0;
-	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2 | MB_SETFOREGROUND | MB_TOPMOST);
+	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
 }
 
 
 int AskWarnNoYesString (wchar_t *string)
 {
 	if (Silent) return 0;
-	return MessageBoxW (MainDlg, string, lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2 | MB_SETFOREGROUND | MB_TOPMOST);
+	return MessageBoxW (MainDlg, string, lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
 }
 
 
 int AskWarnCancelOk (char *stringId)
 {
 	if (Silent) return 0;
-	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONWARNING | MB_OKCANCEL | MB_DEFBUTTON2 | MB_SETFOREGROUND | MB_TOPMOST);
+	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONWARNING | MB_OKCANCEL | MB_DEFBUTTON2);
 }
 
 
 int AskErrYesNo (char *stringId)
 {
 	if (Silent) return 0;
-	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONERROR | MB_YESNO | MB_DEFBUTTON1 | MB_SETFOREGROUND | MB_TOPMOST);
+	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONERROR | MB_YESNO | MB_DEFBUTTON1);
 }
 
 
 int AskErrNoYes (char *stringId)
 {
 	if (Silent) return 0;
-	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONERROR | MB_YESNO | MB_DEFBUTTON2 | MB_SETFOREGROUND | MB_TOPMOST);
+	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONERROR | MB_YESNO | MB_DEFBUTTON2);
 }
 
 
@@ -6859,7 +6736,7 @@ BOOL ConfigWriteEnd ()
 	fputs ("\n\t</configuration>", ConfigFileHandle);
 	XmlWriteFooter (ConfigFileHandle);
 
-	fflush (ConfigFileHandle);
+	TCFlushFile (ConfigFileHandle);
 
 	fclose (ConfigFileHandle);
 	ConfigFileHandle = NULL;
@@ -7072,6 +6949,57 @@ BOOL Is64BitOs ()
 }
 
 
+// Returns TRUE, if the currently running operating system is installed in a hidden volume. If it's not, or if 
+// there's an error, returns FALSE.
+BOOL IsHiddenOSRunning (void)
+{
+	static BOOL statusCached = FALSE;
+	static BOOL hiddenOSRunning;
+
+	if (!statusCached)
+	{
+		try
+		{
+			hiddenOSRunning = BootEncryption (MainDlg).IsHiddenSystemRunning();
+		}
+		catch (...)
+		{
+			hiddenOSRunning = FALSE;
+		}
+
+		statusCached = TRUE;
+	}
+
+	return hiddenOSRunning;
+}
+
+
+BOOL RestartComputer (void)
+{
+	TOKEN_PRIVILEGES tokenPrivil; 
+	HANDLE hTkn; 
+
+	if (!OpenProcessToken (GetCurrentProcess (), TOKEN_QUERY|TOKEN_ADJUST_PRIVILEGES, &hTkn))
+	{
+		return false; 
+	}
+
+	LookupPrivilegeValue (NULL, SE_SHUTDOWN_NAME, &tokenPrivil.Privileges[0].Luid); 
+	tokenPrivil.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED; 
+	tokenPrivil.PrivilegeCount = 1;    
+
+	AdjustTokenPrivileges (hTkn, false, &tokenPrivil, 0, (PTOKEN_PRIVILEGES) NULL, 0); 
+	if (GetLastError() != ERROR_SUCCESS) 
+		return false; 
+
+	if (!ExitWindowsEx (EWX_REBOOT | EWX_FORCE, 
+		SHTDN_REASON_MAJOR_OTHER | SHTDN_REASON_MINOR_OTHER | SHTDN_REASON_FLAG_PLANNED)) 
+		return false; 
+
+	return true;
+}
+
+
 void Applink (char *dest, BOOL bSendOS, char *extraOutput)
 {
 	char url [MAX_URL_LENGTH];
@@ -7079,6 +7007,9 @@ void Applink (char *dest, BOOL bSendOS, char *extraOutput)
 
 	if (bSendOS)
 	{
+		/* The type and version of the operating system are (or will be, in future) used to redirect users to website 
+		pages that are appropriate in regards to the OS (such as an OS-specific version of the online documentation). */
+
 		OSVERSIONINFOEXA os;
 
 		os.dwOSVersionInfoSize = sizeof (OSVERSIONINFOEXA);
@@ -7089,6 +7020,7 @@ void Applink (char *dest, BOOL bSendOS, char *extraOutput)
 
 		switch (nCurrentOS)
 		{
+
 		case WIN_2000:
 			strcat (osname, "win2000");
 			break;
@@ -7096,6 +7028,7 @@ void Applink (char *dest, BOOL bSendOS, char *extraOutput)
 		case WIN_XP:
 		case WIN_XP64:
 			strcat (osname, "winxp");
+			strcat (osname, (os.wSuiteMask & VER_SUITE_PERSONAL) ? "-home" : "-pro");
 			break;
 
 		case WIN_SERVER_2003:
@@ -7272,4 +7205,265 @@ void InconsistencyResolved (char *techInfo)
 
 	wsprintfW (finalMsg, GetString ("INCONSISTENCY_RESOLVED"), techInfo);
 	MessageBoxW (MainDlg, finalMsg, lpszTitle, MB_ICONWARNING | MB_SETFOREGROUND | MB_TOPMOST);
+}
+
+
+#ifndef SETUP
+
+int OpenVolume (OpenVolumeContext *context, char *volumePath, Password *password, BOOL write, BOOL preserveTimestamps, BOOL useBackupHeader)
+{
+	int status;
+	int volumeType;
+	char szDiskFile[TC_MAX_PATH], szCFDevice[TC_MAX_PATH];
+	char szDosDevice[TC_MAX_PATH];
+	char buffer[TC_VOLUME_HEADER_EFFECTIVE_SIZE];
+	LARGE_INTEGER headerOffset;
+
+	context->VolumeIsOpen = FALSE;
+	context->CryptoInfo = NULL;
+	context->HostFileHandle = INVALID_HANDLE_VALUE;
+	context->TimestampsValid = FALSE;
+
+	CreateFullVolumePath (szDiskFile, volumePath, &context->IsDevice);
+
+	if (context->IsDevice)
+	{
+		status = FakeDosNameForDevice (szDiskFile, szDosDevice, szCFDevice, FALSE);
+		if (status != 0)
+			return status;
+
+		preserveTimestamps = FALSE;
+	}
+	else
+		strcpy (szCFDevice, szDiskFile);
+
+	if (preserveTimestamps)
+		write = TRUE;
+
+	context->HostFileHandle = CreateFile (szCFDevice, GENERIC_READ | (write ? GENERIC_WRITE : 0), FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+
+	if (context->HostFileHandle == INVALID_HANDLE_VALUE)
+	{
+		status = ERR_OS_ERROR;
+		goto error;
+	}
+
+	context->VolumeIsOpen = TRUE;
+
+	// Remember the container modification/creation date and time
+	if (!context->IsDevice && preserveTimestamps)
+	{
+		if (GetFileTime (context->HostFileHandle, &context->CreationTime, &context->LastAccessTime, &context->LastWriteTime) == 0)
+		{
+			context->TimestampsValid = FALSE;
+			Warning ("GETFILETIME_FAILED_GENERIC");
+		}
+		else
+			context->TimestampsValid = TRUE;
+	}
+
+	// Determine host size
+	if (context->IsDevice)
+	{
+		PARTITION_INFORMATION diskInfo;
+		DWORD dwResult;
+
+		if (GetPartitionInfo (volumePath, &diskInfo))
+		{
+			context->HostSize = diskInfo.PartitionLength.QuadPart;
+		}
+		else
+		{
+			DISK_GEOMETRY driveInfo;
+
+			if (!DeviceIoControl (context->HostFileHandle, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0, &driveInfo, sizeof (driveInfo), &dwResult, NULL))
+				goto error;
+
+			context->HostSize = driveInfo.Cylinders.QuadPart * driveInfo.BytesPerSector * driveInfo.SectorsPerTrack * driveInfo.TracksPerCylinder;
+		}
+
+		if (context->HostSize == 0)
+		{
+			status = ERR_VOL_SIZE_WRONG;
+			goto error;
+		}
+	}
+	else
+	{
+		LARGE_INTEGER fileSize;
+		if (!GetFileSizeEx (context->HostFileHandle, &fileSize))
+		{
+			status = ERR_OS_ERROR;
+			goto error;
+		}
+
+		context->HostSize = fileSize.QuadPart;
+	}
+
+	for (volumeType = TC_VOLUME_TYPE_NORMAL; volumeType < TC_VOLUME_TYPE_COUNT; volumeType++)
+	{
+		// Seek the volume header
+		switch (volumeType)
+		{
+		case TC_VOLUME_TYPE_NORMAL:
+			headerOffset.QuadPart = useBackupHeader ? context->HostSize - TC_VOLUME_HEADER_GROUP_SIZE : TC_VOLUME_HEADER_OFFSET;
+			break;
+
+		case TC_VOLUME_TYPE_HIDDEN:
+			if (TC_HIDDEN_VOLUME_HEADER_OFFSET + TC_VOLUME_HEADER_SIZE > context->HostSize)
+				continue;
+
+			headerOffset.QuadPart = useBackupHeader ? context->HostSize - TC_VOLUME_HEADER_SIZE : TC_HIDDEN_VOLUME_HEADER_OFFSET;
+			break;
+
+		case TC_VOLUME_TYPE_HIDDEN_LEGACY:
+			if (useBackupHeader)
+			{
+				status = ERR_PASSWORD_WRONG;
+				goto error;
+			}
+
+			headerOffset.QuadPart = context->HostSize - TC_HIDDEN_VOLUME_HEADER_OFFSET_LEGACY;
+			break;
+		}
+
+		if (!SetFilePointerEx ((HANDLE) context->HostFileHandle, headerOffset, NULL, FILE_BEGIN))
+		{
+			status = ERR_OS_ERROR;
+			goto error;
+		}
+
+		// Read volume header
+		DWORD bytesRead;
+		if (!ReadFile (context->HostFileHandle, buffer, sizeof (buffer), &bytesRead, NULL))
+		{
+			status = ERR_OS_ERROR;
+			goto error;
+		}
+
+		if (bytesRead != sizeof (buffer))
+		{
+			status = ERR_VOL_SIZE_WRONG;
+			goto error;
+		}
+
+		// Decrypt volume header
+		status = VolumeReadHeader (FALSE, buffer, password, &context->CryptoInfo, NULL);
+
+		if (status == ERR_PASSWORD_WRONG)
+			continue;		// Try next volume type
+
+		break;
+	}
+
+	if (status == ERR_SUCCESS)
+		return status;
+
+error:
+	DWORD sysError = GetLastError ();
+
+	CloseVolume (context);
+
+	SetLastError (sysError);
+	return status;
+}
+
+
+void CloseVolume (OpenVolumeContext *context)
+{
+	if (!context->VolumeIsOpen)
+		return;
+
+	if (context->HostFileHandle != INVALID_HANDLE_VALUE)
+	{
+		// Restore the container timestamp (to preserve plausible deniability of possible hidden volume). 
+		if (context->TimestampsValid)
+		{
+			if (!SetFileTime (context->HostFileHandle, &context->CreationTime, &context->LastAccessTime, &context->LastWriteTime))
+			{
+				handleWin32Error (NULL);
+				Warning ("SETFILETIME_FAILED_PW");
+			}
+		}
+
+		CloseHandle (context->HostFileHandle);
+		context->HostFileHandle = INVALID_HANDLE_VALUE;
+	}
+
+	if (context->CryptoInfo)
+	{
+		crypto_close (context->CryptoInfo);
+		context->CryptoInfo = NULL;
+	}
+
+	context->VolumeIsOpen = FALSE;
+}
+
+
+int ReEncryptVolumeHeader (char *buffer, BOOL bBoot, CRYPTO_INFO *cryptoInfo, Password *password, BOOL wipeMode)
+{
+	CRYPTO_INFO *newCryptoInfo = NULL;
+	
+	RandSetHashFunction (cryptoInfo->pkcs5);
+
+	if (Randinit() != ERR_SUCCESS)
+		return ERR_PARAMETER_INCORRECT;
+
+	int status = VolumeWriteHeader (bBoot,
+		buffer,
+		cryptoInfo->ea,
+		cryptoInfo->mode,
+		password,
+		cryptoInfo->pkcs5,
+		(char *) cryptoInfo->master_keydata,
+		&newCryptoInfo,
+		cryptoInfo->VolumeSize.Value,
+		cryptoInfo->hiddenVolume ? cryptoInfo->hiddenVolumeSize : 0,
+		cryptoInfo->EncryptedAreaStart.Value,
+		cryptoInfo->EncryptedAreaLength.Value,
+		cryptoInfo->RequiredProgramVersion,
+		cryptoInfo->HeaderFlags,
+		wipeMode);
+
+	if (newCryptoInfo != NULL)
+		crypto_close (newCryptoInfo);
+
+	return status;
+}
+
+#endif // !SETUP
+
+
+BOOL IsPagingFileActive ()
+{
+	// GlobalMemoryStatusEx() cannot be used to determine if a paging file is active
+
+	char data[65536];
+	DWORD size = sizeof (data);
+	
+	if (ReadLocalMachineRegistryMultiString ("System\\CurrentControlSet\\Control\\Session Manager\\Memory Management", "PagingFiles", data, &size)
+		&& size > 6)
+		return TRUE;
+
+	for (char drive = 'C'; drive <= 'Z'; ++drive)
+	{
+		string path = "X:\\pagefile.sys";
+		path[0] = drive;
+
+		HANDLE handle = CreateFile (path.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+		
+		if (handle != INVALID_HANDLE_VALUE)
+			CloseHandle (handle);
+		else if (GetLastError() == ERROR_SHARING_VIOLATION)
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
+
+BOOL DisablePagingFile ()
+{
+	char empty[] = { 0, 0 };
+	return WriteLocalMachineRegistryMultiString ("System\\CurrentControlSet\\Control\\Session Manager\\Memory Management", "PagingFiles", empty, sizeof (empty));
 }

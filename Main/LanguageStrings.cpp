@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -55,9 +55,7 @@ namespace TrueCrypt
 		Map["VOLUME_ALREADY_MOUNTED"] = _("The volume \"{0}\" is already mounted.");
 		Map["UNKNOWN_OPTION"] = _("Unknown option");
 		Map["VOLUME_LOCATION"] = _("Volume Location");
-		Map["VOLUME_LOCATION_WIZARD_PAGE_INFO"] = _("You can create file-hosted volumes or encrypt entire hard disk partitions, floppy disks, USB memory sticks, and other storage devices. Click 'Select File...' to specify the name and path of the file to be created to host the new volume, or click 'Select Device...' to choose a partition or device to encrypt.\n\nWarning: If you encrypt a partition or a device, all data currently stored on the partition or the device will be erased.");
 		Map["VOLUME_CREATION_WIZARD"] = _("TrueCrypt Volume Creation Wizard");
-		Map["VOLUME_CREATION_INTRO"] = _("\nThis wizard will help you to create a new TrueCrypt volume.\n\nImportant: Collection of random data has begun. The data will be used in generating the master key, the secondary key (XTS mode), and salt, for the new volume. The collected data include your mouse movements within this window, keystrokes, and other data obtained from the system. The data should be as random as possible, so the more randomly and the longer you move the mouse, the better.");
 		Map["YES"] = _("Yes");
 		Map["VOLUME_HOST_IN_USE"] = _("WARNING: The host file/device \"{0}\" is already in use!\n\nIgnoring this can cause undesired results including system instability. All applications that might be using the host file/device should be closed before mounting the volume.\n\nContinue with mounting?");
 		Map["VIRTUAL_DEVICE"] = _("Virtual Device");
@@ -80,7 +78,8 @@ namespace TrueCrypt
 		Map["REPAIRING_FS"] = _("Attempting to repair the file system on the TrueCrypt volume mounted as {0}...");
 		Map["TESTS_PASSED"] = _("Self-tests of all algorithms passed.");
 		Map["UNMOUNT_LOCK_FAILED"] = _("Volume \"{0}\" contains files or folders being used by applications or system.\n\nForce dismount?");
-		Map["VOLUME_SIZE_HELP"] = _("Please specify the size of the container to create.\n\nIf you create a dynamic (sparse-file) container, this parameter will specify its maximum size.\n\nNote that the minimum possible size of a FAT volume is 19 KB. The minimum possible size of an NTFS volume is 2573 KB.");
+		Map["VOLUME_SIZE_HELP"] = _("Please specify the size of the container to create.\n\nIf you create a dynamic (sparse-file) container, this parameter will specify its maximum size.\n\nNote that the minimum possible size of a FAT volume is 275 KB. The minimum possible size of an NTFS volume is 2829 KB.");
+		Map["ENCRYPTION_MODE_NOT_SUPPORTED_BY_KERNEL"] = _("The volume you have mounted uses a mode of operation which is not supported by the Linux kernel. You may experience slow performance when using this volume. To achieve full performance, you should move the data from this volume to a new volume created by TrueCrypt 5.0 or later.");
 	}
 
 	LanguageStrings LangString;

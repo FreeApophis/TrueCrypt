@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 #
-# Governed by the TrueCrypt License 2.4 the full text of which is contained
+# Governed by the TrueCrypt License 2.5 the full text of which is contained
 # in the file License.txt included in TrueCrypt binary and source code
 # distribution packages.
 #
@@ -39,10 +39,8 @@ OBJS += Forms/MountOptionsDialog.o
 OBJS += Forms/PreferencesDialog.o
 OBJS += Forms/ProgressWizardPage.o
 OBJS += Forms/SelectDirectoryWizardPage.o
-OBJS += Forms/SingleChoiceWizardPage.o
 OBJS += Forms/VolumePasswordPanel.o
 OBJS += Forms/VolumePropertiesDialog.o
-OBJS += Forms/VolumeCreationIntroWizardPage.o
 OBJS += Forms/VolumeCreationProgressWizardPage.o
 OBJS += Forms/VolumeCreationWizard.o
 OBJS += Forms/VolumeFormatOptionsWizardPage.o

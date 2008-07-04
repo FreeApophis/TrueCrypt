@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.4 the full text of which is contained in the
+ by the TrueCrypt License 2.5 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -15,6 +15,10 @@
 #include "Crc.h"
 #include "Common/Endian.h"
 #include <string.h>
+#ifndef TC_WINDOWS_BOOT
+#include "EncryptionThreadPool.h"
+#endif
+#include "Volumes.h"
 
 /* Update the following when adding a new cipher or EA:
 
@@ -332,7 +336,7 @@ int EAInit (int ea, unsigned char *key, unsigned __int8 *ks)
 
 #ifndef TC_WINDOWS_BOOT
 
-int EAInitMode (PCRYPTO_INFO ci)
+BOOL EAInitMode (PCRYPTO_INFO ci)
 {
 	switch (ci->mode)
 	{
@@ -671,9 +675,7 @@ PCRYPTO_INFO crypto_open ()
 	memset (cryptoInfo, 0, sizeof (CRYPTO_INFO));
 
 #ifndef DEVICE_DRIVER
-#ifdef _WIN32
 	VirtualLock (cryptoInfo, sizeof (CRYPTO_INFO));
-#endif
 #endif
 
 	if (cryptoInfo == NULL)
@@ -709,9 +711,7 @@ void crypto_close (PCRYPTO_INFO cryptoInfo)
 	{
 		burn (cryptoInfo, sizeof (CRYPTO_INFO));
 #ifndef DEVICE_DRIVER
-#ifdef _WIN32
 		VirtualUnlock (cryptoInfo, sizeof (CRYPTO_INFO));
-#endif
 #endif
 		TCfree (cryptoInfo);
 	}
@@ -1169,9 +1169,7 @@ DecryptBufferCBC (unsigned __int32 *data,
 // buf:			data to be encrypted
 // len:			number of bytes to encrypt; must be divisible by the block size (for cascaded
 //              ciphers divisible by the largest block size used within the cascade)
-void EncryptBuffer (unsigned __int8 *buf,
-			   TC_LARGEST_COMPILER_UINT len,
-			   PCRYPTO_INFO cryptoInfo)
+void EncryptBuffer (unsigned __int8 *buf, TC_LARGEST_COMPILER_UINT len, PCRYPTO_INFO cryptoInfo)
 {
 	switch (cryptoInfo->mode)
 	{
@@ -1276,7 +1274,7 @@ unsigned __int64 DataUnit2LRWIndex (unsigned __int64 dataUnit, int blockSize, PC
 	if (ci->hiddenVolume)
 		dataUnit -= ci->hiddenVolumeOffset / ENCRYPTION_DATA_UNIT_SIZE;
 	else
-		dataUnit -= HEADER_SIZE / ENCRYPTION_DATA_UNIT_SIZE;	// Compensate for the volume header size
+		dataUnit -= TC_VOLUME_HEADER_SIZE_LEGACY / ENCRYPTION_DATA_UNIT_SIZE;	// Compensate for the volume header size
 
 	switch (blockSize)
 	{
@@ -1299,6 +1297,13 @@ unsigned __int64 DataUnit2LRWIndex (unsigned __int64 dataUnit, int blockSize, PC
 // unitNo:		sequential number of the data unit with which the buffer starts
 // nbrUnits:	number of data units in the buffer
 void EncryptDataUnits (unsigned __int8 *buf, const UINT64_STRUCT *structUnitNo, TC_LARGEST_COMPILER_UINT nbrUnits, PCRYPTO_INFO ci)
+#ifndef TC_WINDOWS_BOOT
+{
+	EncryptionThreadPoolDoWork (EncryptDataUnitsWork, buf, structUnitNo, nbrUnits, ci);
+}
+
+void EncryptDataUnitsCurrentThread (unsigned __int8 *buf, const UINT64_STRUCT *structUnitNo, TC_LARGEST_COMPILER_UINT nbrUnits, PCRYPTO_INFO ci)
+#endif // !TC_WINDOWS_BOOT
 {
 	int ea = ci->ea;
 	unsigned __int8 *ks = ci->ks;
@@ -1417,9 +1422,7 @@ void EncryptDataUnits (unsigned __int8 *buf, const UINT64_STRUCT *structUnitNo, 
 // buf:			data to be decrypted
 // len:			number of bytes to decrypt; must be divisible by the block size (for cascaded
 //              ciphers divisible by the largest block size used within the cascade)
-void DecryptBuffer (unsigned __int8 *buf,
-		TC_LARGEST_COMPILER_UINT len,
-		PCRYPTO_INFO cryptoInfo)
+void DecryptBuffer (unsigned __int8 *buf, TC_LARGEST_COMPILER_UINT len, PCRYPTO_INFO cryptoInfo)
 {
 	switch (cryptoInfo->mode)
 	{
@@ -1517,6 +1520,13 @@ void DecryptBuffer (unsigned __int8 *buf,
 // unitNo:		sequential number of the data unit with which the buffer starts
 // nbrUnits:	number of data units in the buffer
 void DecryptDataUnits (unsigned __int8 *buf, const UINT64_STRUCT *structUnitNo, TC_LARGEST_COMPILER_UINT nbrUnits, PCRYPTO_INFO ci)
+#ifndef TC_WINDOWS_BOOT
+{
+	EncryptionThreadPoolDoWork (DecryptDataUnitsWork, buf, structUnitNo, nbrUnits, ci);
+}
+
+void DecryptDataUnitsCurrentThread (unsigned __int8 *buf, const UINT64_STRUCT *structUnitNo, TC_LARGEST_COMPILER_UINT nbrUnits, PCRYPTO_INFO ci)
+#endif // !TC_WINDOWS_BOOT
 {
 	int ea = ci->ea;
 	unsigned __int8 *ks = ci->ks;
@@ -1639,10 +1649,6 @@ void DecryptDataUnits (unsigned __int8 *buf, const UINT64_STRUCT *structUnitNo, 
 int GetMaxPkcs5OutSize (void)
 {
 	int size = 32;
-
-#ifndef max
-#define max(a,b) (((a) > (b)) ? (a) : (b))
-#endif
 
 	size = max (size, EAGetLargestKeyForMode (XTS) * 2);	// Sizes of primary + secondary keys
 

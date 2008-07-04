@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.4 the full text of which is contained in the
+ by the TrueCrypt License 2.5 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -14,6 +14,9 @@
 #include <time.h>
 #include <math.h>
 #include <dbt.h>
+#include <fcntl.h>
+#include <io.h>
+#include <sys/stat.h>
 #include <windowsx.h>
 
 #include "Apidrvr.h"
@@ -28,6 +31,7 @@
 #include "MainCom.h"
 #include "Mount.h"
 #include "Pkcs5.h"
+#include "Random.h"
 #include "Registry.h"
 #include "Resource.h"
 #include "Password.h"
@@ -43,6 +47,13 @@ enum timer_ids
 {
 	TIMER_ID_MAIN = 0xff,
 	TIMER_ID_KEYB_LAYOUT_GUARD
+};
+
+enum hidden_os_read_only_notif_mode
+{
+	TC_HIDDEN_OS_READ_ONLY_NOTIF_MODE_NONE = 0,
+	TC_HIDDEN_OS_READ_ONLY_NOTIF_MODE_COMPACT,
+	TC_HIDDEN_OS_READ_ONLY_NOTIF_MODE_DISABLED
 };
 
 #define TIMER_INTERVAL_MAIN					500
@@ -78,11 +89,13 @@ BOOL bAutoMountFavorites = FALSE;
 BOOL bPlaySoundOnHotkeyMountDismount = TRUE;
 BOOL bDisplayMsgBoxOnHotkeyDismount = FALSE;
 BOOL bHibernationPreventionNotified = FALSE;	/* TRUE if the user has been notified that hibernation was prevented (system encryption) during the session. */
+BOOL bHiddenSysLeakProtNotifiedDuringSession = FALSE;	/* TRUE if the user has been notified during the session that unencrypted filesystems and non-hidden TrueCrypt volumes are mounted as read-only under hidden OS. */
 
 BOOL Quit = FALSE;					/* Exit after processing command line */
 BOOL ComServerMode = FALSE;
 BOOL UsePreferences = TRUE;
 
+int HiddenSysLeakProtectionNotificationStatus = TC_HIDDEN_OS_READ_ONLY_NOTIF_MODE_NONE;
 int MaxVolumeIdleTime = -120;
 int nCurrentShowType = 0;			/* current display mode, mount, unmount etc */
 int nSelectedDriveIndex = -1;		/* Item number of selected drive */
@@ -102,9 +115,9 @@ BOOL bKeybLayoutAltKeyWarningShown = FALSE;	/* TRUE if the user has been informe
 
 static KeyFilesDlgParam				hidVolProtKeyFilesParam;
 
-static MOUNT_LIST_STRUCT			LastKnownMountList;
-static VOLUME_NOTIFICATIONS_LIST	VolumeNotificationsList;	
-static DWORD						LastKnownLogicalDrives;
+static MOUNT_LIST_STRUCT	LastKnownMountList;
+VOLUME_NOTIFICATIONS_LIST	VolumeNotificationsList;	
+static DWORD				LastKnownLogicalDrives;
 
 static HANDLE TaskBarIconMutex = NULL;
 static BOOL MainWindowHidden = FALSE;
@@ -114,7 +127,7 @@ static int bPrebootPasswordDlgMode = FALSE;
 static int NoCmdLineArgs;
 static BOOL CmdLineVolumeSpecified;
 
-void localcleanup (void)
+static void localcleanup (void)
 {
 	// Wipe command line
 	char *c = GetCommandLineA ();
@@ -380,8 +393,12 @@ void LoadSettings (HWND hwndDlg)
 	defaultMountOptions.ReadOnly =	ConfigReadInt ("MountVolumesReadOnly", FALSE);
 	defaultMountOptions.ProtectHiddenVolume = FALSE;
 	defaultMountOptions.PartitionInInactiveSysEncScope = FALSE;
+	defaultMountOptions.UseBackupHeader =  FALSE;
 
 	mountOptions = defaultMountOptions;
+
+	if (IsHiddenOSRunning())
+		HiddenSysLeakProtectionNotificationStatus =	ConfigReadInt ("HiddenSystemLeakProtNotifStatus", TC_HIDDEN_OS_READ_ONLY_NOTIF_MODE_NONE);
 
 	// Drive letter - command line arg overrides registry
 	if (szDriveLetter[0] == 0)
@@ -452,6 +469,9 @@ void SaveSettings (HWND hwndDlg)
 	ConfigWriteInt ("HiddenSectorDetectionStatus",				HiddenSectorDetectionStatus);
 
 	ConfigWriteInt ("UseKeyfiles",						defaultKeyFilesParam.EnableKeyFiles);
+
+	if (IsHiddenOSRunning())
+		ConfigWriteInt ("HiddenSystemLeakProtNotifStatus", HiddenSysLeakProtectionNotificationStatus);
 
 	// Drive Letter
 	lLetter = GetSelectedLong (GetDlgItem (hwndDlg, IDC_DRIVELIST));
@@ -622,7 +642,7 @@ static void PopulateSysEncContextMenu (HMENU popup, BOOL bToolsOnly)
 		e.Show (MainDlg);
 	}
 
-	if (!bToolsOnly)
+	if (!bToolsOnly && !IsHiddenOSRunning())
 	{
 		if (SysEncryptionOrDecryptionRequired ())
 		{
@@ -639,12 +659,17 @@ static void PopulateSysEncContextMenu (HMENU popup, BOOL bToolsOnly)
 
 	AppendMenuW (popup, MF_STRING, IDM_CHANGE_SYS_PASSWORD, GetString ("IDM_CHANGE_SYS_PASSWORD"));
 	AppendMenuW (popup, MF_STRING, IDM_CHANGE_SYS_HEADER_KEY_DERIV_ALGO, GetString ("IDM_CHANGE_SYS_HEADER_KEY_DERIV_ALGO"));
-	AppendMenu (popup, MF_SEPARATOR, 0, NULL);
-	AppendMenuW (popup, MF_STRING, IDM_CREATE_RESCUE_DISK, GetString ("IDM_CREATE_RESCUE_DISK"));
-	AppendMenuW (popup, MF_STRING, IDM_VERIFY_RESCUE_DISK, GetString ("IDM_VERIFY_RESCUE_DISK"));
+
+	if (!IsHiddenOSRunning())
+	{
+		AppendMenu (popup, MF_SEPARATOR, 0, NULL);
+		AppendMenuW (popup, MF_STRING, IDM_CREATE_RESCUE_DISK, GetString ("IDM_CREATE_RESCUE_DISK"));
+		AppendMenuW (popup, MF_STRING, IDM_VERIFY_RESCUE_DISK, GetString ("IDM_VERIFY_RESCUE_DISK"));
+	}
+
 	if (!bToolsOnly)
 	{
-		if (SysDriveOrPartitionFullyEncrypted (FALSE))
+		if (SysDriveOrPartitionFullyEncrypted (FALSE) && !IsHiddenOSRunning())
 		{
 			AppendMenu (popup, MF_SEPARATOR, 0, NULL);
 			AppendMenuW (popup, MF_STRING, IDM_PERMANENTLY_DECRYPT_SYS, GetString ("PERMANENTLY_DECRYPT"));
@@ -656,7 +681,7 @@ static void PopulateSysEncContextMenu (HMENU popup, BOOL bToolsOnly)
 
 
 // WARNING: This function may take a long time to complete. To prevent data corruption, it MUST be called before
-// mounting a partition withing key scope of system encryption (as a regular volume).
+// mounting a partition (as a regular volume) that is within key scope of system encryption.
 // Returns TRUE if the partition can be mounted as a partition within key scope of inactive system encryption.
 // If devicePath is empty, the currently selected partition in the GUI is checked.
 BOOL CheckSysEncMountWithoutPBA (char *devicePath, BOOL quiet)
@@ -736,9 +761,10 @@ BOOL CheckSysEncMountWithoutPBA (char *devicePath, BOOL quiet)
 				return TRUE;
 			else
 			{
-				// The partition is located on a drive that is within key scope of active system encryption
+				// The partition is located on active system drive
+
 				if (!quiet)
-					Warning ("ALREADY_MOUNTED");
+					Warning ("MOUNT_WITHOUT_PBA_VOL_ON_ACTIVE_SYSENC_DRIVE");
 
 				return FALSE;
 			}
@@ -1018,24 +1044,9 @@ void LoadDriveLetters (HWND hTree, int drive)
 			listItem.iSubItem = 3;
 			ListView_SetItem (hTree, &listItem);
 
-			ListSubItemSetW (hTree, listItem.iItem, 4, GetString ("SYSTEM_VOLUME_TYPE_ADJECTIVE"));
+			ListSubItemSetW (hTree, listItem.iItem, 4, GetString (IsHiddenOSRunning() ? "HIDDEN" : "SYSTEM_VOLUME_TYPE_ADJECTIVE"));
 
-			//if (driver.volumeType[i] == PROP_VOL_TYPE_OUTER_VOL_WRITE_PREVENTED)	// Normal/outer volume (hidden volume protected AND write denied)
-			//{				
-			//	if (!VolumeNotificationsList.bHidVolDamagePrevReported[i])
-			//	{
-			//		wchar_t szTmp[4096];
-
-			//		VolumeNotificationsList.bHidVolDamagePrevReported[i] = TRUE;
-			//		swprintf (szTmp, GetString ("DAMAGE_TO_HIDDEN_VOLUME_PREVENTED"), i+'A');
-			//		SetForegroundWindow (GetParent(hTree));
-			//		MessageBoxW (GetParent(hTree), szTmp, lpszTitle, MB_ICONWARNING);
-			//	}
-			//}
-			//else
-			{
-				VolumeNotificationsList.bHidVolDamagePrevReported[i] = FALSE;
-			}
+			VolumeNotificationsList.bHidVolDamagePrevReported[i] = FALSE;
 		}
 	}
 
@@ -1092,7 +1103,7 @@ void LoadDriveLetters (HWND hTree, int drive)
 				// Fully encrypted
 				if (SysDriveOrPartitionFullyEncrypted (TRUE))
 				{
-					wcscpy (szTmpW, GetString ("SYSTEM_PARTITION"));
+					wcscpy (szTmpW, GetString (IsHiddenOSRunning() ? "HIDDEN_SYSTEM_PARTITION" : "SYSTEM_PARTITION"));
 				}
 				else
 				{
@@ -1150,7 +1161,7 @@ void LoadDriveLetters (HWND hTree, int drive)
 
 			if (bSysEncPartition)
 			{
-				ws = GetString ("SYSTEM_VOLUME_TYPE_ADJECTIVE");
+				ws = GetString (IsHiddenOSRunning() ? "HIDDEN" : "SYSTEM_VOLUME_TYPE_ADJECTIVE");
 				VolumeNotificationsList.bHidVolDamagePrevReported[i] = FALSE;
 				ListSubItemSetW (hTree, listItem.iItem, 4, ws);
 			}
@@ -1184,7 +1195,7 @@ void LoadDriveLetters (HWND hTree, int drive)
 						VolumeNotificationsList.bHidVolDamagePrevReported[i] = TRUE;
 						swprintf (szTmp, GetString ("DAMAGE_TO_HIDDEN_VOLUME_PREVENTED"), i+'A');
 						SetForegroundWindow (GetParent(hTree));
-						MessageBoxW (GetParent(hTree), szTmp, lpszTitle, MB_ICONWARNING);
+						MessageBoxW (GetParent(hTree), szTmp, lpszTitle, MB_ICONWARNING | MB_SETFOREGROUND | MB_TOPMOST);
 					}
 				}
 				else
@@ -1758,6 +1769,8 @@ PasswordChangeDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 }
 
 static char PasswordDlgVolume[MAX_PATH];
+static BOOL PasswordDialogDisableMountOptions;
+static char *PasswordDialogTitleStringId;
 
 /* Except in response to the WM_INITDIALOG message, the dialog box procedure
    should return nonzero if it processes the message, and zero if it does
@@ -1776,7 +1789,11 @@ PasswordDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			LocalizeDialog (hwndDlg, "IDD_PASSWORD_DLG");
 			DragAcceptFiles (hwndDlg, TRUE);
 
-			if (strlen (PasswordDlgVolume) > 0)
+			if (PasswordDialogTitleStringId)
+			{
+				SetWindowTextW (hwndDlg, GetString (PasswordDialogTitleStringId));
+			}
+			else if (strlen (PasswordDlgVolume) > 0)
 			{
 				wchar_t s[1024];
 				wsprintfW (s, GetString ("ENTER_PASSWORD_FOR"), PasswordDlgVolume);
@@ -1794,6 +1811,12 @@ PasswordDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			if (bPrebootPasswordDlgMode)
 			{
 				SendMessage (hwndDlg, TC_APPMSG_PREBOOT_PASSWORD_MODE, 0, 0);
+			}
+
+			if (PasswordDialogDisableMountOptions)
+			{
+				EnableWindow (GetDlgItem (hwndDlg, IDC_CACHE), FALSE);
+				EnableWindow (GetDlgItem (hwndDlg, IDC_MOUNT_OPTIONS), FALSE);
 			}
 
 			SetForegroundWindow (hwndDlg);
@@ -2228,6 +2251,9 @@ MountOptionsDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			SendDlgItemMessage (hwndDlg, IDC_MOUNT_SYSENC_PART_WITHOUT_PBA, BM_SETCHECK,
 				bPrebootPasswordDlgMode ? BST_CHECKED : BST_UNCHECKED, 0);
 
+			SendDlgItemMessage (hwndDlg, IDC_USE_EMBEDDED_HEADER_BAK, BM_SETCHECK,
+				mountOptions->UseBackupHeader ? BST_CHECKED : BST_UNCHECKED, 0);
+			
 			EnableWindow (GetDlgItem (hwndDlg, IDC_MOUNT_SYSENC_PART_WITHOUT_PBA), !bPrebootPasswordDlgMode);
 
 			protect = IsButtonChecked (GetDlgItem (hwndDlg, IDC_PROTECT_HIDDEN_VOL));
@@ -2309,7 +2335,8 @@ MountOptionsDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 			mountOptions->Removable = IsButtonChecked (GetDlgItem (hwndDlg, IDC_MOUNT_REMOVABLE));
 			mountOptions->ProtectHiddenVolume = IsButtonChecked (GetDlgItem (hwndDlg, IDC_PROTECT_HIDDEN_VOL));
 			mountOptions->PartitionInInactiveSysEncScope = IsButtonChecked (GetDlgItem (hwndDlg, IDC_MOUNT_SYSENC_PART_WITHOUT_PBA));
-
+			mountOptions->UseBackupHeader = IsButtonChecked (GetDlgItem (hwndDlg, IDC_USE_EMBEDDED_HEADER_BAK));
+			
 			if (mountOptions->ProtectHiddenVolume)
 			{
 				GetWindowText (GetDlgItem (hwndDlg, IDC_PASSWORD_PROT_HIDVOL),
@@ -2524,7 +2551,7 @@ BOOL CALLBACK VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LP
 			// Location
 			ListItemAddW (list, i, GetString ("LOCATION"));
 			if (bSysEnc)
-				ListSubItemSetW (list, i++, 1, GetString (bSysEncWholeDrive ? "SYSTEM_DRIVE" : "SYSTEM_PARTITION"));
+				ListSubItemSetW (list, i++, 1, GetString (bSysEncWholeDrive ? "SYSTEM_DRIVE" : IsHiddenOSRunning() ? "HIDDEN_SYSTEM_PARTITION" : "SYSTEM_PARTITION"));
 			else
 				ListSubItemSetW (list, i++, 1, (wchar_t *) (prop.wszVolume[1] != L'?' ? prop.wszVolume : prop.wszVolume + 4));
 
@@ -2536,7 +2563,7 @@ BOOL CALLBACK VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LP
 			// Type
 			ListItemAddW (list, i, GetString ("TYPE"));
 			if (bSysEnc)
-				ListSubItemSetW (list, i++, 1, GetString ("SYSTEM_VOLUME_TYPE_ADJECTIVE"));
+				ListSubItemSetW (list, i++, 1, GetString (IsHiddenOSRunning() ? "TYPE_HIDDEN_SYSTEM_ADJECTIVE" : "SYSTEM_VOLUME_TYPE_ADJECTIVE"));
 			else
 			{
 				ListSubItemSetW (list, i++, 1, 
@@ -2582,7 +2609,7 @@ BOOL CALLBACK VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LP
 			EAGetName (szTmp, prop.ea);
 			ListSubItemSet (list, i++, 1, szTmp);
 
-			// Key size
+			// Key size(s)
 			{
 				char name[128];
 				int size = EAGetKeySize (prop.ea);	
@@ -2591,9 +2618,26 @@ BOOL CALLBACK VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LP
 				if (strcmp (name, "Triple DES") == 0)	/* Deprecated/legacy */
 					size -= 3; // Compensate for parity bytes
 
+				// Primary key
 				ListItemAddW (list, i, GetString ("KEY_SIZE"));
 				wsprintfW (sw, L"%d %s", size * 8, GetString ("BITS"));
 				ListSubItemSetW (list, i++, 1, sw);
+
+				if (strcmp (EAGetModeName (prop.ea, prop.mode, TRUE), "XTS") == 0)
+				{
+					// Secondary key (XTS)
+
+					ListItemAddW (list, i, GetString ("SECONDARY_KEY_SIZE_XTS"));
+					ListSubItemSetW (list, i++, 1, sw);
+				}
+				else if (strcmp (EAGetModeName (prop.ea, prop.mode, TRUE), "LRW") == 0)
+				{
+					// Tweak key (LRW)
+
+					ListItemAddW (list, i, GetString ("SECONDARY_KEY_SIZE_LRW"));
+					swprintf (sw, L"%d %s", CipherGetBlockSize (EAGetFirstCipher(prop.ea))*8, GetString ("BITS"));
+					ListSubItemSetW (list, i++, 1, sw);
+				}
 			}
 
 			// Block size
@@ -2624,16 +2668,21 @@ BOOL CALLBACK VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LP
 			ListItemAddW (list, i, GetString ("MODE_OF_OPERATION"));
 			ListSubItemSet (list, i++, 1, EAGetModeName (prop.ea, prop.mode, TRUE));
 
-			// PRF
+			// PKCS 5 PRF
 			ListItemAddW (list, i, GetString ("PKCS5_PRF"));
 			ListSubItemSet (list, i++, 1, get_pkcs5_prf_name (prop.pkcs5));
 
-			// PCKS iterations
+#if 0
+			// PCKS 5 iterations
 			ListItemAddW (list, i, GetString ("PKCS5_ITERATIONS"));
 			sprintf (szTmp, "%d", prop.pkcs5Iterations);
 			ListSubItemSet (list, i++, 1, szTmp);
+#endif
 
+#if 0
 			{
+				// Legacy
+
 				FILETIME ft, curFt;
 				LARGE_INTEGER ft64, curFt64;
 				SYSTEMTIME st;
@@ -2668,6 +2717,19 @@ BOOL CALLBACK VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LP
 				swprintf (date + wcslen (date),  GetString ("VOLUME_HEADER_DAYS")
 					, (curFt64.QuadPart - ft64.QuadPart)/(24LL*3600*10000000));
 				ListSubItemSetW (list, i++, 1, date);
+			}
+#endif // 0
+
+			if (!bSysEnc || IsHiddenOSRunning())
+			{
+				// Volume format version
+				ListItemAddW (list, i, GetString ("VOLUME_FORMAT_VERSION"));
+				sprintf (szTmp, "%d", prop.volFormatVersion);
+				ListSubItemSet (list, i++, 1, szTmp);
+
+				// Backup header
+				ListItemAddW (list, i, GetString ("BACKUP_HEADER"));
+				ListSubItemSetW (list, i++, 1, GetString (prop.volFormatVersion > 1 ? "UISTR_YES" : "UISTR_NO"));
 			}
 
 			// Total data read
@@ -3085,9 +3147,12 @@ GetItemLong (HWND hTree, int itemNo)
 		return item.lParam;
 }
 
-static int AskUserPassword (HWND hwndDlg, Password *password)
+static int AskVolumePassword (HWND hwndDlg, Password *password, char *titleStringId, BOOL enableMountOptions)
 {
 	int result;
+
+	PasswordDialogTitleStringId = titleStringId;
+	PasswordDialogDisableMountOptions = !enableMountOptions;
 
 	result = DialogBoxParamW (hInst, 
 		MAKEINTRESOURCEW (IDD_PASSWORD_DLG), hwndDlg,
@@ -3133,6 +3198,8 @@ static BOOL Mount (HWND hwndDlg, int nDosDriveNo, char *szFileName)
 		goto ret;
 	}
 
+	ResetWrongPwdRetryCount ();
+
 	// First try cached passwords and if they fail ask user for a new one
 	WaitCursor ();
 
@@ -3172,7 +3239,7 @@ static BOOL Mount (HWND hwndDlg, int nDosDriveNo, char *szFileName)
 		else if (!Silent)
 		{
 			strcpy (PasswordDlgVolume, szFileName);
-			if (!AskUserPassword (hwndDlg, &VolumePassword))
+			if (!AskVolumePassword (hwndDlg, &VolumePassword, NULL, TRUE))
 				goto ret;
 		}
 		
@@ -3319,6 +3386,21 @@ retry:
 			return FALSE;
 		}
 
+		if (unmount.nReturnCode == ERR_SUCCESS
+			&& unmount.HiddenVolumeProtectionTriggered
+			&& !VolumeNotificationsList.bHidVolDamagePrevReported [unmount.nDosDriveNo])
+		{
+			wchar_t msg[4096];
+
+			VolumeNotificationsList.bHidVolDamagePrevReported [unmount.nDosDriveNo] = TRUE;
+			swprintf (msg, GetString ("DAMAGE_TO_HIDDEN_VOLUME_PREVENTED"), unmount.nDosDriveNo + 'A');
+			SetForegroundWindow (hwndDlg);
+			MessageBoxW (hwndDlg, msg, lpszTitle, MB_ICONWARNING | MB_SETFOREGROUND | MB_TOPMOST);
+
+			unmount.HiddenVolumeProtectionTriggered = FALSE;
+			continue;
+		}
+
 		if (unmount.nReturnCode == ERR_FILES_OPEN)
 			Sleep (dismountAutoRetryDelay);
 		else
@@ -3369,7 +3451,7 @@ static BOOL MountAllDevices (HWND hwndDlg, BOOL bPasswordPrompt)
 {
 	HWND driveList = GetDlgItem (hwndDlg, IDC_DRIVELIST);
 	int i, n, selDrive = ListView_GetSelectionMark (driveList);
-	BOOL shared = FALSE, status = FALSE, b64BitBlockCipher = FALSE, bCBCMode = FALSE;
+	BOOL shared = FALSE, status = FALSE, b64BitBlockCipher = FALSE, bCBCMode = FALSE, bHeaderBakRetry = FALSE;
 	int mountedVolCount = 0, modeOfOperation;
 
 	VolumePassword.Length = 0;
@@ -3378,26 +3460,32 @@ static BOOL MountAllDevices (HWND hwndDlg, BOOL bPasswordPrompt)
 
 	if (selDrive == -1) selDrive = 0;
 
+	ResetWrongPwdRetryCount ();
+
 	do
 	{
-		if (!CmdVolumePasswordValid && bPasswordPrompt)
+		if (!bHeaderBakRetry)
 		{
-			PasswordDlgVolume[0] = '\0';
-			if (!AskUserPassword (hwndDlg, &VolumePassword))
-				goto ret;
-		}
-		else if (CmdVolumePasswordValid)
-		{
-			bPasswordPrompt = FALSE;
-			VolumePassword = CmdVolumePassword;
-		}
+			if (!CmdVolumePasswordValid && bPasswordPrompt)
+			{
+				PasswordDlgVolume[0] = '\0';
+				if (!AskVolumePassword (hwndDlg, &VolumePassword, NULL, TRUE))
+					goto ret;
+			}
+			else if (CmdVolumePasswordValid)
+			{
+				bPasswordPrompt = FALSE;
+				VolumePassword = CmdVolumePassword;
+			}
 
-		WaitCursor();
+			WaitCursor();
 
-		if (FirstCmdKeyFile)
-			KeyFilesApply (&VolumePassword, FirstCmdKeyFile);
-		else if (KeyFilesEnable)
-			KeyFilesApply (&VolumePassword, FirstKeyFile);
+			if (FirstCmdKeyFile)
+				KeyFilesApply (&VolumePassword, FirstCmdKeyFile);
+			else if (KeyFilesEnable)
+				KeyFilesApply (&VolumePassword, FirstKeyFile);
+
+		}
 
 		for (i = 0; i < 64; i++)
 		{
@@ -3449,6 +3537,10 @@ static BOOL MountAllDevices (HWND hwndDlg, BOOL bPasswordPrompt)
 					if ((mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, &VolumePassword, bCacheInDriver, bForceMount, &mountOptions, TRUE, FALSE)) > 0
 						|| (mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, NULL, bCacheInDriver, bForceMount, &mountOptions, TRUE, FALSE)) > 0)
 					{
+						// A volume has been successfully mounted
+
+						ResetWrongPwdRetryCount ();
+
 						if (mounted == 2)
 							shared = TRUE;
 
@@ -3486,23 +3578,58 @@ static BOOL MountAllDevices (HWND hwndDlg, BOOL bPasswordPrompt)
 			}
 		}
 
-		burn (&VolumePassword, sizeof (VolumePassword));
-
-		if (mountedVolCount < 1 && !Silent)
+		if (mountedVolCount < 1)
 		{
-			WCHAR szTmp[4096];
+			// Failed to mount any volume
 
-			swprintf (szTmp, GetString (KeyFilesEnable || FirstCmdKeyFile ? "PASSWORD_OR_KEYFILE_WRONG_AUTOMOUNT" : "PASSWORD_WRONG_AUTOMOUNT"));
-			if (CheckCapsLock (hwndDlg, TRUE))
-				wcscat (szTmp, GetString ("PASSWORD_WRONG_CAPSLOCK_ON"));
+			IncreaseWrongPwdRetryCount (1);
 
-			MessageBoxW (hwndDlg, szTmp, lpszTitle, MB_ICONWARNING);
+			if (WrongPwdRetryCountOverLimit ()
+				&& !mountOptions.UseBackupHeader
+				&& !bHeaderBakRetry)
+			{
+				// Retry using embedded header backup (if any)
+				mountOptions.UseBackupHeader = TRUE;
+				bHeaderBakRetry = TRUE;
+			}
+			else if (bHeaderBakRetry)
+			{
+				mountOptions.UseBackupHeader = defaultMountOptions.UseBackupHeader;
+				bHeaderBakRetry = FALSE;
+			}
+
+			if (!Silent && !bHeaderBakRetry)
+			{
+				WCHAR szTmp[4096];
+
+				swprintf (szTmp, GetString (KeyFilesEnable || FirstCmdKeyFile ? "PASSWORD_OR_KEYFILE_WRONG_AUTOMOUNT" : "PASSWORD_WRONG_AUTOMOUNT"));
+				if (CheckCapsLock (hwndDlg, TRUE))
+					wcscat (szTmp, GetString ("PASSWORD_WRONG_CAPSLOCK_ON"));
+
+				MessageBoxW (hwndDlg, szTmp, lpszTitle, MB_ICONWARNING);
+			}
+		}
+		else if (bHeaderBakRetry)
+		{
+			// We have successfully mounted a volume using the header backup embedded in the volume (the header is damaged)
+			mountOptions.UseBackupHeader = defaultMountOptions.UseBackupHeader;
+			bHeaderBakRetry = FALSE;
+
+			if (!Silent)
+				Warning ("HEADER_DAMAGED_AUTO_USED_HEADER_BAK");
 		}
 
-		burn (&mountOptions.ProtectedHidVolPassword, sizeof (mountOptions.ProtectedHidVolPassword));
+		if (!bHeaderBakRetry)
+		{
+			burn (&VolumePassword, sizeof (VolumePassword));
+			burn (&mountOptions.ProtectedHidVolPassword, sizeof (mountOptions.ProtectedHidVolPassword));
+		}
+
 	} while (bPasswordPrompt && mountedVolCount < 1);
 
 	/* One or more volumes successfully mounted */
+
+	ResetWrongPwdRetryCount ();
 
 	if (shared)
 		Warning ("DEVICE_IN_USE_INFO");
@@ -3533,6 +3660,8 @@ static BOOL MountAllDevices (HWND hwndDlg, BOOL bPasswordPrompt)
 ret:
 	burn (&VolumePassword, sizeof (VolumePassword));
 	burn (&mountOptions.ProtectedHidVolPassword, sizeof (mountOptions.ProtectedHidVolPassword));
+
+	mountOptions.UseBackupHeader = defaultMountOptions.UseBackupHeader;
 
 	RestoreDefaultKeyFilesParam ();
 
@@ -3630,8 +3759,11 @@ static void ChangeSysEncPassword (HWND hwndDlg, BOOL bOnlyChangeKDF)
 			case PCDM_CHANGE_PKCS5_PRF:
 				Info ("PKCS5_PRF_CHANGED");
 
-				if (AskWarnYesNo ("SYS_HKD_ALGO_CHANGED_ASK_RESCUE_DISK") == IDYES)
-					CreateRescueDisk ();
+				if (!IsHiddenOSRunning())
+				{
+					if (AskWarnYesNo ("SYS_HKD_ALGO_CHANGED_ASK_RESCUE_DISK") == IDYES)
+						CreateRescueDisk ();
+				}
 
 				break;
 
@@ -3644,8 +3776,11 @@ static void ChangeSysEncPassword (HWND hwndDlg, BOOL bOnlyChangeKDF)
 			default:
 				Info ("PASSWORD_CHANGED");
 
-				if (AskWarnYesNo ("SYS_PASSWORD_CHANGED_ASK_RESCUE_DISK") == IDYES)
-					CreateRescueDisk ();
+				if (!IsHiddenOSRunning())
+				{
+					if (AskWarnYesNo ("SYS_PASSWORD_CHANGED_ASK_RESCUE_DISK") == IDYES)
+						CreateRescueDisk ();
+				}
 			}
 		}
 
@@ -3686,9 +3821,8 @@ static void EncryptSystemDevice (void)
 	{
 		// System partition/drive is not encrypted (nothing to resume). Initiate the process.
 
-		if (CreateSysEncMutex ())	// If no instance of the wizard is currently taking care of system encryption
+		if (!MutexExistsOnSystem (TC_MUTEX_NAME_SYSENC))	// If no instance of the wizard is currently taking care of system encryption
 		{
-			CloseSysEncMutex ();	
 			LaunchVolCreationWizard (MainDlg, "/sysenc");
 		}
 		else
@@ -3701,9 +3835,8 @@ static void EncryptSystemDevice (void)
 		// System partition/drive encryption already initiated but is incomplete -- attempt to resume the process.
 		// Note that this also covers the pretest phase and paused decryption (reverses decrypting and starts encrypting)
 
-		if (CreateSysEncMutex ())	// If no instance of the wizard is currently taking care of system encryption
+		if (!MutexExistsOnSystem (TC_MUTEX_NAME_SYSENC))	// If no instance of the wizard is currently taking care of system encryption
 		{
-			CloseSysEncMutex ();	
 			LaunchVolCreationWizard (MainDlg, "/sysenc");
 		}
 		else
@@ -3736,6 +3869,12 @@ static void DecryptSystemDevice (void)
 		&& !SysEncryptionOrDecryptionRequired ())
 	{
 		Warning ("SYS_DRIVE_NOT_ENCRYPTED");
+		return;
+	}
+
+	if (IsHiddenOSRunning())
+	{
+		Warning ("CANNOT_DECRYPT_HIDDEN_OS");
 		return;
 	}
 
@@ -3784,13 +3923,24 @@ static void DecryptSystemDevice (void)
 		Warning ("SYSTEM_ENCRYPTION_IN_PROGRESS_ELSEWHERE");
 }
 
+// Initiates the process of creation of a hidden operating system
+static void CreateHiddenOS (void)
+{
+
+	// Display brief information as to what a hidden operating system is and what it's good for. This needs to be
+	// done, because if the system partition/drive is currently encrypted, the wizard will not display any
+	// such information, but will exit (displaying only an error meessage).
+	Info("HIDDEN_OS_PREINFO");
+
+	LaunchVolCreationWizard (MainDlg, "/isysenc");
+}
+
 // Blindly attempts (without any checks) to instruct the wizard to resume whatever system encryption process
 // had been interrupted or not started but scheduled or exptected to start.
 static void ResumeInterruptedSysEncProcess (void)
 {
-	if (CreateSysEncMutex ())	// If no instance of the wizard is currently taking care of system encryption
+	if (!MutexExistsOnSystem (TC_MUTEX_NAME_SYSENC))	// If no instance of the wizard is currently taking care of system encryption
 	{
-		CloseSysEncMutex ();	
 		LaunchVolCreationWizard (MainDlg, "/csysenc");
 	}
 	else
@@ -3806,6 +3956,12 @@ void CreateRescueDisk (void)
 	catch (Exception &e)
 	{
 		e.Show (MainDlg);
+	}
+
+	if (IsHiddenOSRunning())
+	{
+		Warning ("CANNOT_CREATE_RESCUE_DISK_ON_HIDDEN_OS");
+		return;
 	}
 
 	if (!BootEncStatus.DriveEncrypted 
@@ -3931,6 +4087,7 @@ static void ShowSystemEncryptionStatus (void)
 		// Ctrl+Shift held (for debugging purposes)
 
 		DebugMsgBox ("Debugging information for system encryption:\n\nDeviceFilterActive: %d\nBootLoaderVersion: %x\nSetupInProgress: %d\nSetupMode: %d\nVolumeHeaderPresent: %d\nDriveMounted: %d\nDriveEncrypted: %d\n"
+			"HiddenSystem: %d\nHiddenSystemPartitionStart: %I64d\n"
 			"ConfiguredEncryptedAreaStart: %I64d\nConfiguredEncryptedAreaEnd: %I64d\nEncryptedAreaStart: %I64d\nEncryptedAreaEnd: %I64d\nEncrypted: %I64d%%",
 			BootEncStatus.DeviceFilterActive,
 			BootEncStatus.BootLoaderVersion,
@@ -3939,6 +4096,8 @@ static void ShowSystemEncryptionStatus (void)
 			BootEncStatus.VolumeHeaderPresent,
 			BootEncStatus.DriveMounted,
 			BootEncStatus.DriveEncrypted,
+			BootEncStatus.HiddenSystem ? 1 : 0,
+			BootEncStatus.HiddenSystemPartitionStart,
 			BootEncStatus.ConfiguredEncryptedAreaStart,
 			BootEncStatus.ConfiguredEncryptedAreaEnd,
 			BootEncStatus.EncryptedAreaStart,
@@ -4098,6 +4257,8 @@ static BOOL CheckMountList ()
 			}
 		}
 
+		/* Miscellaneous notifications */
+
 		// Hibernation prevention notifications
 		if (newBootEncStatus.HibernationPreventionCount != RecentBootEncStatus.HibernationPreventionCount
 			&& !bHibernationPreventionNotified)
@@ -4105,6 +4266,80 @@ static BOOL CheckMountList ()
 			bHibernationPreventionNotified = TRUE;
 			RecentBootEncStatus.HibernationPreventionCount = newBootEncStatus.HibernationPreventionCount;
 			Warning ("SYS_ENC_HIBERNATION_PREVENTED");
+		}
+
+		// Write mode prevention (hidden OS leak protection)
+		if (IsHiddenOSRunning())
+		{
+			if (newBootEncStatus.HiddenSysLeakProtectionCount != RecentBootEncStatus.HiddenSysLeakProtectionCount
+				&& !bHiddenSysLeakProtNotifiedDuringSession)
+			{
+				bHiddenSysLeakProtNotifiedDuringSession = TRUE;
+
+				switch (HiddenSysLeakProtectionNotificationStatus)
+				{
+				case TC_HIDDEN_OS_READ_ONLY_NOTIF_MODE_COMPACT:
+					{
+						char *tmp[] = {0, "HIDDEN_OS_WRITE_PROTECTION_BRIEF_INFO", "SHOW_MORE_INFORMATION", "DO_NOT_SHOW_THIS_AGAIN", "CONTINUE", 0};
+						switch (AskMultiChoice ((void **) tmp))
+						{
+						case 1:
+							InfoDirect ((wstring (GetString ("HIDDEN_OS_WRITE_PROTECTION_BRIEF_INFO"))
+								+ L"\n\n"
+								+ GetString ("HIDDEN_OS_WRITE_PROTECTION_EXPLANATION")
+								+ L"\n\n\n"
+								+ GetString ("DECOY_TO_HIDDEN_OS_DATA_TRANSFER_HOWTO")).c_str());
+							break;
+
+						case 2:
+							// No more warnings will be shown
+							if (ConfigBuffer == NULL)
+							{
+								// We need to load the config file because it is not done automatically when
+								// launched from the sys startup sequence (and SaveSettings would start by _loading_ 
+								// the settings to cache).
+								LoadSettings (MainDlg);	
+							}
+							HiddenSysLeakProtectionNotificationStatus = TC_HIDDEN_OS_READ_ONLY_NOTIF_MODE_DISABLED;
+							SaveSettings (MainDlg);
+							break;
+
+						default:
+							// NOP
+							break;
+						}
+					}
+					break;
+
+				case TC_HIDDEN_OS_READ_ONLY_NOTIF_MODE_DISABLED:
+					// NOP
+					break;
+
+				case TC_HIDDEN_OS_READ_ONLY_NOTIF_MODE_NONE:
+				default:
+					{
+						// First time warning -- include technical explanation
+						InfoDirect ((wstring (GetString ("HIDDEN_OS_WRITE_PROTECTION_BRIEF_INFO"))
+							+ L"\n\n"
+							+ GetString ("HIDDEN_OS_WRITE_PROTECTION_EXPLANATION")
+							+ L"\n\n\n"
+							+ GetString ("DECOY_TO_HIDDEN_OS_DATA_TRANSFER_HOWTO")).c_str());
+
+						// Further warnings will not include the explanation (and will allow disabling)
+
+						if (ConfigBuffer == NULL)
+						{
+							// We need to load the config file because it is not done automatically when
+							// launched from the sys startup sequence (and SaveSettings would start by _loading_ 
+							// the settings to cache).
+							LoadSettings (MainDlg);	
+						}
+						HiddenSysLeakProtectionNotificationStatus = TC_HIDDEN_OS_READ_ONLY_NOTIF_MODE_COMPACT;
+						SaveSettings (MainDlg);
+					}
+					break;
+				}
+			}
 		}
 	}
 	catch (...)
@@ -4139,8 +4374,13 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 			MainDlg = hwndDlg;
 
+			if (IsTrueCryptInstallerRunning())
+				AbortProcess ("TC_INSTALLER_IS_RUNNING");
+
 			// Set critical default options in case UsePreferences is false
 			bPreserveTimestamp = defaultMountOptions.PreserveTimestamp = TRUE;
+
+			ResetWrongPwdRetryCount ();
 
 			ExtractCommandLine (hwndDlg, (char *) lParam);
 
@@ -4175,6 +4415,16 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			}
 
 			InitMainDialog (hwndDlg);
+
+			if (IsHiddenOSRunning())
+			{
+				try
+				{
+					if (BootEncObj->GetInstalledBootLoaderVersion() > VERSION_NUM)
+						Info ("UPDATE_TC_IN_HIDDEN_OS_TOO");
+				}
+				catch (...) { }
+			}
 
 			// Wipe cache
 			if (bWipe)
@@ -4249,7 +4499,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						VolumePassword.Length = 0;
 
 						strcpy (PasswordDlgVolume, szFileName);
-						if (!AskUserPassword (hwndDlg, &VolumePassword))
+						if (!AskVolumePassword (hwndDlg, &VolumePassword, NULL, TRUE))
 							break;
 
 						WaitCursor ();
@@ -4417,9 +4667,9 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			{
 				if (SysEncryptionOrDecryptionRequired ())
 				{
-					if (CreateSysEncMutex ())	// If no instance of the wizard is currently taking care of system encryption
+					if (!MutexExistsOnSystem (TC_MUTEX_NAME_SYSENC))	// If no instance of the wizard is currently taking care of system encryption
 					{
-						CloseSysEncMutex ();	// We shouldn't block the mutex for too long at this point
+						// We shouldn't block the mutex at this point
 
 						if (SystemEncryptionStatus == SYSENC_STATUS_PRETEST
 							|| AskWarnYesNo ("SYSTEM_ENCRYPTION_RESUME_PROMPT") == IDYES)
@@ -4433,6 +4683,8 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					}
 				}
 			}
+
+			DoPostInstallTasks ();
 		}
 		return 0;
 
@@ -5071,6 +5323,9 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			break;
 		case IDM_PERMANENTLY_DECRYPT_SYS:
 			DecryptSystemDevice ();
+			break;
+		case IDM_CREATE_HIDDEN_OS:
+			CreateHiddenOS ();
 			break;
 		case IDM_SYSENC_RESUME:
 			ResumeInterruptedSysEncProcess ();
@@ -5769,6 +6024,9 @@ void ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 
 						if (!_stricmp (szTmp, "sm") || !_stricmp (szTmp, "system"))
 							mountOptions.PartitionInInactiveSysEncScope = bPrebootPasswordDlgMode = TRUE;
+					
+						if (!_stricmp (szTmp, "bk") || !_stricmp (szTmp, "headerbak"))
+							mountOptions.UseBackupHeader = TRUE;
 					}
 				}
 				break;
@@ -6280,4 +6538,608 @@ void ChangeMainWindowVisibility ()
 
 	if (!MainWindowHidden)
 		ShowWindow (MainDlg, SW_RESTORE);
+}
+
+
+int BackupVolumeHeader (HWND hwndDlg, BOOL bRequireConfirmation, char *lpszVolume)
+{
+	int nStatus = ERR_OS_ERROR;
+	wchar_t szTmp[4096];
+	int fBackup = -1;
+	OpenVolumeContext volume;
+	OpenVolumeContext hiddenVolume;
+	Password hiddenVolPassword;
+	
+	volume.VolumeIsOpen = FALSE;
+	hiddenVolume.VolumeIsOpen = FALSE;
+
+	switch (IsSystemDevicePath (lpszVolume, hwndDlg, TRUE))
+	{
+	case 1:
+	case 2:
+		if (AskErrNoYes ("BACKUP_HEADER_NOT_FOR_SYS_DEVICE") == IDYES)
+			CreateRescueDisk ();
+
+		return 0;
+
+	case -1:
+		Error ("ERR_CANNOT_DETERMINE_VOLUME_TYPE");
+		return 0;
+	}
+
+	if (IsMountedVolume (lpszVolume))
+	{
+		Warning ("DISMOUNT_FIRST");
+		goto ret;
+	}
+
+	Info ("EXTERNAL_VOL_HEADER_BAK_FIRST_INFO");
+
+	// Open both types of volumes
+	for (int type = TC_VOLUME_TYPE_NORMAL; type <= TC_VOLUME_TYPE_HIDDEN; ++type)
+	{
+		OpenVolumeContext *askVol = (type == TC_VOLUME_TYPE_HIDDEN ? &hiddenVolume : &volume);
+		Password *askPassword = (type == TC_VOLUME_TYPE_HIDDEN ? &hiddenVolPassword : &VolumePassword);
+
+		while (TRUE)
+		{
+			if (!AskVolumePassword (hwndDlg, askPassword, type == TC_VOLUME_TYPE_HIDDEN ? "ENTER_HIDDEN_VOL_PASSWORD" : "ENTER_NORMAL_VOL_PASSWORD", FALSE))
+			{
+				nStatus = ERR_SUCCESS;
+				goto ret;
+			}
+
+			if (KeyFilesEnable && FirstKeyFile)
+				KeyFilesApply (&VolumePassword, FirstKeyFile);
+
+			nStatus = OpenVolume (askVol, lpszVolume, askPassword, FALSE, bPreserveTimestamp, FALSE);
+			if (nStatus == ERR_SUCCESS)
+			{
+				if ((type == TC_VOLUME_TYPE_NORMAL && askVol->CryptoInfo->hiddenVolume)
+					|| (type == TC_VOLUME_TYPE_HIDDEN && !askVol->CryptoInfo->hiddenVolume))
+				{
+					CloseVolume (askVol);
+					handleError (hwndDlg, ERR_PASSWORD_WRONG);
+					continue;
+				}
+
+				RandSetHashFunction (askVol->CryptoInfo->pkcs5);
+
+				if (type == TC_VOLUME_TYPE_NORMAL)
+				{
+					// Ask the user if there is a hidden volume
+					char *volTypeChoices[] = {0, "DOES_VOLUME_CONTAIN_HIDDEN", "VOLUME_CONTAINS_HIDDEN", "VOLUME_DOES_NOT_CONTAIN_HIDDEN", "IDCANCEL", 0};
+					switch (AskMultiChoice ((void **) volTypeChoices))
+					{
+					case 1:
+						break;
+					case 2:
+						goto noHidden;
+
+					default:
+						nStatus = ERR_SUCCESS;
+						goto ret;
+					}
+				}
+
+				break;
+			}
+
+			if (nStatus != ERR_PASSWORD_WRONG)
+				goto error;
+
+			handleError (hwndDlg, nStatus);
+		}
+	}
+noHidden:
+
+	if (hiddenVolume.VolumeIsOpen && volume.CryptoInfo->LegacyVolume != hiddenVolume.CryptoInfo->LegacyVolume)
+	{
+		nStatus = ERR_PARAMETER_INCORRECT;
+		goto error;
+	}
+
+	swprintf (szTmp, GetString ("CONFIRM_VOL_HEADER_BAK"), lpszVolume);
+
+	if (bRequireConfirmation 
+		&& (MessageBoxW (hwndDlg, szTmp, lpszTitle, YES_NO|MB_ICONQUESTION|MB_DEFBUTTON1) == IDNO))
+		goto ret;
+
+	/* Select backup file */
+	if (!BrowseFiles (hwndDlg, "OPEN_TITLE", szFileName, bHistory, TRUE))
+		goto ret;
+
+	WaitCursor();
+
+	/* Conceive the backup file */
+	if ((fBackup = _open(szFileName, _O_CREAT|_O_TRUNC|_O_WRONLY|_O_BINARY, _S_IREAD|_S_IWRITE)) == -1)
+	{
+		nStatus = ERR_OS_ERROR;
+		goto error;
+	}
+
+	// Backup headers
+
+	byte backup[TC_VOLUME_HEADER_GROUP_SIZE];
+
+	bool legacyVolume = volume.CryptoInfo->LegacyVolume ? true : false;
+	int backupFileSize = legacyVolume ? TC_VOLUME_HEADER_SIZE_LEGACY * 2 : TC_VOLUME_HEADER_GROUP_SIZE;
+
+	// Fill backup buffer with random data
+	byte temporaryKey[MASTER_KEYDATA_SIZE];
+	byte originalK2[MASTER_KEYDATA_SIZE];
+
+	memcpy (originalK2, volume.CryptoInfo->k2, sizeof (volume.CryptoInfo->k2));
+
+	if (Randinit() != ERR_SUCCESS)
+	{
+		nStatus = ERR_PARAMETER_INCORRECT; 
+		goto error;
+	}
+
+	// Temporary keys
+	if (!RandgetBytes (temporaryKey, EAGetKeySize (volume.CryptoInfo->ea), TRUE)
+		|| !RandgetBytes (volume.CryptoInfo->k2, sizeof (volume.CryptoInfo->k2), FALSE))
+	{
+		nStatus = ERR_PARAMETER_INCORRECT; 
+		goto error;
+	}
+
+	if (EAInit (volume.CryptoInfo->ea, temporaryKey, volume.CryptoInfo->ks) != ERR_SUCCESS || !EAInitMode (volume.CryptoInfo))
+	{
+		nStatus = ERR_PARAMETER_INCORRECT;
+		goto error;
+	}
+
+	EncryptBuffer (backup, backupFileSize, volume.CryptoInfo);
+
+	memcpy (volume.CryptoInfo->k2, originalK2, sizeof (volume.CryptoInfo->k2));
+	if (EAInit (volume.CryptoInfo->ea, volume.CryptoInfo->master_keydata, volume.CryptoInfo->ks) != ERR_SUCCESS || !EAInitMode (volume.CryptoInfo))
+	{
+		nStatus = ERR_PARAMETER_INCORRECT;
+		goto error;
+	}
+
+	// Store header encrypted with a new key
+	nStatus = ReEncryptVolumeHeader ((char *) backup, FALSE, volume.CryptoInfo, &VolumePassword, FALSE);
+	if (nStatus != ERR_SUCCESS)
+		goto error;
+
+	if (hiddenVolume.VolumeIsOpen)
+	{
+		nStatus = ReEncryptVolumeHeader ((char *) backup + (legacyVolume ? TC_VOLUME_HEADER_SIZE_LEGACY : TC_VOLUME_HEADER_SIZE),
+			 FALSE, hiddenVolume.CryptoInfo, &hiddenVolPassword, FALSE);
+
+		if (nStatus != ERR_SUCCESS)
+			goto error;
+	}
+
+	if (_write (fBackup, backup, backupFileSize) == -1)
+	{
+		nStatus = ERR_OS_ERROR;
+		goto error;
+	}
+
+	/* Backup has been successfully created */
+	Warning("VOL_HEADER_BACKED_UP");
+
+ret:
+	nStatus = ERR_SUCCESS;
+
+error:
+	DWORD dwError = GetLastError ();
+	NormalCursor();
+
+	CloseVolume (&volume);
+	CloseVolume (&hiddenVolume);
+
+	if (fBackup != -1)
+		_close (fBackup);
+
+	SetLastError (dwError);
+	if (nStatus != 0)
+		handleError (hwndDlg, nStatus);
+
+	burn (&VolumePassword, sizeof (VolumePassword));
+	burn (&hiddenVolPassword, sizeof (hiddenVolPassword));
+	
+	return nStatus;
+}
+
+
+int RestoreVolumeHeader (HWND hwndDlg, char *lpszVolume)
+{
+	int nDosLinkCreated = -1, nStatus = ERR_OS_ERROR;
+	char szDiskFile[TC_MAX_PATH], szCFDevice[TC_MAX_PATH];
+	char szFileName[TC_MAX_PATH];
+	char szDosDevice[TC_MAX_PATH];
+	void *dev = INVALID_HANDLE_VALUE;
+	DWORD dwError;
+	BOOL bDevice;
+	unsigned __int64 hostSize = 0;
+	FILETIME ftCreationTime;
+	FILETIME ftLastWriteTime;
+	FILETIME ftLastAccessTime;
+	wchar_t szTmp[4096];
+	BOOL bTimeStampValid = FALSE;
+	HANDLE fBackup = INVALID_HANDLE_VALUE;
+	LARGE_INTEGER headerOffset;
+	CRYPTO_INFO *restoredCryptoInfo = NULL;
+
+	switch (IsSystemDevicePath (lpszVolume, hwndDlg, TRUE))
+	{
+	case 1:
+	case 2:
+		if (AskErrNoYes ("RESTORE_HEADER_NOT_FOR_SYS_DEVICE") == IDYES)
+			CreateRescueDisk ();
+
+		return 0;
+
+	case -1:
+		Error ("ERR_CANNOT_DETERMINE_VOLUME_TYPE");
+		return 0;
+	}
+
+	if (IsMountedVolume (lpszVolume))
+	{
+		Warning ("DISMOUNT_FIRST");
+		return 0;
+	}
+
+	
+	BOOL restoreInternalBackup;
+
+	// Ask the user to select the type of backup (internal/external)
+	char *volTypeChoices[] = {0, "HEADER_RESTORE_EXTERNAL_INTERNAL", "HEADER_RESTORE_INTERNAL", "HEADER_RESTORE_EXTERNAL", "IDCANCEL", 0};
+	switch (AskMultiChoice ((void **) volTypeChoices))
+	{
+	case 1:
+		restoreInternalBackup = TRUE;
+		break;
+	case 2:
+		restoreInternalBackup = FALSE;
+		break;
+	default:
+		return 0;
+	}
+
+	OpenVolumeContext volume;
+	volume.VolumeIsOpen = FALSE;
+
+	if (restoreInternalBackup)
+	{
+		// Restore header from the internal backup
+
+		// Open the volume using backup header
+		while (TRUE)
+		{
+			strncpy (PasswordDlgVolume, lpszVolume, sizeof (PasswordDlgVolume));
+			if (!AskVolumePassword (hwndDlg, &VolumePassword, NULL, FALSE))
+			{
+				nStatus = ERR_SUCCESS;
+				goto ret;
+			}
+
+			if (KeyFilesEnable && FirstKeyFile)
+				KeyFilesApply (&VolumePassword, FirstKeyFile);
+
+			nStatus = OpenVolume (&volume, lpszVolume, &VolumePassword, TRUE, bPreserveTimestamp, TRUE);
+			if (nStatus == ERR_SUCCESS)
+				break;
+
+			if (nStatus != ERR_PASSWORD_WRONG)
+				goto error;
+
+			handleError (hwndDlg, nStatus);
+		}
+
+		if (volume.CryptoInfo->LegacyVolume)
+		{
+			Error ("VOLUME_HAS_NO_BACKUP_HEADER");
+			nStatus = ERROR_SUCCESS;
+			goto error;
+		}
+
+		// Create a new header with a new salt
+		char buffer[TC_VOLUME_HEADER_EFFECTIVE_SIZE];
+
+		WaitCursor();
+
+		nStatus = ReEncryptVolumeHeader (buffer, FALSE, volume.CryptoInfo, &VolumePassword, FALSE);
+		if (nStatus != 0)
+			goto error;
+
+		headerOffset.QuadPart = volume.CryptoInfo->hiddenVolume ? TC_HIDDEN_VOLUME_HEADER_OFFSET : TC_VOLUME_HEADER_OFFSET;
+		if (!SetFilePointerEx (volume.HostFileHandle, headerOffset, NULL, FILE_BEGIN))
+		{
+			nStatus = ERR_OS_ERROR;
+			goto error;
+		}
+
+		DWORD bytesWritten;
+		if (!WriteFile (volume.HostFileHandle, buffer, sizeof (buffer), &bytesWritten, NULL))
+		{
+			nStatus = ERR_OS_ERROR;
+			goto error;
+		}
+	}
+	else
+	{
+		// Restore header from an external backup
+		
+		swprintf (szTmp, GetString ("CONFIRM_VOL_HEADER_RESTORE"), lpszVolume);
+
+		if (MessageBoxW (hwndDlg, szTmp, lpszTitle, YES_NO|MB_ICONWARNING|MB_DEFBUTTON2) == IDNO)
+		{
+			nStatus = ERR_SUCCESS;
+			goto ret;
+		}
+
+		/* Select backup file */
+		if (!BrowseFiles (hwndDlg, "OPEN_TITLE", szFileName, bHistory, FALSE))
+		{
+			nStatus = ERR_SUCCESS;
+			goto ret;
+		}
+
+		/* Open the backup file */
+		fBackup = CreateFile (szFileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+		if (fBackup == INVALID_HANDLE_VALUE)
+		{
+			nStatus = ERR_OS_ERROR;
+			goto error;
+		}
+
+		// Determine size of the backup file
+		LARGE_INTEGER backupSize;
+		if (!GetFileSizeEx (fBackup, &backupSize))
+		{
+			nStatus = ERR_OS_ERROR;
+			goto error;
+		}
+
+		CreateFullVolumePath (szDiskFile, lpszVolume, &bDevice);
+
+		if (bDevice == FALSE)
+			strcpy (szCFDevice, szDiskFile);
+		else
+		{
+			nDosLinkCreated = FakeDosNameForDevice (szDiskFile, szDosDevice, szCFDevice, FALSE);
+			if (nDosLinkCreated != 0)
+				goto error;
+		}
+
+		// Open the volume
+		dev = CreateFile (szCFDevice, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+
+		if (dev == INVALID_HANDLE_VALUE)
+		{
+			nStatus = ERR_OS_ERROR;
+			goto error;
+		}
+
+		// Determine volume host size
+		if (bDevice)
+		{
+			PARTITION_INFORMATION diskInfo;
+			DWORD dwResult;
+			BOOL bResult;
+
+			bResult = GetPartitionInfo (lpszVolume, &diskInfo);
+
+			if (bResult)
+			{
+				hostSize = diskInfo.PartitionLength.QuadPart;
+			}
+			else
+			{
+				DISK_GEOMETRY driveInfo;
+
+				bResult = DeviceIoControl (dev, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0,
+					&driveInfo, sizeof (driveInfo), &dwResult, NULL);
+
+				if (!bResult)
+					goto error;
+
+				hostSize = driveInfo.Cylinders.QuadPart * driveInfo.BytesPerSector *
+					driveInfo.SectorsPerTrack * driveInfo.TracksPerCylinder;
+			}
+
+			if (hostSize == 0)
+			{
+				nStatus =  ERR_VOL_SIZE_WRONG;
+				goto error;
+			}
+		}
+		else
+		{
+			LARGE_INTEGER fileSize;
+			if (!GetFileSizeEx (dev, &fileSize))
+			{
+				nStatus = ERR_OS_ERROR;
+				goto error;
+			}
+
+			hostSize = fileSize.QuadPart;
+		}
+
+		if (!bDevice && bPreserveTimestamp)
+		{
+			/* Remember the container modification/creation date and time. */
+
+			if (GetFileTime ((HANDLE) dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
+			{
+				bTimeStampValid = FALSE;
+				Warning ("GETFILETIME_FAILED_GENERIC");
+			}
+			else
+				bTimeStampValid = TRUE;
+		}
+
+		/* Read the volume header from the backup file */
+		char buffer[TC_VOLUME_HEADER_GROUP_SIZE];
+
+		DWORD bytesRead;
+		if (!ReadFile (fBackup, buffer, sizeof (buffer), &bytesRead, NULL))
+		{
+			nStatus = ERR_OS_ERROR;
+			goto error;
+		}
+
+		if (bytesRead != backupSize.QuadPart)
+		{
+			nStatus = ERR_VOL_SIZE_WRONG;
+			goto error;
+		}
+
+		LARGE_INTEGER headerOffset;
+		LARGE_INTEGER headerBackupOffset;
+		bool legacyBackup;
+		int headerOffsetBackupFile;
+		int headerSize;
+
+		// Determine the format of the backup file
+		switch (backupSize.QuadPart)
+		{
+		case TC_VOLUME_HEADER_GROUP_SIZE:
+			headerSize = TC_VOLUME_HEADER_EFFECTIVE_SIZE;
+			legacyBackup = false;
+			break;
+
+		case TC_VOLUME_HEADER_SIZE_LEGACY * 2:
+			headerSize = TC_VOLUME_HEADER_SIZE_LEGACY;
+			legacyBackup = true;
+			break;
+
+		default:
+			Error ("HEADER_BACKUP_SIZE_INCORRECT");
+			nStatus = ERR_SUCCESS;
+			goto error;
+		}
+
+		// Open the header
+		while (TRUE)
+		{
+			if (!AskVolumePassword (hwndDlg, &VolumePassword, "ENTER_HEADER_BACKUP_PASSWORD", FALSE))
+			{
+				nStatus = ERR_SUCCESS;
+				goto ret;
+			}
+
+			if (KeyFilesEnable && FirstKeyFile)
+				KeyFilesApply (&VolumePassword, FirstKeyFile);
+
+			// Decrypt volume header
+			headerOffsetBackupFile = 0;
+			for (int type = TC_VOLUME_TYPE_NORMAL; type <= TC_VOLUME_TYPE_HIDDEN; ++type)
+			{
+				if (type == TC_VOLUME_TYPE_HIDDEN)
+					headerOffsetBackupFile += (legacyBackup ? TC_VOLUME_HEADER_SIZE_LEGACY : TC_VOLUME_HEADER_SIZE);
+
+				nStatus = VolumeReadHeader (FALSE, buffer + headerOffsetBackupFile, &VolumePassword, &restoredCryptoInfo, NULL);
+				if (nStatus == ERR_SUCCESS)
+					break;
+			}
+
+			if (nStatus == ERR_SUCCESS)
+				break;
+
+			if (nStatus != ERR_PASSWORD_WRONG)
+				goto error;
+
+			handleError (hwndDlg, nStatus);
+		}
+
+		BOOL hiddenVol = restoredCryptoInfo->hiddenVolume;
+
+		if (legacyBackup)
+		{
+			headerOffset.QuadPart = hiddenVol ? hostSize - TC_HIDDEN_VOLUME_HEADER_OFFSET_LEGACY : TC_VOLUME_HEADER_OFFSET;
+		}
+		else
+		{
+			headerOffset.QuadPart = hiddenVol ? TC_HIDDEN_VOLUME_HEADER_OFFSET : TC_VOLUME_HEADER_OFFSET;
+			headerBackupOffset.QuadPart = hiddenVol ? hostSize - TC_VOLUME_HEADER_SIZE : hostSize - TC_VOLUME_HEADER_GROUP_SIZE;
+		}
+
+		WaitCursor();
+
+		// Restore header encrypted with a new key
+		ReEncryptVolumeHeader (buffer, FALSE, restoredCryptoInfo, &VolumePassword, FALSE);
+
+		if (!SetFilePointerEx (dev, headerOffset, NULL, FILE_BEGIN))
+		{
+			nStatus = ERR_OS_ERROR;
+			goto error;
+		}
+
+		DWORD bytesWritten;
+		if (!WriteFile (dev, buffer, TC_VOLUME_HEADER_EFFECTIVE_SIZE, &bytesWritten, NULL))
+		{
+			nStatus = ERR_OS_ERROR;
+			goto error;
+		}
+
+		if (!restoredCryptoInfo->LegacyVolume)
+		{
+			// Restore backup header encrypted with a new key
+			ReEncryptVolumeHeader (buffer, FALSE, restoredCryptoInfo, &VolumePassword, FALSE);
+
+			if (!SetFilePointerEx (dev, headerBackupOffset, NULL, FILE_BEGIN))
+			{
+				nStatus = ERR_OS_ERROR;
+				goto error;
+			}
+
+			if (!WriteFile (dev, buffer, TC_VOLUME_HEADER_EFFECTIVE_SIZE, &bytesWritten, NULL))
+			{
+				nStatus = ERR_OS_ERROR;
+				goto error;
+			}
+		}
+	}
+
+
+	/* Volume header has been successfully restored */
+
+	Info("VOL_HEADER_RESTORED");
+ret:
+	nStatus = ERR_SUCCESS;
+
+error:
+	dwError = GetLastError ();
+	NormalCursor();
+
+	if (restoreInternalBackup)
+	{
+		CloseVolume (&volume);
+	}
+	else
+	{
+		if (restoredCryptoInfo)
+			crypto_close (restoredCryptoInfo);
+
+		if (bTimeStampValid)
+		{
+			// Restore the container timestamp (to preserve plausible deniability of possible hidden volume). 
+			if (SetFileTime (dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
+				MessageBoxW (hwndDlg, GetString ("SETFILETIME_FAILED_PW"), L"TrueCrypt", MB_OK | MB_ICONEXCLAMATION);
+		}
+
+		if (dev != INVALID_HANDLE_VALUE)
+			CloseHandle (dev);
+
+		if (fBackup != INVALID_HANDLE_VALUE)
+			CloseHandle (fBackup);
+
+		if (nDosLinkCreated == 0)
+			RemoveFakeDosName (szDiskFile, szDosDevice);
+	}
+
+	SetLastError (dwError);
+	if (nStatus != 0)
+		handleError (hwndDlg, nStatus);
+
+	burn (&VolumePassword, sizeof (VolumePassword));
+	return nStatus;
 }

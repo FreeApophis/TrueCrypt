@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2004-2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -13,18 +13,37 @@ BOOL ReadLocalMachineRegistryDword (char *subKey, char *name, DWORD *value)
 {
 	HKEY hkey = 0;
 	DWORD size = sizeof (*value);
+	DWORD type;
 
 	if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, subKey, 0, KEY_READ, &hkey) != ERROR_SUCCESS)
 		return FALSE;
 
-	if (RegQueryValueEx (hkey, name, NULL, NULL, (BYTE *) value, &size) != ERROR_SUCCESS)
+	if (RegQueryValueEx (hkey, name, NULL, &type, (BYTE *) value, &size) != ERROR_SUCCESS)
 	{
 		RegCloseKey (hkey);
 		return FALSE;
 	}
 
 	RegCloseKey (hkey);
-	return TRUE;
+	return type == REG_DWORD;
+}
+
+BOOL ReadLocalMachineRegistryMultiString (char *subKey, char *name, char *value, DWORD *size)
+{
+	HKEY hkey = 0;
+	DWORD type;
+
+	if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, subKey, 0, KEY_READ, &hkey) != ERROR_SUCCESS)
+		return FALSE;
+
+	if (RegQueryValueEx (hkey, name, NULL, &type, (BYTE *) value, size) != ERROR_SUCCESS)
+	{
+		RegCloseKey (hkey);
+		return FALSE;
+	}
+
+	RegCloseKey (hkey);
+	return type == REG_MULTI_SZ;
 }
 
 int ReadRegistryInt (char *subKey, char *name, int defaultValue)
@@ -93,14 +112,43 @@ BOOL WriteLocalMachineRegistryDword (char *subKey, char *name, DWORD value)
 {
 	HKEY hkey = 0;
 	DWORD disp;
+	LONG status;
 
-	if (RegCreateKeyEx (HKEY_LOCAL_MACHINE, subKey,
-		0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hkey, &disp) != ERROR_SUCCESS)
+	if ((status = RegCreateKeyEx (HKEY_LOCAL_MACHINE, subKey,
+		0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hkey, &disp)) != ERROR_SUCCESS)
+	{
+		SetLastError (status);
 		return FALSE;
+	}
 
-	if (RegSetValueEx (hkey, name, 0, REG_DWORD, (BYTE *) &value, sizeof value) != ERROR_SUCCESS)
+	if ((status = RegSetValueEx (hkey, name, 0, REG_DWORD, (BYTE *) &value, sizeof value)) != ERROR_SUCCESS)
 	{
 		RegCloseKey (hkey);
+		SetLastError (status);
+		return FALSE;
+	}
+
+	RegCloseKey (hkey);
+	return TRUE;
+}
+
+BOOL WriteLocalMachineRegistryMultiString (char *subKey, char *name, char *multiString, DWORD size)
+{
+	HKEY hkey = 0;
+	DWORD disp;
+	LONG status;
+
+	if ((status = RegCreateKeyEx (HKEY_LOCAL_MACHINE, subKey,
+		0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hkey, &disp)) != ERROR_SUCCESS)
+	{
+		SetLastError (status);
+		return FALSE;
+	}
+
+	if ((status = RegSetValueEx (hkey, name, 0, REG_MULTI_SZ, (BYTE *) multiString, size)) != ERROR_SUCCESS)
+	{
+		RegCloseKey (hkey);
+		SetLastError (status);
 		return FALSE;
 	}
 

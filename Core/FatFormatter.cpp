@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.4 the full text of which is contained in the
+ by the TrueCrypt License 2.5 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -13,6 +13,7 @@
 #include "Common/Tcdefs.h"
 #include "Platform/Platform.h"
 #include "FatFormatter.h"
+#include "RandomNumberGenerator.h"
 
 namespace TrueCrypt
 {
@@ -24,7 +25,6 @@ namespace TrueCrypt
 		uint32 size_root_dir;	/* size of the root directory in bytes */
 		uint32 size_fat;		/* size of FAT */
 		uint32 fats;
-		uint32 create_time;
 		uint32 media;
 		uint32 cluster_size;
 		uint32 fat_length;
@@ -69,7 +69,6 @@ namespace TrueCrypt
 
 		ft->dir_entries = 512;
 		ft->fats = 2;
-		ft->create_time = (uint32) time (NULL);
 		ft->media = 0xf8;
 		ft->sector_size = SECTOR_SIZE;
 		ft->hidden = 0;
@@ -186,8 +185,10 @@ namespace TrueCrypt
 		boot[cnt++] = 0x00;	/* drive number */   // FIXED 80 > 00
 		boot[cnt++] = 0x00;	/* reserved */
 		boot[cnt++] = 0x29;	/* boot sig */
-		*(int32 *)(boot + cnt) = Endian::Little (ft->create_time);	/* vol id */
+
+		RandomNumberGenerator::GetDataFast (BufferPtr (boot + cnt, 4));	/* vol id */
 		cnt += 4;
+
 		memcpy (boot + cnt, ft->volume_name, 11);	/* vol title */
 		cnt += 11;
 
@@ -207,7 +208,7 @@ namespace TrueCrypt
 
 
 	/* FAT32 FSInfo */
-	static void PutFSInfo (byte *sector)
+	static void PutFSInfo (byte *sector, fatparams *ft)
 	{
 		memset (sector, 0, 512);
 		sector[3] = 0x41; /* LeadSig */
@@ -218,10 +219,10 @@ namespace TrueCrypt
 		sector[484+2] = 0x41; 
 		sector[484+1] = 0x72; 
 		sector[484+0] = 0x72; 
-		sector[488+3] = 0xff; /* Free_Count */
-		sector[488+2] = 0xff;
-		sector[488+1] = 0xff;
-		sector[488+0] = 0xff;
+
+		// Free cluster count
+		*(uint32 *)(sector + 488) = Endian::Little (ft->cluster_count - ft->size_root_dir / SECTOR_SIZE / ft->cluster_size);
+
 		sector[492+3] = 0xff; /* Nxt_Free */
 		sector[492+2] = 0xff;
 		sector[492+1] = 0xff;
@@ -259,7 +260,7 @@ namespace TrueCrypt
 		if (ft->size_fat == 32)				
 		{
 			/* fsinfo */
-			PutFSInfo((byte *) sector);
+			PutFSInfo((byte *) sector, ft);
 			writeSector (sector); ++sectorNumber;
 
 			/* reserved */
@@ -276,7 +277,7 @@ namespace TrueCrypt
 			PutBoot (ft, (byte *) sector);
 			writeSector (sector); ++sectorNumber;
 
-			PutFSInfo((byte *) sector);
+			PutFSInfo((byte *) sector, ft);
 			writeSector (sector); ++sectorNumber;
 		}
 

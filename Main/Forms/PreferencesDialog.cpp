@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -50,20 +50,22 @@ namespace TrueCrypt
 		DefaultKeyfilesSizer->Add (DefaultKeyfilesPanel, 1, wxALL | wxEXPAND);
 		DefaultKeyfilesSizer->Layout();
 
-		// System integration
 		TC_CHECK_BOX_VALIDATOR (BackgroundTaskEnabled);
 		TC_CHECK_BOX_VALIDATOR (CloseBackgroundTaskOnNoVolumes);
+		CloseBackgroundTaskOnNoVolumesCheckBox->Show (!Core->IsInTravelMode());
 		TC_CHECK_BOX_VALIDATOR (BackgroundTaskMenuDismountItemsEnabled);
 		TC_CHECK_BOX_VALIDATOR (BackgroundTaskMenuMountItemsEnabled);
 		TC_CHECK_BOX_VALIDATOR (BackgroundTaskMenuOpenItemsEnabled);
 
+		// System integration
 		TC_CHECK_BOX_VALIDATOR (StartOnLogon);
 		TC_CHECK_BOX_VALIDATOR (MountDevicesOnLogon);
 		TC_CHECK_BOX_VALIDATOR (MountFavoritesOnLogon);
 
-		CloseBackgroundTaskOnNoVolumesCheckBox->Show (!Core->IsInTravelMode());
 		TC_CHECK_BOX_VALIDATOR (CloseExplorerWindowsOnDismount);
 		TC_CHECK_BOX_VALIDATOR (OpenExplorerWindowAfterMount);
+
+		NoKernelCryptoCheckBox->SetValidator (wxGenericValidator (&Preferences.DefaultMountOptions.NoKernelCrypto));
 
 #ifdef TC_WINDOWS
 		// Hotkeys
@@ -93,7 +95,6 @@ namespace TrueCrypt
 
 #ifdef TC_MACOSX
 		DismountOnScreenSaverCheckBox->Show (false);
-		FilesystemSecuritySizer->Show (false);
 		DismountOnLogOffCheckBox->SetLabel (_("TrueCrypt quits"));
 		OpenExplorerWindowAfterMountCheckBox->SetLabel (_("Open Finder window for successfully mounted volume"));
 
@@ -101,6 +102,10 @@ namespace TrueCrypt
 		FilesystemSizer->Show (false);
 		LogOnSizer->Show (false);
 		CloseExplorerWindowsOnDismountCheckBox->Show (false);
+#endif
+
+#ifndef TC_LINUX
+		KernelServicesSizer->Show (false);
 #endif
 
 #ifdef TC_WINDOWS
@@ -246,6 +251,12 @@ namespace TrueCrypt
 	{
 		if (!event.IsChecked())
 			BackgroundTaskEnabledCheckBox->SetValue (!Gui->AskYesNo (LangString["CONFIRM_BACKGROUND_TASK_DISABLED"], false, true));
+	}
+
+	void PreferencesDialog::OnNoKernelCryptoCheckBoxClick (wxCommandEvent& event)
+	{
+		if (event.IsChecked())
+			NoKernelCryptoCheckBox->SetValue (Gui->AskYesNo (_("Disabling the use of kernel cryptographic services can degrade performance.\n\nAre you sure?"), false, true));
 	}
 
 	void PreferencesDialog::OnClose (wxCloseEvent& event)

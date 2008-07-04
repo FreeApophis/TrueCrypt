@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -69,6 +69,7 @@ namespace TrueCrypt
 			SetValue (configMap[L"CachePasswords"], DefaultMountOptions.CachePassword);
 			TC_CONFIG_SET (CloseBackgroundTaskOnNoVolumes);
 			TC_CONFIG_SET (CloseExplorerWindowsOnDismount);
+			TC_CONFIG_SET (DisableKernelEncryptionModeWarning);
 			TC_CONFIG_SET (DismountOnInactivity);
 			TC_CONFIG_SET (DismountOnLogOff);
 			TC_CONFIG_SET (DismountOnPowerSaving);
@@ -87,6 +88,7 @@ namespace TrueCrypt
 			DefaultMountOptions.Protection = readOnly ? VolumeProtection::ReadOnly : VolumeProtection::None;
 
 			SetValue (configMap[L"MountVolumesRemovable"], DefaultMountOptions.Removable);
+			SetValue (configMap[L"NoKernelCrypto"], DefaultMountOptions.NoKernelCrypto);
 			TC_CONFIG_SET (OpenExplorerWindowAfterMount);
 			SetValue (configMap[L"PreserveTimestamps"], DefaultMountOptions.PreserveTimestamps);
 			TC_CONFIG_SET (SaveHistory);
@@ -164,6 +166,7 @@ namespace TrueCrypt
 		formatter.AddEntry (L"CachePasswords", DefaultMountOptions.CachePassword);
 		TC_CONFIG_ADD (CloseBackgroundTaskOnNoVolumes);
 		TC_CONFIG_ADD (CloseExplorerWindowsOnDismount);
+		TC_CONFIG_ADD (DisableKernelEncryptionModeWarning);
 		TC_CONFIG_ADD (DismountOnInactivity);
 		TC_CONFIG_ADD (DismountOnLogOff);
 		TC_CONFIG_ADD (DismountOnPowerSaving);
@@ -178,6 +181,7 @@ namespace TrueCrypt
 		TC_CONFIG_ADD (MountFavoritesOnLogon);
 		formatter.AddEntry (L"MountVolumesReadOnly", DefaultMountOptions.Protection == VolumeProtection::ReadOnly);
 		formatter.AddEntry (L"MountVolumesRemovable", DefaultMountOptions.Removable);
+		formatter.AddEntry (L"NoKernelCrypto", DefaultMountOptions.NoKernelCrypto);
 		TC_CONFIG_ADD (OpenExplorerWindowAfterMount);
 		formatter.AddEntry (L"PreserveTimestamps", DefaultMountOptions.PreserveTimestamps);
 		TC_CONFIG_ADD (SaveHistory);

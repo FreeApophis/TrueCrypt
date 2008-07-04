@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -23,11 +23,13 @@ namespace TrueCrypt
 			:
 			CachePassword (false),
 			NoFilesystem (false),
+			NoKernelCrypto (false),
 			PreserveTimestamps (true),
 			Protection (VolumeProtection::None),
 			Removable (false),
 			SharedAccessAllowed (false),
-			SlotNumber (0)
+			SlotNumber (0),
+			UseBackupHeaders (false)
 		{
 		}
 
@@ -44,6 +46,7 @@ namespace TrueCrypt
 		shared_ptr <KeyfileList> Keyfiles;
 		shared_ptr <DirectoryPath> MountPoint;
 		bool NoFilesystem;
+		bool NoKernelCrypto;
 		shared_ptr <VolumePassword> Password;
 		shared_ptr <VolumePath> Path;
 		bool PreserveTimestamps;
@@ -53,6 +56,7 @@ namespace TrueCrypt
 		bool Removable;
 		bool SharedAccessAllowed;
 		VolumeSlotNumber SlotNumber;
+		bool UseBackupHeaders;
 
 	protected:
 		void CopyFrom (const MountOptions &other);

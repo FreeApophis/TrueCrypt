@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.4 the full text of which is contained
+ Governed by the TrueCrypt License 2.5 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -31,6 +31,8 @@ namespace TrueCrypt
 	TC_EXCEPTION_NODECL (RootDeviceUnavailable); \
 	TC_EXCEPTION (DriveLetterUnavailable); \
 	TC_EXCEPTION (DriverError); \
+	TC_EXCEPTION (EncryptedSystemRequired); \
+	TC_EXCEPTION (HigherFuseVersionRequired); \
 	TC_EXCEPTION (MountPointRequired); \
 	TC_EXCEPTION (MountPointUnavailable); \
 	TC_EXCEPTION (NoDriveLetterAvailable); \

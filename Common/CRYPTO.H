@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.4 the full text of which is contained in the
+ by the TrueCrypt License 2.5 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -45,23 +45,6 @@ extern "C" {
 // Size of the deprecated volume header item containing either an IV seed (CBC mode) or tweak key (LRW mode)
 #define LEGACY_VOL_IV_SIZE			32
 
-// Volume header byte offsets
-#define	HEADER_SALT_OFFSET					0
-#define HEADER_ENCRYPTED_DATA_OFFSET		PKCS5_SALT_SIZE
-#define	HEADER_MASTER_KEYDATA_OFFSET		256
-
-// Volume header sizes
-#define HEADER_SIZE					512
-#define HEADER_ENCRYPTED_DATA_SIZE	(HEADER_SIZE - HEADER_ENCRYPTED_DATA_OFFSET)
-
-/* The offset, in bytes, of the hidden volume header position from the end of the file (a positive value).
-   The extra offset (SECTOR_SIZE * 2) was added because FAT file system fills the last sector with zeroes
-   (marked as free; observed when quick format was performed using the OS format tool). One extra sector was
-   added to the offset for future expandability (should the header size increase, or should header backup be
-   introduced). */
-#define HIDDEN_VOL_HEADER_OFFSET	(HEADER_SIZE + SECTOR_SIZE * 2)		
-
-	
 // The first PRF to try when mounting
 #define FIRST_PRF_ID		1	
 
@@ -189,7 +172,11 @@ typedef struct
 
 #endif
 
-#define PRAND_DISK_WIPE_PASSES	200
+#ifdef DEBUG
+#	define PRAND_DISK_WIPE_PASSES	3
+#else
+#	define PRAND_DISK_WIPE_PASSES	100
+#endif
 
 #if !defined (TC_WINDOWS_BOOT) || defined (TC_WINDOWS_BOOT_AES)
 #	include "Aes.h"
@@ -229,6 +216,8 @@ typedef struct CRYPTO_INFO_t
 	unsigned __int8 ks[MAX_EXPANDED_KEY];	/* Primary key schedule (if it is a cascade, it conatins multiple concatenated keys) */
 	unsigned __int8 ks2[MAX_EXPANDED_KEY];	/* Secondary key schedule (if cascade, multiple concatenated) for XTS mode. */
 
+	BOOL hiddenVolume;						// Indicates whether the volume is mounted/mountable as hidden volume
+
 #ifndef TC_WINDOWS_BOOT
 	GfCtx gf_ctx; 
 
@@ -242,23 +231,30 @@ typedef struct CRYPTO_INFO_t
 	unsigned __int64 header_creation_time;
 
 	// Hidden volume status & parameters
-	BOOL hiddenVolume;					// Indicates whether the volume is mounted/mountable as hidden volume
 	BOOL bProtectHiddenVolume;			// Indicates whether the volume contains a hidden volume to be protected against overwriting
 	BOOL bHiddenVolProtectionAction;		// TRUE if a write operation has been denied by the driver in order to prevent the hidden volume from being overwritten (set to FALSE upon volume mount).
+	
+	unsigned __int64 volDataAreaOffset;		// Absolute position, in bytes, of the first data sector of the volume.
 
 	unsigned __int64 hiddenVolumeSize;		// Size of the hidden volume excluding the header (in bytes). Set to 0 for standard volumes.
 	unsigned __int64 hiddenVolumeOffset;	// Absolute position, in bytes, of the first hidden volume data sector within the host volume (provided that there is a hidden volume within). This must be set for all hidden volumes; in case of a normal volume, this variable is only used when protecting a hidden volume within it.
-	unsigned __int64 volDataAreaOffset;		// Absolute position, in bytes, of the first data sector of the volume.
+	unsigned __int64 hiddenVolumeProtectedSize;
 
 	BOOL bPartitionInInactiveSysEncScope;	// If TRUE, the volume is a partition located on an encrypted system drive and mounted without pre-boot authentication.
 
 	UINT64_STRUCT FirstDataUnitNo;			// First data unit number of the volume. This is 0 for file-hosted and non-system partition-hosted volumes. For partitions within key scope of system encryption this reflects real physical offset within the device (this is used e.g. when such a partition is mounted as a regular volume without pre-boot authentication).
+
+	uint16 RequiredProgramVersion;
+	BOOL LegacyVolume;
+
 #endif // TC_WINDOWS_BOOT
 
 	UINT64_STRUCT VolumeSize;
 
 	UINT64_STRUCT EncryptedAreaStart;
 	UINT64_STRUCT EncryptedAreaLength;
+
+	uint32 HeaderFlags;
 
 } CRYPTO_INFO, *PCRYPTO_INFO;
 
@@ -273,7 +269,7 @@ char * CipherGetName (int cipher);
 
 int CipherInit (int cipher, unsigned char *key, unsigned char *ks);
 int EAInit (int ea, unsigned char *key, unsigned char *ks);
-int EAInitMode (PCRYPTO_INFO ci);
+BOOL EAInitMode (PCRYPTO_INFO ci);
 void EncipherBlock(int cipher, void *data, void *ks);
 void DecipherBlock(int cipher, void *data, void *ks);
 
@@ -304,7 +300,9 @@ BOOL HashIsDeprecated (int hashId);
 int GetMaxPkcs5OutSize (void);
 
 void EncryptDataUnits (unsigned __int8 *buf, const UINT64_STRUCT *structUnitNo, TC_LARGEST_COMPILER_UINT nbrUnits, PCRYPTO_INFO ci);
+void EncryptDataUnitsCurrentThread (unsigned __int8 *buf, const UINT64_STRUCT *structUnitNo, TC_LARGEST_COMPILER_UINT nbrUnits, PCRYPTO_INFO ci);
 void DecryptDataUnits (unsigned __int8 *buf, const UINT64_STRUCT *structUnitNo, TC_LARGEST_COMPILER_UINT nbrUnits, PCRYPTO_INFO ci);
+void DecryptDataUnitsCurrentThread (unsigned __int8 *buf, const UINT64_STRUCT *structUnitNo, TC_LARGEST_COMPILER_UINT nbrUnits, PCRYPTO_INFO ci);
 void EncryptBuffer (unsigned __int8 *buf, TC_LARGEST_COMPILER_UINT len, PCRYPTO_INFO cryptoInfo);
 void DecryptBuffer (unsigned __int8 *buf, TC_LARGEST_COMPILER_UINT len, PCRYPTO_INFO cryptoInfo);
 #ifndef TC_NO_COMPILER_INT64
