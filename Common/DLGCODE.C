@@ -6070,10 +6070,9 @@ BOOL IsNonInstallMode ()
 			char path[MAX_PATH * 2] = { 0 };
 
 			// We can't use GetConfigPath() here because it would call us back (indirect recursion)
-			if (SUCCEEDED(SHGetFolderPath (NULL, CSIDL_APPDATA | CSIDL_FLAG_CREATE, NULL, 0, path)))
+			if (SUCCEEDED(SHGetFolderPath (NULL, CSIDL_APPDATA, NULL, 0, path)))
 			{
 				strcat (path, "\\TrueCrypt\\");
-				CreateDirectory (path, NULL);
 				strcat (path, FILE_SYSTEM_ENCRYPTION_CFG);
 
 				if (FileExists (path))
@@ -7442,15 +7441,35 @@ BOOL IsPagingFileActive ()
 	DWORD size = sizeof (data);
 	
 	if (ReadLocalMachineRegistryMultiString ("System\\CurrentControlSet\\Control\\Session Manager\\Memory Management", "PagingFiles", data, &size)
-		&& size > 6)
+		&& size > 12)
 		return TRUE;
 
 	for (char drive = 'C'; drive <= 'Z'; ++drive)
 	{
+		// Query geometry of the drive first to prevent "no medium" pop-ups
+		string drivePath = "\\\\.\\X:";
+		drivePath[4] = drive;
+		HANDLE handle = CreateFile (drivePath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+		
+		if (handle == INVALID_HANDLE_VALUE)
+			continue;
+
+		DISK_GEOMETRY driveInfo;
+		DWORD dwResult;
+
+		if (!DeviceIoControl (handle, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0, &driveInfo, sizeof (driveInfo), &dwResult, NULL))
+		{
+			CloseHandle (handle);
+			continue;
+		}
+
+		CloseHandle (handle);
+
+		// Test if a paging file exists and is locked by another process
 		string path = "X:\\pagefile.sys";
 		path[0] = drive;
 
-		HANDLE handle = CreateFile (path.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+		handle = CreateFile (path.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 		
 		if (handle != INVALID_HANDLE_VALUE)
 			CloseHandle (handle);

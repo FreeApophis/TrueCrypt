@@ -11,25 +11,7 @@
 
 #include "TCdefs.h"
 
-typedef struct
-{
-	BOOL bRootDevice;
-	BOOL IsVolumeDevice;
-	BOOL IsDriveFilterDevice;
-	BOOL IsVolumeFilterDevice;
-	
-	BOOL AttachedToDrive;
-
-	PDEVICE_OBJECT DeviceObject;
-	PDEVICE_OBJECT LowerDeviceObject;
-	PDEVICE_OBJECT Pdo;
-	
-	IO_REMOVE_LOCK RemoveLock;
-
-} VolumeFilterExtension;
-
 extern uint32 HiddenSysLeakProtectionCount;
-
 
 NTSTATUS VolumeFilterAddDevice (PDRIVER_OBJECT driverObject, PDEVICE_OBJECT pdo);
 NTSTATUS VolumeFilterDispatchIrp (PDEVICE_OBJECT DeviceObject, PIRP Irp);

@@ -142,6 +142,14 @@ static void localcleanup (void)
 		hbmLogoBitmapRescaled = NULL;
 	}
 
+	/* These items should have already been cleared by the functions that used them, but we're going to
+	clear them for extra security. */
+	burn (&VolumePassword, sizeof (VolumePassword));
+	burn (&CmdVolumePassword, sizeof (CmdVolumePassword));
+	burn (&mountOptions, sizeof (mountOptions));
+	burn (&defaultMountOptions, sizeof (defaultMountOptions));
+	burn (&szFileName, sizeof(szFileName));
+
 	/* Cleanup common code resources */
 	cleanup ();
 
@@ -6142,6 +6150,7 @@ int WINAPI WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszComm
 	VirtualLock (&CmdVolumePassword, sizeof (CmdVolumePassword));
 	VirtualLock (&mountOptions, sizeof (mountOptions));
 	VirtualLock (&defaultMountOptions, sizeof (defaultMountOptions));
+	VirtualLock (&szFileName, sizeof(szFileName));
 
 	try
 	{

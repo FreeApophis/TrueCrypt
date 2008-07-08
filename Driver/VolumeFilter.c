@@ -12,6 +12,8 @@
 #include "DriveFilter.h"
 #include "VolumeFilter.h"
 
+typedef DriveFilterExtension VolumeFilterExtension;
+
 static PDEVICE_OBJECT SystemVolumePdo = NULL;
 
 // Number of times the filter driver answered that an unencrypted volume
@@ -50,9 +52,8 @@ NTSTATUS VolumeFilterAddDevice (PDRIVER_OBJECT driverObject, PDEVICE_OBJECT pdo)
 	Extension->IsVolumeFilterDevice = TRUE;
 	Extension->DeviceObject = filterDeviceObject;
 	Extension->Pdo = pdo;
-	Extension->AttachedToDrive = FALSE;
 
-	IoInitializeRemoveLock (&Extension->RemoveLock, 'LRCT', 0, 0);
+	IoInitializeRemoveLock (&Extension->Queue.RemoveLock, 'LRCT', 0, 0);
 
 	filterDeviceObject->Flags |= Extension->LowerDeviceObject->Flags & (DO_DIRECT_IO | DO_BUFFERED_IO | DO_POWER_PAGABLE);
 	filterDeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
@@ -100,7 +101,7 @@ static NTSTATUS OnDeviceUsageNotificationCompleted (PDEVICE_OBJECT filterDeviceO
 	if (!(Extension->LowerDeviceObject->Flags & DO_POWER_PAGABLE))
 		filterDeviceObject->Flags &= ~DO_POWER_PAGABLE;
 
-	IoReleaseRemoveLock (&Extension->RemoveLock, Irp);
+	IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
 	return STATUS_CONTINUE_COMPLETION;
 }
 
@@ -113,7 +114,7 @@ static NTSTATUS OnStartDeviceCompleted (PDEVICE_OBJECT filterDeviceObject, PIRP 
 	if (Extension->LowerDeviceObject->Characteristics & FILE_REMOVABLE_MEDIA)
 		filterDeviceObject->Characteristics |= FILE_REMOVABLE_MEDIA;
 
-	IoReleaseRemoveLock (&Extension->RemoveLock, Irp);
+	IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
 	return STATUS_CONTINUE_COMPLETION;
 }
 
@@ -134,7 +135,7 @@ static NTSTATUS DispatchControl (PDEVICE_OBJECT DeviceObject, PIRP Irp, VolumeFi
 				SystemVolumePdo = Extension->Pdo;
 				Dump ("System volume pdo=%p\n", SystemVolumePdo);
 			}
-			else if (Extension->Pdo != SystemVolumePdo && !Extension->AttachedToDrive)
+			else if (Extension->Pdo != SystemVolumePdo)
 			{
 				// Volumes other than the system volume must be presented as read-only
 				Dump ("STATUS_MEDIA_WRITE_PROTECTED pdo=%p\n", Extension->Pdo);
@@ -153,15 +154,11 @@ static NTSTATUS DispatchControl (PDEVICE_OBJECT DeviceObject, PIRP Irp, VolumeFi
 
 			// Probe the real state of the device as the user is mounting a TrueCrypt volume.
 
-			// Windows re-adds a newly discovered drive after the user logs on. The re-added drive has the DeviceType set to
-			// FILE_DEVICE_DISK instead of FILE_DEVICE_MASS_STORAGE, which results in the volume filter being attached to a drive.
-			// Therefore, we first need to test if our TC_IOCTL_DISK_IS_WRITABLE works for the underlying device.
-
+			// First test if our TC_IOCTL_DISK_IS_WRITABLE works for the underlying device.
 			status = SendDeviceIoControlRequest (Extension->LowerDeviceObject, TC_IOCTL_DISK_IS_WRITABLE, NULL, 0, NULL, 0);
 			if (NT_SUCCESS (status) || status == STATUS_MEDIA_WRITE_PROTECTED)
 			{
 				Dump ("Volume filter attached to a drive pdo=%p\n", Extension->Pdo);
-				Extension->AttachedToDrive = TRUE;
 				return TCCompleteDiskIrp (Irp, status, 0);
 			}
 
@@ -178,7 +175,7 @@ static NTSTATUS DispatchPnp (PDEVICE_OBJECT DeviceObject, PIRP Irp, VolumeFilter
 {
 	NTSTATUS status;
 
-	status = IoAcquireRemoveLock (&Extension->RemoveLock, Irp);
+	status = IoAcquireRemoveLock (&Extension->Queue.RemoveLock, Irp);
 	if (!NT_SUCCESS (status))
 		return TCCompleteIrp (Irp, status, Irp->IoStatus.Information);
 
@@ -205,7 +202,7 @@ static NTSTATUS DispatchPnp (PDEVICE_OBJECT DeviceObject, PIRP Irp, VolumeFilter
 	case IRP_MN_REMOVE_DEVICE:
 		Dump ("IRP_MN_REMOVE_DEVICE volume pdo=%p\n", Extension->Pdo);
 
-		IoReleaseRemoveLockAndWait (&Extension->RemoveLock, Irp);
+		IoReleaseRemoveLockAndWait (&Extension->Queue.RemoveLock, Irp);
 		status = PassIrp (Extension->LowerDeviceObject, Irp);
 
 		IoDetachDevice (Extension->LowerDeviceObject);
@@ -218,7 +215,7 @@ static NTSTATUS DispatchPnp (PDEVICE_OBJECT DeviceObject, PIRP Irp, VolumeFilter
 
 	default:
 		status = PassIrp (Extension->LowerDeviceObject, Irp);
-		IoReleaseRemoveLock (&Extension->RemoveLock, Irp);
+		IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
 	}
 
 	return status;
@@ -230,14 +227,14 @@ static NTSTATUS DispatchPower (PDEVICE_OBJECT DeviceObject, PIRP Irp, VolumeFilt
 	NTSTATUS status;
 	PoStartNextPowerIrp (Irp);
 
-	status = IoAcquireRemoveLock (&Extension->RemoveLock, Irp);
+	status = IoAcquireRemoveLock (&Extension->Queue.RemoveLock, Irp);
 	if (!NT_SUCCESS (status))
 		return TCCompleteIrp (Irp, status, Irp->IoStatus.Information);
 
 	IoSkipCurrentIrpStackLocation (Irp);
 	status = PoCallDriver (Extension->LowerDeviceObject, Irp);
 
-	IoReleaseRemoveLock (&Extension->RemoveLock, Irp);
+	IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
 	return status;
 }
 

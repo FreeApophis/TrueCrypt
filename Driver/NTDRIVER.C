@@ -120,10 +120,10 @@ NTSTATUS DriverAddDevice (PDRIVER_OBJECT driverObject, PDEVICE_OBJECT pdo)
 		}
 	}
 
-	if (pdo->DeviceType == FILE_DEVICE_MASS_STORAGE && !volumeDevice)
-		return DriveFilterAddDevice (driverObject, pdo);
+	if (volumeDevice)
+		return VolumeFilterAddDevice (driverObject, pdo);
 
-	return VolumeFilterAddDevice (driverObject, pdo);
+	return DriveFilterAddDevice (driverObject, pdo);
 }
 
 

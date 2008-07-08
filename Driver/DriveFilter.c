@@ -422,9 +422,45 @@ static NTSTATUS OnDeviceUsageNotificationCompleted (PDEVICE_OBJECT filterDeviceO
 }
 
 
+static BOOL IsVolumeDevice (PDEVICE_OBJECT deviceObject)
+{
+	VOLUME_NUMBER volNumber;
+	VOLUME_DISK_EXTENTS extents[16];
+
+	return NT_SUCCESS (SendDeviceIoControlRequest (deviceObject, IOCTL_VOLUME_SUPPORTS_ONLINE_OFFLINE, NULL, 0,  NULL, 0))
+		|| NT_SUCCESS (SendDeviceIoControlRequest (deviceObject, IOCTL_VOLUME_IS_OFFLINE, NULL, 0,  NULL, 0))
+		|| NT_SUCCESS (SendDeviceIoControlRequest (deviceObject, IOCTL_VOLUME_IS_IO_CAPABLE, NULL, 0,  NULL, 0))
+		|| NT_SUCCESS (SendDeviceIoControlRequest (deviceObject, IOCTL_VOLUME_IS_PARTITION, NULL, 0,  NULL, 0))
+		|| NT_SUCCESS (SendDeviceIoControlRequest (deviceObject, IOCTL_VOLUME_QUERY_VOLUME_NUMBER, NULL, 0, &volNumber, sizeof (volNumber)))
+		|| NT_SUCCESS (SendDeviceIoControlRequest (deviceObject, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, NULL, 0, extents, sizeof (extents)));
+}
+
+
+static void CheckDeviceTypeAndMount (DriveFilterExtension *filterExtension)
+{
+	if (BootArgsValid)
+	{
+		if (BootArgs.HiddenSystemPartitionStart != 0 && IsVolumeDevice (filterExtension->LowerDeviceObject))
+		{
+			Dump ("Drive filter attached to a volume pdo=%p", filterExtension->Pdo);
+
+			if (filterExtension->QueueStarted && EncryptedIoQueueIsRunning (&filterExtension->Queue))
+				EncryptedIoQueueStop (&filterExtension->Queue);
+
+			filterExtension->IsVolumeFilterDevice = TRUE;
+			filterExtension->IsDriveFilterDevice = FALSE;
+		}
+		else if (!BootDriveFound)
+		{
+			MountDrive (filterExtension, &BootArgs.BootPassword, &BootArgs.HeaderSaltCrc32);
+		}
+	}
+}
+
+
 static VOID MountDriveWorkItemRoutine (PDEVICE_OBJECT deviceObject, DriveFilterExtension *filterExtension)
 {
-	MountDrive (filterExtension, &BootArgs.BootPassword, &BootArgs.HeaderSaltCrc32);
+	CheckDeviceTypeAndMount (filterExtension);
 	KeSetEvent (&filterExtension->MountWorkItemCompletedEvent, IO_NO_INCREMENT, FALSE);
 }
 
@@ -437,24 +473,24 @@ static NTSTATUS OnStartDeviceCompleted (PDEVICE_OBJECT filterDeviceObject, PIRP 
 	if (Extension->LowerDeviceObject->Characteristics & FILE_REMOVABLE_MEDIA)
 		filterDeviceObject->Characteristics |= FILE_REMOVABLE_MEDIA;
 
-	if (BootArgsValid && !BootDriveFound)
+	if (KeGetCurrentIrql() == PASSIVE_LEVEL)
 	{
-		if (KeGetCurrentIrql() == PASSIVE_LEVEL)
+		CheckDeviceTypeAndMount (Extension);
+	}
+	else
+	{
+		PIO_WORKITEM workItem = IoAllocateWorkItem (filterDeviceObject);
+		if (!workItem)
 		{
-			MountDrive (Extension, &BootArgs.BootPassword, &BootArgs.HeaderSaltCrc32);
+			IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
+			return STATUS_INSUFFICIENT_RESOURCES;
 		}
-		else
-		{
-			PIO_WORKITEM workItem = IoAllocateWorkItem (filterDeviceObject);
-			if (!workItem)
-				return STATUS_INSUFFICIENT_RESOURCES;
 
-			KeInitializeEvent (&Extension->MountWorkItemCompletedEvent, SynchronizationEvent, FALSE);
-			IoQueueWorkItem (workItem, MountDriveWorkItemRoutine, DelayedWorkQueue, Extension); 
+		KeInitializeEvent (&Extension->MountWorkItemCompletedEvent, SynchronizationEvent, FALSE);
+		IoQueueWorkItem (workItem, MountDriveWorkItemRoutine, DelayedWorkQueue, Extension); 
 
-			KeWaitForSingleObject (&Extension->MountWorkItemCompletedEvent, Executive, KernelMode, FALSE, NULL);
-			IoFreeWorkItem (workItem);
-		}
+		KeWaitForSingleObject (&Extension->MountWorkItemCompletedEvent, Executive, KernelMode, FALSE, NULL);
+		IoFreeWorkItem (workItem);
 	}
 
 	IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);

@@ -80,6 +80,8 @@ namespace TrueCrypt
 			ShowString (verPhase ? wxString (_("Re-enter password: ")) : msg);
 
 			const wxString &passwordStr = TextInputStream->ReadLine();
+			CheckInputStream();
+
 			size_t length = passwordStr.size();
 
 			ShowString (L"\n");
@@ -187,7 +189,10 @@ namespace TrueCrypt
 	{
 		ShowString (message);
 
-		return wstring (TextInputStream->ReadLine());
+		wstring str (TextInputStream->ReadLine());
+		CheckInputStream();
+
+		return str;
 	}
 	
 	bool TextUserInterface::AskYesNo (const wxString &message, bool defaultYes, bool warning) const
@@ -297,6 +302,12 @@ namespace TrueCrypt
 			newHash ? Pkcs5Kdf::GetAlgorithm (*newHash) : shared_ptr <Pkcs5Kdf>());
 
 		ShowInfo ("PASSWORD_CHANGED");
+	}
+	
+	void TextUserInterface::CheckInputStream ()
+	{
+		if (feof (stdin))
+			throw UserAbort (SRC_POS);
 	}
 
 	void TextUserInterface::CreateVolume (shared_ptr <VolumeCreationOptions> options, const FilesystemPath &randomSourcePath) const
@@ -646,6 +657,8 @@ namespace TrueCrypt
 				finally_do ({ TextUserInterface::SetTerminalEcho (true); });
 				
 				string password = StringConverter::ToSingle (wstring (UI->TextInputStream->ReadLine()));
+				CheckInputStream();
+
 				UI->ShowString (L"\n");
 				return password;
 			}

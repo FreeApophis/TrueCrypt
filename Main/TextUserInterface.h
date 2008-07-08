@@ -47,6 +47,7 @@ namespace TrueCrypt
 		virtual void Yield () const { }
 
 	protected:
+		static void CheckInputStream ();
 		static void OnSignal (int signal);
 
 		auto_ptr <wxFFileInputStream> FInputStream;

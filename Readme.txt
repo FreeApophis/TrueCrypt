@@ -1,4 +1,4 @@
-This archive contains the source code of TrueCrypt 6.0.
+This archive contains the source code of TrueCrypt 6.0a.
 
 
 Important

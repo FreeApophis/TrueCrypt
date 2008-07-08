@@ -6,6 +6,7 @@
  distribution packages.
 */
 
+#include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -123,7 +124,7 @@ namespace TrueCrypt
 		int status, waitRes;
 
 		if (inputData)
-			throw_sys_if (write (inPipe.GetWriteFD(), inputData->Ptr(), inputData->Size()) == -1);
+			throw_sys_if (write (inPipe.GetWriteFD(), inputData->Ptr(), inputData->Size()) == -1 && errno != EPIPE);
 
 		inPipe.Close();
 

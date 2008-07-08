@@ -53,21 +53,7 @@ uint64 GetVolumeDataAreaSize (BOOL hiddenVolume, uint64 volumeSize)
 }
 
 
-int FormatVolume (char *volumePath,
-	      BOOL bDevice,
-	      unsigned __int64 size,
-		  unsigned __int64 hiddenVolHostSize,
-	      Password *password,
-	      int ea,
-	      int pkcs5,
-		  BOOL quickFormat,
-		  BOOL sparseFileSwitch,
-		  int fileSystem,
-		  int clusterSize,
-	      HWND hwndDlg,
-		  BOOL hiddenVol,
-		  int *realClusterSize,
-		  uint32 headerFlags)
+int FormatVolume (volatile FORMAT_VOL_PARAMETERS *volParams)
 {
 	int nStatus;
 	PCRYPTO_INFO cryptoInfo = NULL;
@@ -97,25 +83,25 @@ int FormatVolume (char *volumePath,
 	determine whether they (or their portions) need to be skipped during such a second attempt; if so, 
 	use the 'bInstantRetryOtherFilesys' flag to skip them. */
 
-	if (hiddenVol)
+	if (volParams->hiddenVol)
 	{
-		dataOffset = hiddenVolHostSize - TC_VOLUME_HEADER_GROUP_SIZE - size;
+		dataOffset = volParams->hiddenVolHostSize - TC_VOLUME_HEADER_GROUP_SIZE - volParams->size;
 	}
 	else
 	{
-		if (size <= TC_TOTAL_VOLUME_HEADERS_SIZE)
+		if (volParams->size <= TC_TOTAL_VOLUME_HEADERS_SIZE)
 			return ERR_VOL_SIZE_WRONG;
 
 		dataOffset = TC_VOLUME_DATA_OFFSET;
 	}
 
-	size = GetVolumeDataAreaSize (hiddenVol, size);
+	volParams->size = GetVolumeDataAreaSize (volParams->hiddenVol, volParams->size);
 
-	num_sectors = size / SECTOR_SIZE;
+	num_sectors = volParams->size / SECTOR_SIZE;
 
-	if (bDevice)
+	if (volParams->bDevice)
 	{
-		strcpy ((char *)deviceName, volumePath);
+		strcpy ((char *)deviceName, volParams->volumePath);
 		ToUNICODE ((char *)deviceName);
 
 		driveLetter = GetDiskDeviceDriveLetter (deviceName);
@@ -126,18 +112,18 @@ int FormatVolume (char *volumePath,
 	/* Copies any header structures into header, but does not do any disk I/O */
 	nStatus = VolumeWriteHeader (FALSE,
 				     header,
-				     ea,
+				     volParams->ea,
 					 FIRST_MODE_OF_OPERATION_ID,
-				     password,
-				     pkcs5,
+				     volParams->password,
+				     volParams->pkcs5,
 					 NULL,
 				     &cryptoInfo,
-					 size,
-					 hiddenVol ? size : 0,
+					 volParams->size,
+					 volParams->hiddenVol ? volParams->size : 0,
 					 dataOffset,
-					 size,
+					 volParams->size,
 					 0,
-					 headerFlags,
+					 volParams->headerFlags,
 					 FALSE);
 
 	if (nStatus != 0)
@@ -149,14 +135,14 @@ int FormatVolume (char *volumePath,
 
 begin_format:
 
-	if (bDevice)
+	if (volParams->bDevice)
 	{
 		/* Device-hosted volume */
 
 		DWORD dwResult;
 		int nPass;
 
-		if (FakeDosNameForDevice (volumePath, dosDev, devName, FALSE) != 0)
+		if (FakeDosNameForDevice (volParams->volumePath, dosDev, devName, FALSE) != 0)
 			return ERR_OS_ERROR;
 
 		if (IsDeviceMounted (devName))
@@ -187,13 +173,13 @@ begin_format:
 				rootPath[0] += tmpDriveLetter;
 				szDriveLetter[0] += tmpDriveLetter;
 
-				if (DefineDosDevice (DDD_RAW_TARGET_PATH, szDriveLetter, volumePath))
+				if (DefineDosDevice (DDD_RAW_TARGET_PATH, szDriveLetter, volParams->volumePath))
 				{
 					bResult = GetVolumeNameForVolumeMountPoint (rootPath, uniqVolName, MAX_PATH);
 
 					DefineDosDevice (DDD_RAW_TARGET_PATH|DDD_REMOVE_DEFINITION|DDD_EXACT_MATCH_ON_REMOVE,
 						szDriveLetter,
-						volumePath);
+						volParams->volumePath);
 
 					if (bResult 
 						&& SetVolumeMountPoint (rootPath, uniqVolName))
@@ -228,7 +214,7 @@ begin_format:
 				dev = CreateFile (devName, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 				if (dev != INVALID_HANDLE_VALUE)
 				{
-					if (IDNO == MessageBoxW (hwndDlg, GetString ("DEVICE_IN_USE_FORMAT"), lpszTitle, MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2))
+					if (IDNO == MessageBoxW (volParams->hwndDlg, GetString ("DEVICE_IN_USE_FORMAT"), lpszTitle, MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2))
 					{
 						nStatus = ERR_DONT_REPORT; 
 						goto error;
@@ -241,7 +227,7 @@ begin_format:
 				}
 			}
 
-			if (hiddenVol || bInstantRetryOtherFilesys)
+			if (volParams->hiddenVol || bInstantRetryOtherFilesys)
 				break;	// The following "quick format" operation would damage the outer volume
 
 			if (nPass == 0)
@@ -272,9 +258,9 @@ begin_format:
 		// We could support FILE_ATTRIBUTE_HIDDEN as an option
 		// (Now if the container has hidden or system file attribute, the OS will not allow
 		// overwritting it; so the user will have to delete it manually).
-		dev = CreateFile (volumePath, GENERIC_WRITE,
-			(hiddenVol || bInstantRetryOtherFilesys) ? (FILE_SHARE_READ | FILE_SHARE_WRITE) : 0,
-			NULL, (hiddenVol || bInstantRetryOtherFilesys) ? OPEN_EXISTING : CREATE_ALWAYS, 0, NULL);
+		dev = CreateFile (volParams->volumePath, GENERIC_WRITE,
+			(volParams->hiddenVol || bInstantRetryOtherFilesys) ? (FILE_SHARE_READ | FILE_SHARE_WRITE) : 0,
+			NULL, (volParams->hiddenVol || bInstantRetryOtherFilesys) ? OPEN_EXISTING : CREATE_ALWAYS, 0, NULL);
 
 		if (dev == INVALID_HANDLE_VALUE)
 		{
@@ -282,12 +268,12 @@ begin_format:
 			goto error;
 		}
 
-		if (!hiddenVol && !bInstantRetryOtherFilesys)
+		if (!volParams->hiddenVol && !bInstantRetryOtherFilesys)
 		{
 			LARGE_INTEGER volumeSize;
-			volumeSize.QuadPart = size + TC_VOLUME_HEADER_GROUP_SIZE;
+			volumeSize.QuadPart = volParams->size + TC_VOLUME_HEADER_GROUP_SIZE;
 
-			if (sparseFileSwitch && quickFormat)
+			if (volParams->sparseFileSwitch && volParams->quickFormat)
 			{
 				// Create as sparse file container
 				DWORD tmp;
@@ -309,30 +295,30 @@ begin_format:
 		}
 	}
 
-	if (hiddenVol && !bDevice && bPreserveTimestamp)
+	if (volParams->hiddenVol && !volParams->bDevice && bPreserveTimestamp)
 	{
 		/* Remember the container timestamp (used to reset file date and time of file-hosted
 		containers to preserve plausible deniability of hidden volume)  */
 		if (GetFileTime ((HANDLE) dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
 		{
 			bTimeStampValid = FALSE;
-			MessageBoxW (hwndDlg, GetString ("GETFILETIME_FAILED_IMPLANT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
+			MessageBoxW (volParams->hwndDlg, GetString ("GETFILETIME_FAILED_IMPLANT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
 		}
 		else
 			bTimeStampValid = TRUE;
 	}
 
-	KillTimer (hwndDlg, 0xff);
+	KillTimer (volParams->hwndDlg, 0xff);
 
 	/* Volume header */
 
 	// Hidden volume setup
-	if (hiddenVol)
+	if (volParams->hiddenVol)
 	{
 		LARGE_INTEGER headerOffset;
 
-		// Check hidden volume size
-		if (hiddenVolHostSize < TC_MIN_HIDDEN_VOLUME_HOST_SIZE || hiddenVolHostSize > TC_MAX_HIDDEN_VOLUME_HOST_SIZE)
+		// Check hidden volume volParams->size
+		if (volParams->hiddenVolHostSize < TC_MIN_HIDDEN_VOLUME_HOST_SIZE || volParams->hiddenVolHostSize > TC_MAX_HIDDEN_VOLUME_HOST_SIZE)
 		{		
 			nStatus = ERR_VOL_SIZE_WRONG;
 			goto error;
@@ -372,7 +358,7 @@ begin_format:
 		}
 
 		// To prevent fragmentation, write zeroes to reserved header sectors which are going to be filled with random data
-		if (!hiddenVol)
+		if (!volParams->hiddenVol)
 		{
 			byte buf[TC_VOLUME_HEADER_GROUP_SIZE - TC_VOLUME_HEADER_EFFECTIVE_SIZE];
 			ZeroMemory (buf, sizeof (buf));
@@ -384,7 +370,7 @@ begin_format:
 		}
 	}
 
-	if (hiddenVol)
+	if (volParams->hiddenVol)
 	{
 		// Calculate data area position of hidden volume
 		cryptoInfo->hiddenVolumeOffset = dataOffset;
@@ -396,7 +382,7 @@ begin_format:
 			goto error;
 		}
 
-		quickFormat = TRUE;		// To entirely format a hidden volume would be redundant
+		volParams->quickFormat = TRUE;		// To entirely format a hidden volume would be redundant
 	}
 
 	/* Data area */
@@ -404,11 +390,11 @@ begin_format:
 
 	// Format filesystem
 
-	switch (fileSystem)
+	switch (volParams->fileSystem)
 	{
 	case FILESYS_NONE:
 	case FILESYS_NTFS:
-		nStatus = FormatNoFs (startSector, num_sectors, dev, cryptoInfo, quickFormat);
+		nStatus = FormatNoFs (startSector, num_sectors, dev, cryptoInfo, volParams->quickFormat);
 		break;
 		
 	case FILESYS_FAT:
@@ -420,12 +406,12 @@ begin_format:
 
 		// Calculate the fats, root dir etc
 		ft.num_sectors = (unsigned int) (num_sectors);
-		ft.cluster_size = clusterSize;
+		ft.cluster_size = volParams->clusterSize;
 		memcpy (ft.volume_name, "NO NAME    ", 11);
 		GetFatParams (&ft); 
-		*realClusterSize = ft.cluster_size * SECTOR_SIZE;
+		*(volParams->realClusterSize) = ft.cluster_size * SECTOR_SIZE;
 
-		nStatus = FormatFat (startSector, &ft, (void *) dev, cryptoInfo, quickFormat);
+		nStatus = FormatFat (startSector, &ft, (void *) dev, cryptoInfo, volParams->quickFormat);
 		break;
 
 	default:
@@ -433,8 +419,11 @@ begin_format:
 		goto error;
 	}
 
+	if (nStatus != ERR_SUCCESS)
+		goto error;
+
 	// Write header backup
-	offset.QuadPart = hiddenVol ? hiddenVolHostSize - TC_HIDDEN_VOLUME_HEADER_OFFSET : size + TC_VOLUME_HEADER_GROUP_SIZE;
+	offset.QuadPart = volParams->hiddenVol ? volParams->hiddenVolHostSize - TC_HIDDEN_VOLUME_HEADER_OFFSET : volParams->size + TC_VOLUME_HEADER_GROUP_SIZE;
 
 	if (!SetFilePointerEx ((HANDLE) dev, offset, NULL, FILE_BEGIN))
 	{
@@ -444,18 +433,18 @@ begin_format:
 
 	nStatus = VolumeWriteHeader (FALSE,
 		header,
-		ea,
+		volParams->ea,
 		FIRST_MODE_OF_OPERATION_ID,
-		password,
-		pkcs5,
+		volParams->password,
+		volParams->pkcs5,
 		cryptoInfo->master_keydata,
 		&cryptoInfo,
-		size,
-		hiddenVol ? size : 0,
+		volParams->size,
+		volParams->hiddenVol ? volParams->size : 0,
 		dataOffset,
-		size,
+		volParams->size,
 		0,
-		headerFlags,
+		volParams->headerFlags,
 		FALSE);
 
 	if (_lwrite ((HFILE) dev, header, TC_VOLUME_HEADER_EFFECTIVE_SIZE) == HFILE_ERROR)
@@ -465,7 +454,7 @@ begin_format:
 	}
 
 	// Fill reserved header sectors with random data
-	if (!hiddenVol)
+	if (!volParams->hiddenVol)
 	{
 		char temporaryKey[MASTER_KEYDATA_SIZE];
 		char originalK2[MASTER_KEYDATA_SIZE];
@@ -495,7 +484,7 @@ begin_format:
 				goto error;
 			}
 
-			offset.QuadPart = backupHeaders ? size + TC_VOLUME_HEADER_GROUP_SIZE : TC_VOLUME_HEADER_OFFSET;
+			offset.QuadPart = backupHeaders ? volParams->size + TC_VOLUME_HEADER_GROUP_SIZE : TC_VOLUME_HEADER_OFFSET;
 			offset.QuadPart += TC_VOLUME_HEADER_EFFECTIVE_SIZE;
 
 			if (!SetFilePointerEx ((HANDLE) dev, offset, NULL, FILE_BEGIN))
@@ -542,7 +531,7 @@ error:
 
 	if (dev != INVALID_HANDLE_VALUE)
 	{
-		if (!bDevice && !hiddenVol && nStatus != 0)
+		if (!volParams->bDevice && !volParams->hiddenVol && nStatus != 0)
 		{
 			// Remove preallocated part before closing file handle if format failed
 			if (SetFilePointer (dev, 0, NULL, FILE_BEGIN) == 0)
@@ -555,7 +544,7 @@ error:
 		{
 			// Restore the container timestamp (to preserve plausible deniability of the hidden volume) 
 			if (SetFileTime (dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
-				MessageBoxW (hwndDlg, GetString ("SETFILETIME_FAILED_IMPLANT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
+				MessageBoxW (volParams->hwndDlg, GetString ("SETFILETIME_FAILED_IMPLANT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
 		}
 
 		CloseHandle (dev);
@@ -568,7 +557,7 @@ error:
 		goto fv_end;
 	}
 
-	if (fileSystem == FILESYS_NTFS)
+	if (volParams->fileSystem == FILESYS_NTFS)
 	{
 		// Quick-format volume as NTFS
 		int driveNo = GetLastAvailableDrive ();
@@ -579,8 +568,8 @@ error:
 
 		if (driveNo == -1)
 		{
-			MessageBoxW (hwndDlg, GetString ("NO_FREE_DRIVES"), lpszTitle, ICON_HAND);
-			MessageBoxW (hwndDlg, GetString ("FORMAT_NTFS_STOP"), lpszTitle, ICON_HAND);
+			MessageBoxW (volParams->hwndDlg, GetString ("NO_FREE_DRIVES"), lpszTitle, ICON_HAND);
+			MessageBoxW (volParams->hwndDlg, GetString ("FORMAT_NTFS_STOP"), lpszTitle, ICON_HAND);
 
 			nStatus = ERR_NO_FREE_DRIVES;
 			goto fv_end;
@@ -593,33 +582,33 @@ error:
 		mountOptions.PartitionInInactiveSysEncScope = FALSE;
 		mountOptions.UseBackupHeader = FALSE;
 
-		if (MountVolume (hwndDlg, driveNo, volumePath, password, FALSE, TRUE, &mountOptions, FALSE, TRUE) < 1)
+		if (MountVolume (volParams->hwndDlg, driveNo, volParams->volumePath, volParams->password, FALSE, TRUE, &mountOptions, FALSE, TRUE) < 1)
 		{
-			MessageBoxW (hwndDlg, GetString ("CANT_MOUNT_VOLUME"), lpszTitle, ICON_HAND);
-			MessageBoxW (hwndDlg, GetString ("FORMAT_NTFS_STOP"), lpszTitle, ICON_HAND);
+			MessageBoxW (volParams->hwndDlg, GetString ("CANT_MOUNT_VOLUME"), lpszTitle, ICON_HAND);
+			MessageBoxW (volParams->hwndDlg, GetString ("FORMAT_NTFS_STOP"), lpszTitle, ICON_HAND);
 			nStatus = ERR_VOL_MOUNT_FAILED;
 			goto fv_end;
 		}
 
 		if (!IsAdmin () && IsUacSupported ())
-			retCode = UacFormatNtfs (hwndDlg, driveNo, clusterSize);
+			retCode = UacFormatNtfs (volParams->hwndDlg, driveNo, volParams->clusterSize);
 		else
-			retCode = FormatNtfs (driveNo, clusterSize);
+			retCode = FormatNtfs (driveNo, volParams->clusterSize);
 
 		if (retCode != TRUE)
 		{
-			if (!UnmountVolume (hwndDlg, driveNo, FALSE))
-				MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_VOLUME"), lpszTitle, ICON_HAND);
+			if (!UnmountVolume (volParams->hwndDlg, driveNo, FALSE))
+				MessageBoxW (volParams->hwndDlg, GetString ("CANT_DISMOUNT_VOLUME"), lpszTitle, ICON_HAND);
 
-			if (size <= TC_MAX_FAT_FS_SIZE)
+			if (volParams->size <= TC_MAX_FAT_FS_SIZE)
 			{
 				if (AskErrYesNo ("FORMAT_NTFS_FAILED_ASK_FAT") == IDYES)
 				{
 					// NTFS format failed and the user wants to try FAT format immediately
-					fileSystem = FILESYS_FAT;
+					volParams->fileSystem = FILESYS_FAT;
 					bInstantRetryOtherFilesys = TRUE;
-					quickFormat = TRUE;		// Volume has already been successfully TC-formatted
-					clusterSize = 0;		// Default cluster size
+					volParams->quickFormat = TRUE;		// Volume has already been successfully TC-formatted
+					volParams->clusterSize = 0;		// Default cluster size
 					goto begin_format;
 				}
 			}
@@ -630,14 +619,14 @@ error:
 			goto fv_end;
 		}
 
-		if (!UnmountVolume (hwndDlg, driveNo, FALSE))
-			MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_VOLUME"), lpszTitle, ICON_HAND);
+		if (!UnmountVolume (volParams->hwndDlg, driveNo, FALSE))
+			MessageBoxW (volParams->hwndDlg, GetString ("CANT_DISMOUNT_VOLUME"), lpszTitle, ICON_HAND);
 	}
 
 fv_end:
 
 	if (dosDev[0])
-		RemoveFakeDosName (volumePath, dosDev);
+		RemoveFakeDosName (volParams->volumePath, dosDev);
 
 	crypto_close (cryptoInfo);
 

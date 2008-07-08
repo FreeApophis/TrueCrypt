@@ -49,6 +49,7 @@ void AfterWMInitTasks (HWND hwndDlg);
 void AfterSysEncProgressWMInitTasks (HWND hwndDlg);
 void InitSysEncProgressBar (void);
 BOOL SysEncInEffect (void);
+BOOL CreatingHiddenSysVol(void);
 int MountHiddenVolHost ( HWND hwndDlg, char *volumePath, int *driveNo, Password *password, BOOL bReadOnly );
 int AnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, __int64 hiddenVolHostSize, int *realClusterSize, __int64 *pnbrFreeClusters);
 int ScanVolClusterBitmap ( HWND hwndDlg, int *driveNo, __int64 nbrClusters, __int64 *nbrFreeClusters);

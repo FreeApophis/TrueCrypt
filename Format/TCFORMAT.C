@@ -293,6 +293,8 @@ static void localcleanup (void)
 	burn (randPool, sizeof(randPool));
 	burn (lastRandPool, sizeof(lastRandPool));
 	burn (outRandPoolDispBuffer, sizeof(outRandPoolDispBuffer));
+	burn (szFileName, sizeof(szFileName));
+	burn (szDiskFile, sizeof(szDiskFile));
 
 	// Attempt to wipe the GUI fields showing portions of randpool, of the master and header keys
 	memset (tmp, 'X', sizeof(tmp));
@@ -537,7 +539,13 @@ static BOOL ChangeWizardMode (int newWizardMode)
 static BOOL SysEncInEffect (void)
 {
 	return (WizardMode == WIZARD_MODE_SYS_DEVICE
-		|| (bHiddenOS && bHiddenVol && !bHiddenVolHost));
+		|| CreatingHiddenSysVol());
+}
+
+static BOOL CreatingHiddenSysVol (void)
+{
+	return (bHiddenOS 
+		&& bHiddenVol && !bHiddenVolHost);
 }
 
 static void LoadSettings (HWND hwndDlg)
@@ -1757,6 +1765,12 @@ static void __cdecl formatThreadFunction (void *hwndDlgArg)
 	DWORD dwWin32FormatError;
 	BOOL bHidden;
 	HWND hwndDlg = (HWND) hwndDlgArg;
+	volatile FORMAT_VOL_PARAMETERS *volParams = (FORMAT_VOL_PARAMETERS *) malloc (sizeof(FORMAT_VOL_PARAMETERS));
+
+	if (volParams == NULL)
+		AbortProcess ("ERR_MEM_ALLOC");
+
+	VirtualLock ((LPVOID) volParams, sizeof(FORMAT_VOL_PARAMETERS));
 
 	// Check administrator privileges
 	if (!IsAdmin () && !IsUacSupported ())
@@ -1853,23 +1867,26 @@ static void __cdecl formatThreadFunction (void *hwndDlgArg)
 	}
 
 	bHidden = bHiddenVol && !bHiddenVolHost;
+
+	volParams->bDevice = bDevice;
+	volParams->hiddenVol = bHidden;
+	volParams->volumePath = szDiskFile;
+	volParams->size = nVolumeSize;
+	volParams->hiddenVolHostSize = nHiddenVolHostSize;
+	volParams->ea = nVolumeEA;
+	volParams->pkcs5 = hash_algo;
+	volParams->headerFlags = CreatingHiddenSysVol() ? TC_HEADER_FLAG_ENCRYPTED_SYSTEM : 0;
+	volParams->fileSystem = fileSystem;
+	volParams->clusterSize = clusterSize;
+	volParams->sparseFileSwitch = bSparseFileSwitch;
+	volParams->quickFormat = quickFormat;
+	volParams->realClusterSize = &realClusterSize;
+	volParams->password = &volumePassword;
+	volParams->hwndDlg = hwndDlg;
+
 	InitProgressBar (GetVolumeDataAreaSize (bHidden, nVolumeSize) / SECTOR_SIZE, 0, FALSE, FALSE, FALSE, TRUE);
 
-	nStatus = FormatVolume (szDiskFile,
-		bDevice,
-		nVolumeSize,
-		nHiddenVolHostSize,
-		&volumePassword,
-		nVolumeEA,
-		hash_algo,
-		quickFormat,
-		bSparseFileSwitch,
-		fileSystem,
-		clusterSize,
-		hwndDlg,
-		bHidden,
-		&realClusterSize,
-		bHiddenOS ? TC_HEADER_FLAG_ENCRYPTED_SYSTEM : 0);
+	nStatus = FormatVolume (volParams);
 
 	if (nStatus == ERR_OUTOFMEMORY)
 	{
@@ -1992,6 +2009,13 @@ static void __cdecl formatThreadFunction (void *hwndDlgArg)
 		PostMessage (hwndDlg, TC_APPMSG_FORMAT_FINISHED, 0, 0);
 		bThreadRunning = FALSE;
 
+		if (volParams != NULL)
+		{
+			burn ((LPVOID) volParams, sizeof(FORMAT_VOL_PARAMETERS));
+			VirtualUnlock ((LPVOID) volParams, sizeof(FORMAT_VOL_PARAMETERS));
+			free ((LPVOID) volParams);
+			volParams = NULL;
+		}
 
 		LastDialogId = "FORMAT_FINISHED";
 		_endthread ();
@@ -2007,6 +2031,14 @@ cancel:
 
 	if (bHiddenVolHost && hiddenVolHostDriveNo < -1 && !bThreadCancel)	// If hidden volume host could not be mounted
 		AbortProcessSilent ();
+
+	if (volParams != NULL)
+	{
+		burn ((LPVOID) volParams, sizeof(FORMAT_VOL_PARAMETERS));
+		VirtualUnlock ((LPVOID) volParams, sizeof(FORMAT_VOL_PARAMETERS));
+		free ((LPVOID) volParams);
+		volParams = NULL;
+	}
 
 	_endthread ();
 }
@@ -2227,7 +2259,7 @@ static void LoadPage (HWND hwndDlg, int nPageNo)
 
 			CheckCapsLock (hwndDlg, FALSE);
 
-			if (bHiddenOS && bHiddenVol && !bHiddenVolHost)
+			if (CreatingHiddenSysVol())
 				Warning ("PASSWORD_HIDDEN_OS_NOTE");
 
 			break;
@@ -3145,7 +3177,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), str);
 
-				if (bHiddenOS && bHiddenVol && !bHiddenVolHost)
+				if (CreatingHiddenSysVol())
 					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("PASSWORD_HIDDEN_OS_TITLE"));
 				else if (bHiddenVol)
 					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString (bHiddenVolHost ? "PASSWORD_HIDVOL_HOST_TITLE" : "PASSWORD_HIDVOL_TITLE"));
@@ -3537,7 +3569,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 				uint64 dataAreaSize = GetVolumeDataAreaSize (bHiddenVol && !bHiddenVolHost, nVolumeSize);
 
-				if (!(bHiddenOS && bHiddenVol && !bHiddenVolHost))	
+				if (!CreatingHiddenSysVol())	
 				{
 					if (dataAreaSize >= TC_MIN_NTFS_FS_SIZE && dataAreaSize <= TC_MAX_NTFS_FS_SIZE)
 					{
@@ -5228,7 +5260,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 				if (WizardMode != WIZARD_MODE_SYS_DEVICE
 					&& !FileSize4GBLimitQuestionNeeded () 
-					|| (bHiddenOS && bHiddenVol && !bHiddenVolHost))		// If we're creating a hidden volume for a hidden OS, we don't need to be format it with any filesystem (the entire OS will be copied to the hidden volume sector by sector).
+					|| CreatingHiddenSysVol())		// If we're creating a hidden volume for a hidden OS, we don't need to format it with any filesystem (the entire OS will be copied to the hidden volume sector by sector).
 				{
 					nNewPageNo = FORMAT_PAGE - 1;				// Skip irrelevant pages
 				}
@@ -6075,7 +6107,7 @@ ovf_end:
 					// Skip irrelevant pages
 
 					if (FileSize4GBLimitQuestionNeeded ()
-						&& !(bHiddenOS && bHiddenVol && !bHiddenVolHost))		// If we're creating a hidden volume for a hidden OS, we don't need to be format it with any filesystem (the entire OS will be copied to the hidden volume sector by sector).
+						&& !CreatingHiddenSysVol())		// If we're creating a hidden volume for a hidden OS, we don't need to be format it with any filesystem (the entire OS will be copied to the hidden volume sector by sector).
 						nNewPageNo = FILESYS_PAGE + 1;
 					else
 						nNewPageNo = PASSWORD_PAGE + 1;		
@@ -7201,6 +7233,9 @@ int WINAPI WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszComm
 	VirtualLock (randPool, sizeof(randPool));
 	VirtualLock (lastRandPool, sizeof(lastRandPool));
 	VirtualLock (outRandPoolDispBuffer, sizeof(outRandPoolDispBuffer));
+
+	VirtualLock (&szFileName, sizeof(szFileName));
+	VirtualLock (&szDiskFile, sizeof(szDiskFile));
 
 	try
 	{

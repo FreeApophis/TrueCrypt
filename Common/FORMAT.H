@@ -17,15 +17,35 @@ extern "C" {
 
 #ifdef _WIN32
 
-int FormatVolume (char *volumePath , BOOL bDevice, unsigned __int64 size , unsigned __int64 hiddenVolHostSize , Password *password , int cipher , int pkcs5 , BOOL quickFormat, BOOL sparseFileSwitch, int fileSystem , int clusterSize, HWND hwndDlg , BOOL hiddenVol , int *realClusterSize, uint32 headerFlags);
-BOOL FormatNtfs (int driveNo, int clusterSize);
-
 // FMIFS
 typedef BOOLEAN (__stdcall *PFMIFSCALLBACK)( int command, DWORD subCommand, PVOID parameter ); 
 typedef VOID (__stdcall *PFORMATEX)( PWCHAR DriveRoot, DWORD MediaFlag, PWCHAR Format, PWCHAR Label, BOOL QuickFormat, DWORD ClusterSize, PFMIFSCALLBACK Callback );
 
+typedef struct
+{
+	BOOL bDevice;
+	BOOL hiddenVol;
+	char *volumePath;
+	unsigned __int64 size;
+	unsigned __int64 hiddenVolHostSize;
+	int ea;
+	int pkcs5;
+	uint32 headerFlags;
+	int fileSystem;
+	int clusterSize;
+	BOOL sparseFileSwitch;
+	BOOL quickFormat;
+	int *realClusterSize;
+	Password *password;
+	HWND hwndDlg;
+}
+FORMAT_VOL_PARAMETERS;
+
 #define FMIFS_DONE		0xB
 #define FMIFS_HARDDISK	0xC
+
+int FormatVolume (volatile FORMAT_VOL_PARAMETERS *volParams);
+BOOL FormatNtfs (int driveNo, int clusterSize);
 
 #endif
 
