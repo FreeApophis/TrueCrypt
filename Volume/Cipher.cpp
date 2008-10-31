@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -104,44 +104,44 @@ namespace TrueCrypt
 	// Blowfish
 	void CipherBlowfish::Decrypt (byte *data) const
 	{
-		BF_ecb_le_encrypt (data, data, (BF_KEY *) ScheduledKey.Ptr(), 0);
+		BlowfishEncryptLE (data, data, (BF_KEY *) ScheduledKey.Ptr(), 0);
 	}
 
 	void CipherBlowfish::Encrypt (byte *data) const
 	{
-		BF_ecb_le_encrypt (data, data, (BF_KEY *) ScheduledKey.Ptr(), 1);
+		BlowfishEncryptLE (data, data, (BF_KEY *) ScheduledKey.Ptr(), 1);
 	}
 
 	size_t CipherBlowfish::GetScheduledKeySize () const
 	{
-		return 4168;
+		return sizeof (BF_KEY);
 	}
 
 	void CipherBlowfish::SetCipherKey (const byte *key)
 	{
-		BF_set_key ((BF_KEY *) ScheduledKey.Ptr(), static_cast<int> (GetKeySize ()), (unsigned char *) key);
+		BlowfishSetKey ((BF_KEY *) ScheduledKey.Ptr(), static_cast<int> (GetKeySize ()), (unsigned char *) key);
 	}
 
 
 	// CAST5
 	void CipherCast5::Decrypt (byte *data) const
 	{
-		CAST_ecb_encrypt (data, data, (CAST_KEY *) ScheduledKey.Ptr(), 0);
+		Cast5Decrypt (data, data, (CAST_KEY *) ScheduledKey.Ptr());
 	}
 
 	void CipherCast5::Encrypt (byte *data) const
 	{
-		CAST_ecb_encrypt (data, data, (CAST_KEY *) ScheduledKey.Ptr(), 1);
+		Cast5Encrypt (data, data, (CAST_KEY *) ScheduledKey.Ptr());
 	}
 
 	size_t CipherCast5::GetScheduledKeySize () const
 	{
-		return 128;
+		return sizeof (CAST_KEY);
 	}
 
 	void CipherCast5::SetCipherKey (const byte *key)
 	{
-		CAST_set_key((CAST_KEY *) ScheduledKey.Ptr(), static_cast<int> (GetKeySize ()), (unsigned char *) key);
+		Cast5SetKey ((CAST_KEY *) ScheduledKey.Ptr(), static_cast<int> (GetKeySize ()), (unsigned char *) key);
 	}
 
 
@@ -170,30 +170,22 @@ namespace TrueCrypt
 	// Triple-DES
 	void CipherTripleDES::Decrypt (byte *data) const
 	{
-		des_ecb3_encrypt ((des_cblock *) data, (des_cblock *) data,
-			(des_ks_struct *) ScheduledKey.Ptr(),
-			(des_ks_struct *) (ScheduledKey.Ptr() + 128),
-			(des_ks_struct *) (ScheduledKey.Ptr() + 128 * 2), 0);
+		TripleDesEncrypt (data, data, (TDES_KEY *) ScheduledKey.Ptr(), 0);
 	}
 
 	void CipherTripleDES::Encrypt (byte *data) const
 	{
-		des_ecb3_encrypt ((des_cblock *) data, (des_cblock *) data,
-			(des_ks_struct *) ScheduledKey.Ptr(),
-			(des_ks_struct *) (ScheduledKey.Ptr() + 128),
-			(des_ks_struct *) (ScheduledKey.Ptr() + 128 * 2), 1);
+		TripleDesEncrypt (data, data, (TDES_KEY *) ScheduledKey.Ptr(), 1);
 	}
 
 	size_t CipherTripleDES::GetScheduledKeySize () const
 	{
-		return 128 * 3;
+		return sizeof (TDES_KEY);
 	}
 
 	void CipherTripleDES::SetCipherKey (const byte *key)
 	{
-		des_key_sched ((des_cblock *) (key + 8 * 0), (struct des_ks_struct *) (ScheduledKey.Ptr() + 128 * 0));
-		des_key_sched ((des_cblock *) (key + 8 * 1), (struct des_ks_struct *) (ScheduledKey.Ptr() + 128 * 1));
-		des_key_sched ((des_cblock *) (key + 8 * 2), (struct des_ks_struct *) (ScheduledKey.Ptr() + 128 * 2));
+		TripleDesSetKey (key, GetKeySize(), (TDES_KEY *) ScheduledKey.Ptr());
 	}
 
 

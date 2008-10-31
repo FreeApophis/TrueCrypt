@@ -9,18 +9,11 @@ SOURCES = \
 	Aes_$(TC_ARCH).asm \
 	Aeskey.c \
 	Aestab.c \
-	Bf_ecb.c \
-	Bf_enc.c \
-	Bf_skey.c \
-	C_ecb.c \
-	C_enc.c \
-	C_skey.c \
+	Blowfish.c \
+	Cast.c \
 	Des.c \
-	Des_enc.c \
-	Ecb3_enc.c \
 	Rmd160.c \
 	Serpent.c \
-	Set_key.c \
 	Sha1.c \
 	Sha2.c \
 	Twofish.c \

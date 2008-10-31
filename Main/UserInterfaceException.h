@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -17,7 +17,6 @@ namespace TrueCrypt
 	TC_EXCEPTION_DECL (MissingArgument, UserInterfaceException);
 	TC_EXCEPTION_DECL (NoItemSelected, UserInterfaceException);
 	TC_EXCEPTION_DECL (StringFormatterException, UserInterfaceException);
-	TC_EXCEPTION_DECL (UserAbort, UserInterfaceException);
 
 	struct ErrorMessage : public UserInterfaceException
 	{

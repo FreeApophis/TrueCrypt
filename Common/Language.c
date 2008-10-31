@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2005 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -498,7 +498,7 @@ char *GetActiveLangPackVersion ()
 }
 
 
-wchar_t *GetString (char *stringId)
+wchar_t *GetString (const char *stringId)
 {
 	WCHAR *str = (WCHAR *) GetDictionaryValue (stringId);
 	if (str != NULL) return str;

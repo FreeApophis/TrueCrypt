@@ -1,15 +1,17 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
 
 #include "System.h"
+#include <wx/dynlib.h>
 #ifdef TC_WINDOWS
 #include <wx/msw/registry.h>
 #endif
+#include "Common/SecurityToken.h"
 #include "Main/Main.h"
 #include "Main/Application.h"
 #include "Main/GraphicUserInterface.h"
@@ -56,6 +58,10 @@ namespace TrueCrypt
 		TC_CHECK_BOX_VALIDATOR (BackgroundTaskMenuDismountItemsEnabled);
 		TC_CHECK_BOX_VALIDATOR (BackgroundTaskMenuMountItemsEnabled);
 		TC_CHECK_BOX_VALIDATOR (BackgroundTaskMenuOpenItemsEnabled);
+
+		// Security tokens
+		Pkcs11ModulePathTextCtrl->SetValue (wstring (Preferences.SecurityTokenModule));
+		TC_CHECK_BOX_VALIDATOR (CloseSecurityTokenSessionsAfterMount);
 
 		// System integration
 		TC_CHECK_BOX_VALIDATOR (StartOnLogon);
@@ -310,8 +316,26 @@ namespace TrueCrypt
 		Preferences.DefaultMountOptions.Protection = MountReadOnlyCheckBox->IsChecked() ? VolumeProtection::ReadOnly : VolumeProtection::None;
 		Preferences.DefaultMountOptions.FilesystemOptions = FilesystemOptionsTextCtrl->GetValue();
 		Preferences.DefaultKeyfiles = *DefaultKeyfilesPanel->GetKeyfiles();
+		Preferences.SecurityTokenModule = wstring (Pkcs11ModulePathTextCtrl->GetValue());
 
 		Gui->SetPreferences (Preferences);
+
+		try
+		{
+			if (Preferences.SecurityTokenModule.IsEmpty())
+			{
+				if (SecurityToken::IsInitialized())
+					SecurityToken::CloseLibrary ();
+			}
+			else
+			{
+				Gui->InitSecurityTokenLibrary(); 
+			}
+		}
+		catch (exception &e)
+		{
+			Gui->ShowError (e);
+		}
 
 #ifdef TC_WINDOWS
 		// Log on actions
@@ -357,7 +381,14 @@ namespace TrueCrypt
 	void PreferencesDialog::OnPreserveTimestampsCheckBoxClick (wxCommandEvent& event)
 	{
 		if (!event.IsChecked())
-			PreserveTimestampsCheckBox->SetValue (!Gui->AskYesNo (LangString["CONFIRM_TIMESTAMP_UPDATING"], false, true));
+		{
+			bool confirmed = Gui->AskYesNo (LangString["CONFIRM_TIMESTAMP_UPDATING"], false, true);
+			PreserveTimestampsCheckBox->SetValue (!confirmed);
+#ifdef TC_LINUX
+			if (confirmed)
+				Gui->ShowInfo (_("Please note that disabling this option may have no effect on volumes mounted using kernel cryptographic services."));
+#endif
+		}
 	}
 
 	void PreferencesDialog::OnRemoveHotkeyButtonClick (wxCommandEvent& event)
@@ -375,6 +406,42 @@ namespace TrueCrypt
 
 			UpdateHotkeyButtons();
 		}
+	}
+
+	void PreferencesDialog::OnSelectPkcs11ModuleButtonClick (wxCommandEvent& event)
+	{
+		list < pair <wstring, wstring> > extensions;
+		wxString libExtension;
+		libExtension = wxDynamicLibrary::CanonicalizeName (L"x");
+
+#ifdef TC_MACOSX
+		extensions.push_back (make_pair (L"dylib", LangString["DLL_FILES"]));
+#endif
+		if (!libExtension.empty())
+		{
+			extensions.push_back (make_pair (libExtension.Mid (libExtension.find (L'.') + 1), LangString["DLL_FILES"]));
+			extensions.push_back (make_pair (L"*", L""));
+		}
+
+		string libDir;
+
+#ifdef TC_WINDOWS
+
+		char sysDir[TC_MAX_PATH];
+		GetSystemDirectoryA (sysDir, sizeof (sysDir));
+		libDir = sysDir;
+
+#elif defined (TC_MACOSX)
+		libDir = "/usr/local/lib";
+#elif defined (TC_UNIX)
+		libDir = "/usr/lib";
+#endif
+
+		Gui->ShowInfo ("SELECT_PKCS11_MODULE_HELP");
+
+		FilePathList files = Gui->SelectFiles (this, LangString["SELECT_PKCS11_MODULE"], false, false, extensions, libDir);
+		if (!files.empty())
+			Pkcs11ModulePathTextCtrl->SetValue (wstring (*files.front()));
 	}
 
 	void PreferencesDialog::OnTimer ()

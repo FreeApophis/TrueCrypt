@@ -5,13 +5,14 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.5 the full text of which is contained in the
+ by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
 #pragma once
 
 #include "Tcdefs.h"
+#include "Boot/Windows/BootDefs.h"
 #include "Common.h"
 #include "Crypto.h"
 #include "Wipe.h"
@@ -51,6 +52,11 @@
 #define TC_IOCTL_IS_HIDDEN_SYSTEM_RUNNING				TC_IOCTL (27)
 #define TC_IOCTL_GET_SYSTEM_DRIVE_CONFIG				TC_IOCTL (28)
 #define TC_IOCTL_DISK_IS_WRITABLE						TC_IOCTL (29)
+#define TC_IOCTL_START_DECOY_SYSTEM_WIPE				TC_IOCTL (30)
+#define TC_IOCTL_ABORT_DECOY_SYSTEM_WIPE				TC_IOCTL (31)
+#define TC_IOCTL_GET_DECOY_SYSTEM_WIPE_STATUS			TC_IOCTL (32)
+#define TC_IOCTL_GET_DECOY_SYSTEM_WIPE_RESULT			TC_IOCTL (33)
+#define TC_IOCTL_WRITE_BOOT_DRIVE_SECTOR				TC_IOCTL (34)
 
 // Legacy IOCTLs used before version 5.0
 #define TC_IOCTL_LEGACY_GET_DRIVER_VERSION		466968
@@ -67,6 +73,8 @@
 typedef struct
 {
 	int nReturnCode;					/* Return code back from driver */
+	BOOL FilesystemDirty;
+
 	short wszVolume[TC_MAX_PATH];		/* Volume to be mounted */
 	Password VolumePassword;			/* User password */
 	BOOL bCache;						/* Cache passwords in driver */
@@ -76,7 +84,6 @@ typedef struct
 	BOOL bMountRemovable;				/* Mount volume as removable media */
 	BOOL bExclusiveAccess;				/* Open host file/device in exclusive access mode */
 	BOOL bMountManager;					/* Announce volume to mount manager */
-	BOOL bUserContext;					/* Mount volume in user process context */
 	BOOL bPreserveTimestamp;			/* Preserve file container timestamp */
 	BOOL bPartitionInInactiveSysEncScope;		/* If TRUE, we are to attempt to mount a partition located on an encrypted system drive without pre-boot authentication. */
 	int nPartitionInInactiveSysEncScopeDriveNo;	/* If bPartitionInInactiveSysEncScope is TRUE, this contains the drive number of the system drive on which the partition is located. */
@@ -84,6 +91,7 @@ typedef struct
 	BOOL bProtectHiddenVolume;			/* TRUE if the user wants the hidden volume within this volume to be protected against being overwritten (damaged) */
 	Password ProtectedHidVolPassword;	/* Password to the hidden volume to be protected against overwriting */
 	BOOL UseBackupHeader;
+	BOOL RecoveryMode;
 } MOUNT_STRUCT;
 
 typedef struct
@@ -115,8 +123,11 @@ typedef struct
 	int pkcs5Iterations;
 	BOOL hiddenVolume;
 	BOOL readOnly;
-	unsigned __int64 volumeCreationTime;
-	unsigned __int64 headerCreationTime;
+#if 0
+	unsigned __int64 volumeCreationTime;	// Deprecated in v6.0
+	unsigned __int64 headerCreationTime;	// Deprecated in v6.0
+#endif
+	uint32 volumeHeaderFlags;
 	unsigned __int64 totalBytesRead;
 	unsigned __int64 totalBytesWritten;
 	int hiddenVolProtection;	/* Hidden volume protection status (e.g. HIDVOL_PROT_STATUS_NONE, HIDVOL_PROT_STATUS_ACTIVE, etc.) */
@@ -134,6 +145,7 @@ typedef struct
 	WCHAR deviceName[TC_MAX_PATH];
 	PARTITION_INFORMATION partInfo;
 	BOOL IsGPT;
+	BOOL IsDynamic;
 }
 DISK_PARTITION_INFO_STRUCT;
 
@@ -206,6 +218,7 @@ typedef struct
 {
 	BootEncryptionSetupMode SetupMode;
 	WipeAlgorithmId WipeAlgorithm;
+	BOOL ZeroUnreadableSectors;
 } BootEncryptionSetupRequest;
 
 
@@ -225,7 +238,29 @@ typedef struct
 	wchar_t DevicePath[TC_MAX_PATH];
 	byte Configuration;
 	BOOL DriveIsDynamic;
+	uint16 BootLoaderVersion;
+	byte UserConfiguration;
+	char CustomUserMessage[TC_BOOT_SECTOR_USER_MESSAGE_MAX_LENGTH + 1];
 } GetSystemDriveConfigurationRequest;
+
+typedef struct
+{
+	WipeAlgorithmId WipeAlgorithm;
+	byte WipeKey[MASTER_KEYDATA_SIZE];
+} WipeDecoySystemRequest;
+
+typedef struct
+{
+	BOOL WipeInProgress;
+	WipeAlgorithmId WipeAlgorithm;
+	int64 WipedAreaEnd;
+} DecoySystemWipeStatus;
+
+typedef struct
+{
+	LARGE_INTEGER Offset;
+	byte Data[SECTOR_SIZE];
+} WriteBootDriveSectorRequest;
 
 #pragma pack (pop)
 
@@ -247,5 +282,7 @@ typedef struct
 #define WIN32_ROOT_PREFIX DRIVER_STR("\\\\.\\TrueCrypt")
 
 #define TC_DRIVER_CONFIG_REG_VALUE_NAME DRIVER_STR("TrueCryptConfig")
+
+#define TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD	0x1
 
 #endif		/* _WIN32 */

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -11,7 +11,6 @@
 
 #include "System.h"
 #include "Core/Core.h"
-#include "Core/VolumeCreator.h"
 #include "Main.h"
 #include "CommandLineInterface.h"
 #include "FavoriteVolume.h"
@@ -28,11 +27,14 @@ namespace TrueCrypt
 		virtual ~UserInterface ();
 
 		virtual bool AskYesNo (const wxString &message, bool defaultYes = false, bool warning = false) const = 0;
+		virtual void BackupVolumeHeaders (shared_ptr <VolumePath> volumePath) const = 0;
 		virtual void BeginBusyState () const = 0;
 		virtual void ChangePassword (shared_ptr <VolumePath> volumePath = shared_ptr <VolumePath>(), shared_ptr <VolumePassword> password = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> keyfiles = shared_ptr <KeyfileList>(), shared_ptr <VolumePassword> newPassword = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> newKeyfiles = shared_ptr <KeyfileList>(), shared_ptr <Hash> newHash = shared_ptr <Hash>()) const = 0;
 		virtual void CheckRequirementsForMountingVolume () const;
 		virtual void CloseExplorerWindows (shared_ptr <VolumeInfo> mountedVolume) const;
+		virtual void CreateKeyfile (shared_ptr <FilePath> keyfilePath = shared_ptr <FilePath>()) const = 0;
 		virtual void CreateVolume (shared_ptr <VolumeCreationOptions> options, const FilesystemPath &randomSourcePath = FilesystemPath()) const = 0;
+		virtual void DeleteSecurityTokenKeyfiles () const = 0;
 		virtual void DismountAllVolumes (bool ignoreOpenFiles = false, bool interactive = true) const;
 		virtual void DismountVolume (shared_ptr <VolumeInfo> volume, bool ignoreOpenFiles = false, bool interactive = true) const;
 		virtual void DismountVolumes (VolumeInfoList volumes, bool ignoreOpenFiles = false, bool interactive = true) const;
@@ -45,12 +47,16 @@ namespace TrueCrypt
 		virtual wxString ExceptionToMessage (const exception &ex) const;
 		virtual shared_ptr <GetStringFunctor> GetAdminPasswordRequestHandler () = 0;
 		virtual const UserPreferences &GetPreferences () const { return Preferences; }
+		virtual void ImportSecurityTokenKeyfiles () const = 0;
 		virtual void Init ();
+		virtual void InitSecurityTokenLibrary () const = 0;
 		virtual void ListMountedVolumes (const VolumeInfoList &volumes) const;
+		virtual void ListSecurityTokenKeyfiles () const = 0;
 		virtual shared_ptr <VolumeInfo> MountVolume (MountOptions &options) const;
 		virtual VolumeInfoList MountAllDeviceHostedVolumes (MountOptions &options) const;
-		virtual VolumeInfoList MountAllFavoriteVolumes (MountOptions &options) const;
+		virtual VolumeInfoList MountAllFavoriteVolumes (MountOptions &options);
 		virtual void OpenExplorerWindow (const DirectoryPath &path);
+		virtual void RestoreVolumeHeaders (shared_ptr <VolumePath> volumePath) const = 0;
 		virtual void SetPreferences (const UserPreferences &preferences);
 		virtual void ShowError (const exception &ex) const;
 		virtual void ShowError (const char *langStringId) const { DoShowError (LangString[langStringId]); }

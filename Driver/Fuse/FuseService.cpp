@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -321,7 +321,7 @@ namespace TrueCrypt
 	{
 		if (MountedVolume)
 		{
-			// Forked shared_ptr may have wrong reference count
+			// This process will exit before the use count of MountedVolume reaches zero
 			if (MountedVolume->GetFile().use_count() > 1)
 				MountedVolume->GetFile()->Close();
 
@@ -502,7 +502,7 @@ namespace TrueCrypt
 			shared_ptr <VolumeInfo> volume = Core->GetMountedVolume (SlotNumber);
 			
 			if (volume)
-				Core->DismountVolume (volume);
+				Core->DismountVolume (volume, true);
 		}
 		catch (...) { }
 
@@ -572,7 +572,7 @@ namespace TrueCrypt
 
 			// Wait for the exit of the main service
 			byte buf[1];
-			read (SignalHandlerPipe->GetReadFD(), buf, sizeof (buf));
+			if (read (SignalHandlerPipe->GetReadFD(), buf, sizeof (buf))) { } // Errors ignored
 
 			_exit (0);
 		}

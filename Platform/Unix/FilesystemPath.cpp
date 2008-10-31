@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -16,6 +16,16 @@ namespace TrueCrypt
 	void FilesystemPath::Delete () const
 	{
 		throw_sys_sub_if (remove (string (*this).c_str()) == -1, Path);
+	}
+
+	UserId FilesystemPath::GetOwner () const
+	{
+		struct stat statData;
+		throw_sys_if (stat (StringConverter::ToSingle (Path).c_str(), &statData) == -1);
+
+		UserId owner;
+		owner.SystemId = statData.st_uid;
+		return owner;
 	}
 
 	FilesystemPathType::Enum FilesystemPath::GetType () const
@@ -36,5 +46,38 @@ namespace TrueCrypt
 		if (S_ISLNK (statData.st_mode)) return FilesystemPathType::SymbolickLink;
 
 		return FilesystemPathType::Unknown;
+	}
+
+	FilesystemPath FilesystemPath::ToBaseName () const
+	{
+		wstring path = Path;
+		size_t pos = path.find_last_of (L'/');
+
+		if (pos == string::npos)
+			return Path;
+
+		return Path.substr (pos + 1);
+	}
+
+	FilesystemPath FilesystemPath::ToHostDriveOfPartition () const
+	{
+		DevicePath path;
+
+#ifdef TC_LINUX
+
+		path = StringConverter::StripTrailingNumber (StringConverter::ToSingle (Path));
+
+#elif defined (TC_MACOSX)
+
+		string pathStr = StringConverter::StripTrailingNumber (StringConverter::ToSingle (Path));
+		path = pathStr.substr (0, pathStr.size() - 1);
+
+#else
+		throw NotImplemented (SRC_POS);
+#endif
+		if (!path.IsDevice())
+			throw PartitionDeviceRequired (SRC_POS);
+
+		return path;
 	}
 }

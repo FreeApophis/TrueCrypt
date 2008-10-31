@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -26,12 +26,19 @@ namespace TrueCrypt
 	{
 	}
 
-	DevicePath CoreFreeBSD::AttachFileToLoopDevice (const FilePath &filePath) const
+	DevicePath CoreFreeBSD::AttachFileToLoopDevice (const FilePath &filePath, bool readOnly) const
 	{
 		list <string> args;
 		args.push_back ("-a");
 		args.push_back ("-t");
 		args.push_back ("vnode");
+
+		if (readOnly)
+		{
+			args.push_back ("-o");
+			args.push_back ("readonly");
+		}
+
 		args.push_back ("-f");
 		args.push_back (filePath);
 
@@ -146,7 +153,7 @@ namespace TrueCrypt
 		ScopeLock sl (mutex);
 
 		struct statfs *sysMountList;
-		int count = getmntinfo (&sysMountList, MNT_WAIT);
+		int count = getmntinfo (&sysMountList, MNT_NOWAIT);
 		throw_sys_if (count == 0);
 
 		MountedFilesystemList mountedFilesystems;

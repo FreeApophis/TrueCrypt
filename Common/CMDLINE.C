@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.5 the full text of which is contained in the
+ by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -24,8 +24,7 @@
 /* Except in response to the WM_INITDIALOG message, the dialog box procedure
    should return nonzero if it processes the message, and zero if it does
    not. - see DialogProc */
-BOOL CALLBACK
-CommandHelpDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+BOOL CALLBACK CommandHelpDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	if (lParam);		/* remove warning */
 	if (wParam);		/* remove warning */
@@ -48,8 +47,11 @@ CommandHelpDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 		strcpy (tmp, "Command line options:\n\n");
 		for (i = 0; i < as->arg_cnt; i ++)
 		{
-			sprintf(tmp2, "%s\t%s\n", as->args[i].short_name, as->args[i].long_name);
-			strcat(tmp,tmp2);
+			if (!as->args[i].Internal)
+			{
+				sprintf(tmp2, "%s\t%s\n", as->args[i].short_name, as->args[i].long_name);
+				strcat(tmp,tmp2);
+			}
 		}
 
 		SetWindowText (GetDlgItem (hwndDlg, IDC_COMMANDHELP_TEXT), (char*) tmp);
@@ -67,12 +69,11 @@ CommandHelpDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-int
-Win32CommandLine (char *lpszCommandLine, char ***lpszArgs)
+int Win32CommandLine (char *lpszCommandLine, char ***lpszArgs)
 {
 	int i = 0, k = 0, x = 0, nValid = TRUE;
 	int nLen = strlen (lpszCommandLine);
-	int nArrSize = 16;
+	int nArrSize = 1024;
 	char szTmp[MAX_PATH * 2];
 
 	*lpszArgs = malloc (sizeof (char *)* nArrSize);
@@ -164,8 +165,7 @@ Win32CommandLine (char *lpszCommandLine, char ***lpszArgs)
 	return x;
 }
 
-int
-GetArgSepPosOffset (char *lpszArgument)
+int GetArgSepPosOffset (char *lpszArgument)
 {
 	if (lpszArgument[0] == '/')
 		return 1;
@@ -177,8 +177,7 @@ GetArgSepPosOffset (char *lpszArgument)
 		return 0;
 }
 
-int
-GetArgumentID (argumentspec *as, char *lpszArgument, int *nArgPos)
+int GetArgumentID (argumentspec *as, char *lpszArgument, int *nArgPos)
 {
 	char szTmp[MAX_PATH * 2];
 	int i;
@@ -215,7 +214,7 @@ GetArgumentID (argumentspec *as, char *lpszArgument, int *nArgPos)
 					*nArgPos = k;
 				else
 					*nArgPos = 0;
-				return as->args[i].short_name[1];
+				return as->args[i].Id;
 			}
 		}
 	}
@@ -224,6 +223,9 @@ GetArgumentID (argumentspec *as, char *lpszArgument, int *nArgPos)
 	{
 		size_t k;
 
+		if (as->args[i].short_name[0] == 0)
+			continue;
+
 		k = strlen (as->args[i].short_name);
 		if (memcmp (as->args[i].short_name, szTmp, k * sizeof (char)) == 0)
 		{
@@ -231,6 +233,9 @@ GetArgumentID (argumentspec *as, char *lpszArgument, int *nArgPos)
 			for (x = i + 1; x < as->arg_cnt; x++)
 			{
 				size_t m;
+
+				if (as->args[x].short_name[0] == 0)
+					continue;
 
 				m = strlen (as->args[x].short_name);
 				if (memcmp (as->args[x].short_name, szTmp, m * sizeof (char)) == 0)
@@ -245,7 +250,7 @@ GetArgumentID (argumentspec *as, char *lpszArgument, int *nArgPos)
 					*nArgPos = k;
 				else
 					*nArgPos = 0;
-				return as->args[i].short_name[1];
+				return as->args[i].Id;
 			}
 		}
 	}
@@ -254,8 +259,7 @@ GetArgumentID (argumentspec *as, char *lpszArgument, int *nArgPos)
 	return -1;
 }
 
-int
-GetArgumentValue (char **lpszCommandLineArgs, int nArgPos, int *nArgIdx,
+int GetArgumentValue (char **lpszCommandLineArgs, int nArgPos, int *nArgIdx,
 		  int nNoCommandLineArgs, char *lpszValue, int nValueSize)
 {
 	*lpszValue = 0;

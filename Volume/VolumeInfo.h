@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -26,6 +26,7 @@ namespace TrueCrypt
 		virtual ~VolumeInfo () { }
 
 		TC_SERIALIZABLE (VolumeInfo);
+		static bool FirstVolumeMountedAfterSecond (shared_ptr <VolumeInfo> first, shared_ptr <VolumeInfo> second);
 		void Set (const Volume &volume);
 
 		// Modifying this structure can introduce incompatibility with previous versions

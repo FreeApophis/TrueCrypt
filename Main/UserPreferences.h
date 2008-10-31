@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -26,6 +26,7 @@ namespace TrueCrypt
 			BeepAfterHotkeyMountDismount (false),
 			CloseBackgroundTaskOnNoVolumes (true),
 			CloseExplorerWindowsOnDismount (true),
+			CloseSecurityTokenSessionsAfterMount (false),
 			DisableKernelEncryptionModeWarning (false),
 			DismountOnInactivity (false),
 			DismountOnLogOff (true),
@@ -65,6 +66,7 @@ namespace TrueCrypt
 		bool BeepAfterHotkeyMountDismount;
 		bool CloseBackgroundTaskOnNoVolumes;
 		bool CloseExplorerWindowsOnDismount;
+		bool CloseSecurityTokenSessionsAfterMount;
 		bool DisableKernelEncryptionModeWarning;
 		bool DismountOnInactivity;
 		bool DismountOnLogOff;
@@ -79,6 +81,7 @@ namespace TrueCrypt
 		bool NonInteractive;
 		bool OpenExplorerWindowAfterMount;
 		bool SaveHistory;
+		FilePath SecurityTokenModule;
 		bool StartOnLogon;
 		bool UseKeyfiles;
 		bool Verbose;
@@ -93,6 +96,7 @@ namespace TrueCrypt
 		void SetValue (const wxString &cfgText, uint64 &cfgVar);
 		void SetValue (const wxString &cfgText, wstring &cfgVar);
 		void SetValue (const wxString &cfgText, wxString &cfgVar);
+		void SetValue (const wxString &cfgText, FilesystemPath &cfgVar);
 	};
 }
 

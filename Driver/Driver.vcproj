@@ -239,39 +239,15 @@
 					>
 				</File>
 				<File
-					RelativePath="..\Crypto\Bf_ecb.c"
+					RelativePath="..\Crypto\Blowfish.c"
 					>
 				</File>
 				<File
-					RelativePath="..\Crypto\Bf_enc.c"
-					>
-				</File>
-				<File
-					RelativePath="..\Crypto\Bf_skey.c"
-					>
-				</File>
-				<File
-					RelativePath="..\Crypto\C_ecb.c"
-					>
-				</File>
-				<File
-					RelativePath="..\Crypto\C_enc.c"
-					>
-				</File>
-				<File
-					RelativePath="..\Crypto\C_skey.c"
+					RelativePath="..\Crypto\Cast.c"
 					>
 				</File>
 				<File
 					RelativePath="..\Crypto\Des.c"
-					>
-				</File>
-				<File
-					RelativePath="..\Crypto\Des_enc.c"
-					>
-				</File>
-				<File
-					RelativePath="..\Crypto\Ecb3_enc.c"
 					>
 				</File>
 				<File
@@ -280,10 +256,6 @@
 				</File>
 				<File
 					RelativePath="..\Crypto\Serpent.c"
-					>
-				</File>
-				<File
-					RelativePath="..\Crypto\Set_key.c"
 					>
 				</File>
 				<File

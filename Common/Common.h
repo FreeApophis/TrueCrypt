@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2005-2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -48,6 +48,7 @@ typedef struct
 	BOOL PartitionInInactiveSysEncScope;	/* If TRUE, we are to attempt to mount a partition located on an encrypted system drive without pre-boot authentication. */
 	Password ProtectedHidVolPassword;	/* Password of hidden volume to protect against overwriting */
 	BOOL UseBackupHeader;
+	BOOL RecoveryMode;
 } MountOptions;
 
 #endif

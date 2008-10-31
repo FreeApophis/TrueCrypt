@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2005 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -15,23 +15,19 @@
 #include "Keyfiles.h"
 #include "Crc.h"
 
-#ifdef _WIN32
-
 #include <io.h>
 #include "Dlgcode.h"
 #include "Language.h"
-#include "../common/resource.h"
+#include "SecurityToken.h"
+#include "Common/resource.h"
+#include "Platform/ForEach.h"
+
+using namespace TrueCrypt;
 
 #define stat _stat
 #define S_IFDIR _S_IFDIR
 #define snprintf _snprintf
 
-#else
-
-#include <dirent.h>
-#include <utime.h>
-
-#endif
 
 KeyFile *KeyFileAdd (KeyFile *firstKeyFile, KeyFile *keyFile)
 {
@@ -101,7 +97,7 @@ KeyFile *KeyFileClone (KeyFile *keyFile)
 
 	if (keyFile == NULL) return NULL;
 
-	clone = malloc (sizeof (KeyFile));
+	clone = (KeyFile *) malloc (sizeof (KeyFile));
 	strcpy (clone->FileName, keyFile->FileName);
 	clone->Next = NULL;
 	return clone;
@@ -134,20 +130,15 @@ static BOOL KeyFileProcess (unsigned __int8 *keyPool, KeyFile *keyFile)
 	size_t bytesRead, totalRead = 0;
 	int status = TRUE;
 
-#ifdef _WIN32
 	HANDLE src;
 	FILETIME ftCreationTime;
 	FILETIME ftLastWriteTime;
 	FILETIME ftLastAccessTime;
-#else
-	struct stat kfStat;
-#endif
 
 	BOOL bTimeStampValid = FALSE;
 
 	/* Remember the last access time of the keyfile. It will be preserved in order to prevent
 	an adversary from determining which file may have been used as keyfile. */
-#ifdef _WIN32
 	src = CreateFile (keyFile->FileName,
 		GENERIC_READ | GENERIC_WRITE,
 		FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
@@ -159,9 +150,6 @@ static BOOL KeyFileProcess (unsigned __int8 *keyPool, KeyFile *keyFile)
 		else
 			Warning ("GETFILETIME_FAILED_KEYFILE");
 	}
-#else
-	bTimeStampValid = stat (keyFile->FileName, &kfStat) == 0;
-#endif
 
 	f = fopen (keyFile->FileName, "rb");
 	if (f == NULL) return FALSE;
@@ -194,26 +182,28 @@ static BOOL KeyFileProcess (unsigned __int8 *keyPool, KeyFile *keyFile)
 	}
 
 	if (ferror (f))
+	{
 		status = FALSE;
+	}
+	else if (totalRead == 0)
+	{
+		status = FALSE;
+		SetLastError (ERROR_HANDLE_EOF); 
+	}
 
 close:
+	DWORD err = GetLastError();
 	fclose (f);
 
-	if (bTimeStampValid)
+	if (bTimeStampValid && !IsFileOnReadOnlyFilesystem (keyFile->FileName))
 	{
 		// Restore the keyfile timestamp
-#ifdef _WIN32
 		if (!SetFileTime (src, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime))
 			Warning ("SETFILETIME_FAILED_KEYFILE");
 		CloseHandle (src);
-#else
-		struct utimbuf u;
-		u.actime = kfStat.st_atime;
-		u.modtime = kfStat.st_mtime;
-		utime (keyFile->FileName, &u);
-#endif
 	}
 
+	SetLastError (err);
 	return status;
 }
 
@@ -228,32 +218,69 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile)
 	int i;
 	struct stat statStruct;
 	char searchPath [TC_MAX_PATH*2];
-#ifdef _WIN32
 	struct _finddata_t fBuf;
 	intptr_t searchHandle;
-#else
-	struct dirent *fBuf;
-	DIR *searchHandle;
-#endif
 
 	if (firstKeyFile == NULL) return TRUE;
 
-#ifdef _WIN32
 	VirtualLock (keyPool, sizeof (keyPool));
-#endif
 	memset (keyPool, 0, sizeof (keyPool));
 
 	for (kf = firstKeyFile; kf != NULL; kf = kf->Next)
 	{
+		// Determine whether it's a security token path
+		try
+		{
+			if (SecurityToken::IsKeyfilePathValid (SingleStringToWide (kf->FileName)))
+			{
+				// Apply security token keyfile
+				vector <byte> keyfileData;
+				SecurityToken::GetKeyfileData (SecurityTokenKeyfile (SingleStringToWide (kf->FileName)), keyfileData);
+
+				if (keyfileData.empty())
+				{
+					SetLastError (ERROR_HANDLE_EOF); 
+					handleWin32Error (MainDlg);
+					Error ("ERR_PROCESS_KEYFILE");
+					status = FALSE;
+					continue;
+				}
+
+				unsigned __int32 crc = 0xffffffff;
+				int writePos = 0;
+				size_t totalRead = 0;
+
+				for (size_t i = 0; i < keyfileData.size(); i++)
+				{
+					crc = UPDC32 (keyfileData[i], crc);
+
+					keyPool[writePos++] += (unsigned __int8) (crc >> 24);
+					keyPool[writePos++] += (unsigned __int8) (crc >> 16);
+					keyPool[writePos++] += (unsigned __int8) (crc >> 8);
+					keyPool[writePos++] += (unsigned __int8) crc;
+
+					if (writePos >= KEYFILE_POOL_SIZE)
+						writePos = 0;
+
+					if (++totalRead >= KEYFILE_MAX_READ_LEN)
+						break;
+				}
+
+				burn (&keyfileData.front(), keyfileData.size());
+				continue;
+			}
+		}
+		catch (Exception &e)
+		{
+			e.Show (NULL);
+			return FALSE;
+		}
+
 		// Determine whether it's a path or a file
 		if (stat (kf->FileName, &statStruct) != 0)
 		{
-#ifdef _WIN32
 			handleWin32Error (MainDlg);
 			Error ("ERR_PROCESS_KEYFILE");
-#else
-			perror ("stat");
-#endif
 			status = FALSE;
 			continue;
 		}
@@ -262,44 +289,27 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile)
 		{
 			/* Find and process all keyfiles in the directory */
 
-#ifdef _WIN32
 			snprintf (searchPath, sizeof (searchPath), "%s\\*.*", kf->FileName);
 			if ((searchHandle = _findfirst (searchPath, &fBuf)) == -1)
-#else
-			if ((searchHandle = opendir (kf->FileName)) == NULL)
-#endif
 			{
-#ifdef _WIN32
 				handleWin32Error (MainDlg);
 				Error ("ERR_PROCESS_KEYFILE_PATH");
-#endif
 				status = FALSE;
 				continue;
 			}
 
-#ifdef _WIN32
 			do
-#else
-			while ((fBuf = readdir (searchHandle)) != NULL)
-#endif
 			{
 				snprintf (kfSub->FileName, sizeof(kfSub->FileName), "%s%c%s", kf->FileName,
-#ifdef _WIN32
 					'\\',
 					fBuf.name
-#else
-					'/',
-					fBuf->d_name
-#endif
 					);
 
 				// Determine whether it's a path or a file
 				if (stat (kfSub->FileName, &statStruct) != 0)
 				{
-#ifdef _WIN32
 					handleWin32Error (MainDlg);
 					Error ("ERR_PROCESS_KEYFILE");
-#endif
 					status = FALSE;
 					continue;
 				}
@@ -313,20 +323,13 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile)
 				// Apply keyfile to the pool
 				if (!KeyFileProcess (keyPool, kfSub))
 				{
-#ifdef _WIN32
 					handleWin32Error (MainDlg);
 					Error ("ERR_PROCESS_KEYFILE");
-#endif
 					status = FALSE;
 				}
 
-#ifdef _WIN32
 			} while (_findnext (searchHandle, &fBuf) != -1);
 			_findclose (searchHandle);
-#else
-			}
-			closedir (searchHandle);
-#endif
 
 			burn (&kfSubStruct, sizeof (kfSubStruct));
 
@@ -334,10 +337,8 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile)
 		// Apply keyfile to the pool
 		else if (!KeyFileProcess (keyPool, kf))
 		{
-#ifdef _WIN32
 			handleWin32Error (MainDlg);
 			Error ("ERR_PROCESS_KEYFILE");
-#endif
 			status = FALSE;
 		}
 	}
@@ -360,7 +361,6 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile)
 	return status;
 }
 
-#ifdef _WIN32
 
 static void LoadKeyList (HWND hwndDlg, KeyFile *firstKeyFile)
 {
@@ -419,14 +419,14 @@ BOOL CALLBACK KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 			memset (&LvCol,0,sizeof(LvCol));               
 			LvCol.mask = LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM|LVCF_FMT;  
 			LvCol.pszText = GetString ("KEYFILE");                           
-			LvCol.cx = CompensateXDPI (366);
+			LvCol.cx = CompensateXDPI (374);
 			LvCol.fmt = LVCFMT_LEFT;
 			SendMessageW (hList, LVM_INSERTCOLUMNW, 0, (LPARAM)&LvCol);
 
 			LoadKeyList (hwndDlg, param->FirstKeyFile);
 			SetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE, param->EnableKeyFiles);
 
-			SetWindowTextW(GetDlgItem(hwndDlg, IDT_KEYFILES_NOTE), GetString ("IDT_KEYFILES_NOTE"));
+			SetWindowTextW(GetDlgItem(hwndDlg, IDT_KEYFILES_NOTE), GetString ("KEYFILES_NOTE"));
 
 			ToHyperlink (hwndDlg, IDC_LINK_KEYFILES_INFO);
 		}
@@ -436,7 +436,7 @@ BOOL CALLBACK KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 
 		if (lw == IDC_KEYADD)
 		{
-			KeyFile *kf = malloc (sizeof (KeyFile));
+			KeyFile *kf = (KeyFile *) malloc (sizeof (KeyFile));
 			if (SelectMultipleFiles (hwndDlg, "SELECT_KEYFILE", kf->FileName, bHistory))
 			{
 				do
@@ -444,7 +444,7 @@ BOOL CALLBACK KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 					param->FirstKeyFile = KeyFileAdd (param->FirstKeyFile, kf);
 					LoadKeyList (hwndDlg, param->FirstKeyFile);
 
-					kf = malloc (sizeof (KeyFile));
+					kf = (KeyFile *) malloc (sizeof (KeyFile));
 				} while (SelectMultipleFilesNext (kf->FileName));
 			}
 
@@ -454,7 +454,7 @@ BOOL CALLBACK KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 
 		if (lw == IDC_ADD_KEYFILE_PATH)
 		{
-			KeyFile *kf = malloc (sizeof (KeyFile));
+			KeyFile *kf = (KeyFile *) malloc (sizeof (KeyFile));
 
 			if (BrowseDirectories (hwndDlg,"SELECT_KEYFILE_PATH", kf->FileName))
 			{
@@ -465,6 +465,24 @@ BOOL CALLBACK KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 			{
 				free (kf);
 			}
+			return 1;
+		}
+
+		if (lw == IDC_TOKEN_FILES_ADD)
+		{
+			list <SecurityTokenKeyfilePath> selectedTokenKeyfiles;
+			if (DialogBoxParamW (hInst, MAKEINTRESOURCEW (IDD_TOKEN_KEYFILES), hwndDlg, (DLGPROC) SecurityTokenKeyfileDlgProc, (LPARAM) &selectedTokenKeyfiles) == IDOK)
+			{
+				foreach (const SecurityTokenKeyfilePath &keyPath, selectedTokenKeyfiles)
+				{
+					KeyFile *kf = (KeyFile *) malloc (sizeof (KeyFile));
+					strcpy_s (kf->FileName, sizeof (kf->FileName), WideToSingleString (keyPath).c_str());
+
+					param->FirstKeyFile = KeyFileAdd (param->FirstKeyFile, kf);
+					LoadKeyList (hwndDlg, param->FirstKeyFile);
+				}
+			}
+
 			return 1;
 		}
 
@@ -530,7 +548,7 @@ BOOL CALLBACK KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 
 			while (count-- > 0)
 			{
-				KeyFile *kf = malloc (sizeof (KeyFile));
+				KeyFile *kf = (KeyFile *) malloc (sizeof (KeyFile));
 				DragQueryFile (hdrop, i++, kf->FileName, sizeof (kf->FileName));
 				param->FirstKeyFile = KeyFileAdd (param->FirstKeyFile, kf);
 				LoadKeyList (hwndDlg, param->FirstKeyFile);
@@ -564,4 +582,79 @@ BOOL CALLBACK KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 }
 
 
-#endif	/* #ifdef _WIN32 */
+#define IDM_KEYFILES_POPUP_ADD_FILES		9001
+#define IDM_KEYFILES_POPUP_ADD_DIR			9002
+#define IDM_KEYFILES_POPUP_ADD_TOKEN_FILES	9003
+
+BOOL KeyfilesPopupMenu (HWND hwndDlg, POINT popupPosition, KeyFilesDlgParam *param)
+{
+	HMENU popup = CreatePopupMenu ();
+	int sel;
+	BOOL status = FALSE;
+
+	AppendMenuW (popup, MF_STRING, IDM_KEYFILES_POPUP_ADD_FILES, GetString ("IDC_KEYADD"));
+	AppendMenuW (popup, MF_STRING, IDM_KEYFILES_POPUP_ADD_DIR, GetString ("IDC_ADD_KEYFILE_PATH"));
+	AppendMenuW (popup, MF_STRING, IDM_KEYFILES_POPUP_ADD_TOKEN_FILES, GetString ("IDC_TOKEN_FILES_ADD"));
+
+	sel = TrackPopupMenu (popup, TPM_RETURNCMD | TPM_LEFTBUTTON, popupPosition.x, popupPosition.y, 0, hwndDlg, NULL);
+
+	switch (sel)
+	{
+	case IDM_KEYFILES_POPUP_ADD_FILES:
+		{
+			KeyFile *kf = (KeyFile *) malloc (sizeof (KeyFile));
+			if (SelectMultipleFiles (hwndDlg, "SELECT_KEYFILE", kf->FileName, bHistory))
+			{
+				do
+				{
+					param->FirstKeyFile = KeyFileAdd (param->FirstKeyFile, kf);
+					kf = (KeyFile *) malloc (sizeof (KeyFile));
+				} while (SelectMultipleFilesNext (kf->FileName));
+
+				param->EnableKeyFiles = TRUE;
+				status = TRUE;
+			}
+
+			free (kf);
+		}
+		break;
+
+	case IDM_KEYFILES_POPUP_ADD_DIR:
+		{
+			KeyFile *kf = (KeyFile *) malloc (sizeof (KeyFile));
+
+			if (BrowseDirectories (hwndDlg,"SELECT_KEYFILE_PATH", kf->FileName))
+			{
+				param->FirstKeyFile = KeyFileAdd (param->FirstKeyFile, kf);
+				param->EnableKeyFiles = TRUE;
+				status = TRUE;
+			}
+			else
+			{
+				free (kf);
+			}
+		}
+		break;
+
+	case IDM_KEYFILES_POPUP_ADD_TOKEN_FILES:
+		{
+			list <SecurityTokenKeyfilePath> selectedTokenKeyfiles;
+			if (DialogBoxParamW (hInst, MAKEINTRESOURCEW (IDD_TOKEN_KEYFILES), hwndDlg, (DLGPROC) SecurityTokenKeyfileDlgProc, (LPARAM) &selectedTokenKeyfiles) == IDOK)
+			{
+				foreach (const SecurityTokenKeyfilePath &keyPath, selectedTokenKeyfiles)
+				{
+					KeyFile *kf = (KeyFile *) malloc (sizeof (KeyFile));
+					strcpy_s (kf->FileName, sizeof (kf->FileName), WideToSingleString (keyPath).c_str());
+
+					param->FirstKeyFile = KeyFileAdd (param->FirstKeyFile, kf);
+					param->EnableKeyFiles = TRUE;
+					status = TRUE;
+				}
+			}
+		}
+		break;
+	}
+
+	DestroyMenu (popup);
+	return status;
+}

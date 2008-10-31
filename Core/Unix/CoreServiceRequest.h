@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -56,6 +56,19 @@ namespace TrueCrypt
 
 		shared_ptr <VolumeInfo> MountedVolumeInfo;
 		bool Repair;
+	};
+
+	struct DismountFilesystemRequest : CoreServiceRequest
+	{
+		DismountFilesystemRequest () { }
+		DismountFilesystemRequest (const DirectoryPath &mountPoint, bool force)
+			: Force (force), MountPoint (mountPoint) { }
+		TC_SERIALIZABLE (DismountFilesystemRequest);
+
+		virtual bool RequiresElevation () const;
+
+		bool Force;
+		DirectoryPath MountPoint;
 	};
 
 	struct DismountVolumeRequest : CoreServiceRequest

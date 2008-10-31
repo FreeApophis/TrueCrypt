@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2007-2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -93,9 +93,9 @@ public:
 		return ::ChangePwd (CW2A (volumePath), oldPassword, newPassword, pkcs5, (HWND) hWnd);
 	}
 	
-	virtual BOOL STDMETHODCALLTYPE IsPagingFileActive ()
+	virtual BOOL STDMETHODCALLTYPE IsPagingFileActive (BOOL checkNonWindowsPartitionsOnly)
 	{
-		return BaseCom::IsPagingFileActive ();
+		return BaseCom::IsPagingFileActive (checkNonWindowsPartitionsOnly);
 	}
 
 	virtual DWORD STDMETHODCALLTYPE ReadWriteFile (BOOL write, BOOL device, BSTR filePath, BSTR *bufferBstr, unsigned __int64 offset, unsigned __int32 size, DWORD *sizeDone)
@@ -126,6 +126,8 @@ protected:
 
 extern "C" BOOL ComServerMain ()
 {
+	SetProcessShutdownParameters (0x100, 0);
+
 	TrueCryptFactory<TrueCryptMainCom> factory (GetCurrentThreadId ());
 	DWORD cookie;
 

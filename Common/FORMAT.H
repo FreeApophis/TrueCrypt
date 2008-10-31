@@ -5,9 +5,12 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.5 the full text of which is contained in the
+ by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
+
+#ifndef TC_HEADER_Format
+#define TC_HEADER_Format
 
 #include "Password.h"
 
@@ -44,7 +47,7 @@ FORMAT_VOL_PARAMETERS;
 #define FMIFS_DONE		0xB
 #define FMIFS_HARDDISK	0xC
 
-int FormatVolume (volatile FORMAT_VOL_PARAMETERS *volParams);
+int TCFormatVolume (volatile FORMAT_VOL_PARAMETERS *volParams);
 BOOL FormatNtfs (int driveNo, int clusterSize);
 
 #endif
@@ -53,6 +56,8 @@ uint64 GetVolumeDataAreaSize (BOOL hiddenVolume, uint64 volumeSize);
 int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void *dev, PCRYPTO_INFO cryptoInfo, BOOL quickFormat);
 BOOL WriteSector ( void *dev , char *sector , char *write_buf , int *write_buf_cnt , __int64 *nSecNo , PCRYPTO_INFO cryptoInfo );
 BOOL FlushFormatWriteBuffer (void *dev, char *write_buf, int *write_buf_cnt, __int64 *nSecNo, PCRYPTO_INFO cryptoInfo);
+static BOOL StartFormatWriteThread ();
+static void StopFormatWriteThread ();
 
 #define WRITE_BUF_SIZE	65536
 
@@ -63,3 +68,5 @@ BOOL FlushFormatWriteBuffer (void *dev, char *write_buf, int *write_buf_cnt, __i
 #ifdef __cplusplus
 }
 #endif
+
+#endif // TC_HEADER_Format

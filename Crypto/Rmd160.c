@@ -1,99 +1,44 @@
+// RIPEMD-160 written and placed in the public domain by Wei Dai
+
 /*
- * Copyright (c) 2001 Markus Friedl.  All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-/*
- * Preneel, Bosselaers, Dobbertin, "The Cryptographic Hash Function RIPEMD-160",
- * RSA Laboratories, CryptoBytes, Volume 3, Number 2, Autumn 1997,
- * ftp://ftp.rsasecurity.com/pub/cryptobytes/crypto3n2.pdf
+ * This code implements the MD4 message-digest algorithm.
+ * The algorithm is due to Ron Rivest.  This code was
+ * written by Colin Plumb in 1993, no copyright is claimed.
+ * This code is in the public domain; do with it what you wish.
  */
 
 /* Adapted by TrueCrypt Foundation */
 
-#include "Rmd160.h"
-#include "../Common/Endian.h"
 #include <memory.h>
+#include "Common/Tcdefs.h"
+#include "Common/Endian.h"
+#include "Rmd160.h"
 
-#define PUT_64BIT_LE(cp, value) do { \
-	(cp)[7] = (unsigned char)((value) >> 56); \
-	(cp)[6] = (unsigned char)((value) >> 48); \
-	(cp)[5] = (unsigned char)((value) >> 40); \
-	(cp)[4] = (unsigned char)((value) >> 32); \
-	(cp)[3] = (unsigned char)((value) >> 24); \
-	(cp)[2] = (unsigned char)((value) >> 16); \
-	(cp)[1] = (unsigned char)((value) >> 8); \
-	(cp)[0] = (unsigned char)(value); } while (0)
+#define F(x, y, z)    (x ^ y ^ z) 
+#define G(x, y, z)    (z ^ (x & (y^z)))
+#define H(x, y, z)    (z ^ (x | ~y))
+#define I(x, y, z)    (y ^ (z & (x^y)))
+#define J(x, y, z)    (x ^ (y | ~z))
 
-#define PUT_32BIT_LE(cp, value) do { \
-	(cp)[3] = (unsigned char)((value) >> 24); \
-	(cp)[2] = (unsigned char)((value) >> 16); \
-	(cp)[1] = (unsigned char)((value) >> 8); \
-	(cp)[0] = (unsigned char)(value); } while (0)
+#define PUT_64BIT_LE(cp, value) do {                                    \
+	(cp)[7] = (byte) ((value) >> 56);                                        \
+	(cp)[6] = (byte) ((value) >> 48);                                        \
+	(cp)[5] = (byte) ((value) >> 40);                                        \
+	(cp)[4] = (byte) ((value) >> 32);                                        \
+	(cp)[3] = (byte) ((value) >> 24);                                        \
+	(cp)[2] = (byte) ((value) >> 16);                                        \
+	(cp)[1] = (byte) ((value) >> 8);                                         \
+	(cp)[0] = (byte) (value); } while (0)
 
-#define	H0	0x67452301U
-#define	H1	0xEFCDAB89U
-#define	H2	0x98BADCFEU
-#define	H3	0x10325476U
-#define	H4	0xC3D2E1F0U
-
-#define	K0	0x00000000U
-#define	K1	0x5A827999U
-#define	K2	0x6ED9EBA1U
-#define	K3	0x8F1BBCDCU
-#define	K4	0xA953FD4EU
-
-#define	KK0	0x50A28BE6U
-#define	KK1	0x5C4DD124U
-#define	KK2	0x6D703EF3U
-#define	KK3	0x7A6D76E9U
-#define	KK4	0x00000000U
-
-/* rotate x left n bits.  */
-
-#if defined (_MSC_VER) && !defined (_DEBUG)
-#include <stdlib.h>
-#	pragma intrinsic (_lrotl)
-#	define ROL(n, x) (_lrotl (x, n))
-#else
-#	define ROL(n, x) (((x) << (n)) | ((x) >> (32-(n))))
-#endif
-
-#define F0(x, y, z) ((x) ^ (y) ^ (z))
-#define F1(x, y, z) (((x) & (y)) | ((~x) & (z)))
-#define F2(x, y, z) (((x) | (~y)) ^ (z))
-#define F3(x, y, z) (((x) & (z)) | ((y) & (~z)))
-#define F4(x, y, z) ((x) ^ ((y) | (~z)))
-
-#define R(a, b, c, d, e, Fj, Kj, sj, rj) \
-	do { \
-		a = ROL(sj, a + Fj(b,c,d) + X(rj) + Kj) + e; \
-		c = ROL(10, c); \
-	} while(0)
-
-#define X(i)	x[i]
+#define PUT_32BIT_LE(cp, value) do {                                    \
+	(cp)[3] = (byte) ((value) >> 24);                                        \
+	(cp)[2] = (byte) ((value) >> 16);                                        \
+	(cp)[1] = (byte) ((value) >> 8);                                         \
+	(cp)[0] = (byte) (value); } while (0)
 
 #ifndef TC_MINIMIZE_CODE_SIZE
 
-static u_char PADDING[64] = {
+static byte PADDING[64] = {
 	0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -101,291 +46,329 @@ static u_char PADDING[64] = {
 
 #else
 
-static u_char PADDING[64];
+static byte PADDING[64];
 
-#endif 
+#endif
 
-void
-RMD160Init(RMD160_CTX *ctx)
+void RMD160Init (RMD160_CTX *ctx)
 {
 	ctx->count = 0;
-	ctx->state[0] = H0;
-	ctx->state[1] = H1;
-	ctx->state[2] = H2;
-	ctx->state[3] = H3;
-	ctx->state[4] = H4;
-
+	ctx->state[0] = 0x67452301;
+	ctx->state[1] = 0xefcdab89;
+	ctx->state[2] = 0x98badcfe;
+	ctx->state[3] = 0x10325476;
+	ctx->state[4] = 0xc3d2e1f0;
 	PADDING[0] = 0x80;
 }
 
-void
-RMD160Update(RMD160_CTX *ctx, const u_char *input, u_int32_t len)
+/*
+* Update context to reflect the concatenation of another buffer full
+* of bytes.
+*/
+void RMD160Update (RMD160_CTX *ctx, const unsigned char *input, unsigned __int32 len)
 {
-	u_int32_t have, off, need;
+	size_t have, need;
 
-	have = (unsigned __int32)((ctx->count/8) % 64);
-	need = 64 - have;
-	ctx->count += 8 * len;
-	off = 0;
+	/* Check how many bytes we already have and how many more we need. */
+	have = (size_t)((ctx->count >> 3) & (RIPEMD160_BLOCK_LENGTH - 1));
+	need = RIPEMD160_BLOCK_LENGTH - have;
+
+	/* Update bitcount */
+	ctx->count += 
+#ifndef TC_NO_COMPILER_INT64
+		(uint64)
+#endif
+		len << 3;
 
 	if (len >= need) {
-		if (have) {
-			memcpy(ctx->buffer + have, input, (size_t) need);
-			RMD160Transform(ctx->state, ctx->buffer);
-			off = need;
+		if (have != 0) {
+			memcpy (ctx->buffer + have, input, need);
+			RMD160Transform ((uint32 *) ctx->state, (const uint32 *) ctx->buffer);
+			input += need;
+			len -= need;
 			have = 0;
 		}
-		/* now the buffer is empty */
-		while (off + 64 <= len) {
-			RMD160Transform(ctx->state, input+off);
-			off += 64;
+
+		/* Process data in RIPEMD160_BLOCK_LENGTH-byte chunks. */
+		while (len >= RIPEMD160_BLOCK_LENGTH) {
+			RMD160Transform ((uint32 *) ctx->state, (const uint32 *) input);
+			input += RIPEMD160_BLOCK_LENGTH;
+			len -= RIPEMD160_BLOCK_LENGTH;
 		}
 	}
-	if (off < len)
-		memcpy(ctx->buffer + have, input+off, (size_t) (len-off));
+
+	/* Handle any remaining bytes of data. */
+	if (len != 0)
+		memcpy (ctx->buffer + have, input, (size_t) len);
 }
 
-void RMD160Final(u_char digest[20], RMD160_CTX *ctx)
+/*
+* Pad pad to 64-byte boundary with the bit pattern
+* 1 0* (64-bit count of bits processed, MSB-first)
+*/
+static void RMD160Pad(RMD160_CTX *ctx)
 {
-	int i;
-	u_char size[8];
-	u_int32_t padlen;
+	byte count[8];
+	size_t padlen;
+
+	/* Convert count to 8 bytes in little endian order. */
 
 #ifndef TC_NO_COMPILER_INT64
-	PUT_64BIT_LE(size, ctx->count);
+	PUT_64BIT_LE(count, ctx->count);
 #else
-	*(unsigned __int32 *) (size + 4) = 0;
-	PUT_32BIT_LE(size, ctx->count);
+	*(unsigned __int32 *) (count + 4) = 0;
+	PUT_32BIT_LE(count, ctx->count);
 #endif
-	/*
-	 * pad to 64 byte blocks, at least one byte from PADDING plus 8 bytes
-	 * for the size
-	 */
-	padlen = (unsigned __int32)(64 - ((ctx->count/8) % 64));
+
+	/* Pad out to 56 mod 64. */
+	padlen = RIPEMD160_BLOCK_LENGTH -
+		(size_t)((ctx->count >> 3) & (RIPEMD160_BLOCK_LENGTH - 1));
 	if (padlen < 1 + 8)
-		padlen += 64;
-	RMD160Update(ctx, PADDING, padlen - 8);		/* padlen - 8 <= 64 */
-	RMD160Update(ctx, size, 8);
-
-	if (digest != 0)
-		for (i = 0; i < 5; i++)
-			PUT_32BIT_LE(digest + i*4, ctx->state[i]);
-
-	memset(ctx, 0, sizeof (*ctx));
+		padlen += RIPEMD160_BLOCK_LENGTH;
+	RMD160Update(ctx, PADDING, padlen - 8);            /* padlen - 8 <= 64 */
+	RMD160Update(ctx, count, 8);
 }
+
+/*
+* Final wrapup--call RMD160Pad, fill in digest and zero out ctx.
+*/
+void RMD160Final(unsigned char *digest, RMD160_CTX *ctx)
+{
+	int i;
+
+	RMD160Pad(ctx);
+	if (digest) {
+		for (i = 0; i < 5; i++)
+			PUT_32BIT_LE(digest + i * 4, ctx->state[i]);
+		memset (ctx, 0, sizeof(*ctx));
+	}
+}
+
 
 #ifndef TC_MINIMIZE_CODE_SIZE
 
-void
-RMD160Transform(u_int32_t state[5], const u_char block[64])
+#define word32 unsigned __int32
+
+#define k0 0
+#define k1 0x5a827999UL
+#define k2 0x6ed9eba1UL
+#define k3 0x8f1bbcdcUL
+#define k4 0xa953fd4eUL
+#define k5 0x50a28be6UL
+#define k6 0x5c4dd124UL
+#define k7 0x6d703ef3UL
+#define k8 0x7a6d76e9UL
+#define k9 0
+
+static word32 rotlFixed (word32 x, unsigned int y)
 {
-	u_int32_t a, b, c, d, e, aa, bb, cc, dd, ee, t, x[16];
+	return (word32)((x<<y) | (x>>(sizeof(word32)*8-y)));
+}
 
+#define Subround(f, a, b, c, d, e, x, s, k)        \
+	a += f(b, c, d) + x + k;\
+	a = rotlFixed((word32)a, s) + e;\
+	c = rotlFixed((word32)c, 10U)
+
+void RMD160Transform (unsigned __int32 *digest, const unsigned __int32 *data)
+{
 #if BYTE_ORDER == LITTLE_ENDIAN
-	memcpy(x, block, 64);
+	const word32 *X = data;
 #else
+	word32 X[16];
 	int i;
-
-	for (i = 0; i < 16; i++)
-		x[i] = (u_int32_t)(
-		    (u_int32_t)(block[i*4 + 0]) |
-		    (u_int32_t)(block[i*4 + 1]) <<  8 |
-		    (u_int32_t)(block[i*4 + 2]) << 16 |
-		    (u_int32_t)(block[i*4 + 3]) << 24);
 #endif
 
-	a = state[0];
-	b = state[1];
-	c = state[2];
-	d = state[3];
-	e = state[4];
+	word32 a1, b1, c1, d1, e1, a2, b2, c2, d2, e2;
+	a1 = a2 = digest[0];
+	b1 = b2 = digest[1];
+	c1 = c2 = digest[2];
+	d1 = d2 = digest[3];
+	e1 = e2 = digest[4];
 
-	/* Round 1 */
-	R(a, b, c, d, e, F0, K0, 11,  0);
-	R(e, a, b, c, d, F0, K0, 14,  1);
-	R(d, e, a, b, c, F0, K0, 15,  2);
-	R(c, d, e, a, b, F0, K0, 12,  3);
-	R(b, c, d, e, a, F0, K0,  5,  4);
-	R(a, b, c, d, e, F0, K0,  8,  5);
-	R(e, a, b, c, d, F0, K0,  7,  6);
-	R(d, e, a, b, c, F0, K0,  9,  7);
-	R(c, d, e, a, b, F0, K0, 11,  8);
-	R(b, c, d, e, a, F0, K0, 13,  9);
-	R(a, b, c, d, e, F0, K0, 14, 10);
-	R(e, a, b, c, d, F0, K0, 15, 11);
-	R(d, e, a, b, c, F0, K0,  6, 12);
-	R(c, d, e, a, b, F0, K0,  7, 13);
-	R(b, c, d, e, a, F0, K0,  9, 14);
-	R(a, b, c, d, e, F0, K0,  8, 15); /* #15 */
-	/* Round 2 */
-	R(e, a, b, c, d, F1, K1,  7,  7);
-	R(d, e, a, b, c, F1, K1,  6,  4);
-	R(c, d, e, a, b, F1, K1,  8, 13);
-	R(b, c, d, e, a, F1, K1, 13,  1);
-	R(a, b, c, d, e, F1, K1, 11, 10);
-	R(e, a, b, c, d, F1, K1,  9,  6);
-	R(d, e, a, b, c, F1, K1,  7, 15);
-	R(c, d, e, a, b, F1, K1, 15,  3);
-	R(b, c, d, e, a, F1, K1,  7, 12);
-	R(a, b, c, d, e, F1, K1, 12,  0);
-	R(e, a, b, c, d, F1, K1, 15,  9);
-	R(d, e, a, b, c, F1, K1,  9,  5);
-	R(c, d, e, a, b, F1, K1, 11,  2);
-	R(b, c, d, e, a, F1, K1,  7, 14);
-	R(a, b, c, d, e, F1, K1, 13, 11);
-	R(e, a, b, c, d, F1, K1, 12,  8); /* #31 */
-	/* Round 3 */
-	R(d, e, a, b, c, F2, K2, 11,  3);
-	R(c, d, e, a, b, F2, K2, 13, 10);
-	R(b, c, d, e, a, F2, K2,  6, 14);
-	R(a, b, c, d, e, F2, K2,  7,  4);
-	R(e, a, b, c, d, F2, K2, 14,  9);
-	R(d, e, a, b, c, F2, K2,  9, 15);
-	R(c, d, e, a, b, F2, K2, 13,  8);
-	R(b, c, d, e, a, F2, K2, 15,  1);
-	R(a, b, c, d, e, F2, K2, 14,  2);
-	R(e, a, b, c, d, F2, K2,  8,  7);
-	R(d, e, a, b, c, F2, K2, 13,  0);
-	R(c, d, e, a, b, F2, K2,  6,  6);
-	R(b, c, d, e, a, F2, K2,  5, 13);
-	R(a, b, c, d, e, F2, K2, 12, 11);
-	R(e, a, b, c, d, F2, K2,  7,  5);
-	R(d, e, a, b, c, F2, K2,  5, 12); /* #47 */
-	/* Round 4 */
-	R(c, d, e, a, b, F3, K3, 11,  1);
-	R(b, c, d, e, a, F3, K3, 12,  9);
-	R(a, b, c, d, e, F3, K3, 14, 11);
-	R(e, a, b, c, d, F3, K3, 15, 10);
-	R(d, e, a, b, c, F3, K3, 14,  0);
-	R(c, d, e, a, b, F3, K3, 15,  8);
-	R(b, c, d, e, a, F3, K3,  9, 12);
-	R(a, b, c, d, e, F3, K3,  8,  4);
-	R(e, a, b, c, d, F3, K3,  9, 13);
-	R(d, e, a, b, c, F3, K3, 14,  3);
-	R(c, d, e, a, b, F3, K3,  5,  7);
-	R(b, c, d, e, a, F3, K3,  6, 15);
-	R(a, b, c, d, e, F3, K3,  8, 14);
-	R(e, a, b, c, d, F3, K3,  6,  5);
-	R(d, e, a, b, c, F3, K3,  5,  6);
-	R(c, d, e, a, b, F3, K3, 12,  2); /* #63 */
-	/* Round 5 */
-	R(b, c, d, e, a, F4, K4,  9,  4);
-	R(a, b, c, d, e, F4, K4, 15,  0);
-	R(e, a, b, c, d, F4, K4,  5,  5);
-	R(d, e, a, b, c, F4, K4, 11,  9);
-	R(c, d, e, a, b, F4, K4,  6,  7);
-	R(b, c, d, e, a, F4, K4,  8, 12);
-	R(a, b, c, d, e, F4, K4, 13,  2);
-	R(e, a, b, c, d, F4, K4, 12, 10);
-	R(d, e, a, b, c, F4, K4,  5, 14);
-	R(c, d, e, a, b, F4, K4, 12,  1);
-	R(b, c, d, e, a, F4, K4, 13,  3);
-	R(a, b, c, d, e, F4, K4, 14,  8);
-	R(e, a, b, c, d, F4, K4, 11, 11);
-	R(d, e, a, b, c, F4, K4,  8,  6);
-	R(c, d, e, a, b, F4, K4,  5, 15);
-	R(b, c, d, e, a, F4, K4,  6, 13); /* #79 */
+#if BYTE_ORDER == BIG_ENDIAN
+	for (i = 0; i < 16; i++)
+	{
+		X[i] = LE32 (data[i]);
+	}
+#endif
 
-	aa = a ; bb = b; cc = c; dd = d; ee = e;
+	Subround(F, a1, b1, c1, d1, e1, X[ 0], 11, k0);
+	Subround(F, e1, a1, b1, c1, d1, X[ 1], 14, k0);
+	Subround(F, d1, e1, a1, b1, c1, X[ 2], 15, k0);
+	Subround(F, c1, d1, e1, a1, b1, X[ 3], 12, k0);
+	Subround(F, b1, c1, d1, e1, a1, X[ 4],  5, k0);
+	Subround(F, a1, b1, c1, d1, e1, X[ 5],  8, k0);
+	Subround(F, e1, a1, b1, c1, d1, X[ 6],  7, k0);
+	Subround(F, d1, e1, a1, b1, c1, X[ 7],  9, k0);
+	Subround(F, c1, d1, e1, a1, b1, X[ 8], 11, k0);
+	Subround(F, b1, c1, d1, e1, a1, X[ 9], 13, k0);
+	Subround(F, a1, b1, c1, d1, e1, X[10], 14, k0);
+	Subround(F, e1, a1, b1, c1, d1, X[11], 15, k0);
+	Subround(F, d1, e1, a1, b1, c1, X[12],  6, k0);
+	Subround(F, c1, d1, e1, a1, b1, X[13],  7, k0);
+	Subround(F, b1, c1, d1, e1, a1, X[14],  9, k0);
+	Subround(F, a1, b1, c1, d1, e1, X[15],  8, k0);
 
-	a = state[0];
-	b = state[1];
-	c = state[2];
-	d = state[3];
-	e = state[4];
+	Subround(G, e1, a1, b1, c1, d1, X[ 7],  7, k1);
+	Subround(G, d1, e1, a1, b1, c1, X[ 4],  6, k1);
+	Subround(G, c1, d1, e1, a1, b1, X[13],  8, k1);
+	Subround(G, b1, c1, d1, e1, a1, X[ 1], 13, k1);
+	Subround(G, a1, b1, c1, d1, e1, X[10], 11, k1);
+	Subround(G, e1, a1, b1, c1, d1, X[ 6],  9, k1);
+	Subround(G, d1, e1, a1, b1, c1, X[15],  7, k1);
+	Subround(G, c1, d1, e1, a1, b1, X[ 3], 15, k1);
+	Subround(G, b1, c1, d1, e1, a1, X[12],  7, k1);
+	Subround(G, a1, b1, c1, d1, e1, X[ 0], 12, k1);
+	Subround(G, e1, a1, b1, c1, d1, X[ 9], 15, k1);
+	Subround(G, d1, e1, a1, b1, c1, X[ 5],  9, k1);
+	Subround(G, c1, d1, e1, a1, b1, X[ 2], 11, k1);
+	Subround(G, b1, c1, d1, e1, a1, X[14],  7, k1);
+	Subround(G, a1, b1, c1, d1, e1, X[11], 13, k1);
+	Subround(G, e1, a1, b1, c1, d1, X[ 8], 12, k1);
 
-	/* Parallel round 1 */
-	R(a, b, c, d, e, F4, KK0,  8,  5);
-	R(e, a, b, c, d, F4, KK0,  9, 14);
-	R(d, e, a, b, c, F4, KK0,  9,  7);
-	R(c, d, e, a, b, F4, KK0, 11,  0);
-	R(b, c, d, e, a, F4, KK0, 13,  9);
-	R(a, b, c, d, e, F4, KK0, 15,  2);
-	R(e, a, b, c, d, F4, KK0, 15, 11);
-	R(d, e, a, b, c, F4, KK0,  5,  4);
-	R(c, d, e, a, b, F4, KK0,  7, 13);
-	R(b, c, d, e, a, F4, KK0,  7,  6);
-	R(a, b, c, d, e, F4, KK0,  8, 15);
-	R(e, a, b, c, d, F4, KK0, 11,  8);
-	R(d, e, a, b, c, F4, KK0, 14,  1);
-	R(c, d, e, a, b, F4, KK0, 14, 10);
-	R(b, c, d, e, a, F4, KK0, 12,  3);
-	R(a, b, c, d, e, F4, KK0,  6, 12); /* #15 */
-	/* Parallel round 2 */
-	R(e, a, b, c, d, F3, KK1,  9,  6);
-	R(d, e, a, b, c, F3, KK1, 13, 11);
-	R(c, d, e, a, b, F3, KK1, 15,  3);
-	R(b, c, d, e, a, F3, KK1,  7,  7);
-	R(a, b, c, d, e, F3, KK1, 12,  0);
-	R(e, a, b, c, d, F3, KK1,  8, 13);
-	R(d, e, a, b, c, F3, KK1,  9,  5);
-	R(c, d, e, a, b, F3, KK1, 11, 10);
-	R(b, c, d, e, a, F3, KK1,  7, 14);
-	R(a, b, c, d, e, F3, KK1,  7, 15);
-	R(e, a, b, c, d, F3, KK1, 12,  8);
-	R(d, e, a, b, c, F3, KK1,  7, 12);
-	R(c, d, e, a, b, F3, KK1,  6,  4);
-	R(b, c, d, e, a, F3, KK1, 15,  9);
-	R(a, b, c, d, e, F3, KK1, 13,  1);
-	R(e, a, b, c, d, F3, KK1, 11,  2); /* #31 */
-	/* Parallel round 3 */
-	R(d, e, a, b, c, F2, KK2,  9, 15);
-	R(c, d, e, a, b, F2, KK2,  7,  5);
-	R(b, c, d, e, a, F2, KK2, 15,  1);
-	R(a, b, c, d, e, F2, KK2, 11,  3);
-	R(e, a, b, c, d, F2, KK2,  8,  7);
-	R(d, e, a, b, c, F2, KK2,  6, 14);
-	R(c, d, e, a, b, F2, KK2,  6,  6);
-	R(b, c, d, e, a, F2, KK2, 14,  9);
-	R(a, b, c, d, e, F2, KK2, 12, 11);
-	R(e, a, b, c, d, F2, KK2, 13,  8);
-	R(d, e, a, b, c, F2, KK2,  5, 12);
-	R(c, d, e, a, b, F2, KK2, 14,  2);
-	R(b, c, d, e, a, F2, KK2, 13, 10);
-	R(a, b, c, d, e, F2, KK2, 13,  0);
-	R(e, a, b, c, d, F2, KK2,  7,  4);
-	R(d, e, a, b, c, F2, KK2,  5, 13); /* #47 */
-	/* Parallel round 4 */
-	R(c, d, e, a, b, F1, KK3, 15,  8);
-	R(b, c, d, e, a, F1, KK3,  5,  6);
-	R(a, b, c, d, e, F1, KK3,  8,  4);
-	R(e, a, b, c, d, F1, KK3, 11,  1);
-	R(d, e, a, b, c, F1, KK3, 14,  3);
-	R(c, d, e, a, b, F1, KK3, 14, 11);
-	R(b, c, d, e, a, F1, KK3,  6, 15);
-	R(a, b, c, d, e, F1, KK3, 14,  0);
-	R(e, a, b, c, d, F1, KK3,  6,  5);
-	R(d, e, a, b, c, F1, KK3,  9, 12);
-	R(c, d, e, a, b, F1, KK3, 12,  2);
-	R(b, c, d, e, a, F1, KK3,  9, 13);
-	R(a, b, c, d, e, F1, KK3, 12,  9);
-	R(e, a, b, c, d, F1, KK3,  5,  7);
-	R(d, e, a, b, c, F1, KK3, 15, 10);
-	R(c, d, e, a, b, F1, KK3,  8, 14); /* #63 */
-	/* Parallel round 5 */
-	R(b, c, d, e, a, F0, KK4,  8, 12);
-	R(a, b, c, d, e, F0, KK4,  5, 15);
-	R(e, a, b, c, d, F0, KK4, 12, 10);
-	R(d, e, a, b, c, F0, KK4,  9,  4);
-	R(c, d, e, a, b, F0, KK4, 12,  1);
-	R(b, c, d, e, a, F0, KK4,  5,  5);
-	R(a, b, c, d, e, F0, KK4, 14,  8);
-	R(e, a, b, c, d, F0, KK4,  6,  7);
-	R(d, e, a, b, c, F0, KK4,  8,  6);
-	R(c, d, e, a, b, F0, KK4, 13,  2);
-	R(b, c, d, e, a, F0, KK4,  6, 13);
-	R(a, b, c, d, e, F0, KK4,  5, 14);
-	R(e, a, b, c, d, F0, KK4, 15,  0);
-	R(d, e, a, b, c, F0, KK4, 13,  3);
-	R(c, d, e, a, b, F0, KK4, 11,  9);
-	R(b, c, d, e, a, F0, KK4, 11, 11); /* #79 */
+	Subround(H, d1, e1, a1, b1, c1, X[ 3], 11, k2);
+	Subround(H, c1, d1, e1, a1, b1, X[10], 13, k2);
+	Subround(H, b1, c1, d1, e1, a1, X[14],  6, k2);
+	Subround(H, a1, b1, c1, d1, e1, X[ 4],  7, k2);
+	Subround(H, e1, a1, b1, c1, d1, X[ 9], 14, k2);
+	Subround(H, d1, e1, a1, b1, c1, X[15],  9, k2);
+	Subround(H, c1, d1, e1, a1, b1, X[ 8], 13, k2);
+	Subround(H, b1, c1, d1, e1, a1, X[ 1], 15, k2);
+	Subround(H, a1, b1, c1, d1, e1, X[ 2], 14, k2);
+	Subround(H, e1, a1, b1, c1, d1, X[ 7],  8, k2);
+	Subround(H, d1, e1, a1, b1, c1, X[ 0], 13, k2);
+	Subround(H, c1, d1, e1, a1, b1, X[ 6],  6, k2);
+	Subround(H, b1, c1, d1, e1, a1, X[13],  5, k2);
+	Subround(H, a1, b1, c1, d1, e1, X[11], 12, k2);
+	Subround(H, e1, a1, b1, c1, d1, X[ 5],  7, k2);
+	Subround(H, d1, e1, a1, b1, c1, X[12],  5, k2);
 
-	t =        state[1] + cc + d;
-	state[1] = state[2] + dd + e;
-	state[2] = state[3] + ee + a;
-	state[3] = state[4] + aa + b;
-	state[4] = state[0] + bb + c;
-	state[0] = t;
+	Subround(I, c1, d1, e1, a1, b1, X[ 1], 11, k3);
+	Subround(I, b1, c1, d1, e1, a1, X[ 9], 12, k3);
+	Subround(I, a1, b1, c1, d1, e1, X[11], 14, k3);
+	Subround(I, e1, a1, b1, c1, d1, X[10], 15, k3);
+	Subround(I, d1, e1, a1, b1, c1, X[ 0], 14, k3);
+	Subround(I, c1, d1, e1, a1, b1, X[ 8], 15, k3);
+	Subround(I, b1, c1, d1, e1, a1, X[12],  9, k3);
+	Subround(I, a1, b1, c1, d1, e1, X[ 4],  8, k3);
+	Subround(I, e1, a1, b1, c1, d1, X[13],  9, k3);
+	Subround(I, d1, e1, a1, b1, c1, X[ 3], 14, k3);
+	Subround(I, c1, d1, e1, a1, b1, X[ 7],  5, k3);
+	Subround(I, b1, c1, d1, e1, a1, X[15],  6, k3);
+	Subround(I, a1, b1, c1, d1, e1, X[14],  8, k3);
+	Subround(I, e1, a1, b1, c1, d1, X[ 5],  6, k3);
+	Subround(I, d1, e1, a1, b1, c1, X[ 6],  5, k3);
+	Subround(I, c1, d1, e1, a1, b1, X[ 2], 12, k3);
+
+	Subround(J, b1, c1, d1, e1, a1, X[ 4],  9, k4);
+	Subround(J, a1, b1, c1, d1, e1, X[ 0], 15, k4);
+	Subround(J, e1, a1, b1, c1, d1, X[ 5],  5, k4);
+	Subround(J, d1, e1, a1, b1, c1, X[ 9], 11, k4);
+	Subround(J, c1, d1, e1, a1, b1, X[ 7],  6, k4);
+	Subround(J, b1, c1, d1, e1, a1, X[12],  8, k4);
+	Subround(J, a1, b1, c1, d1, e1, X[ 2], 13, k4);
+	Subround(J, e1, a1, b1, c1, d1, X[10], 12, k4);
+	Subround(J, d1, e1, a1, b1, c1, X[14],  5, k4);
+	Subround(J, c1, d1, e1, a1, b1, X[ 1], 12, k4);
+	Subround(J, b1, c1, d1, e1, a1, X[ 3], 13, k4);
+	Subround(J, a1, b1, c1, d1, e1, X[ 8], 14, k4);
+	Subround(J, e1, a1, b1, c1, d1, X[11], 11, k4);
+	Subround(J, d1, e1, a1, b1, c1, X[ 6],  8, k4);
+	Subround(J, c1, d1, e1, a1, b1, X[15],  5, k4);
+	Subround(J, b1, c1, d1, e1, a1, X[13],  6, k4);
+
+	Subround(J, a2, b2, c2, d2, e2, X[ 5],  8, k5);
+	Subround(J, e2, a2, b2, c2, d2, X[14],  9, k5);
+	Subround(J, d2, e2, a2, b2, c2, X[ 7],  9, k5);
+	Subround(J, c2, d2, e2, a2, b2, X[ 0], 11, k5);
+	Subround(J, b2, c2, d2, e2, a2, X[ 9], 13, k5);
+	Subround(J, a2, b2, c2, d2, e2, X[ 2], 15, k5);
+	Subround(J, e2, a2, b2, c2, d2, X[11], 15, k5);
+	Subround(J, d2, e2, a2, b2, c2, X[ 4],  5, k5);
+	Subround(J, c2, d2, e2, a2, b2, X[13],  7, k5);
+	Subround(J, b2, c2, d2, e2, a2, X[ 6],  7, k5);
+	Subround(J, a2, b2, c2, d2, e2, X[15],  8, k5);
+	Subround(J, e2, a2, b2, c2, d2, X[ 8], 11, k5);
+	Subround(J, d2, e2, a2, b2, c2, X[ 1], 14, k5);
+	Subround(J, c2, d2, e2, a2, b2, X[10], 14, k5);
+	Subround(J, b2, c2, d2, e2, a2, X[ 3], 12, k5);
+	Subround(J, a2, b2, c2, d2, e2, X[12],  6, k5);
+
+	Subround(I, e2, a2, b2, c2, d2, X[ 6],  9, k6); 
+	Subround(I, d2, e2, a2, b2, c2, X[11], 13, k6);
+	Subround(I, c2, d2, e2, a2, b2, X[ 3], 15, k6);
+	Subround(I, b2, c2, d2, e2, a2, X[ 7],  7, k6);
+	Subround(I, a2, b2, c2, d2, e2, X[ 0], 12, k6);
+	Subround(I, e2, a2, b2, c2, d2, X[13],  8, k6);
+	Subround(I, d2, e2, a2, b2, c2, X[ 5],  9, k6);
+	Subround(I, c2, d2, e2, a2, b2, X[10], 11, k6);
+	Subround(I, b2, c2, d2, e2, a2, X[14],  7, k6);
+	Subround(I, a2, b2, c2, d2, e2, X[15],  7, k6);
+	Subround(I, e2, a2, b2, c2, d2, X[ 8], 12, k6);
+	Subround(I, d2, e2, a2, b2, c2, X[12],  7, k6);
+	Subround(I, c2, d2, e2, a2, b2, X[ 4],  6, k6);
+	Subround(I, b2, c2, d2, e2, a2, X[ 9], 15, k6);
+	Subround(I, a2, b2, c2, d2, e2, X[ 1], 13, k6);
+	Subround(I, e2, a2, b2, c2, d2, X[ 2], 11, k6);
+
+	Subround(H, d2, e2, a2, b2, c2, X[15],  9, k7);
+	Subround(H, c2, d2, e2, a2, b2, X[ 5],  7, k7);
+	Subround(H, b2, c2, d2, e2, a2, X[ 1], 15, k7);
+	Subround(H, a2, b2, c2, d2, e2, X[ 3], 11, k7);
+	Subround(H, e2, a2, b2, c2, d2, X[ 7],  8, k7);
+	Subround(H, d2, e2, a2, b2, c2, X[14],  6, k7);
+	Subround(H, c2, d2, e2, a2, b2, X[ 6],  6, k7);
+	Subround(H, b2, c2, d2, e2, a2, X[ 9], 14, k7);
+	Subround(H, a2, b2, c2, d2, e2, X[11], 12, k7);
+	Subround(H, e2, a2, b2, c2, d2, X[ 8], 13, k7);
+	Subround(H, d2, e2, a2, b2, c2, X[12],  5, k7);
+	Subround(H, c2, d2, e2, a2, b2, X[ 2], 14, k7);
+	Subround(H, b2, c2, d2, e2, a2, X[10], 13, k7);
+	Subround(H, a2, b2, c2, d2, e2, X[ 0], 13, k7);
+	Subround(H, e2, a2, b2, c2, d2, X[ 4],  7, k7);
+	Subround(H, d2, e2, a2, b2, c2, X[13],  5, k7);
+
+	Subround(G, c2, d2, e2, a2, b2, X[ 8], 15, k8);
+	Subround(G, b2, c2, d2, e2, a2, X[ 6],  5, k8);
+	Subround(G, a2, b2, c2, d2, e2, X[ 4],  8, k8);
+	Subround(G, e2, a2, b2, c2, d2, X[ 1], 11, k8);
+	Subround(G, d2, e2, a2, b2, c2, X[ 3], 14, k8);
+	Subround(G, c2, d2, e2, a2, b2, X[11], 14, k8);
+	Subround(G, b2, c2, d2, e2, a2, X[15],  6, k8);
+	Subround(G, a2, b2, c2, d2, e2, X[ 0], 14, k8);
+	Subround(G, e2, a2, b2, c2, d2, X[ 5],  6, k8);
+	Subround(G, d2, e2, a2, b2, c2, X[12],  9, k8);
+	Subround(G, c2, d2, e2, a2, b2, X[ 2], 12, k8);
+	Subround(G, b2, c2, d2, e2, a2, X[13],  9, k8);
+	Subround(G, a2, b2, c2, d2, e2, X[ 9], 12, k8);
+	Subround(G, e2, a2, b2, c2, d2, X[ 7],  5, k8);
+	Subround(G, d2, e2, a2, b2, c2, X[10], 15, k8);
+	Subround(G, c2, d2, e2, a2, b2, X[14],  8, k8);
+
+	Subround(F, b2, c2, d2, e2, a2, X[12],  8, k9);
+	Subround(F, a2, b2, c2, d2, e2, X[15],  5, k9);
+	Subround(F, e2, a2, b2, c2, d2, X[10], 12, k9);
+	Subround(F, d2, e2, a2, b2, c2, X[ 4],  9, k9);
+	Subround(F, c2, d2, e2, a2, b2, X[ 1], 12, k9);
+	Subround(F, b2, c2, d2, e2, a2, X[ 5],  5, k9);
+	Subround(F, a2, b2, c2, d2, e2, X[ 8], 14, k9);
+	Subround(F, e2, a2, b2, c2, d2, X[ 7],  6, k9);
+	Subround(F, d2, e2, a2, b2, c2, X[ 6],  8, k9);
+	Subround(F, c2, d2, e2, a2, b2, X[ 2], 13, k9);
+	Subround(F, b2, c2, d2, e2, a2, X[13],  6, k9);
+	Subround(F, a2, b2, c2, d2, e2, X[14],  5, k9);
+	Subround(F, e2, a2, b2, c2, d2, X[ 0], 15, k9);
+	Subround(F, d2, e2, a2, b2, c2, X[ 3], 13, k9);
+	Subround(F, c2, d2, e2, a2, b2, X[ 9], 11, k9);
+	Subround(F, b2, c2, d2, e2, a2, X[11], 11, k9);
+
+	c1        = digest[1] + c1 + d2;
+	digest[1] = digest[2] + d1 + e2;
+	digest[2] = digest[3] + e1 + a2;
+	digest[3] = digest[4] + a1 + b2;
+	digest[4] = digest[0] + b1 + c2;
+	digest[0] = c1;
 }
 
 #else // TC_MINIMIZE_CODE_SIZE
@@ -393,7 +376,7 @@ RMD160Transform(u_int32_t state[5], const u_char block[64])
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -402,6 +385,9 @@ RMD160Transform(u_int32_t state[5], const u_char block[64])
 
 typedef unsigned __int32 uint32;
 typedef unsigned __int8 byte;
+
+#include <stdlib.h>
+#pragma intrinsic (_lrotl)
 
 static const byte OrderTab[] = {
 	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
@@ -443,11 +429,10 @@ static const uint32 KTab[] = {
 };
 
 
-void RMD160Transform (u_int32_t state[5], const u_char block[64])
+void RMD160Transform (unsigned __int32 *state, const unsigned __int32 *data)
 {
 	uint32 a, b, c, d, e;
 	uint32 a2, b2, c2, d2, e2;
-	uint32 *data = (uint32 *) block;
 	byte pos;
 	uint32 tmp;
 
@@ -463,17 +448,17 @@ void RMD160Transform (u_int32_t state[5], const u_char block[64])
 		
 		switch (pos >> 4)
 		{
-		case 0: case 9: tmp += F0 (b, c, d); break;
-		case 1: case 8: tmp += F1 (b, c, d); break;
-		case 2: case 7: tmp += F2 (b, c, d); break;
-		case 3: case 6: tmp += F3 (b, c, d); break;
-		case 4: case 5: tmp += F4 (b, c, d); break;
+		case 0: case 9: tmp += F (b, c, d); break;
+		case 1: case 8: tmp += G (b, c, d); break;
+		case 2: case 7: tmp += H (b, c, d); break;
+		case 3: case 6: tmp += I (b, c, d); break;
+		case 4: case 5: tmp += J (b, c, d); break;
 		}
 
-		tmp = ROL (RolTab[pos], tmp) + e;
+		tmp = _lrotl (tmp, RolTab[pos]) + e;
 		a = e;
 		e = d;
-		d = ROL (10, c);
+		d = _lrotl (c, 10);
 		c = b;
 		b = tmp;
 

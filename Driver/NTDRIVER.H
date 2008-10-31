@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.5 the full text of which is contained in the
+ by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -79,12 +79,26 @@ typedef struct EXTENSION
 	LARGE_INTEGER fileLastChangeTime;
 	BOOL bTimeStampValid;
 
+	PSID UserSid;
+	BOOL SecurityClientContextValid;
+	SECURITY_CLIENT_CONTEXT SecurityClientContext;
+
 } EXTENSION, *PEXTENSION;
+
+
+typedef enum
+{
+	ValidateInput,
+	ValidateOutput,
+	ValidateInputOutput
+} ValidateIOBufferSizeType;
+
 
 extern PDRIVER_OBJECT TCDriverObject;
 extern BOOL DriverShuttingDown;
 extern ULONG OsMajorVersion;
 extern ULONG OsMinorVersion;
+extern BOOL CacheBootPassword;
 
 /* Helper macro returning x seconds in units of 100 nanoseconds */
 #define WAIT_SECONDS(x) ((x)*10000000)
@@ -142,6 +156,10 @@ NTSTATUS TCWriteRegistryKey (PUNICODE_STRING keyPath, wchar_t *keyValueName, ULO
 BOOL IsVolumeClassFilterRegistered ();
 uint32 ReadRegistryConfigFlags ();
 NTSTATUS WriteRegistryConfigFlags (uint32 flags);
+BOOL ValidateIOBufferSize (PIRP irp, size_t requiredBufferSize, ValidateIOBufferSizeType type);
+NTSTATUS GetDeviceSectorSize (PDEVICE_OBJECT deviceObject, ULONG *bytesPerSector);
+NTSTATUS ZeroUnreadableSectors (PDEVICE_OBJECT deviceObject, LARGE_INTEGER startOffset, ULONG size, uint64 *zeroedSectorCount);
+BOOL IsVolumeAccessibleByCurrentUser (PEXTENSION volumeDeviceExtension);
 
 #define TC_BUG_CHECK(status) KeBugCheckEx (SECURITY_SYSTEM, __LINE__, status, 0, 'TC')
 

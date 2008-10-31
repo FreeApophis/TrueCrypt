@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.5 the full text of which is contained in the
+ by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -119,8 +119,7 @@ enum
 #ifndef TC_WINDOWS_BOOT
 	BLOWFISH,		// Deprecated/legacy
 	CAST,			// Deprecated/legacy
-	TRIPLEDES,		// Deprecated/legacy
-	DES56			// Deprecated/legacy (used only by Triple DES)
+	TRIPLEDES		// Deprecated/legacy
 #endif
 };
 
@@ -227,10 +226,9 @@ typedef struct CRYPTO_INFO_t
 	int noIterations;
 	int pkcs5;
 
-	unsigned __int64 volume_creation_time;
-	unsigned __int64 header_creation_time;
+	unsigned __int64 volume_creation_time;	// Legacy
+	unsigned __int64 header_creation_time;	// Legacy
 
-	// Hidden volume status & parameters
 	BOOL bProtectHiddenVolume;			// Indicates whether the volume contains a hidden volume to be protected against overwriting
 	BOOL bHiddenVolProtectionAction;		// TRUE if a write operation has been denied by the driver in order to prevent the hidden volume from being overwritten (set to FALSE upon volume mount).
 	

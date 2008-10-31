@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -69,6 +69,7 @@ namespace TrueCrypt
 		uint32 GetDeviceSectorSize () const;
 		static size_t GetOptimalReadSize () { return OptimalReadSize; }
 		static size_t GetOptimalWriteSize ()  { return OptimalWriteSize; }
+		uint64 GetPartitionDeviceStartOffset () const;
 		bool IsOpen () const { return FileIsOpen; }
 		FilePath GetPath () const;
 		uint64 Length () const;

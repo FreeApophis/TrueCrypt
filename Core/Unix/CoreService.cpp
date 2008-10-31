@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -108,6 +108,8 @@ namespace TrueCrypt
 					{
 						if (!ElevatedServiceAvailable)
 						{
+							finally_do_arg (string *, &request->AdminPassword, { StringConverter::Erase (*finally_arg); });
+							
 							CoreService::StartElevated (*request);
 							ElevatedServiceAvailable = true;
 						}
@@ -136,6 +138,16 @@ namespace TrueCrypt
 						Core->CheckFilesystem (checkRequest->MountedVolumeInfo, checkRequest->Repair);
 						
 						CheckFilesystemResponse().Serialize (outputStream);
+						continue;
+					}
+
+					// DismountFilesystemRequest
+					DismountFilesystemRequest *dismountFsRequest = dynamic_cast <DismountFilesystemRequest*> (request.get());
+					if (dismountFsRequest)
+					{
+						Core->DismountFilesystem (dismountFsRequest->MountPoint, dismountFsRequest->Force);
+
+						DismountFilesystemResponse().Serialize (outputStream);
 						continue;
 					}
 
@@ -226,6 +238,12 @@ namespace TrueCrypt
 		SendRequest <CheckFilesystemResponse> (request);
 	}
 
+	void CoreService::RequestDismountFilesystem (const DirectoryPath &mountPoint, bool force)
+	{
+		DismountFilesystemRequest request (mountPoint, force);
+		SendRequest <DismountFilesystemResponse> (request);
+	}
+
 	shared_ptr <VolumeInfo> CoreService::RequestDismountVolume (shared_ptr <VolumeInfo> mountedVolume, bool ignoreOpenFiles, bool syncVolumeInfo)
 	{
 		DismountVolumeRequest request (mountedVolume, ignoreOpenFiles, syncVolumeInfo);
@@ -266,6 +284,8 @@ namespace TrueCrypt
 		{
 			request.ElevateUserPrivileges = true;
 			request.FastElevation = !ElevatedServiceAvailable;
+			request.ApplicationExecutablePath = Core->GetApplicationExecutablePath();
+
 			while (!ElevatedServiceAvailable)
 			{
 				try
@@ -284,11 +304,13 @@ namespace TrueCrypt
 					}
 
 					request.FastElevation = false;
-					request.AdminPassword = (*AdminPasswordCallback)();
-					request.ApplicationExecutablePath = Core->GetApplicationExecutablePath();
+					(*AdminPasswordCallback) (request.AdminPassword);
 				}
 			}
 		}
+
+		finally_do_arg (string *, &request.AdminPassword, { StringConverter::Erase (*finally_arg); });
+
 		request.Serialize (ServiceInputStream);
 		return GetResponse <T>();
 	}
@@ -369,15 +391,25 @@ namespace TrueCrypt
 			_exit (1);
 		}
 
-		string adminPassword = request.AdminPassword;
+		vector <char> adminPassword (request.AdminPassword.size() + 1);
 		int timeout = 6000;
+
 		if (request.FastElevation)
 		{
+			string dummyPassword = "dummy\n";
+			adminPassword = vector <char> (dummyPassword.size());
+			Memory::Copy (&adminPassword.front(), dummyPassword.c_str(), dummyPassword.size());
 			timeout = 1000;
-			adminPassword = "dummy";
+		}
+		else
+		{
+			Memory::Copy (&adminPassword.front(), request.AdminPassword.c_str(), request.AdminPassword.size());
+			adminPassword[request.AdminPassword.size()] = '\n';
 		}
 
-		write (inPipe->GetWriteFD(), (adminPassword + '\n').c_str(), adminPassword.size() + 1); // Errors ignored
+		if (write (inPipe->GetWriteFD(), &adminPassword.front(), adminPassword.size())) { } // Errors ignored
+
+		Memory::Erase (&adminPassword.front(), adminPassword.size());
 
 		throw_sys_if (fcntl (outPipe->GetReadFD(), F_SETFL, O_NONBLOCK) == -1);
 		throw_sys_if (fcntl (errPipe.GetReadFD(), F_SETFL, O_NONBLOCK) == -1);

@@ -1,16 +1,17 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
 
-#ifndef TC_HEADER_Mount_BootEncryption
-#define TC_HEADER_Mount_BootEncryption
+#ifndef TC_HEADER_Common_BootEncryption
+#define TC_HEADER_Common_BootEncryption
 
 #include "Tcdefs.h"
 #include "Dlgcode.h"
+#include "Exception.h"
 #include "Platform/PlatformBase.h"
 #include "Volumes.h"
 
@@ -18,69 +19,6 @@ using namespace std;
 
 namespace TrueCrypt
 {
-	struct Exception
-	{
-		virtual void Show (HWND parent) = 0;
-	};
-
-	struct SystemException : public Exception
-	{
-		SystemException () : ErrorCode (GetLastError()) { }
-
-		void Show (HWND parent)
-		{
-			SetLastError (ErrorCode);
-			handleWin32Error (parent);
-		}
-
-		DWORD ErrorCode;
-	};
-
-	struct ErrorException : public Exception
-	{
-		ErrorException (char *langId) : ErrLangId (langId) { }
-		ErrorException (const wstring &errMsg) : ErrMsg (errMsg) { }
-
-		void Show (HWND parent)
-		{
-			if (ErrMsg.empty())
-				::Error (ErrLangId);
-			else
-				::ErrorDirect (ErrMsg.c_str());
-		}
-
-		char *ErrLangId;
-		wstring ErrMsg;
-	};
-
-	struct ParameterIncorrect : public Exception
-	{
-		ParameterIncorrect (const char *srcPos) : SrcPos (srcPos) { }
-
-		void Show (HWND parent)
-		{
-			string msgBody = "Parameter incorrect.\n\n\n(If you report a bug in connection with this, please include the following technical information in the bug report:\n" + string (SrcPos) + ")";
-			MessageBox (parent, msgBody.c_str(), "TrueCrypt", MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST);
-		}
-
-		const char *SrcPos;
-	};
-
-	struct TimeOut : public Exception
-	{
-		TimeOut (const char *srcPos) { }
-		void Show (HWND parent) { MessageBox (parent, "Timeout", "TrueCrypt", MB_ICONERROR); }
-	};
-
-	struct UserAbort : public Exception
-	{
-		UserAbort (const char *srcPos) { }
-		void Show (HWND parent) { }
-	};
-
-#define throw_sys_if(condition) do { if (condition) throw SystemException(); } while (false)
-
-
 	class File
 	{
 	public:
@@ -187,67 +125,67 @@ namespace TrueCrypt
 	class BootEncryption
 	{
 	public:
-		BootEncryption (HWND parent)
-			: DriveConfigValid (false),
-			ParentWindow (parent),
-			RealSystemDriveSizeValid (false),
-			RescueIsoImage (nullptr),
-			RescueVolumeHeaderValid (false),
-			SelectedEncryptionAlgorithmId (0),
-			VolumeHeaderValid (false)
-		{
-		}
-
+		BootEncryption (HWND parent);
 		~BootEncryption ();
 
+		void AbortDecoyOSWipe ();
 		void AbortSetup ();
 		void AbortSetupWait ();
 		void CallDriver (DWORD ioctl, void *input = nullptr, DWORD inputSize = 0, void *output = nullptr, DWORD outputSize = 0);
 		int ChangePassword (Password *oldPassword, Password *newPassword, int pkcs5);
+		void CheckDecoyOSWipeResult ();
 		void CheckEncryptionSetupResult ();
 		void CheckRequirements ();
 		void CheckRequirementsHiddenOS ();
 		void CreateRescueIsoImage (bool initialSetup, const string &isoImagePath);
 		void Deinstall ();
+		DecoySystemWipeStatus GetDecoyOSWipeStatus ();
 		DWORD GetDriverServiceStartType ();
 		unsigned int GetHiddenOSCreationPhase ();
 		uint16 GetInstalledBootLoaderVersion ();
 		Partition GetPartitionForHiddenOS ();
 		bool IsBootLoaderOnDrive (char *devicePath);
 		BootEncryptionStatus GetStatus ();
+		string GetTempPath ();
 		void GetVolumeProperties (VOLUME_PROPERTIES_STRUCT *properties);
 		SystemDriveConfiguration GetSystemDriveConfiguration ();
-		void Install ();
-		void InstallBootLoader ();
+		void Install (bool hiddenSystem);
+		void InstallBootLoader (bool preserveUserConfig = false, bool hiddenOSCreation = false);
 		void InvalidateCachedSysDriveProperties ();
 		bool IsHiddenSystemRunning ();
-		bool IsPagingFileActive ();
+		bool IsPagingFileActive (BOOL checkNonWindowsPartitionsOnly);
+		void PrepareHiddenOSCreation (int ea, int mode, int pkcs5);
 		void PrepareInstallation (bool systemPartitionOnly, Password &password, int ea, int mode, int pkcs5, const string &rescueIsoImagePath);
 		void ProbeRealSystemDriveSize ();
-		void ReadBootSectorConfig (byte *config, size_t bufLength);
-		void RegisterBootDriver ();
+		void ReadBootSectorConfig (byte *config, size_t bufLength, byte *userConfig = nullptr, string *customUserMessage = nullptr);
+		void RegisterBootDriver (bool hiddenSystem);
 		void RegisterFilterDriver (bool registerDriver, bool volumeClass);
 		void RenameDeprecatedSystemLoaderBackup ();
 		bool RestartComputer (void);
+		void InitialSecurityChecksForHiddenOS ();
 		void SetDriverServiceStartType (DWORD startType);
 		void SetHiddenOSCreationPhase (unsigned int newPhase);
 		void StartDecryption ();
-		void StartEncryption (WipeAlgorithmId wipeAlgorithm);
+		void StartDecoyOSWipe (WipeAlgorithmId wipeAlgorithm);
+		void StartEncryption (WipeAlgorithmId wipeAlgorithm, bool zeroUnreadableSectors);
 		bool SystemDriveContainsPartitionType (byte type);
 		bool SystemDriveContainsExtendedPartition ();
 		bool SystemPartitionCoversWholeDrive ();
 		bool SystemDriveIsDynamic ();
 		bool VerifyRescueDisk ();
+		void WipeHiddenOSCreationConfig ();
+		void WriteBootDriveSector (uint64 offset, byte *data);
 		void WriteBootSectorConfig (const byte newConfig[]);
+		void WriteBootSectorUserConfig (byte userConfig, const string &customUserMessage);
 		void WriteLocalMachineRegistryDwordValue (char *keyPath, char *valueName, DWORD value);
 
 	protected:
 		static const uint32 RescueIsoImageSize = 1835008; // Size of ISO9660 image with bootable emulated 1.44MB floppy disk image
 
 		void BackupSystemLoader ();
+		void CreateBootLoaderInMemory (byte *buffer, size_t bufferSize, bool rescueDisk, bool hiddenOSCreation = false);
 		void CreateVolumeHeader (uint64 volumeSize, uint64 encryptedAreaStart, Password *password, int ea, int mode, int pkcs5);
 		string GetSystemLoaderBackupPath ();
-		void CreateBootLoaderInMemory (byte *buffer, size_t bufferSize, bool rescueDisk);
 		uint32 GetChecksum (byte *data, size_t size);
 		DISK_GEOMETRY GetDriveGeometry (int driveNumber);
 		PartitionList GetDrivePartitions (int driveNumber);
@@ -256,11 +194,11 @@ namespace TrueCrypt
 		void RegisterDeviceClassFilter (bool registerFilter, const GUID *deviceClassGuid);
 		void RestoreSystemLoader ();
 		void InstallVolumeHeader ();
-		void UpdateSystemDriveConfiguration ();
 
 		HWND ParentWindow;
 		SystemDriveConfiguration DriveConfig;
 		int SelectedEncryptionAlgorithmId;
+		Partition HiddenOSCandidatePartition;
 		byte *RescueIsoImage;
 		byte RescueVolumeHeader[TC_BOOT_ENCRYPTION_VOLUME_HEADER_SIZE];
 		byte VolumeHeader[TC_BOOT_ENCRYPTION_VOLUME_HEADER_SIZE];
@@ -279,4 +217,4 @@ namespace TrueCrypt
 #define TC_SYS_BOOT_LOADER_BACKUP_NAME			"Original System Loader"
 #define TC_SYS_BOOT_LOADER_BACKUP_NAME_LEGACY	"Original System Loader.bak"	// Deprecated to prevent removal by some "cleaners"
 
-#endif // TC_HEADER_Mount_BootEncryption
+#endif // TC_HEADER_Common_BootEncryption

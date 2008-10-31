@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -65,6 +65,8 @@ namespace TrueCrypt
 
 	TC_EXCEPTION_DECL (PasswordIncorrect, PasswordException);
 	TC_EXCEPTION_DECL (PasswordKeyfilesIncorrect, PasswordIncorrect);
+	TC_EXCEPTION_DECL (PasswordOrKeyboardLayoutIncorrect, PasswordException);
+	TC_EXCEPTION_DECL (PasswordOrMountOptionsIncorrect, PasswordException);
 	TC_EXCEPTION_DECL (ProtectionPasswordIncorrect, PasswordIncorrect);
 	TC_EXCEPTION_DECL (ProtectionPasswordKeyfilesIncorrect, PasswordIncorrect);
 
@@ -74,6 +76,8 @@ namespace TrueCrypt
 #define TC_EXCEPTION_SET \
 	TC_EXCEPTION_NODECL (PasswordIncorrect); \
 	TC_EXCEPTION_NODECL (PasswordKeyfilesIncorrect); \
+	TC_EXCEPTION_NODECL (PasswordOrKeyboardLayoutIncorrect); \
+	TC_EXCEPTION_NODECL (PasswordOrMountOptionsIncorrect); \
 	TC_EXCEPTION_NODECL (ProtectionPasswordIncorrect); \
 	TC_EXCEPTION_NODECL (ProtectionPasswordKeyfilesIncorrect); \
 	TC_EXCEPTION (PasswordEmpty); \

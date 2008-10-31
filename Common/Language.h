@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -25,7 +25,7 @@ typedef struct
 } Font;
 
 BOOL CALLBACK LanguageDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
-wchar_t *GetString (char *stringId);
+wchar_t *GetString (const char *stringId);
 Font *GetFont (char *fontType);
 BOOL LoadLanguageFile ();
 char *GetPreferredLangId ();

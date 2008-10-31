@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.5 the full text of which is contained in the
+ by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -20,17 +20,18 @@
 #include "EncryptionThreadPool.h"
 #endif
 
+#include <stddef.h>
 #include <io.h>
 #include "Random.h"
 
 #include "Crc.h"
 #include "Crypto.h"
-#include "Common/Endian.h"
+#include "Endian.h"
 #include "Volumes.h"
 #include "Pkcs5.h"
 
 
-/* Volume header v4 structure: */
+/* Volume header v4 structure (used since TrueCrypt 6.0): */
 //
 // Offset	Length	Description
 // ------------------------------------------
@@ -47,14 +48,14 @@
 // 100		8		Size of the volume in bytes (identical with field 92 for hidden volumes)
 // 108		8		Byte offset of the start of the master key scope
 // 116		8		Size of the encrypted area within the master key scope
-// 124		4		Flags: bit 0 set = system encryption; bits 1-31 are reserved
+// 124		4		Flags: bit 0 set = system encryption; bit 1 set = non-system in-place encryption, bits 2-31 are reserved
 // 128		124		Reserved (set to zero)
 // 252		4		CRC-32 checksum of the (decrypted) bytes 64-251
 // 256		256		Concatenated primary master key(s) and secondary master key(s) (XTS mode)
 // 512		65024	Reserved
 
 
-/* Volume header v3 structure (used by TrueCrypt 5.x): */
+/* Deprecated/legacy volume header v3 structure (used by TrueCrypt 5.x): */
 //
 // Offset	Length	Description
 // ------------------------------------------
@@ -96,19 +97,19 @@
 
 
 
-uint16 GetHeaderField16 (byte *header, size_t offset)
+uint16 GetHeaderField16 (byte *header, int offset)
 {
 	return BE16 (*(uint16 *) (header + offset));
 }
 
 
-uint32 GetHeaderField32 (byte *header, size_t offset)
+uint32 GetHeaderField32 (byte *header, int offset)
 {
 	return BE32 (*(uint32 *) (header + offset));
 }
 
 
-UINT64_STRUCT GetHeaderField64 (byte *header, size_t offset)
+UINT64_STRUCT GetHeaderField64 (byte *header, int offset)
 {
 	UINT64_STRUCT uint64Struct;
 
@@ -133,7 +134,9 @@ typedef struct
 } KeyDerivationWorkItem;
 
 
-int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCRYPTO_INFO *retInfo, CRYPTO_INFO *retHeaderCryptoInfo)
+BOOL ReadVolumeHeaderRecoveryMode = FALSE;
+
+int ReadVolumeHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCRYPTO_INFO *retInfo, CRYPTO_INFO *retHeaderCryptoInfo)
 {
 	char header[TC_VOLUME_HEADER_EFFECTIVE_SIZE];
 	KEY_INFO keyInfo;
@@ -141,7 +144,7 @@ int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 	char dk[MASTER_KEYDATA_SIZE];
 	int enqPkcs5Prf, pkcs5_prf;
 	int headerVersion;
-	int status;
+	int status = ERR_PARAMETER_INCORRECT;
 	int primaryKeyOffset;
 
 	TC_EVENT keyDerivationCompletedEvent;
@@ -382,7 +385,9 @@ KeyReady:	;
 				headerVersion = GetHeaderField16 (header, TC_HEADER_OFFSET_VERSION);
 				
 				// Check CRC of the header fields
-				if (headerVersion >= 4 && GetHeaderField32 (header, TC_HEADER_OFFSET_HEADER_CRC) != GetCrc32 (header + TC_HEADER_OFFSET_MAGIC, TC_HEADER_OFFSET_HEADER_CRC - TC_HEADER_OFFSET_MAGIC))
+				if (!ReadVolumeHeaderRecoveryMode
+					&& headerVersion >= 4
+					&& GetHeaderField32 (header, TC_HEADER_OFFSET_HEADER_CRC) != GetCrc32 (header + TC_HEADER_OFFSET_MAGIC, TC_HEADER_OFFSET_HEADER_CRC - TC_HEADER_OFFSET_MAGIC))
 					continue;
 
 				// Required program version
@@ -390,7 +395,8 @@ KeyReady:	;
 				cryptoInfo->LegacyVolume = cryptoInfo->RequiredProgramVersion < 0x600;
 
 				// Check CRC of the key set
-				if (GetHeaderField32 (header, TC_HEADER_OFFSET_KEY_AREA_CRC) != GetCrc32 (header + HEADER_MASTER_KEYDATA_OFFSET, MASTER_KEYDATA_SIZE))
+				if (!ReadVolumeHeaderRecoveryMode
+					&& GetHeaderField32 (header, TC_HEADER_OFFSET_KEY_AREA_CRC) != GetCrc32 (header + HEADER_MASTER_KEYDATA_OFFSET, MASTER_KEYDATA_SIZE))
 					continue;
 
 				// Now we have the correct password, cipher, hash algorithm, and volume type
@@ -453,7 +459,7 @@ KeyReady:	;
 				cryptoInfo->pkcs5 = pkcs5_prf;
 				cryptoInfo->noIterations = keyInfo.noIterations;
 
-				// Init the encryption algorithm with the decrypted master key
+				// Init the cipher with the decrypted master key
 				status = EAInit (cryptoInfo->ea, keyInfo.master_keydata + primaryKeyOffset, cryptoInfo->ks);
 				if (status == ERR_CIPHER_INIT_FAILURE)
 					goto err;
@@ -482,7 +488,7 @@ KeyReady:	;
 					goto err;
 				}
 
-				status = 0;
+				status = ERR_SUCCESS;
 				goto ret;
 			}
 		}
@@ -523,7 +529,7 @@ ret:
 
 #else // TC_WINDOWS_BOOT
 
-int VolumeReadHeader (BOOL bBoot, char *header, Password *password, PCRYPTO_INFO *retInfo, CRYPTO_INFO *retHeaderCryptoInfo)
+int ReadVolumeHeader (BOOL bBoot, char *header, Password *password, PCRYPTO_INFO *retInfo, CRYPTO_INFO *retHeaderCryptoInfo)
 {
 #ifdef TC_WINDOWS_BOOT_SINGLE_CIPHER_MODE
 	char dk[32 * 2];			// 2 * 256-bit key
@@ -624,11 +630,12 @@ ret:
 #if !defined (DEVICE_DRIVER) && !defined (TC_WINDOWS_BOOT)
 
 #ifdef VOLFORMAT
-#include "../Format/TcFormat.h"
+#	include "../Format/TcFormat.h"
+#	include "Dlgcode.h"
 #endif
 
 // Creates a volume header in memory
-int VolumeWriteHeader (BOOL bBoot, char *header, int ea, int mode, Password *password,
+int CreateVolumeHeaderInMemory (BOOL bBoot, char *header, int ea, int mode, Password *password,
 		   int pkcs5_prf, char *masterKeydata, PCRYPTO_INFO *retInfo,
 		   unsigned __int64 volumeSize, unsigned __int64 hiddenVolumeSize,
 		   unsigned __int64 encryptedAreaStart, unsigned __int64 encryptedAreaLength, uint16 requiredProgramVersion, uint32 headerFlags, BOOL bWipeMode)
@@ -878,7 +885,7 @@ int VolumeWriteHeader (BOOL bBoot, char *header, int ea, int mode, Password *pas
 
 
 #ifdef VOLFORMAT
-	if (showKeys)
+	if (showKeys && !bInPlaceEncNonSys)
 	{
 		BOOL dots3 = FALSE;
 		int i, j;
@@ -928,6 +935,95 @@ int VolumeWriteHeader (BOOL bBoot, char *header, int ea, int mode, Password *pas
 
 	*retInfo = cryptoInfo;
 	return 0;
+}
+
+
+// Writes randomly generated data to unused/reserved header areas.
+// When bPrimaryOnly is TRUE, then only the primary header area (not the backup header area) is filled with random data.
+// When bBackupOnly is TRUE, only the backup header area (not the primary header area) is filled with random data.
+int WriteRandomDataToReservedHeaderAreas (HANDLE dev, CRYPTO_INFO *cryptoInfo, uint64 dataAreaSize, BOOL bPrimaryOnly, BOOL bBackupOnly)
+{
+	char temporaryKey[MASTER_KEYDATA_SIZE];
+	char originalK2[MASTER_KEYDATA_SIZE];
+
+	byte buf[TC_VOLUME_HEADER_GROUP_SIZE - TC_VOLUME_HEADER_EFFECTIVE_SIZE];
+
+	LARGE_INTEGER offset;
+	int nStatus = ERR_SUCCESS;
+	DWORD dwError;
+	BOOL backupHeaders = bBackupOnly;
+
+	if (bPrimaryOnly && bBackupOnly)
+		TC_THROW_FATAL_EXCEPTION;
+
+	memcpy (originalK2, cryptoInfo->k2, sizeof (cryptoInfo->k2));
+
+	while (TRUE)
+	{
+		// Temporary keys
+		if (!RandgetBytes (temporaryKey, EAGetKeySize (cryptoInfo->ea), TRUE)
+			|| !RandgetBytes (cryptoInfo->k2, sizeof (cryptoInfo->k2), FALSE))
+		{
+			nStatus = ERR_PARAMETER_INCORRECT; 
+			goto final_seq;
+		}
+
+		nStatus = EAInit (cryptoInfo->ea, temporaryKey, cryptoInfo->ks);
+		if (nStatus != ERR_SUCCESS)
+			goto final_seq;
+
+		if (!EAInitMode (cryptoInfo))
+		{
+			nStatus = ERR_MODE_INIT_FAILED;
+			goto final_seq;
+		}
+
+		offset.QuadPart = backupHeaders ? dataAreaSize + TC_VOLUME_HEADER_GROUP_SIZE : TC_VOLUME_HEADER_OFFSET;
+		offset.QuadPart += TC_VOLUME_HEADER_EFFECTIVE_SIZE;
+
+		if (!SetFilePointerEx (dev, offset, NULL, FILE_BEGIN))
+		{
+			nStatus = ERR_OS_ERROR;
+			goto final_seq;
+		}
+
+		EncryptBuffer (buf, sizeof (buf), cryptoInfo);
+
+		if (_lwrite ((HFILE) dev, buf, sizeof (buf)) == HFILE_ERROR)
+		{
+			nStatus = ERR_OS_ERROR;
+			goto final_seq;
+		}
+
+		if (backupHeaders || bPrimaryOnly)
+			break;
+
+		backupHeaders = TRUE;
+	}
+
+	memcpy (cryptoInfo->k2, originalK2, sizeof (cryptoInfo->k2));
+
+	nStatus = EAInit (cryptoInfo->ea, cryptoInfo->master_keydata, cryptoInfo->ks);
+	if (nStatus != ERR_SUCCESS)
+		goto final_seq;
+
+	if (!EAInitMode (cryptoInfo))
+	{
+		nStatus = ERR_MODE_INIT_FAILED;
+		goto final_seq;
+	}
+
+final_seq:
+
+	dwError = GetLastError();
+
+	burn (temporaryKey, sizeof (temporaryKey));
+	burn (originalK2, sizeof (originalK2));
+
+	if (nStatus != ERR_SUCCESS)
+		SetLastError (dwError);
+
+	return nStatus;
 }
 
 #endif // !defined (DEVICE_DRIVER) && !defined (TC_WINDOWS_BOOT)

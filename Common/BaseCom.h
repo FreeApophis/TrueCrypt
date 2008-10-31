@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2007-2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -98,7 +98,7 @@ class BaseCom
 {
 public:
 	static DWORD CallDriver (DWORD ioctl, BSTR input, BSTR *output);
-	static BOOL IsPagingFileActive ();
+	static BOOL IsPagingFileActive (BOOL checkNonWindowsPartitionsOnly);
 	static DWORD ReadWriteFile (BOOL write, BOOL device, BSTR filePath, BSTR *bufferBstr, unsigned __int64 offset, unsigned __int32 size, DWORD *sizeDone);
 	static DWORD RegisterFilterDriver (BOOL registerDriver, BOOL volumeClass);
 	static DWORD SetDriverServiceStartType (DWORD startType);

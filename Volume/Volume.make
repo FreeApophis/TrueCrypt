@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 #
-# Governed by the TrueCrypt License 2.5 the full text of which is contained
+# Governed by the TrueCrypt License 2.6 the full text of which is contained
 # in the file License.txt included in TrueCrypt binary and source code
 # distribution packages.
 #
@@ -29,18 +29,11 @@ OBJS += VolumePasswordCache.o
 OBJS += ../Crypto/Aescrypt.o
 OBJS += ../Crypto/Aeskey.o
 OBJS += ../Crypto/Aestab.o
-OBJS += ../Crypto/Bf_ecb.o
-OBJS += ../Crypto/Bf_enc.o
-OBJS += ../Crypto/Bf_skey.o
-OBJS += ../Crypto/C_ecb.o
-OBJS += ../Crypto/C_enc.o
-OBJS += ../Crypto/C_skey.o
+OBJS += ../Crypto/Blowfish.o
+OBJS += ../Crypto/Cast.o
 OBJS += ../Crypto/Des.o
-OBJS += ../Crypto/Des_enc.o
-OBJS += ../Crypto/Ecb3_enc.o
 OBJS += ../Crypto/Rmd160.o
 OBJS += ../Crypto/Serpent.o
-OBJS += ../Crypto/Set_key.o
 OBJS += ../Crypto/Sha1.o
 OBJS += ../Crypto/Sha2.o
 OBJS += ../Crypto/Twofish.o
@@ -50,6 +43,7 @@ OBJS += ../Common/Crc.o
 OBJS += ../Common/Endian.o
 OBJS += ../Common/GfMul.o
 OBJS += ../Common/Pkcs5.o
+OBJS += ../Common/SecurityToken.o
 
 VolumeLibrary: Volume.a
 

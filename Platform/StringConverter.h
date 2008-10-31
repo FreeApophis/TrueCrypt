@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -17,6 +17,8 @@ namespace TrueCrypt
 	class StringConverter
 	{
 	public:
+		static void Erase (string &str);
+		static void Erase (wstring &str);
 		static wstring FromNumber (double number);
 		static wstring FromNumber (int32 number);
 		static wstring FromNumber (uint32 number);
@@ -26,6 +28,7 @@ namespace TrueCrypt
 		static string GetTypeName (const type_info &typeInfo);
 		static wstring QuoteSpaces (const wstring &str);
 		static vector <string> Split (const string &str, const string &separators = " \t\r\n", bool returnEmptyFields = false);
+		static string StripTrailingNumber (const string &str);
 		static wstring ToExceptionString (const exception &ex);
 		static string ToLower (const string &str);
 		static uint32 ToUInt32 (const string &str);
@@ -37,7 +40,8 @@ namespace TrueCrypt
 		static string ToSingle (uint32 number) { return ToSingle (FromNumber (number)); }
 		static string ToSingle (int64 number) { return ToSingle (FromNumber (number)); }
 		static string ToSingle (uint64 number) { return ToSingle (FromNumber (number)); }
-		static string ToSingle (const wstring &str, bool noThrow = false);
+		static string ToSingle (const wstring &wstr, bool noThrow = false);
+		static void ToSingle (const wstring &wstr, string &str, bool noThrow = false);
 		static string ToUpper (const string &str);
 		static wstring ToWide (double number) { return FromNumber (number); }
 		static wstring ToWide (int32 number) { return FromNumber (number); }

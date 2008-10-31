@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -95,7 +95,7 @@ namespace TrueCrypt
 		wxString url = Gui->GetHomepageLinkURL (L"err-report", true, vars.str());
 		url.Replace (L"0x", L"");
 
-		wxString msg = L"A critical error has occured and TrueCrypt must be terminated. If this is caused by a bug in TrueCrypt, we would like to fix it. To help us, you can send us an automatically generated error report containing the following items:\n\n- Program version\n- Operating system version\n- Hardware architecture\n- Error category\n- Error address\n";
+		wxString msg = L"A critical error has occurred and TrueCrypt must be terminated. If this is caused by a bug in TrueCrypt, we would like to fix it. To help us, you can send us an automatically generated error report containing the following items:\n\n- Program version\n- Operating system version\n- Hardware architecture\n- Error category\n- Error address\n";
 #if wxUSE_STACKWALKER == 1
 		msg += L"- TrueCrypt call stack\n";
 #endif
@@ -159,7 +159,7 @@ namespace TrueCrypt
 
 			wxString url = Gui->GetHomepageLinkURL (L"err-report", true, vars);
 
-			wxString msg = L"An unhandled exception has occured and TrueCrypt must be terminated. If this is caused by a bug in TrueCrypt, we would like to fix it. To help us, you can send us an automatically generated error report containing the following items:\n\n- Program version\n- Operating system version\n- Hardware architecture\n- Error description\n- Error location\n";
+			wxString msg = L"An unhandled exception has occurred and TrueCrypt must be terminated. If this is caused by a bug in TrueCrypt, we would like to fix it. To help us, you can send us an automatically generated error report containing the following items:\n\n- Program version\n- Operating system version\n- Hardware architecture\n- Error description\n- Error location\n";
 			msg += L"\nIf you select 'Yes', the following URL (which contains the entire error report) will be opened in your default Internet browser.\n\n";
 			msg += url;
 			msg += L"\n\nDo you want to send us the error report?";

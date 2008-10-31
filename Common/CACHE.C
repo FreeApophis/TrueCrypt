@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.5 the full text of which is contained in the
+ by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -27,7 +27,7 @@ Password CachedPasswords[CACHE_SIZE];
 int cacheEmpty = 1;
 static int nPasswordIdx = 0;
 
-int VolumeReadHeaderCache (BOOL bBoot, BOOL bCache, char *header, Password *password, PCRYPTO_INFO *retInfo)
+int ReadVolumeHeaderWCache (BOOL bBoot, BOOL bCache, char *header, Password *password, PCRYPTO_INFO *retInfo)
 {
 	int nReturnCode = ERR_PASSWORD_WRONG;
 	int i;
@@ -35,7 +35,7 @@ int VolumeReadHeaderCache (BOOL bBoot, BOOL bCache, char *header, Password *pass
 	/* Attempt to recognize volume using mount password */
 	if (password->Length > 0)
 	{
-		nReturnCode = VolumeReadHeader (bBoot, header, password, retInfo, NULL);
+		nReturnCode = ReadVolumeHeader (bBoot, header, password, retInfo, NULL);
 
 		/* Save mount passwords back into cache if asked to do so */
 		if (bCache && (nReturnCode == 0 || nReturnCode == ERR_CIPHER_INIT_WEAK_KEY))
@@ -65,7 +65,7 @@ int VolumeReadHeaderCache (BOOL bBoot, BOOL bCache, char *header, Password *pass
 		{
 			if (CachedPasswords[i].Length > 0)
 			{
-				nReturnCode = VolumeReadHeader (bBoot, header, &CachedPasswords[i], retInfo, NULL);
+				nReturnCode = ReadVolumeHeader (bBoot, header, &CachedPasswords[i], retInfo, NULL);
 
 				if (nReturnCode != ERR_PASSWORD_WRONG)
 					break;
@@ -76,8 +76,23 @@ int VolumeReadHeaderCache (BOOL bBoot, BOOL bCache, char *header, Password *pass
 	return nReturnCode;
 }
 
-void
-WipeCache ()
+
+void AddPasswordToCache (Password *password)
+{
+	int i;
+	for (i = 0; i < CACHE_SIZE; i++)
+	{
+		if (memcmp (&CachedPasswords[i], password, sizeof (Password)) == 0)
+			return;
+	}
+
+	CachedPasswords[nPasswordIdx] = *password;
+	nPasswordIdx = (nPasswordIdx + 1) % CACHE_SIZE;
+	cacheEmpty = 0;
+}
+
+
+void WipeCache ()
 {
 	burn (CachedPasswords, sizeof (CachedPasswords));
 	nPasswordIdx = 0;

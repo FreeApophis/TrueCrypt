@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -23,6 +23,7 @@ namespace TrueCrypt
 		virtual ~CoreUnix ();
 
 		virtual void CheckFilesystem (shared_ptr <VolumeInfo> mountedVolume, bool repair = false) const; 
+		virtual void DismountFilesystem (const DirectoryPath &mountPoint, bool force) const;
 		virtual shared_ptr <VolumeInfo> DismountVolume (shared_ptr <VolumeInfo> mountedVolume, bool ignoreOpenFiles = false, bool syncVolumeInfo = false);
 		virtual DirectoryPath GetDeviceMountPoint (const DevicePath &devicePath) const;
 		virtual uint64 GetDeviceSize (const DevicePath &devicePath) const;
@@ -43,9 +44,8 @@ namespace TrueCrypt
 		virtual void WipePasswordCache () const { throw NotApplicable (SRC_POS); }
 
 	protected:
-		virtual DevicePath AttachFileToLoopDevice (const FilePath &filePath) const { throw NotApplicable (SRC_POS); }
+		virtual DevicePath AttachFileToLoopDevice (const FilePath &filePath, bool readOnly) const { throw NotApplicable (SRC_POS); }
 		virtual void DetachLoopDevice (const DevicePath &devicePath) const { throw NotApplicable (SRC_POS); }
-		virtual void DismountFilesystem (const DirectoryPath &mountPoint, bool force) const;
 		virtual void DismountNativeVolume (shared_ptr <VolumeInfo> mountedVolume) const { throw NotApplicable (SRC_POS); }
 		virtual string GetDefaultMountPointPrefix () const;
 		virtual string GetFuseMountDirPrefix () const { return ".truecrypt_aux_mnt"; }

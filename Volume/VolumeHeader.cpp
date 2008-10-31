@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -60,7 +60,7 @@ namespace TrueCrypt
 		EncryptNew (headerBuffer, options.Salt, options.HeaderKey, options.Kdf);
 	}
 
-	bool VolumeHeader::Decrypt (const ConstBufferPtr &encryptedData, const VolumePassword &password, const EncryptionAlgorithmList &encryptionAlgorithms, const EncryptionModeList &encryptionModes)
+	bool VolumeHeader::Decrypt (const ConstBufferPtr &encryptedData, const VolumePassword &password, const Pkcs5KdfList &keyDerivationFunctions, const EncryptionAlgorithmList &encryptionAlgorithms, const EncryptionModeList &encryptionModes)
 	{
 		if (password.Size() < 1)
 			throw PasswordEmpty (SRC_POS);
@@ -69,7 +69,7 @@ namespace TrueCrypt
 		SecureBuffer header (EncryptedHeaderDataSize);
 		SecureBuffer headerKey (GetLargestSerializedKeySize());
 
-		foreach (shared_ptr <Pkcs5Kdf> pkcs5, Pkcs5Kdf::GetAvailableAlgorithms())
+		foreach (shared_ptr <Pkcs5Kdf> pkcs5, keyDerivationFunctions)
 		{
 			pkcs5->DeriveKey (headerKey, password, salt);
 

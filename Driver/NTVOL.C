@@ -5,11 +5,12 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.5 the full text of which is contained in the
+ by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
 #include "TCdefs.h"
+#include <wchar.h>
 #include "Crypto.h"
 #include "Volumes.h"
 
@@ -32,8 +33,7 @@
 volatile BOOL ProbingHostDeviceForWrite = FALSE;
 
 
-NTSTATUS
-TCOpenVolume (PDEVICE_OBJECT DeviceObject,
+NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	       PEXTENSION Extension,
 	       MOUNT_STRUCT *mount,
 	       PWSTR pwszMountVolume,
@@ -47,24 +47,33 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	PCRYPTO_INFO cryptoInfoPtr = NULL;
 	PCRYPTO_INFO tmpCryptoInfo = NULL;
 	LARGE_INTEGER lDiskLength;
-	__int64 partitionStartingOffset;
+	__int64 partitionStartingOffset = 0;
 	int volumeType;
 	char *readBuffer = 0;
 	NTSTATUS ntStatus = 0;
+	BOOL forceAccessCheck = (!bRawDevice && !(OsMajorVersion == 5 &&OsMinorVersion == 0)); // Windows 2000 does not support OBJ_FORCE_ACCESS_CHECK attribute
 
 	Extension->pfoDeviceFile = NULL;
 	Extension->hDeviceFile = NULL;
 	Extension->bTimeStampValid = FALSE;
 
 	RtlInitUnicodeString (&FullFileName, pwszMountVolume);
-	InitializeObjectAttributes (&oaFileAttributes, &FullFileName, OBJ_CASE_INSENSITIVE,	NULL, NULL);
+	InitializeObjectAttributes (&oaFileAttributes, &FullFileName, OBJ_CASE_INSENSITIVE | (forceAccessCheck ? OBJ_FORCE_ACCESS_CHECK : 0), NULL, NULL);
 	KeInitializeEvent (&Extension->keVolumeEvent, NotificationEvent, FALSE);
+
+	if (Extension->SecurityClientContextValid)
+	{
+		ntStatus = SeImpersonateClientEx (&Extension->SecurityClientContext, NULL);
+		if (!NT_SUCCESS (ntStatus))
+			goto error;
+	}
 
 	// If we are opening a device, query its size first
 	if (bRawDevice)
 	{
 		PARTITION_INFORMATION pi;
 		PARTITION_INFORMATION_EX pix;
+		LARGE_INTEGER diskLengthInfo;
 		DISK_GEOMETRY dg;
 
 		ntStatus = IoGetDeviceObjectPointer (&FullFileName,
@@ -94,6 +103,10 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		{
 			lDiskLength.QuadPart = pi.PartitionLength.QuadPart;
 			partitionStartingOffset = pi.StartingOffset.QuadPart;
+		}
+		else if (NT_SUCCESS (TCSendHostDeviceIoControlRequest (DeviceObject, Extension, IOCTL_DISK_GET_LENGTH_INFO, &diskLengthInfo, sizeof (diskLengthInfo))))
+		{
+			lDiskLength = diskLengthInfo;
 		}
 
 		ProbingHostDeviceForWrite = TRUE;
@@ -241,6 +254,21 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		/* Get the FSD device for the file (probably either NTFS or	FAT) */
 		Extension->pFsdDevice = IoGetRelatedDeviceObject (Extension->pfoDeviceFile);
 	}
+	else
+	{
+		// Try to gain "raw" access to the partition in case there is a live filesystem on it (otherwise, 
+		// the NTFS driver guards hidden sectors and prevents mounting using a backup header e.g. after the user 
+		// accidentally quick-formats a dismounted partition-hosted TrueCrypt volume as NTFS).
+
+		PFILE_OBJECT pfoTmpDeviceFile = NULL;
+
+		if (NT_SUCCESS (ObReferenceObjectByHandle (Extension->hDeviceFile, FILE_ALL_ACCESS, *IoFileObjectType, KernelMode, &pfoTmpDeviceFile, NULL))
+			&& pfoTmpDeviceFile != NULL)
+		{
+			TCFsctlCall (pfoTmpDeviceFile, FSCTL_ALLOW_EXTENDED_DASD_IO, NULL, 0, NULL, 0);
+			ObDereferenceObject (pfoTmpDeviceFile);
+		}
+	}
 
 	// Check volume size
 	if (lDiskLength.QuadPart < TC_MIN_VOLUME_SIZE_LEGACY || lDiskLength.QuadPart > TC_MAX_VOLUME_SIZE)
@@ -252,7 +280,7 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 
 	Extension->DiskLength = lDiskLength.QuadPart;
 
-	readBuffer = TCalloc (TC_VOLUME_HEADER_EFFECTIVE_SIZE);
+	readBuffer = TCalloc (max (TC_VOLUME_HEADER_EFFECTIVE_SIZE, PAGE_SIZE));
 	if (readBuffer == NULL)
 	{
 		ntStatus = STATUS_INSUFFICIENT_RESOURCES;
@@ -378,25 +406,30 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 				ZwClose (hParentDeviceFile);
 		}
 
-		if (!NT_SUCCESS (ntStatus))
+		if (!NT_SUCCESS (ntStatus) && ntStatus != STATUS_END_OF_FILE)
 		{
 			Dump ("Read failed: NTSTATUS 0x%08x\n", ntStatus);
 			goto error;
 		}
 
-		if (IoStatusBlock.Information != TC_VOLUME_HEADER_EFFECTIVE_SIZE)
+		if (ntStatus == STATUS_END_OF_FILE || IoStatusBlock.Information != TC_VOLUME_HEADER_EFFECTIVE_SIZE)
 		{
 			Dump ("Read didn't read enough data\n");
-			mount->nReturnCode = ERR_VOL_SIZE_WRONG;
-			ntStatus = STATUS_SUCCESS;
-			goto error;
+
+			// If FSCTL_ALLOW_EXTENDED_DASD_IO failed and there is a live filesystem on the partition, then the
+			// filesystem driver may report EOF when we are reading hidden sectors (when the filesystem is 
+			// shorter than the partition). This can happen for example after the user quick-formats a dismounted
+			// partition-hosted TrueCrypt volume and then tries to mount the volume using the embedded backup header.
+			memset (readBuffer, 0, TC_VOLUME_HEADER_EFFECTIVE_SIZE);
 		}
 
 		/* Attempt to recognize the volume (decrypt the header) */
 
+		ReadVolumeHeaderRecoveryMode = mount->RecoveryMode;
+
 		if ((volumeType == TC_VOLUME_TYPE_HIDDEN || volumeType == TC_VOLUME_TYPE_HIDDEN_LEGACY) && mount->bProtectHiddenVolume)
 		{
-			mount->nReturnCode = VolumeReadHeaderCache (
+			mount->nReturnCode = ReadVolumeHeaderWCache (
 				FALSE,
 				mount->bCache,
 				readBuffer,
@@ -405,13 +438,15 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		}
 		else
 		{
-			mount->nReturnCode = VolumeReadHeaderCache (
+			mount->nReturnCode = ReadVolumeHeaderWCache (
 				mount->bPartitionInInactiveSysEncScope && volumeType == TC_VOLUME_TYPE_NORMAL,
 				mount->bCache,
 				readBuffer,
 				&mount->VolumePassword,
 				&Extension->cryptoInfo);
 		}
+
+		ReadVolumeHeaderRecoveryMode = FALSE;
 
 		if (mount->nReturnCode == 0 || mount->nReturnCode == ERR_CIPHER_INIT_WEAK_KEY)
 		{
@@ -432,23 +467,36 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 
 			Extension->cryptoInfo->bPartitionInInactiveSysEncScope = mount->bPartitionInInactiveSysEncScope;
 
-			if (mount->bPartitionInInactiveSysEncScope && volumeType == TC_VOLUME_TYPE_NORMAL)
+			if (volumeType == TC_VOLUME_TYPE_NORMAL)
 			{
-				if (Extension->cryptoInfo->EncryptedAreaStart.Value > (unsigned __int64) partitionStartingOffset
-					|| Extension->cryptoInfo->EncryptedAreaStart.Value + Extension->cryptoInfo->VolumeSize.Value <= (unsigned __int64) partitionStartingOffset)
+				if (mount->bPartitionInInactiveSysEncScope)
 				{
-					// The partition is not within the key scope of system encryption
-					mount->nReturnCode = ERR_PASSWORD_WRONG;
-					ntStatus = STATUS_SUCCESS;
-					goto error;
-				}
+					if (Extension->cryptoInfo->EncryptedAreaStart.Value > (unsigned __int64) partitionStartingOffset
+						|| Extension->cryptoInfo->EncryptedAreaStart.Value + Extension->cryptoInfo->VolumeSize.Value <= (unsigned __int64) partitionStartingOffset)
+					{
+						// The partition is not within the key scope of system encryption
+						mount->nReturnCode = ERR_PASSWORD_WRONG;
+						ntStatus = STATUS_SUCCESS;
+						goto error;
+					}
 
-				if (Extension->cryptoInfo->EncryptedAreaLength.Value != Extension->cryptoInfo->VolumeSize.Value)
+					if (Extension->cryptoInfo->EncryptedAreaLength.Value != Extension->cryptoInfo->VolumeSize.Value)
+					{
+						// Partial encryption is not supported for volumes mounted as regular
+						mount->nReturnCode = ERR_ENCRYPTION_NOT_COMPLETED;
+						ntStatus = STATUS_SUCCESS;
+						goto error;
+					}
+				}
+				else if (Extension->cryptoInfo->HeaderFlags & TC_HEADER_FLAG_NONSYS_INPLACE_ENC)
 				{
-					// Partial encryption is not supported for volumes mounted as regular
-					mount->nReturnCode = ERR_ENCRYPTION_NOT_COMPLETED;
-					ntStatus = STATUS_SUCCESS;
-					goto error;
+					if (Extension->cryptoInfo->EncryptedAreaLength.Value != Extension->cryptoInfo->VolumeSize.Value)
+					{
+						// Non-system in-place encryption process has not been completed on this volume
+						mount->nReturnCode = ERR_NONSYS_INPLACE_ENC_INCOMPLETE;
+						ntStatus = STATUS_SUCCESS;
+						goto error;
+					}
 				}
 			}
 
@@ -539,6 +587,12 @@ TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			Dump ("Volume data offset = %I64d\n", Extension->cryptoInfo->volDataAreaOffset);
 			Dump ("Volume data size = %I64d\n", Extension->DiskLength);
 			Dump ("Volume data end = %I64d\n", Extension->cryptoInfo->volDataAreaOffset + Extension->DiskLength - 1);
+
+			if (Extension->DiskLength == 0)
+			{
+				Dump ("Incorrect volume size\n");
+				continue;
+			}
 
 			// If this is a hidden volume, make sure we are supposed to actually
 			// mount it (i.e. not just to protect it)
@@ -666,8 +720,8 @@ void TCCloseVolume (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension)
 NTSTATUS TCSendHostDeviceIoControlRequest (PDEVICE_OBJECT DeviceObject,
 			       PEXTENSION Extension,
 			       ULONG IoControlCode,
-			       char *OutputBuffer,
-			       int OutputBufferSize)
+			       void *OutputBuffer,
+			       ULONG OutputBufferSize)
 {
 	IO_STATUS_BLOCK IoStatusBlock;
 	NTSTATUS ntStatus;

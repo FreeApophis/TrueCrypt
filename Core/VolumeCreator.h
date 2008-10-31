@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -33,8 +33,28 @@ namespace TrueCrypt
 			{
 				Unknown = 0,
 				None,
-				FAT
+				FAT,
+				NTFS,
+				Ext2,
+				Ext3,
+				MacOsExt,
+				UFS
 			};
+
+			static Enum GetPlatformNative ()
+			{
+#ifdef TC_WINDOWS
+				return VolumeCreationOptions::FilesystemType::NTFS;
+#elif defined (TC_LINUX)
+				return VolumeCreationOptions::FilesystemType::Ext3;
+#elif defined (TC_MACOSX)
+				return VolumeCreationOptions::FilesystemType::MacOsExt;
+#elif defined (TC_FREEBSD)
+				return VolumeCreationOptions::FilesystemType::UFS;
+#else
+				return VolumeCreationOptions::FilesystemType::FAT;
+#endif
+			}
 		};
 
 		FilesystemType::Enum Filesystem;

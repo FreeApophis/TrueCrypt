@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 #
-# Governed by the TrueCrypt License 2.5 the full text of which is contained
+# Governed by the TrueCrypt License 2.6 the full text of which is contained
 # in the file License.txt included in TrueCrypt binary and source code
 # distribution packages.
 #
@@ -28,6 +28,7 @@ OBJS += Forms/AboutDialog.o
 OBJS += Forms/ChangePasswordDialog.o
 OBJS += Forms/DeviceSelectionDialog.o
 OBJS += Forms/EncryptionOptionsWizardPage.o
+OBJS += Forms/EncryptionTestDialog.o
 OBJS += Forms/FavoriteVolumesDialog.o
 OBJS += Forms/Forms.o
 OBJS += Forms/InfoWizardPage.o
@@ -36,8 +37,10 @@ OBJS += Forms/KeyfilesPanel.o
 OBJS += Forms/LegalNoticesDialog.o
 OBJS += Forms/MainFrame.o
 OBJS += Forms/MountOptionsDialog.o
+OBJS += Forms/NewSecurityTokenKeyfileDialog.o
 OBJS += Forms/PreferencesDialog.o
 OBJS += Forms/ProgressWizardPage.o
+OBJS += Forms/SecurityTokenKeyfilesDialog.o
 OBJS += Forms/SelectDirectoryWizardPage.o
 OBJS += Forms/VolumePasswordPanel.o
 OBJS += Forms/VolumePropertiesDialog.o
@@ -76,13 +79,13 @@ endif
 
 ifeq "$(TC_BUILD_CONFIG)" "Release"
 
-CXXFLAGS += $(shell $(WX_BUILD_DIR)/wx-config --unicode --static --cxxflags)
-WX_LIBS = $(shell $(WX_BUILD_DIR)/wx-config --unicode --static --libs $(WX_CONFIG_LIBS))
+CXXFLAGS += $(shell $(WX_CONFIG) $(WX_CONFIG_ARGS) --cxxflags)
+WX_LIBS = $(shell $(WX_CONFIG) $(WX_CONFIG_ARGS) --libs $(WX_CONFIG_LIBS))
 
 else
 
-CXXFLAGS += $(shell $(WX_BUILD_DIR)/wx-config --debug --unicode --static --cxxflags)
-WX_LIBS = $(shell $(WX_BUILD_DIR)/wx-config --debug --unicode --static --libs $(WX_CONFIG_LIBS))
+CXXFLAGS += $(shell $(WX_CONFIG) --debug $(WX_CONFIG_ARGS) --cxxflags)
+WX_LIBS = $(shell $(WX_CONFIG) --debug $(WX_CONFIG_ARGS) --libs $(WX_CONFIG_LIBS))
 
 endif
 

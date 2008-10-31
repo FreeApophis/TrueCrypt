@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -51,10 +51,8 @@ namespace TrueCrypt
 			L"Copyright \xA9 2003-2008 TrueCrypt Foundation. All Rights Reserved.\n"
 			L"Copyright \xA9 1998-2000 Paul Le Roux. All Rights Reserved.\n"
 			L"Copyright \xA9 1998-2008 Brian Gladman. All Rights Reserved.\n"
-			L"Copyright \xA9 1995-1997 Eric Young. All Rights Reserved.\n"
-			L"Copyright \xA9 2001 Markus Friedl. All Rights Reserved.\n\n"
 
-			L"This software as a whole:\n"
+			L"\nThis software as a whole:\n"
 			L"Copyright \xA9 2008 TrueCrypt Foundation. All rights reserved.\n\n"
 
 			L"This software uses wxWidgets library, which is copyright \xA9 1998-2008 Julian Smart, Robert Roebling et al.\n\n"

@@ -37,9 +37,9 @@ class WizardPage;
 #include <wx/statline.h>
 #include <wx/textctrl.h>
 #include <wx/dialog.h>
+#include <wx/choice.h>
 #include <wx/spinctrl.h>
 #include <wx/notebook.h>
-#include <wx/choice.h>
 #include <wx/gauge.h>
 
 ///////////////////////////////////////////////////////////////////////////
@@ -108,6 +108,9 @@ namespace TrueCrypt
 			virtual void OnVolumePropertiesButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnChangeKeyfilesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnRemoveKeyfilesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnCreateKeyfileMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnManageSecurityTokenKeyfilesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnCloseAllSecurityTokenSessionsMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnDefaultKeyfilesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnAddToFavoritesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnAddAllMountedToFavoritesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
@@ -119,6 +122,7 @@ namespace TrueCrypt
 			virtual void OnRestoreVolumeHeaderMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnWipeCacheButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnHotkeysMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnSecurityTokenPreferencesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnPreferencesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnUserGuideMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnOnlineHelpMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
@@ -276,6 +280,44 @@ namespace TrueCrypt
 	};
 	
 	///////////////////////////////////////////////////////////////////////////////
+	/// Class EncryptionTestDialogBase
+	///////////////////////////////////////////////////////////////////////////////
+	class EncryptionTestDialogBase : public wxDialog 
+	{
+		private:
+		
+		protected:
+			wxChoice* EncryptionAlgorithmChoice;
+			wxCheckBox* XtsModeCheckBox;
+			wxTextCtrl* KeyTextCtrl;
+			wxStaticText* KeySizeStaticText;
+			wxTextCtrl* SecondaryKeyTextCtrl;
+			wxTextCtrl* DataUnitNumberTextCtrl;
+			wxTextCtrl* BlockNumberTextCtrl;
+			wxTextCtrl* PlainTextTextCtrl;
+			wxTextCtrl* CipherTextTextCtrl;
+			wxButton* EncryptButton;
+			wxButton* DecryptButton;
+			wxButton* AutoTestAllButton;
+			wxButton* ResetButton;
+			wxButton* CloseButton;
+			
+			// Virtual event handlers, overide them in your derived class
+			virtual void OnEncryptionAlgorithmSelected( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnXtsModeCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnEncryptButtonClick( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnDecryptButtonClick( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnAutoTestAllButtonClick( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnResetButtonClick( wxCommandEvent& event ){ event.Skip(); }
+			
+		
+		public:
+			EncryptionTestDialogBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("TrueCrypt - Test Vectors"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize, long style = wxDEFAULT_DIALOG_STYLE );
+			~EncryptionTestDialogBase();
+		
+	};
+	
+	///////////////////////////////////////////////////////////////////////////////
 	/// Class FavoriteVolumesDialogBase
 	///////////////////////////////////////////////////////////////////////////////
 	class FavoriteVolumesDialogBase : public wxDialog 
@@ -371,6 +413,7 @@ namespace TrueCrypt
 			
 			wxCheckBox* ReadOnlyCheckBox;
 			wxCheckBox* RemovableCheckBox;
+			wxCheckBox* PartitionInSystemEncryptionScopeCheckBox;
 			wxStaticBoxSizer* ProtectionSizer;
 			wxCheckBox* ProtectionCheckBox;
 			wxBoxSizer* ProtectionPasswordSizer;
@@ -404,6 +447,30 @@ namespace TrueCrypt
 	};
 	
 	///////////////////////////////////////////////////////////////////////////////
+	/// Class NewSecurityTokenKeyfileDialogBase
+	///////////////////////////////////////////////////////////////////////////////
+	class NewSecurityTokenKeyfileDialogBase : public wxDialog 
+	{
+		private:
+		
+		protected:
+			wxChoice* SecurityTokenChoice;
+			wxTextCtrl* KeyfileNameTextCtrl;
+			wxStdDialogButtonSizer* StdButtons;
+			wxButton* StdButtonsOK;
+			wxButton* StdButtonsCancel;
+			
+			// Virtual event handlers, overide them in your derived class
+			virtual void OnKeyfileNameChanged( wxCommandEvent& event ){ event.Skip(); }
+			
+		
+		public:
+			NewSecurityTokenKeyfileDialogBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("New Security Token Keyfile Properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize, long style = wxDEFAULT_DIALOG_STYLE );
+			~NewSecurityTokenKeyfileDialogBase();
+		
+	};
+	
+	///////////////////////////////////////////////////////////////////////////////
 	/// Class PreferencesDialogBase
 	///////////////////////////////////////////////////////////////////////////////
 	class PreferencesDialogBase : public wxDialog 
@@ -430,8 +497,6 @@ namespace TrueCrypt
 			wxCheckBox* CachePasswordsCheckBox;
 			wxStaticBoxSizer* FilesystemSizer;
 			wxTextCtrl* FilesystemOptionsTextCtrl;
-			wxBoxSizer* DefaultKeyfilesSizer;
-			wxCheckBox* UseKeyfilesCheckBox;
 			wxPanel* BackgroundTaskPanel;
 			wxCheckBox* BackgroundTaskEnabledCheckBox;
 			wxCheckBox* CloseBackgroundTaskOnNoVolumesCheckBox;
@@ -448,6 +513,11 @@ namespace TrueCrypt
 			wxCheckBox* CloseExplorerWindowsOnDismountCheckBox;
 			wxStaticBoxSizer* KernelServicesSizer;
 			wxCheckBox* NoKernelCryptoCheckBox;
+			wxBoxSizer* DefaultKeyfilesSizer;
+			wxCheckBox* UseKeyfilesCheckBox;
+			wxTextCtrl* Pkcs11ModulePathTextCtrl;
+			wxButton* SelectPkcs11ModuleButton;
+			wxCheckBox* CloseSecurityTokenSessionsAfterMountCheckBox;
 			wxListCtrl* HotkeyListCtrl;
 			wxTextCtrl* HotkeyTextCtrl;
 			wxButton* AssignHotkeyButton;
@@ -471,6 +541,7 @@ namespace TrueCrypt
 			virtual void OnPreserveTimestampsCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnBackgroundTaskEnabledCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnNoKernelCryptoCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnSelectPkcs11ModuleButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnHotkeyListItemDeselected( wxListEvent& event ){ event.Skip(); }
 			virtual void OnHotkeyListItemSelected( wxListEvent& event ){ event.Skip(); }
 			virtual void OnAssignHotkeyButtonClick( wxCommandEvent& event ){ event.Skip(); }
@@ -481,9 +552,42 @@ namespace TrueCrypt
 		
 		public:
 			wxPanel* DefaultKeyfilesPage;
+			wxPanel* SecurityTokensPage;
 			wxPanel* HotkeysPage;
 			PreferencesDialogBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Preferences"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize, long style = wxDEFAULT_DIALOG_STYLE );
 			~PreferencesDialogBase();
+		
+	};
+	
+	///////////////////////////////////////////////////////////////////////////////
+	/// Class SecurityTokenKeyfilesDialogBase
+	///////////////////////////////////////////////////////////////////////////////
+	class SecurityTokenKeyfilesDialogBase : public wxDialog 
+	{
+		private:
+		
+		protected:
+			wxListCtrl* SecurityTokenKeyfileListCtrl;
+			wxButton* ExportButton;
+			wxButton* DeleteButton;
+			
+			wxButton* ImportButton;
+			wxButton* OKButton;
+			wxButton* CancelButton;
+			
+			// Virtual event handlers, overide them in your derived class
+			virtual void OnListItemActivated( wxListEvent& event ){ event.Skip(); }
+			virtual void OnListItemDeselected( wxListEvent& event ){ event.Skip(); }
+			virtual void OnListItemSelected( wxListEvent& event ){ event.Skip(); }
+			virtual void OnExportButtonClick( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnDeleteButtonClick( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnImportButtonClick( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnOKButtonClick( wxCommandEvent& event ){ event.Skip(); }
+			
+		
+		public:
+			SecurityTokenKeyfilesDialogBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Security Token Keyfiles"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE );
+			~SecurityTokenKeyfilesDialogBase();
 		
 	};
 	
@@ -564,6 +668,7 @@ namespace TrueCrypt
 			wxListCtrl* KeyfilesListCtrl;
 			wxButton* AddFilesButton;
 			wxButton* AddDirectoryButton;
+			wxButton* AddSecurityTokenSignatureButton;
 			wxButton* RemoveButton;
 			wxButton* RemoveAllButton;
 			
@@ -573,6 +678,7 @@ namespace TrueCrypt
 			virtual void OnListSizeChanged( wxSizeEvent& event ){ event.Skip(); }
 			virtual void OnAddFilesButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnAddDirectoryButtonClick( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnAddSecurityTokenSignatureButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnRemoveButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnRemoveAllButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			
@@ -795,6 +901,7 @@ namespace TrueCrypt
 			virtual void OnDisplayPasswordCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnUseKeyfilesCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnKeyfilesButtonClick( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnKeyfilesButtonRightDown( wxMouseEvent& event ){ event.Skip(); }
 			virtual void OnKeyfilesButtonRightClick( wxMouseEvent& event ){ event.Skip(); }
 			
 		

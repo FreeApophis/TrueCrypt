@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -23,12 +23,17 @@ namespace TrueCrypt
 
 		virtual void ChangePassword (shared_ptr <VolumePath> volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, shared_ptr <VolumePassword> newPassword, shared_ptr <KeyfileList> newKeyfiles, shared_ptr <Pkcs5Kdf> newPkcs5Kdf = shared_ptr <Pkcs5Kdf> ()) const
 		{
-			CoreService::RequestChangePassword (volumePath, preserveTimestamps, password, keyfiles, newPassword, newKeyfiles, newPkcs5Kdf);
+			CoreService::RequestChangePassword (volumePath, preserveTimestamps, Keyfile::ApplyListToPassword (keyfiles, password), shared_ptr <KeyfileList>(), Keyfile::ApplyListToPassword (newKeyfiles, newPassword), shared_ptr <KeyfileList>(), newPkcs5Kdf);
 		}
 
 		virtual void CheckFilesystem (shared_ptr <VolumeInfo> mountedVolume, bool repair) const
 		{
 			CoreService::RequestCheckFilesystem (mountedVolume, repair);
+		}
+
+		virtual void DismountFilesystem (const DirectoryPath &mountPoint, bool force) const
+		{
+			CoreService::RequestDismountFilesystem (mountPoint, force);
 		}
 
 		virtual shared_ptr <VolumeInfo> DismountVolume (shared_ptr <VolumeInfo> mountedVolume, bool ignoreOpenFiles = false, bool syncVolumeInfo = false)
@@ -85,10 +90,17 @@ namespace TrueCrypt
 			}
 			else
 			{
-				mountedVolume = CoreService::RequestMountVolume (options);
+				MountOptions newOptions = options;
+				
+				newOptions.Password = Keyfile::ApplyListToPassword (options.Keyfiles, options.Password);
+				
+				if (newOptions.Keyfiles)
+					newOptions.Keyfiles->clear();
+
+				mountedVolume = CoreService::RequestMountVolume (newOptions);
 
 				if (options.CachePassword
-					&& (options.Password && !options.Password->IsEmpty() || options.Keyfiles && !options.Keyfiles->empty()))
+					&& ((options.Password && !options.Password->IsEmpty()) || (options.Keyfiles && !options.Keyfiles->empty())))
 				{
 					VolumePasswordCache::Store (*Keyfile::ApplyListToPassword (options.Keyfiles, options.Password));
 				}

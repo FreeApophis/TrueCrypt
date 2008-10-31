@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -9,6 +9,7 @@
 #include "System.h"
 #include "Main/GraphicUserInterface.h"
 #include "KeyfilesPanel.h"
+#include "SecurityTokenKeyfilesDialog.h"
 
 namespace TrueCrypt
 {
@@ -16,7 +17,7 @@ namespace TrueCrypt
 		: KeyfilesPanelBase (parent)
 	{
 		KeyfilesListCtrl->InsertColumn (0, LangString["KEYFILE"], wxLIST_FORMAT_LEFT, 1);
-		Gui->SetListCtrlHeight (KeyfilesListCtrl, 11);
+		Gui->SetListCtrlHeight (KeyfilesListCtrl, 10);
 
 		Layout();
 		Fit();
@@ -104,9 +105,28 @@ namespace TrueCrypt
 		}
 		UpdateButtons();
 	}
-		
-	void KeyfilesPanel::OnCreateKeyfileButttonClick (wxCommandEvent& event)
+
+	void KeyfilesPanel::OnAddSecurityTokenSignatureButtonClick (wxCommandEvent& event)
 	{
+		try
+		{
+			SecurityTokenKeyfilesDialog dialog (this);
+			if (dialog.ShowModal() == wxID_OK)
+			{
+				foreach (const SecurityTokenKeyfilePath &path, dialog.GetSelectedSecurityTokenKeyfilePaths())
+				{
+					vector <wstring> fields;
+					fields.push_back (path);
+					Gui->AppendToListCtrl (KeyfilesListCtrl, fields);
+				}
+
+				UpdateButtons();
+			}
+		}
+		catch (exception &e)
+		{
+			Gui->ShowError (e);
+		}
 	}
 
 	void KeyfilesPanel::OnListSizeChanged (wxSizeEvent& event)

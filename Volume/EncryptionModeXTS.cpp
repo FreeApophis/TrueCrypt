@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -19,7 +19,7 @@ namespace TrueCrypt
 	void EncryptionModeXTS::EncryptBuffer (byte *data, uint64 length, uint64 startDataUnitNo) const
 	{
 		if_debug (ValidateState());
-		
+
 		CipherList::const_iterator iSecondaryCipher = SecondaryCiphers.begin();
 
 		for (CipherList::const_iterator iCipher = Ciphers.begin(); iCipher != Ciphers.end(); ++iCipher)
@@ -40,6 +40,8 @@ namespace TrueCrypt
 		uint64 *bufPtr = (uint64 *) buffer;
 		unsigned int startBlock = startCipherBlockNo, endBlock, block;
 		uint64 blockCount, dataUnitNo;
+
+		startDataUnitNo += SectorOffset;
 
 		/* The encrypted data unit number (i.e. the resultant ciphertext block) is to be multiplied in the
 		finite field GF(2^128) by j-th power of n, where j is the sequential plaintext/ciphertext block
@@ -168,7 +170,7 @@ namespace TrueCrypt
 	void EncryptionModeXTS::DecryptBuffer (byte *data, uint64 length, uint64 startDataUnitNo) const
 	{
 		if_debug (ValidateState());
-		
+
 		CipherList::const_iterator iSecondaryCipher = SecondaryCiphers.end();
 
 		for (CipherList::const_reverse_iterator iCipher = Ciphers.rbegin(); iCipher != Ciphers.rend(); ++iCipher)
@@ -189,6 +191,8 @@ namespace TrueCrypt
 		uint64 *bufPtr = (uint64 *) buffer;
 		unsigned int startBlock = startCipherBlockNo, endBlock, block;
 		uint64 blockCount, dataUnitNo;
+
+		startDataUnitNo += SectorOffset;
 
 		// Convert the 64-bit data unit number into a little-endian 16-byte array. 
 		// Note that as we are converting a 64-bit number into a 16-byte array we can always zero the last 8 bytes.

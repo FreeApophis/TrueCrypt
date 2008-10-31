@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.5 the full text of which is contained in the
+ by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -15,10 +15,10 @@
 #define TC_APP_NAME						"TrueCrypt"
 
 // Version displayed to user 
-#define VERSION_STRING					"6.0a"
+#define VERSION_STRING					"6.1"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x060a
+#define VERSION_NUM						0x0610
 
 // Sector size of encrypted filesystem, which may differ from sector size 
 // of host filesystem/device (this is fully supported since v4.3). 
@@ -99,8 +99,11 @@ typedef union
 #include <ntifs.h>
 #include <ntddk.h>		/* Standard header file for nt drivers */
 
-#undef _WIN32_WINNT
-#define	_WIN32_WINNT 0x0501
+#ifndef TC_LOCAL_WIN32_WINNT_OVERRIDE
+#	undef _WIN32_WINNT
+#	define	_WIN32_WINNT 0x0501	/* Does not apply to user-space apps */
+#endif
+
 #include <ntdddisk.h>		/* Standard I/O control codes  */
 #include <ntiologc.h>
 
@@ -159,8 +162,11 @@ typedef unsigned __int32 LRESULT;
 #pragma warning( disable : 4115 )
 #pragma warning( disable : 4514 )
 
-#undef _WIN32_WINNT
-#define	_WIN32_WINNT 0x0501
+#ifndef TC_LOCAL_WIN32_WINNT_OVERRIDE
+#	undef _WIN32_WINNT
+#	define	_WIN32_WINNT 0x0501	/* Does not apply to the driver */
+#endif
+
 #include <windows.h>		/* Windows header */
 #include <commctrl.h>		/* The common controls */
 #include <process.h>		/* Process control */
@@ -286,13 +292,15 @@ enum
 	ERR_NO_FREE_DRIVES						= 22,
 	ERR_FILE_OPEN_FAILED					= 23,
 	ERR_VOL_MOUNT_FAILED					= 24,
-	ERR_INVALID_DEVICE						= 25,
+	DEPRECATED_ERR_INVALID_DEVICE			= 25,
 	ERR_ACCESS_DENIED						= 26,
 	ERR_MODE_INIT_FAILED					= 27,
 	ERR_DONT_REPORT							= 28,
 	ERR_ENCRYPTION_NOT_COMPLETED			= 29,
 	ERR_PARAMETER_INCORRECT					= 30,
-	ERR_SYS_HIDVOL_HEAD_REENC_MODE_WRONG	= 31
+	ERR_SYS_HIDVOL_HEAD_REENC_MODE_WRONG	= 31,
+	ERR_NONSYS_INPLACE_ENC_INCOMPLETE		= 32,
+	ERR_USER_ABORT							= 33
 };
 
 #endif 	// #ifndef TCDEFS_H

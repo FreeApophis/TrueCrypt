@@ -1,16 +1,19 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
 
 #include "System.h"
+#include "Platform/SystemInfo.h"
 #ifdef TC_UNIX
 #include <unistd.h>
+#include "Platform/Unix/Process.h"
 #endif
 #include "Core/RandomNumberGenerator.h"
+#include "Core/VolumeCreator.h"
 #include "Main/Application.h"
 #include "Main/GraphicUserInterface.h"
 #include "Main/Resources.h"
@@ -29,8 +32,9 @@ namespace TrueCrypt
 {
 	VolumeCreationWizard::VolumeCreationWizard (wxWindow* parent)
 		: WizardFrame (parent),
-		DeviceWarningConfirmed (false),
+		CrossPlatformSupport (true),
 		DisplayKeyInfo (true),
+		LargeFilesSupport (false),
 		QuickFormatEnabled (false),
 		SelectedFilesystemClusterSize (0),
 		SelectedFilesystemType (VolumeCreationOptions::FilesystemType::FAT),
@@ -40,7 +44,7 @@ namespace TrueCrypt
 	{
 		RandomNumberGenerator::Start();
 
-		SetTitle (LangString["VOLUME_CREATION_WIZARD"]);
+		SetTitle (LangString["INTRO_TITLE"]);
 		SetImage (Resources::GetVolumeCreationWizardBitmap (Gui->GetCharHeight (this) * 21));
 		SetMaxStaticTextWidth (55);
 
@@ -77,15 +81,16 @@ namespace TrueCrypt
 				ClearHistory();
 
 				OuterVolume = false;
+				LargeFilesSupport = false;
 				QuickFormatEnabled = false;
 
 				SingleChoiceWizardPage <VolumeHostType::Enum> *page = new SingleChoiceWizardPage <VolumeHostType::Enum> (GetPageParent(), wxEmptyString, true);
 				page->SetMinSize (wxSize (Gui->GetCharWidth (this) * 58, Gui->GetCharHeight (this) * 18 + 5));
 
-				page->SetPageTitle (LangString["VOLUME_CREATION_WIZARD"]);
+				page->SetPageTitle (LangString["INTRO_TITLE"]);
 
-				page->AddChoice (VolumeHostType::File, _("Create a file container"), _("Creates a virtual encrypted disk within a file. Recommended for inexperienced users."), L"introcontainer", _("More information"));
-				page->AddChoice (VolumeHostType::Device, _("Create a volume within a partition/&device"), _("Formats and encrypts a non-system partition, entire external or secondary drive, entire USB stick, etc."));
+				page->AddChoice (VolumeHostType::File, LangString["IDC_FILE_CONTAINER"], LangString["IDT_FILE_CONTAINER"], L"introcontainer", LangString["IDC_MORE_INFO_ON_CONTAINERS"]);
+				page->AddChoice (VolumeHostType::Device, _("Create a volume within a partition/&drive"), _("Formats and encrypts a non-system partition, entire external or secondary drive, entire USB stick, etc."));
 
 				page->SetSelection (SelectedVolumeHostType);
 				return page;
@@ -96,9 +101,8 @@ namespace TrueCrypt
 				SingleChoiceWizardPage <VolumeType::Enum> *page = new SingleChoiceWizardPage <VolumeType::Enum> (GetPageParent(), wxEmptyString, true);
 				page->SetPageTitle (LangString["VOLUME_TYPE_TITLE"]);
 
-				page->AddChoice (VolumeType::Normal, _("Standard TrueCrypt volume"), LangString["NORMAL_VOLUME_TYPE_HELP"]);
-				page->AddChoice (VolumeType::Hidden, _("Hi&dden TrueCrypt volume "), LangString["HIDDEN_VOLUME_TYPE_HELP"],
-					L"hiddenvolume", _("More information about hidden volumes"));
+				page->AddChoice (VolumeType::Normal, LangString["IDC_STD_VOL"], LangString["NORMAL_VOLUME_TYPE_HELP"]);
+				page->AddChoice (VolumeType::Hidden, LangString["IDC_HIDDEN_VOL"], LangString["HIDDEN_VOLUME_TYPE_HELP"], L"hiddenvolume", LangString["IDC_HIDDEN_VOL_HELP"]);
 
 				page->SetSelection (SelectedVolumeType);
 				return page;
@@ -112,7 +116,7 @@ namespace TrueCrypt
 				if (SelectedVolumeType == VolumeType::Hidden)
 					page->SetPageText (LangString[SelectedVolumeHostType == VolumeHostType::File ? "FILE_HELP_HIDDEN_HOST_VOL" : "DEVICE_HELP_HIDDEN_HOST_VOL"]);
 				else
-					page->SetPageText (LangString[SelectedVolumeHostType == VolumeHostType::File ? "FILE_HELP" : "DEVICE_HELP"]);
+					page->SetPageText (LangString[SelectedVolumeHostType == VolumeHostType::File ? "FILE_HELP" : "DEVICE_HELP_NO_INPLACE"]);
 
 				page->SetVolumePath (SelectedVolumePath);
 				return page;
@@ -137,30 +141,30 @@ namespace TrueCrypt
 		case Step::VolumeSize:
 			{
 				wxString freeSpaceText;
-				const char *pageTitle;
-				const char *pageText;
+				wxString pageTitle;
+				wxString pageText;
 
 				if (OuterVolume)
 				{
-					pageTitle = "SIZE_HIDVOL_HOST_TITLE";
-					pageText = "SIZE_HELP_HIDDEN_HOST_VOL";
+					pageTitle = LangString["SIZE_HIDVOL_HOST_TITLE"];
+					pageText = LangString["SIZE_HELP_HIDDEN_HOST_VOL"];
 				}
 				else if (SelectedVolumeType == VolumeType::Hidden)
 				{
-					pageTitle = "SIZE_HIDVOL_TITLE";
-					pageText = "SIZE_HELP_HIDDEN_VOL";
+					pageTitle = LangString["SIZE_HIDVOL_TITLE"];
+					pageText = LangString["SIZE_HELP_HIDDEN_VOL"] + L"\n\n" + _("Please note that if your operating system does not allocate files from the beginning of the free space, the maximum possible hidden volume size may be much smaller than the size of the free space on the outer volume. This not a bug in TrueCrypt but a limitation of the operating system.");
 					freeSpaceText = StringFormatter (_("Maximum possible hidden volume size for this volume is {0}."), Gui->SizeToString (MaxHiddenVolumeSize));
 				}
 				else
 				{
-					pageTitle = "SIZE_TITLE";
-					pageText = "VOLUME_SIZE_HELP";
+					pageTitle = LangString["SIZE_TITLE"];
+					pageText = LangString["VOLUME_SIZE_HELP"];
 				}
 
 				VolumeSizeWizardPage *page = new VolumeSizeWizardPage (GetPageParent(), SelectedVolumePath, freeSpaceText);
 				
-				page->SetPageTitle (LangString[pageTitle]);
-				page->SetPageText (LangString[pageText]);
+				page->SetPageTitle (pageTitle);
+				page->SetPageText (pageText);
 				
 				if (!OuterVolume && SelectedVolumeType == VolumeType::Hidden)
 					page->SetMaxVolumeSize (MaxHiddenVolumeSize);
@@ -192,10 +196,25 @@ namespace TrueCrypt
 				return page;
 			}
 
+		case Step::LargeFilesSupport:
+			{
+				SingleChoiceWizardPage <bool> *page = new SingleChoiceWizardPage <bool> (GetPageParent(), wxEmptyString, true);
+				page->SetPageTitle (LangString["FILESYS_PAGE_TITLE"]);
+
+				page->AddChoice (false, _("I will not store files larger than 4 GB on the volume"),
+					_("Choose this option if you do not need to store files larger than 4 GB (4,294,967,296 bytes) on the volume."));
+
+				page->AddChoice (true, _("I will store files larger than 4 GB on the volume"),
+					_("Choose this option if you need to store files larger than 4 GB (4,294,967,296 bytes) on the volume."));
+
+				page->SetSelection (LargeFilesSupport);
+				return page;
+			}
+
 		case Step::FormatOptions:
 			{
-				VolumeFormatOptionsWizardPage *page = new VolumeFormatOptionsWizardPage (GetPageParent(),
-					SelectedVolumePath.IsDevice() && SelectedVolumeType != VolumeType::Hidden);
+				VolumeFormatOptionsWizardPage *page = new VolumeFormatOptionsWizardPage (GetPageParent(), VolumeSize,
+					SelectedVolumePath.IsDevice() && (OuterVolume || SelectedVolumeType != VolumeType::Hidden), OuterVolume, LargeFilesSupport);
 
 				page->SetPageTitle (_("Format Options"));
 				page->SetFilesystemType (SelectedFilesystemType);
@@ -207,6 +226,21 @@ namespace TrueCrypt
 				return page;
 			}
 			
+		case Step::CrossPlatformSupport:
+			{
+				SingleChoiceWizardPage <bool> *page = new SingleChoiceWizardPage <bool> (GetPageParent(), wxEmptyString, true);
+				page->SetPageTitle (_("Cross-Platform Support"));
+
+				page->AddChoice (true, _("I will mount the volume on other platforms"),
+					_("Choose this option if you need to use the volume on other platforms."));
+
+				page->AddChoice (false, StringFormatter (_("I will mount the volume only on {0}"), SystemInfo::GetPlatformName()),
+					_("Choose this option if you do not need to use the volume on other platforms."));
+
+				page->SetSelection (CrossPlatformSupport);
+				return page;
+			}
+
 		case Step::CreationProgress:
 			{
 				VolumeCreationProgressWizardPage *page = new VolumeCreationProgressWizardPage (GetPageParent(), DisplayKeyInfo);
@@ -287,6 +321,7 @@ namespace TrueCrypt
 			{
 				ClearHistory();
 				OuterVolume = false;
+				LargeFilesSupport = false;
 
 				InfoWizardPage *page = new InfoWizardPage (GetPageParent());
 				page->SetPageTitle (LangString["HIDVOL_PRE_CIPHER_TITLE"]);
@@ -377,6 +412,62 @@ namespace TrueCrypt
 			{
 				Creator->CheckResult();
 
+#ifdef TC_UNIX
+				// Format non-FAT filesystem
+				const char *fsFormatter = nullptr;
+
+				switch (SelectedFilesystemType)
+				{
+				case VolumeCreationOptions::FilesystemType::Ext2:		fsFormatter = "mkfs.ext2"; break;
+				case VolumeCreationOptions::FilesystemType::Ext3:		fsFormatter = "mkfs.ext3"; break;
+				case VolumeCreationOptions::FilesystemType::MacOsExt:	fsFormatter = "newfs_hfs"; break;
+				case VolumeCreationOptions::FilesystemType::UFS:		fsFormatter = "newfs" ; break;
+				default: break;
+				}
+
+				if (fsFormatter)
+				{
+					wxBusyCursor busy;
+
+					MountOptions mountOptions;
+					mountOptions.Path = make_shared <VolumePath> (SelectedVolumePath);
+					mountOptions.NoFilesystem = true;
+					mountOptions.Password = Password;
+					mountOptions.Keyfiles = Keyfiles;
+					mountOptions.NoKernelCrypto = Gui->GetPreferences().DefaultMountOptions.NoKernelCrypto;
+
+					shared_ptr <VolumeInfo> volume = Core->MountVolume (mountOptions);
+					finally_do_arg (shared_ptr <VolumeInfo>, volume, { Core->DismountVolume (finally_arg); });
+
+					// Temporarily take ownership of the device if the user is not an administrator
+					UserId origDeviceOwner ((uid_t) -1);
+
+					DevicePath virtualDevice = volume->VirtualDevice;
+#ifdef TC_MACOSX
+					string virtualDeviceStr = virtualDevice;
+					if (virtualDeviceStr.find ("/dev/rdisk") != 0)
+						virtualDevice = "/dev/r" + virtualDeviceStr.substr (5);
+#endif
+					if (!Core->HasAdminPrivileges())
+					{
+						origDeviceOwner = virtualDevice.GetOwner();
+						Core->SetFileOwner (virtualDevice, UserId (getuid()));
+					}
+
+					finally_do_arg2 (FilesystemPath, virtualDevice, UserId, origDeviceOwner,
+					{
+						if (finally_arg2.SystemId != (uid_t) -1)
+							Core->SetFileOwner (finally_arg, finally_arg2);
+					});
+
+					// Create filesystem
+					list <string> args;
+					args.push_back (string (virtualDevice));
+
+					Process::Execute (fsFormatter, args);
+				}
+#endif // TC_UNIX
+
 				if (OuterVolume)
 				{
 					SetStep (Step::OuterVolumeContents);
@@ -466,6 +557,15 @@ namespace TrueCrypt
 
 						DeviceWarningConfirmed = true;
 
+						foreach_ref (const HostDevice &drive, Core->GetHostDevices())
+						{
+							if (drive.Path == SelectedVolumePath && !drive.Partitions.empty())
+							{
+								Gui->ShowError ("DEVICE_PARTITIONS_ERR");
+								return GetCurrentStep();
+							}
+						}
+
 						try
 						{
 							VolumeSize = Core->GetDeviceSize (SelectedVolumePath);
@@ -488,8 +588,19 @@ namespace TrueCrypt
 							
 							if (!mountPoint.IsEmpty())
 							{
-								Gui->ShowError (StringFormatter (_("The filesystem of the selected device is currently mounted. Please dismount '{0}' before proceeding."), wstring (mountPoint)));
-								return GetCurrentStep();
+								if (!Gui->AskYesNo (StringFormatter (_("WARNING: Formatting of the device will destroy all data on filesystem '{0}'.\n\nDo you want to continue?"), wstring (mountPoint)), false, true))
+									return GetCurrentStep();
+
+								try
+								{
+									Core->DismountFilesystem (mountPoint, true);
+								}
+								catch (exception &e)
+								{
+									Gui->ShowError (e);
+									Gui->ShowError (StringFormatter (_("The filesystem of the selected device is currently mounted. Please dismount '{0}' before proceeding."), wstring (mountPoint)));
+									return GetCurrentStep();
+								}
 							}
 						}
 						catch (...) { }
@@ -567,12 +678,34 @@ namespace TrueCrypt
 					}
 				}
 
-				if (OuterVolume)
+				if (VolumeSize > 4 * BYTES_PER_GB)
 				{
-					SelectedFilesystemType = VolumeCreationOptions::FilesystemType::FAT;
-					QuickFormatEnabled = false;
-					return Step::CreationProgress;
+					if (VolumeSize < TC_MAX_FAT_FS_SIZE)
+						return Step::LargeFilesSupport;
+					else
+						SelectedFilesystemType = VolumeCreationOptions::FilesystemType::GetPlatformNative();
 				}
+
+				return Step::FormatOptions;
+			}
+
+		case Step::LargeFilesSupport:
+			{
+				SingleChoiceWizardPage <bool> *page = dynamic_cast <SingleChoiceWizardPage <bool> *> (GetCurrentPage());
+
+				try
+				{
+					LargeFilesSupport = page->GetSelection();
+				}
+				catch (NoItemSelected &)
+				{
+					return GetCurrentStep();
+				}
+
+				if (LargeFilesSupport)
+					SelectedFilesystemType = VolumeCreationOptions::FilesystemType::GetPlatformNative();
+				else
+					SelectedFilesystemType = VolumeCreationOptions::FilesystemType::FAT;
 
 				return Step::FormatOptions;
 			}
@@ -583,10 +716,35 @@ namespace TrueCrypt
 				SelectedFilesystemType = page->GetFilesystemType();
 				QuickFormatEnabled = page->IsQuickFormatEnabled();
 
+				if (OuterVolume && SelectedFilesystemType != VolumeCreationOptions::FilesystemType::FAT)
+					Gui->ShowInfo (_("Please note that the FAT filesystem usually offers the maximum free space available for the hidden volume."));
+
+				if (SelectedFilesystemType != VolumeCreationOptions::FilesystemType::None
+					&& SelectedFilesystemType != VolumeCreationOptions::FilesystemType::FAT)
+					return Step::CrossPlatformSupport;
+
 				return Step::CreationProgress;
 			}
 
-			
+		case Step::CrossPlatformSupport:
+			{
+				SingleChoiceWizardPage <bool> *page = dynamic_cast <SingleChoiceWizardPage <bool> *> (GetCurrentPage());
+
+				try
+				{
+					CrossPlatformSupport = page->GetSelection();
+				}
+				catch (NoItemSelected &)
+				{
+					return GetCurrentStep();
+				}
+
+				if (forward && CrossPlatformSupport)
+					Gui->ShowWarning (StringFormatter (_("Please note that the volume will not be formatted with a FAT filesystem and, therefore, you may be required to install additional filesystem drivers on platforms other than {0}, which will enable you to mount the volume."), SystemInfo::GetPlatformName())); 
+
+				return Step::CreationProgress;
+			}
+
 		case Step::CreationProgress:
 			{
 				VolumeCreationProgressWizardPage *page = dynamic_cast <VolumeCreationProgressWizardPage *> (GetCurrentPage());
@@ -742,4 +900,6 @@ namespace TrueCrypt
 			page->EnableAbort (IsWorkInProgress());
 		}
 	}
+
+	bool VolumeCreationWizard::DeviceWarningConfirmed;
 }

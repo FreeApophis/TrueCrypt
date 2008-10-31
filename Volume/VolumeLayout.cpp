@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -11,6 +11,7 @@
 #include "Volume/EncryptionModeLRW.h"
 #include "Volume/EncryptionModeXTS.h"
 #include "VolumeLayout.h"
+#include "Boot/Windows/BootCommon.h"
 
 namespace TrueCrypt
 {
@@ -30,6 +31,7 @@ namespace TrueCrypt
 		layouts.push_back (shared_ptr <VolumeLayout> (new VolumeLayoutV1Normal ()));
 		layouts.push_back (shared_ptr <VolumeLayout> (new VolumeLayoutV2Hidden ()));
 		layouts.push_back (shared_ptr <VolumeLayout> (new VolumeLayoutV1Hidden ()));
+		layouts.push_back (shared_ptr <VolumeLayout> (new VolumeLayoutSystemEncryption ()));
 
 		if (type != VolumeType::Unknown)
 		{
@@ -211,5 +213,42 @@ namespace TrueCrypt
 			return 0;
 
 		return volumeSize - reservedSize;
+	}
+
+
+	VolumeLayoutSystemEncryption::VolumeLayoutSystemEncryption ()
+	{
+		Type = VolumeType::Normal;
+		HeaderOffset = TC_BOOT_VOLUME_HEADER_SECTOR_OFFSET;
+		HeaderSize = TC_BOOT_ENCRYPTION_VOLUME_HEADER_SIZE;
+
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AES ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new Serpent ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new Twofish ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AESTwofish ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new AESTwofishSerpent ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new SerpentAES ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new SerpentTwofishAES ()));
+		SupportedEncryptionAlgorithms.push_back (shared_ptr <EncryptionAlgorithm> (new TwofishSerpent ()));
+
+		SupportedEncryptionModes.push_back (shared_ptr <EncryptionMode> (new EncryptionModeXTS ()));
+	}
+
+	uint64 VolumeLayoutSystemEncryption::GetDataOffset (uint64 volumeHostSize) const
+	{
+		return 0;
+	}
+
+	uint64 VolumeLayoutSystemEncryption::GetDataSize (uint64 volumeHostSize) const
+	{
+		return volumeHostSize;
+	}
+
+	Pkcs5KdfList VolumeLayoutSystemEncryption::GetSupportedKeyDerivationFunctions () const
+	{
+		Pkcs5KdfList l;
+		
+		l.push_back (shared_ptr <Pkcs5Kdf> (new Pkcs5HmacRipemd160_1000 ()));
+		return l;
 	}
 }

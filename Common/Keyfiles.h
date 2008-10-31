@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2005 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -36,9 +36,8 @@ KeyFile *KeyFileClone (KeyFile *keyFile);
 KeyFile *KeyFileCloneAll (KeyFile *firstKeyFile);
 BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile);
 
-#ifdef _WIN32
 BOOL CALLBACK KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
-#endif
+BOOL KeyfilesPopupMenu (HWND hwndDlg, POINT popupPosition, KeyFilesDlgParam *dialogParam);
 
 #ifdef __cplusplus
 }

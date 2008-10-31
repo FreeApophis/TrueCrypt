@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 #
-# Governed by the TrueCrypt License 2.5 the full text of which is contained
+# Governed by the TrueCrypt License 2.6 the full text of which is contained
 # in the file License.txt included in TrueCrypt binary and source code
 # distribution packages.
 #
@@ -13,12 +13,15 @@
 # NOSTRIP:		Do not strip release binary
 # NOTEST:		Do not test release binary
 # VERBOSE:		Enable verbose messages
+# WXSTATIC:		Use static wxWidgets library
 
 #------ Targets ------
 # all
 # clean
 # wxbuild:		Configure and build wxWidgets - source code must be located at $(WX_ROOT)
 
+
+#------ Build configuration ------
 
 export APPNAME := truecrypt
 export BASE_DIR := $(CURDIR)
@@ -32,9 +35,6 @@ TC_BUILD_CONFIG := Debug
 endif
 endif
 
-
-#------ Build configuration ------
-
 export AR ?= ar
 export CC ?= gcc
 export CXX ?= g++
@@ -44,16 +44,28 @@ export CFLAGS := -W
 export CXXFLAGS := -Wall -Wno-sign-compare -Wno-unused-parameter 
 
 C_CXX_FLAGS := -MMD -I$(BASE_DIR) -I$(BASE_DIR)/Crypto
+
+ifdef PKCS11_INC
+C_CXX_FLAGS += -I$(PKCS11_INC)
+endif
+
 C_CXX_FLAGS += -DBOOL=int -DFALSE=0 -DTRUE=1
 C_CXX_FLAGS += -D__int8=char -D__int16=short -D__int32=int '-D__int64=long long'  # Tested in PlatformTest
 
 export LFLAGS :=
 export PKG_CONFIG_PATH ?= /usr/local/lib/pkgconfig
 
+export WX_CONFIG ?= wx-config
+export WX_CONFIG_ARGS := --unicode
 WX_CONFIGURE_FLAGS :=
 export WXCONFIG_CFLAGS :=
 export WXCONFIG_CXXFLAGS :=
 WX_ROOT ?= ..
+
+ifeq "$(origin WXSTATIC)" "command line"
+WX_CONFIG = $(WX_BUILD_DIR)/wx-config
+WX_CONFIG_ARGS += --static
+endif
 
 ifneq "$(origin VERBOSE)" "command line"
 MAKEFLAGS += -s
@@ -129,22 +141,29 @@ ifeq "$(shell uname -s)" "Darwin"
 
 PLATFORM := MacOSX
 APPNAME := TrueCrypt
-C_CXX_FLAGS += -DTC_UNIX -DTC_BSD -DTC_MACOSX
+TC_OSX_SDK ?= /Developer/SDKs/MacOSX10.4u.sdk
+
+C_CXX_FLAGS += -DTC_UNIX -DTC_BSD -DTC_MACOSX -mmacosx-version-min=10.4 -isysroot $(TC_OSX_SDK)
+LFLAGS += -mmacosx-version-min=10.4 -Wl,-syslibroot $(TC_OSX_SDK)
+WX_CONFIGURE_FLAGS += --with-macosx-version-min=10.4 --with-macosx-sdk=$(TC_OSX_SDK)
 
 ifeq "$(TC_BUILD_CONFIG)" "Release"
 
-TC_OSX_SDK ?= /Developer/SDKs/MacOSX10.4u.sdk
 export DISABLE_PRECOMPILED_HEADERS := 1
 
 S := $(C_CXX_FLAGS)
 C_CXX_FLAGS = $(subst -MMD,,$(S))
 
-C_CXX_FLAGS += -gfull -arch i386 -arch ppc -isysroot $(TC_OSX_SDK)
-LFLAGS += -Wl,-dead_strip -arch i386 -arch ppc -mmacosx-version-min=10.4 -Wl,-syslibroot $(TC_OSX_SDK)
+C_CXX_FLAGS += -gfull -arch i386 -arch ppc
+LFLAGS += -Wl,-dead_strip -arch i386 -arch ppc
 
 WX_CONFIGURE_FLAGS += --enable-universal_binary
 WXCONFIG_CFLAGS += -gfull
 WXCONFIG_CXXFLAGS += -gfull
+
+else
+
+WX_CONFIGURE_FLAGS += --disable-universal_binary
 
 endif
 
@@ -213,9 +232,10 @@ ifneq "$(shell test -f $(WX_ROOT)/configure || test -f $(WX_BUILD_DIR)/../config
 	@exit 1
 endif
 
-	mkdir -p $(WX_BUILD_DIR)
+	rm -rf "$(WX_BUILD_DIR)"
+	mkdir -p "$(WX_BUILD_DIR)"
 	@echo Configuring wxWidgets library...
-	cd $(WX_BUILD_DIR) && $(WX_ROOT)/configure $(WX_CONFIGURE_FLAGS) >/dev/null
+	cd "$(WX_BUILD_DIR)" && "$(WX_ROOT)/configure" $(WX_CONFIGURE_FLAGS) >/dev/null
 	
 	@echo Building wxWidgets library...
-	cd $(WX_BUILD_DIR) && make
+	cd "$(WX_BUILD_DIR)" && $(MAKE)

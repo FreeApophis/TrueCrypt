@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 #
-# Governed by the TrueCrypt License 2.5 the full text of which is contained
+# Governed by the TrueCrypt License 2.6 the full text of which is contained
 # in the file License.txt included in TrueCrypt binary and source code
 # distribution packages.
 #
@@ -10,7 +10,7 @@ $(NAME): $(NAME).a
 
 clean:
 	@echo Cleaning $(NAME)
-	rm -f $(APPNAME) $(NAME).a $(OBJS) *.d *.gch
+	rm -f $(APPNAME) $(NAME).a $(OBJS) $(OBJS:.o=.d) *.gch
 
 %.o: %.c
 	@echo Compiling $(<F)

@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.5 the full text of which is contained in the
+ by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -18,8 +18,7 @@
 
 #define SIZEOF_MRU_LIST 20
 
-void
-AddComboItem (HWND hComboBox, char *lpszFileName, BOOL saveHistory)
+void AddComboItem (HWND hComboBox, char *lpszFileName, BOOL saveHistory)
 {
 	LPARAM nIndex;
 
@@ -50,8 +49,7 @@ AddComboItem (HWND hComboBox, char *lpszFileName, BOOL saveHistory)
 }
 
 
-LPARAM
-MoveEditToCombo (HWND hComboBox, BOOL saveHistory)
+LPARAM MoveEditToCombo (HWND hComboBox, BOOL saveHistory)
 {
 	char szTmp[TC_MAX_PATH] = {0};
 
@@ -88,8 +86,7 @@ MoveEditToCombo (HWND hComboBox, BOOL saveHistory)
 	return SendMessage (hComboBox, CB_GETCURSEL, 0, 0);
 }
 
-int
-GetOrderComboIdx (HWND hComboBox, int *nIdxList, int nElems)
+int GetOrderComboIdx (HWND hComboBox, int *nIdxList, int nElems)
 {
 	int x = (int) SendMessage (hComboBox, CB_GETCOUNT, 0, 0);
 	if (x != CB_ERR)
@@ -120,8 +117,7 @@ GetOrderComboIdx (HWND hComboBox, int *nIdxList, int nElems)
 	return CB_ERR;
 }
 
-LPARAM
-UpdateComboOrder (HWND hComboBox)
+LPARAM UpdateComboOrder (HWND hComboBox)
 {
 	LPARAM nIndex;
 
@@ -137,11 +133,10 @@ UpdateComboOrder (HWND hComboBox)
 	return nIndex;
 }
 
-void
-LoadCombo (HWND hComboBox)
+void LoadCombo (HWND hComboBox)
 {
 	DWORD size;
-	char *history = LoadFile (GetConfigPath (FILE_HISTORY), &size);
+	char *history = LoadFile (GetConfigPath (TC_APPD_FILENAME_HISTORY), &size);
 	char *xml = history;
 	char volume[MAX_PATH];
 
@@ -159,19 +154,18 @@ LoadCombo (HWND hComboBox)
 	free (history);
 }
 
-void
-DumpCombo (HWND hComboBox, int bClear)
+void DumpCombo (HWND hComboBox, int bClear)
 {
 	FILE *f;
 	int i, nComboIdx[SIZEOF_MRU_LIST];
 
 	if (bClear)
 	{
-		DeleteFile (GetConfigPath (FILE_HISTORY));
+		DeleteFile (GetConfigPath (TC_APPD_FILENAME_HISTORY));
 		return;
 	}
 
-	f = fopen (GetConfigPath (FILE_HISTORY), "w");
+	f = fopen (GetConfigPath (TC_APPD_FILENAME_HISTORY), "w");
 	if (f == NULL) return;
 
 	XmlWriteHeader (f);
@@ -203,8 +197,7 @@ DumpCombo (HWND hComboBox, int bClear)
 	fclose (f);
 }
 
-void
-ClearCombo (HWND hComboBox)
+void ClearCombo (HWND hComboBox)
 {
 	int i;
 	for (i = 0; i < SIZEOF_MRU_LIST; i++)
@@ -213,8 +206,7 @@ ClearCombo (HWND hComboBox)
 	}
 }
 
-int
-IsComboEmpty (HWND hComboBox)
+int IsComboEmpty (HWND hComboBox)
 {
 	return SendMessage (hComboBox, CB_GETCOUNT, 0, 0) < 1;
 }

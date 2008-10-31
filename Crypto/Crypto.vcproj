@@ -188,39 +188,15 @@
 				>
 			</File>
 			<File
-				RelativePath=".\Bf_ecb.c"
+				RelativePath=".\Blowfish.c"
 				>
 			</File>
 			<File
-				RelativePath=".\Bf_enc.c"
-				>
-			</File>
-			<File
-				RelativePath=".\Bf_skey.c"
-				>
-			</File>
-			<File
-				RelativePath=".\C_ecb.c"
-				>
-			</File>
-			<File
-				RelativePath=".\C_enc.c"
-				>
-			</File>
-			<File
-				RelativePath=".\C_skey.c"
+				RelativePath=".\Cast.c"
 				>
 			</File>
 			<File
 				RelativePath=".\Des.c"
-				>
-			</File>
-			<File
-				RelativePath=".\Des_enc.c"
-				>
-			</File>
-			<File
-				RelativePath=".\Ecb3_enc.c"
 				>
 			</File>
 			<File
@@ -229,10 +205,6 @@
 			</File>
 			<File
 				RelativePath=".\Serpent.c"
-				>
-			</File>
-			<File
-				RelativePath=".\Set_key.c"
 				>
 			</File>
 			<File
@@ -266,15 +238,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\aestab.h"
-				>
-			</File>
-			<File
-				RelativePath=".\Bf_locl.h"
-				>
-			</File>
-			<File
-				RelativePath=".\Bf_pi.h"
+				RelativePath=".\Aestab.h"
 				>
 			</File>
 			<File
@@ -286,23 +250,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\Cast_lcl.h"
-				>
-			</File>
-			<File
-				RelativePath=".\Cast_s.h"
-				>
-			</File>
-			<File
 				RelativePath=".\Des.h"
-				>
-			</File>
-			<File
-				RelativePath=".\Des_locl.h"
-				>
-			</File>
-			<File
-				RelativePath=".\Podd.h"
 				>
 			</File>
 			<File
@@ -314,23 +262,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\Set_key.h"
-				>
-			</File>
-			<File
 				RelativePath=".\Sha1.h"
 				>
 			</File>
 			<File
 				RelativePath=".\Sha2.h"
-				>
-			</File>
-			<File
-				RelativePath=".\Sk.h"
-				>
-			</File>
-			<File
-				RelativePath=".\Spr.h"
 				>
 			</File>
 			<File

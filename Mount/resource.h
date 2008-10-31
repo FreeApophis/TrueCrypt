@@ -17,6 +17,8 @@
 #define IDB_LOGO_96DPI                  112
 #define IDB_SYS_DRIVEICON               113
 #define IDB_SYS_DRIVEICON_MASK          114
+#define IDD_TOKEN_PREFERENCES           115
+#define IDD_SYSENC_SETTINGS             116
 #define IDC_PREF_MOUNT_READONLY         1000
 #define IDC_PREF_MOUNT_REMOVABLE        1001
 #define IDC_VERIFY                      1002
@@ -111,10 +113,23 @@
 #define IDC_HK_MOD_CTRL                 1091
 #define IDC_HK_MOD_ALT                  1092
 #define IDC_HK_MOD_WIN                  1093
-#define IDC_PREFS_HOTKEY_SETTINGS       1094
-#define IDC_PREFS_KEYFILE_SETTINGS      1095
-#define IDC_SHOW_PASSWORD               1096
-#define IDC_LOGO                        1097
+#define IDC_SHOW_PASSWORD               1094
+#define IDC_LOGO                        1095
+#define IDT_PKCS11_LIB_PATH             1096
+#define IDC_PKCS11_MODULE               1097
+#define IDC_SELECT_PKCS11_MODULE        1098
+#define IDC_AUTO_DETECT_PKCS11_MODULE   1099
+#define IDC_CLOSE_TOKEN_SESSION_AFTER_MOUNT 1100
+#define IDT_SECURITY_OPTIONS            1101
+#define IDC_DISABLE_BOOT_LOADER_OUTPUT  1102
+#define IDC_ALLOW_ESC_PBA_BYPASS        1103
+#define IDC_CUSTOM_BOOT_LOADER_MESSAGE  1104
+#define IDC_BOOT_LOADER_CACHE_PASSWORD  1105
+#define IDC_MORE_SETTINGS               1106
+#define IDT_CUSTOM_BOOT_LOADER_MESSAGE  1107
+#define IDC_CUSTOM_BOOT_LOADER_MESSAGE_HELP 1108
+#define IDT_BOOT_LOADER_SCREEN_OPTIONS  1109
+#define IDT_PKCS11_LIB_HELP             1110
 #define IDM_HELP                        40001
 #define IDM_ABOUT                       40002
 #define IDM_UNMOUNT_VOLUME              40003
@@ -171,15 +186,21 @@
 #define IDM_SYSENC_RESUME               40054
 #define IDM_MOUNT_SYSENC_PART_WITHOUT_PBA 40055
 #define IDM_CREATE_HIDDEN_OS            40056
+#define IDM_TOKEN_PREFERENCES           40057
+#define IDM_CLOSE_ALL_TOKEN_SESSIONS    40058
+#define IDM_SYS_ENC_SETTINGS            40059
+#define IDM_SYSENC_SETTINGS             40060
+#define IDM_RESUME_INTERRUPTED_PROC     40061
+#define IDM_MANAGE_TOKEN_KEYFILES       40062
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
-#define _APS_NEXT_RESOURCE_VALUE        115
-#define _APS_NEXT_COMMAND_VALUE         40057
-#define _APS_NEXT_CONTROL_VALUE         1098
+#define _APS_NEXT_RESOURCE_VALUE        117
+#define _APS_NEXT_COMMAND_VALUE         40063
+#define _APS_NEXT_CONTROL_VALUE         1111
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

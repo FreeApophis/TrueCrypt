@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -26,13 +26,15 @@ namespace TrueCrypt
 		virtual wxMenuItem *AppendToMenu (wxMenu &menu, const wxString &label, wxEvtHandler *handler = nullptr, wxObjectEventFunction handlerFunction = nullptr, int itemId = wxID_ANY) const;
 		virtual bool AskYesNo (const wxString &message, bool defaultYes = false, bool warning = false) const;
 		virtual void AutoDismountVolumes (VolumeInfoList mountedVolumes, bool alwaysForce = true);
-		virtual void BackupVolumeHeaders (wxWindow *parent, shared_ptr <VolumePath> volumePath) const;
+		virtual void BackupVolumeHeaders (shared_ptr <VolumePath> volumePath) const;
 		virtual void BeginBusyState () const { wxBeginBusyCursor(); }
 		virtual void BeginInteractiveBusyState (wxWindow *window);
-		virtual void ChangePassword (shared_ptr <VolumePath> volumePath = shared_ptr <VolumePath>(), shared_ptr <VolumePassword> password = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> keyfiles = shared_ptr <KeyfileList>(), shared_ptr <VolumePassword> newPassword = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> newKeyfiles = shared_ptr <KeyfileList>(), shared_ptr <Hash> newHash = shared_ptr <Hash>()) const;
+		virtual void ChangePassword (shared_ptr <VolumePath> volumePath = shared_ptr <VolumePath>(), shared_ptr <VolumePassword> password = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> keyfiles = shared_ptr <KeyfileList>(), shared_ptr <VolumePassword> newPassword = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> newKeyfiles = shared_ptr <KeyfileList>(), shared_ptr <Hash> newHash = shared_ptr <Hash>()) const { ThrowTextModeRequired(); }
 		wxHyperlinkCtrl *CreateHyperlink (wxWindow *parent, const wxString &linkUrl, const wxString &linkText) const;
-		virtual void CreateVolume (shared_ptr <VolumeCreationOptions> options, const FilesystemPath &randomSourcePath = FilesystemPath()) const;
+		virtual void CreateKeyfile (shared_ptr <FilePath> keyfilePath = shared_ptr <FilePath>()) const;
+		virtual void CreateVolume (shared_ptr <VolumeCreationOptions> options, const FilesystemPath &randomSourcePath = FilesystemPath()) const { ThrowTextModeRequired(); }
 		virtual void ClearListCtrlSelection (wxListCtrl *listCtrl) const;
+		virtual void DeleteSecurityTokenKeyfiles () const { ThrowTextModeRequired(); }
 		virtual void DoShowError (const wxString &message) const;
 		virtual void DoShowInfo (const wxString &message) const;
 		virtual void DoShowString (const wxString &str) const;
@@ -50,9 +52,12 @@ namespace TrueCrypt
 		virtual int GetScrollbarWidth (wxWindow *window, bool noScrollBar = false) const;
 		virtual list <long> GetListCtrlSelectedItems (wxListCtrl *listCtrl) const;
 		virtual wxString GetListCtrlSubItemText (wxListCtrl *listCtrl, long itemIndex, int columnIndex) const;
+		virtual void ImportSecurityTokenKeyfiles () const { ThrowTextModeRequired(); }
+		virtual void InitSecurityTokenLibrary () const;
 		virtual void InsertToListCtrl (wxListCtrl *listCtrl, long itemIndex, const vector <wstring> &itemFields, int imageIndex = -1, void *itemDataPtr = nullptr) const;
 		virtual bool IsInBackgroundMode () const { return BackgroundMode; }
 		virtual bool IsTheOnlyTopLevelWindow (const wxWindow *window) const;
+		virtual void ListSecurityTokenKeyfiles () const;
 		virtual VolumeInfoList MountAllDeviceHostedVolumes (MountOptions &options) const;
 		virtual shared_ptr <VolumeInfo> MountVolume (MountOptions &options) const;
 		virtual void MoveListCtrlItem (wxListCtrl *listCtrl, long itemIndex, long newItemIndex) const;
@@ -63,7 +68,7 @@ namespace TrueCrypt
 		virtual void OpenHomepageLink (wxWindow *parent, const wxString &linkId, const wxString &extraVars = wxEmptyString);
 		virtual void OpenOnlineHelp (wxWindow *parent);
 		virtual void OpenUserGuide (wxWindow *parent);
-		virtual void RestoreVolumeHeaders (wxWindow *parent, shared_ptr <VolumePath> volumePath) const;
+		virtual void RestoreVolumeHeaders (shared_ptr <VolumePath> volumePath) const;
 		virtual DevicePath SelectDevice (wxWindow *parent) const;
 		virtual DirectoryPath SelectDirectory (wxWindow *parent, const wxString &message = wxEmptyString, bool existingOnly = true) const;
 		virtual FilePathList SelectFiles (wxWindow *parent, const wxString &caption, bool saveMode = false, bool allowMultiple = false, const list < pair <wstring, wstring> > &fileExtensions = (list < pair <wstring, wstring> > ()), const DirectoryPath &directory = DirectoryPath()) const;
@@ -100,7 +105,8 @@ namespace TrueCrypt
 		static void OnSignal (int signal);
 		virtual void OnVolumesAutoDismounted ();
 		virtual int ShowMessage (const wxString &message, long style, bool topMost = false) const;
-		
+		void ThrowTextModeRequired () const;
+
 		wxFrame *ActiveFrame;
 		bool BackgroundMode;
 #ifdef TC_WINDOWS

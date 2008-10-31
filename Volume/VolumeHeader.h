@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -55,7 +55,7 @@ namespace TrueCrypt
 		virtual ~VolumeHeader ();
 
 		void Create (const BufferPtr &headerBuffer, VolumeHeaderCreationOptions &options);
-		bool Decrypt (const ConstBufferPtr &encryptedData, const VolumePassword &password, const EncryptionAlgorithmList &encryptionAlgorithms, const EncryptionModeList &encryptionModes);
+		bool Decrypt (const ConstBufferPtr &encryptedData, const VolumePassword &password, const Pkcs5KdfList &keyDerivationFunctions, const EncryptionAlgorithmList &encryptionAlgorithms, const EncryptionModeList &encryptionModes);
 		void EncryptNew (const BufferPtr &newHeaderBuffer, const ConstBufferPtr &newSalt, const ConstBufferPtr &newHeaderKey, shared_ptr <Pkcs5Kdf> newPkcs5Kdf);
 		uint64 GetEncryptedAreaStart () const { return EncryptedAreaStart; }
 		uint64 GetEncryptedAreaLength () const { return EncryptedAreaLength; }

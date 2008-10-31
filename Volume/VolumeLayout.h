@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -12,6 +12,7 @@
 #include "Platform/Platform.h"
 #include "Volume/EncryptionAlgorithm.h"
 #include "Volume/EncryptionMode.h"
+#include "Volume/Pkcs5Kdf.h"
 #include "VolumeHeader.h"
 
 namespace TrueCrypt
@@ -33,9 +34,11 @@ namespace TrueCrypt
 		virtual uint32 GetHeaderSize () const { return HeaderSize; }
 		virtual uint64 GetMaxDataSize (uint64 volumeSize) const = 0;
 		virtual EncryptionAlgorithmList GetSupportedEncryptionAlgorithms () const { return SupportedEncryptionAlgorithms; }
+		virtual Pkcs5KdfList GetSupportedKeyDerivationFunctions () const { return Pkcs5Kdf::GetAvailableAlgorithms(); }
 		virtual EncryptionModeList GetSupportedEncryptionModes () const { return SupportedEncryptionModes; }
 		virtual VolumeType::Enum GetType () const { return Type; }
 		virtual bool HasBackupHeader () const = 0;
+		virtual bool HasDriveHeader () const { return false; }
 		virtual void SetHeader (shared_ptr <VolumeHeader> header) { Header = header; }
 
 	protected:
@@ -124,6 +127,26 @@ namespace TrueCrypt
 	private:
 		VolumeLayoutV2Hidden (const VolumeLayoutV2Hidden &);
 		VolumeLayoutV2Hidden &operator= (const VolumeLayoutV2Hidden &);
+	};
+
+
+	class VolumeLayoutSystemEncryption : public VolumeLayout
+	{
+	public:
+		VolumeLayoutSystemEncryption ();
+		virtual ~VolumeLayoutSystemEncryption () { }
+
+		virtual int GetBackupHeaderOffset () const { throw NotApplicable (SRC_POS); }
+		virtual uint64 GetDataOffset (uint64 volumeHostSize) const;
+		virtual uint64 GetDataSize (uint64 volumeHostSize) const;
+		virtual uint64 GetMaxDataSize (uint64 volumeSize) const { throw NotApplicable (SRC_POS); }
+		virtual Pkcs5KdfList GetSupportedKeyDerivationFunctions () const;
+		virtual bool HasBackupHeader () const { return false; }
+		virtual bool HasDriveHeader () const { return true; }
+
+	private:
+		VolumeLayoutSystemEncryption (const VolumeLayoutSystemEncryption &);
+		VolumeLayoutSystemEncryption &operator= (const VolumeLayoutSystemEncryption &);
 	};
 }
 

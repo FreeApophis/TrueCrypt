@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -49,6 +49,11 @@ namespace TrueCrypt
 		sr.Deserialize ("VolumeCreationTime", VolumeCreationTime);
 	}
 
+	bool VolumeInfo::FirstVolumeMountedAfterSecond (shared_ptr <VolumeInfo> first, shared_ptr <VolumeInfo> second)
+	{
+		return first->SerialInstanceNumber > second->SerialInstanceNumber;
+	}
+	
 	void VolumeInfo::Serialize (shared_ptr <Stream> stream) const
 	{
 		Serializable::Serialize (stream);

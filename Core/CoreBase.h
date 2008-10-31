@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -32,6 +32,8 @@ namespace TrueCrypt
 		virtual void ChangePassword (shared_ptr <VolumePath> volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, shared_ptr <VolumePassword> newPassword, shared_ptr <KeyfileList> newKeyfiles, shared_ptr <Pkcs5Kdf> newPkcs5Kdf = shared_ptr <Pkcs5Kdf> ()) const;
 		virtual void CheckFilesystem (shared_ptr <VolumeInfo> mountedVolume, bool repair = false) const = 0; 
 		virtual void CoalesceSlotNumberAndMountPoint (MountOptions &options) const;
+		virtual void CreateKeyfile (const FilePath &keyfilePath) const;
+		virtual void DismountFilesystem (const DirectoryPath &mountPoint, bool force) const = 0;
 		virtual shared_ptr <VolumeInfo> DismountVolume (shared_ptr <VolumeInfo> mountedVolume, bool ignoreOpenFiles = false, bool syncVolumeInfo = false) = 0;
 		virtual DirectoryPath GetDeviceMountPoint (const DevicePath &devicePath) const = 0;
 		virtual VolumeSlotNumber GetFirstFreeSlotNumber (VolumeSlotNumber startFrom = 0) const;
@@ -59,7 +61,7 @@ namespace TrueCrypt
 		virtual bool IsVolumeMounted (const VolumePath &volumePath) const;
 		virtual VolumeSlotNumber MountPointToSlotNumber (const DirectoryPath &mountPoint) const = 0;
 		virtual shared_ptr <VolumeInfo> MountVolume (MountOptions &options) = 0;
-		virtual shared_ptr <Volume> OpenVolume (shared_ptr <VolumePath> volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection = VolumeProtection::None, shared_ptr <VolumePassword> protectionPassword = shared_ptr <VolumePassword> (), shared_ptr <KeyfileList> protectionKeyfiles = shared_ptr <KeyfileList> (), bool sharedAccessAllowed = false, VolumeType::Enum volumeType = VolumeType::Unknown, bool useBackupHeaders = false) const;
+		virtual shared_ptr <Volume> OpenVolume (shared_ptr <VolumePath> volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection = VolumeProtection::None, shared_ptr <VolumePassword> protectionPassword = shared_ptr <VolumePassword> (), shared_ptr <KeyfileList> protectionKeyfiles = shared_ptr <KeyfileList> (), bool sharedAccessAllowed = false, VolumeType::Enum volumeType = VolumeType::Unknown, bool useBackupHeaders = false, bool partitionInSystemEncryptionScope = false) const;
 		virtual void RandomizeEncryptionAlgorithmKey (shared_ptr <EncryptionAlgorithm> encryptionAlgorithm) const;
 		virtual void ReEncryptVolumeHeaderWithNewSalt (const BufferPtr &newHeaderBuffer, shared_ptr <VolumeHeader> header, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles) const;
 		virtual void SetAdminPasswordCallback (shared_ptr <GetStringFunctor> functor) { }

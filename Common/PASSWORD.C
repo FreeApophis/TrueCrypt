@@ -5,29 +5,24 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.5 the full text of which is contained in the
+ by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
 #include "Tcdefs.h"
 
 #include "Crypto.h"
-#include "Fat.h"
-#include "Format.h"
 #include "Volumes.h"
 #include "Password.h"
-#include "Apidrvr.h"
 #include "Dlgcode.h"
 #include "Language.h"
 #include "Pkcs5.h"
-#include "Common/Endian.h"
-#include "Resource.h"
+#include "Endian.h"
 #include "Random.h"
 
 #include <io.h>
 
-void
-VerifyPasswordAndUpdate (HWND hwndDlg, HWND hButton, HWND hPassword,
+void VerifyPasswordAndUpdate (HWND hwndDlg, HWND hButton, HWND hPassword,
 			 HWND hVerify, unsigned char *szPassword,
 			 char *szVerify,
 			 BOOL keyFilesEnabled)
@@ -111,14 +106,15 @@ BOOL CheckPasswordLength (HWND hwndDlg, HWND hwndItem)
 {
 	if (GetWindowTextLength (hwndItem) < PASSWORD_LEN_WARNING)
 	{
+#ifndef _DEBUG
 		if (MessageBoxW (hwndDlg, GetString ("PASSWORD_LENGTH_WARNING"), lpszTitle, MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2) != IDYES)
 			return FALSE;
+#endif
 	}
 	return TRUE;
 }
 
-int
-ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int pkcs5, HWND hwndDlg)
+int ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int pkcs5, HWND hwndDlg)
 {
 	int nDosLinkCreated = 1, nStatus = ERR_OS_ERROR;
 	char szDiskFile[TC_MAX_PATH], szCFDevice[TC_MAX_PATH];
@@ -157,6 +153,9 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 	}
 
 	dev = CreateFile (szCFDevice, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+
+	if (dev == INVALID_HANDLE_VALUE) 
+		goto error;
 
 	if (bDevice)
 	{
@@ -211,9 +210,6 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 		hostSize = fileSize.QuadPart;
 	}
 
-	if (dev == INVALID_HANDLE_VALUE) 
-		goto error;
-
 	if (Randinit ())
 		goto error;
 
@@ -263,13 +259,13 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 		nStatus = _lread ((HFILE) dev, buffer, sizeof (buffer));
 		if (nStatus != sizeof (buffer))
 		{
-			nStatus = ERR_VOL_SIZE_WRONG;
-			goto error;
+			// Windows may report EOF when reading sectors from the last cluster of a device formatted as NTFS 
+			memset (buffer, 0, sizeof (buffer));
 		}
 
 		/* Try to decrypt the header */
 
-		nStatus = VolumeReadHeader (FALSE, buffer, oldPassword, &cryptoInfo, NULL);
+		nStatus = ReadVolumeHeader (FALSE, buffer, oldPassword, &cryptoInfo, NULL);
 		if (nStatus == ERR_CIPHER_INIT_WEAK_KEY)
 			nStatus = 0;	// We can ignore this error here
 
@@ -325,7 +321,7 @@ ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int p
 		for (wipePass = 0; wipePass < PRAND_DISK_WIPE_PASSES; wipePass++)
 		{
 			// Prepare new volume header
-			nStatus = VolumeWriteHeader (FALSE,
+			nStatus = CreateVolumeHeaderInMemory (FALSE,
 				buffer,
 				cryptoInfo->ea,
 				cryptoInfo->mode,

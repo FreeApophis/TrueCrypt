@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -17,7 +17,7 @@ namespace TrueCrypt
 	class VolumeFormatOptionsWizardPage : public VolumeFormatOptionsWizardPageBase
 	{
 	public:
-		VolumeFormatOptionsWizardPage (wxPanel* parent, bool enableQuickFormatButton = true);
+		VolumeFormatOptionsWizardPage (wxPanel* parent, uint64 volumeSize, bool enableQuickFormatButton = true, bool disableNoneFilesystem = false, bool disable32bitFilesystems = false);
 
 		VolumeCreationOptions::FilesystemType::Enum GetFilesystemType () const;
 		bool IsValid () { return true; }

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -33,6 +33,7 @@ namespace TrueCrypt
 		virtual size_t GetKeySize () const = 0;
 		virtual wstring GetName () const = 0;
 		virtual shared_ptr <EncryptionMode> GetNew () const = 0;
+		virtual uint64 GetSectorOffset () const { return SectorOffset; }
 		virtual bool IsKeySet () const { return KeySet; }
 		virtual void SetKey (const ConstBufferPtr &key) = 0;
 		virtual void SetCiphers (const CipherList &ciphers) { Ciphers = ciphers; }

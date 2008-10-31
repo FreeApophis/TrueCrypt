@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -19,8 +19,10 @@
 #define WINVER 0x0501
 #endif
 
-#ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0501
+#ifndef TC_LOCAL_WIN32_WINNT_OVERRIDE
+#	ifndef _WIN32_WINNT
+#		define _WIN32_WINNT 0x0501
+#	endif						
 #endif						
 
 #ifndef _WIN32_WINDOWS

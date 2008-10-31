@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.5 the full text of which is contained in the
+ by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -46,10 +46,9 @@ static Cipher Ciphers[] =
 	{ SERPENT,	"Serpent",		16,			32,			140*4				},
 	{ TWOFISH,	"Twofish",		16,			32,			TWOFISH_KS			},
 #ifndef TC_WINDOWS_BOOT
-	{ BLOWFISH,	"Blowfish",		8,			56,			4168				},	// Deprecated/legacy
-	{ CAST,		"CAST5",		8,			16,			128					},	// Deprecated/legacy
-	{ DES56,	"DES",			8,			7,			128					},	// Deprecated/legacy
-	{ TRIPLEDES,"Triple DES",	8,			8*3,		128*3				},	// Deprecated/legacy
+	{ BLOWFISH,	"Blowfish",		8,			56,			sizeof (BF_KEY)		},	// Deprecated/legacy
+	{ CAST,		"CAST5",		8,			16,			sizeof (CAST_KEY)	},	// Deprecated/legacy
+	{ TRIPLEDES,"Triple DES",	8,			8*3,		sizeof (TDES_KEY)	},	// Deprecated/legacy
 #endif
 	{ 0,		0,				0,			0,			0					}
 };
@@ -143,52 +142,17 @@ int CipherInit (int cipher, unsigned char *key, unsigned __int8 *ks)
 		
 	case BLOWFISH:
 		/* Deprecated/legacy */
-		BF_set_key ((BF_KEY *)ks, CipherGetKeySize(BLOWFISH), key);
-		break;
-
-	case DES56:		
-		/* Deprecated/legacy */
-		switch (des_key_sched ((des_cblock *) key, (struct des_ks_struct *) ks))
-		{
-		case -1:
-			return ERR_CIPHER_INIT_FAILURE;
-		case -2:
-			retVal = ERR_CIPHER_INIT_WEAK_KEY;		// Non-fatal error
-			break;
-		}
+		BlowfishSetKey ((BF_KEY *)ks, CipherGetKeySize(BLOWFISH), key);
 		break;
 
 	case CAST:
 		/* Deprecated/legacy */
-		CAST_set_key((CAST_KEY *) ks, CipherGetKeySize(CAST), key);
+		Cast5SetKey ((CAST_KEY *) ks, CipherGetKeySize(CAST), key);
 		break;
 
 	case TRIPLEDES:
 		/* Deprecated/legacy */
-		switch (des_key_sched ((des_cblock *) key, (struct des_ks_struct *) ks))
-		{
-		case -1:
-			return ERR_CIPHER_INIT_FAILURE;
-		case -2:
-			retVal = ERR_CIPHER_INIT_WEAK_KEY;		// Non-fatal error
-			break;
-		}
-		switch (des_key_sched ((des_cblock *) ((char*)(key)+8), (struct des_ks_struct *) (ks + CipherGetKeyScheduleSize (DES56))))
-		{
-		case -1:
-			return ERR_CIPHER_INIT_FAILURE;
-		case -2:
-			retVal = ERR_CIPHER_INIT_WEAK_KEY;		// Non-fatal error
-			break;
-		}
-		switch (des_key_sched ((des_cblock *) ((char*)(key)+16), (struct des_ks_struct *) (ks + CipherGetKeyScheduleSize (DES56) * 2)))
-		{
-		case -1:
-			return ERR_CIPHER_INIT_FAILURE;
-		case -2:
-			retVal = ERR_CIPHER_INIT_WEAK_KEY;		// Non-fatal error
-			break;
-		}
+		TripleDesSetKey (key, CipherGetKeySize (TRIPLEDES), (TDES_KEY *) ks);
 
 		// Verify whether all three DES keys are mutually different
 		if (((*((__int64 *) key) ^ *((__int64 *) key+1)) & 0xFEFEFEFEFEFEFEFEULL) == 0
@@ -216,11 +180,9 @@ void EncipherBlock(int cipher, void *data, void *ks)
 	case TWOFISH:		twofish_encrypt (ks, data, data); break;
 	case SERPENT:		serpent_encrypt (data, data, ks); break;
 #ifndef TC_WINDOWS_BOOT
-	case BLOWFISH:		BF_ecb_le_encrypt (data, data, ks, 1); break;	// Deprecated/legacy
-	case DES56:			des_encrypt (data, ks, 1); break;				// Deprecated/legacy
-	case CAST:			CAST_ecb_encrypt (data, data, ks, 1); break;	// Deprecated/legacy
-	case TRIPLEDES:		des_ecb3_encrypt (data, data, ks,				// Deprecated/legacy
-						(void*)((char*) ks + CipherGetKeyScheduleSize (DES56)), (void*)((char*) ks + CipherGetKeyScheduleSize (DES56) * 2), 1); break;
+	case BLOWFISH:		BlowfishEncryptLE (data, data, ks, 1); break;	// Deprecated/legacy
+	case CAST:			Cast5Encrypt (data, data, ks); break;			// Deprecated/legacy
+	case TRIPLEDES:		TripleDesEncrypt (data, data, ks, 1); break;	// Deprecated/legacy
 #endif
 	default:			TC_THROW_FATAL_EXCEPTION;	// Unknown/wrong ID
 	}
@@ -234,12 +196,9 @@ void DecipherBlock(int cipher, void *data, void *ks)
 	case TWOFISH:	twofish_decrypt (ks, data, data); break;
 #ifndef TC_WINDOWS_BOOT
 	case AES:		aes_decrypt (data, data, (void *) ((char *) ks + sizeof(aes_encrypt_ctx))); break;
-	case BLOWFISH:	BF_ecb_le_encrypt (data, data, ks, 0); break;	// Deprecated/legacy
-	case DES56:		des_encrypt (data, ks, 0); break;				// Deprecated/legacy
-	case CAST:		CAST_ecb_encrypt (data, data, ks,0); break;		// Deprecated/legacy
-	case TRIPLEDES:	des_ecb3_encrypt (data, data, ks,				// Deprecated/legacy
-					(void*)((char*) ks + CipherGetKeyScheduleSize (DES56)),
-					(void*)((char*) ks + CipherGetKeyScheduleSize (DES56) * 2), 0); break;
+	case BLOWFISH:	BlowfishEncryptLE (data, data, ks, 0); break;	// Deprecated/legacy
+	case CAST:		Cast5Decrypt (data, data, ks); break;			// Deprecated/legacy
+	case TRIPLEDES:	TripleDesEncrypt (data, data, ks, 0); break;	// Deprecated/legacy
 #else
 	case AES:		aes_decrypt (data, data, ks); break;
 #endif
@@ -1166,9 +1125,9 @@ DecryptBufferCBC (unsigned __int32 *data,
 
 // EncryptBuffer
 //
-// buf:			data to be encrypted
-// len:			number of bytes to encrypt; must be divisible by the block size (for cascaded
-//              ciphers divisible by the largest block size used within the cascade)
+// buf:  data to be encrypted; the start of the buffer is assumed to be aligned with the start of a data unit.
+// len:  number of bytes to encrypt; must be divisible by the block size (for cascaded ciphers, divisible 
+//       by the largest block size used within the cascade)
 void EncryptBuffer (unsigned __int8 *buf, TC_LARGEST_COMPILER_UINT len, PCRYPTO_INFO cryptoInfo)
 {
 	switch (cryptoInfo->mode)
@@ -1182,7 +1141,7 @@ void EncryptBuffer (unsigned __int8 *buf, TC_LARGEST_COMPILER_UINT len, PCRYPTO_
 
 			// When encrypting/decrypting a buffer (typically a volume header) the sequential number
 			// of the first XTS data unit in the buffer is always 0 and the start of the buffer is
-			// always considered aligned with the start of a data unit.
+			// always assumed to be aligned with the start of a data unit.
 			dataUnitNo.LowPart = 0;
 			dataUnitNo.HighPart = 0;
 
@@ -1419,9 +1378,9 @@ void EncryptDataUnitsCurrentThread (unsigned __int8 *buf, const UINT64_STRUCT *s
 
 // DecryptBuffer
 //
-// buf:			data to be decrypted
-// len:			number of bytes to decrypt; must be divisible by the block size (for cascaded
-//              ciphers divisible by the largest block size used within the cascade)
+// buf:  data to be decrypted; the start of the buffer is assumed to be aligned with the start of a data unit.
+// len:  number of bytes to decrypt; must be divisible by the block size (for cascaded ciphers, divisible 
+//       by the largest block size used within the cascade)
 void DecryptBuffer (unsigned __int8 *buf, TC_LARGEST_COMPILER_UINT len, PCRYPTO_INFO cryptoInfo)
 {
 	switch (cryptoInfo->mode)
@@ -1435,7 +1394,7 @@ void DecryptBuffer (unsigned __int8 *buf, TC_LARGEST_COMPILER_UINT len, PCRYPTO_
 
 			// When encrypting/decrypting a buffer (typically a volume header) the sequential number
 			// of the first XTS data unit in the buffer is always 0 and the start of the buffer is
-			// always considered aligned with the start of the data unit 0.
+			// always assumed to be aligned with the start of the data unit 0.
 			dataUnitNo.LowPart = 0;
 			dataUnitNo.HighPart = 0;
 

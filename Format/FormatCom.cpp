@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2007-2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -103,9 +103,9 @@ public:
 		return BaseCom::SetDriverServiceStartType (startType);
 	}
 
-	virtual BOOL STDMETHODCALLTYPE IsPagingFileActive ()
+	virtual BOOL STDMETHODCALLTYPE IsPagingFileActive (BOOL checkNonWindowsPartitionsOnly)
 	{
-		return BaseCom::IsPagingFileActive ();
+		return BaseCom::IsPagingFileActive (checkNonWindowsPartitionsOnly);
 	}
 
 	virtual DWORD STDMETHODCALLTYPE WriteLocalMachineRegistryDwordValue (BSTR keyPath, BSTR valueName, DWORD value)
@@ -122,6 +122,8 @@ protected:
 
 extern "C" BOOL ComServerFormat ()
 {
+	SetProcessShutdownParameters (0x100, 0);
+
 	TrueCryptFactory<TrueCryptFormatCom> factory (GetCurrentThreadId ());
 	DWORD cookie;
 

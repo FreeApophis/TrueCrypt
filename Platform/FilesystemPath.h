@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -10,6 +10,7 @@
 #define TC_HEADER_Platform_FilesystemPath
 
 #include "PlatformBase.h"
+#include "Platform/User.h"
 #include "SharedPtr.h"
 #include "StringConverter.h"
 
@@ -44,6 +45,7 @@ namespace TrueCrypt
 		operator wstring () const { return Path; }
 
 		void Delete () const;
+		UserId GetOwner () const;
 		FilesystemPathType::Enum GetType () const;
 		bool IsBlockDevice () const throw () { try { return GetType() == FilesystemPathType::BlockDevice; } catch (...) { return false; }; }
 		bool IsCharacterDevice () const throw () { try { return GetType() == FilesystemPathType::CharacterDevice; } catch (...) { return false; }; }
@@ -51,7 +53,9 @@ namespace TrueCrypt
 		bool IsDirectory () const throw () { try { return GetType() == FilesystemPathType::Directory; } catch (...) { return false; } }
 		bool IsEmpty () const throw () { try { return Path.empty(); } catch (...) { return false; } }
 		bool IsFile () const throw () { try { return GetType() == FilesystemPathType::File; } catch (...) { return false; } }
-
+		FilesystemPath ToBaseName () const;
+		FilesystemPath ToHostDriveOfPartition () const;
+		
 		static const int MaxSize = 260;
 
 	protected:

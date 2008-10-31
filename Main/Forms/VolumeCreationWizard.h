@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -31,7 +31,9 @@ namespace TrueCrypt
 				EncryptionOptions,
 				VolumeSize,
 				VolumePassword,
+				LargeFilesSupport,
 				FormatOptions,
+				CrossPlatformSupport,
 				CreationProgress,
 				VolumeCreatedInfo,
 				OuterVolumeContents,
@@ -53,11 +55,13 @@ namespace TrueCrypt
 		volatile bool AbortRequested;
 		volatile bool CreationAborted;
 		auto_ptr <VolumeCreator> Creator;
-		bool DeviceWarningConfirmed;
+		bool CrossPlatformSupport;
+		static bool DeviceWarningConfirmed;
 		bool DisplayKeyInfo;
 		auto_ptr <wxTimer> ProgressTimer;
 		auto_ptr <wxTimer> RandomPoolUpdateTimer;
 		shared_ptr <KeyfileList> Keyfiles;
+		bool LargeFilesSupport;
 		uint64 MaxHiddenVolumeSize;
 		shared_ptr <VolumeInfo> MountedOuterVolume;
 		bool OuterVolume;

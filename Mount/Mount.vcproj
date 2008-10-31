@@ -45,7 +45,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\Common;..\Crypto;..\"
+				AdditionalIncludeDirectories="..\Common;..\Crypto;..\;$(PKCS11_INC)"
 				PreprocessorDefinitions="TCMOUNT;WIN32;DEBUG;_DEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;_CRT_NON_CONFORMING_SWPRINTFS"
 				MinimalRebuild="true"
 				ExceptionHandling="1"
@@ -137,7 +137,7 @@
 				Name="VCCLCompilerTool"
 				AdditionalOptions="/w34189"
 				Optimization="2"
-				AdditionalIncludeDirectories="..\Common;..\Crypto;..\"
+				AdditionalIncludeDirectories="..\Common;..\Crypto;..\;$(PKCS11_INC)"
 				PreprocessorDefinitions="TCMOUNT;WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;_CRT_NON_CONFORMING_SWPRINTFS"
 				RuntimeLibrary="0"
 				BufferSecurityCheck="true"
@@ -304,6 +304,22 @@
 				<File
 					RelativePath="..\Common\Keyfiles.c"
 					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							CompileAs="2"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							CompileAs="2"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\Common\Language.c"
@@ -323,6 +339,10 @@
 				</File>
 				<File
 					RelativePath="..\Common\Registry.c"
+					>
+				</File>
+				<File
+					RelativePath="..\Common\SecurityToken.cpp"
 					>
 				</File>
 				<File
@@ -397,6 +417,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\Common\Exception.h"
+				>
+			</File>
+			<File
 				RelativePath="..\Common\GfMul.h"
 				>
 			</File>
@@ -437,11 +461,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\resource.h"
+				>
+			</File>
+			<File
 				RelativePath="..\Common\Resource.h"
 				>
 			</File>
 			<File
-				RelativePath=".\resource.h"
+				RelativePath="..\Common\SecurityToken.h"
 				>
 			</File>
 			<File
@@ -491,6 +519,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Mount.tlb"
+				>
+			</File>
+			<File
 				RelativePath=".\System_drive_icon_96dpi.bmp"
 				>
 			</File>
@@ -505,6 +537,70 @@
 			<Filter
 				Name="Common"
 				>
+				<File
+					RelativePath="..\Boot\Windows\Rescue\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Rescue_Twofish\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Release_Serpent\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Release_AES\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Release\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Release_Twofish\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Rescue_Serpent\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Rescue_AES\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Rescue\BootSector.bin"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Release_Twofish\BootSector.bin"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Release_Serpent\BootSector.bin"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Rescue_Serpent\BootSector.bin"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Rescue_AES\BootSector.bin"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Release\BootSector.bin"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Rescue_Twofish\BootSector.bin"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Release_AES\BootSector.bin"
+					>
+				</File>
 				<File
 					RelativePath="..\Common\Common.rc"
 					>
@@ -526,11 +622,15 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\Boot\Windows\Release\Decompressor.com"
+					>
+				</File>
+				<File
 					RelativePath="..\Common\Language.xml"
 					>
 				</File>
 				<File
-					RelativePath="..\Release\Setup Files\License.txt"
+					RelativePath="..\Resources\Texts\License.rtf"
 					>
 				</File>
 				<File
@@ -551,10 +651,6 @@
 				</File>
 			</Filter>
 		</Filter>
-		<File
-			RelativePath=".\Mount.tlb"
-			>
-		</File>
 	</Files>
 	<Globals>
 	</Globals>

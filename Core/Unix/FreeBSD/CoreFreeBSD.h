@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -23,7 +23,7 @@ namespace TrueCrypt
 		virtual HostDeviceList GetHostDevices (bool pathListOnly = false) const; 
 
 	protected:
-		virtual DevicePath AttachFileToLoopDevice (const FilePath &filePath) const;
+		virtual DevicePath AttachFileToLoopDevice (const FilePath &filePath, bool readOnly) const;
 		virtual void DetachLoopDevice (const DevicePath &devicePath) const;
 		virtual MountedFilesystemList GetMountedFilesystems (const DevicePath &devicePath = DevicePath(), const DirectoryPath &mountPoint = DirectoryPath()) const;
 		virtual void MountFilesystem (const DevicePath &devicePath, const DirectoryPath &mountPoint, const string &filesystemType, bool readOnly, const string &systemMountOptions) const;

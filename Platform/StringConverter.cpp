@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -19,6 +19,22 @@
 
 namespace TrueCrypt
 {
+	void StringConverter::Erase (string &str)
+	{
+		for (size_t i = 0; i < str.size(); ++i)
+		{
+			str[i] = ' ';
+		}
+	}
+
+	void StringConverter::Erase (wstring &str)
+	{
+		for (size_t i = 0; i < str.size(); ++i)
+		{
+			str[i] = ' ';
+		}
+	}
+
 	wstring StringConverter::FromNumber (double number)
 	{
 		wstringstream s;
@@ -156,6 +172,15 @@ namespace TrueCrypt
 
 		return elements;
 	}
+	
+	string StringConverter::StripTrailingNumber (const string &str)
+	{
+		size_t start = str.find_last_not_of ("0123456789");
+		if (start == string::npos)
+			return "";
+
+		return str.substr (0, start + 1);
+	}
 
 	wstring StringConverter::ToExceptionString (const exception &ex)
 	{
@@ -177,33 +202,39 @@ namespace TrueCrypt
 		return s;
 	}
 
-	string StringConverter::ToSingle (const wstring &str, bool noThrow)
+	string StringConverter::ToSingle (const wstring &wstr, bool noThrow)
+	{
+		string str;
+		ToSingle (wstr, str, noThrow);
+		return str;
+	}
+
+	void StringConverter::ToSingle (const wstring &wstr, string &str, bool noThrow)
 	{
 		try
 		{
 			mbstate_t mbState;
 			Memory::Zero (&mbState, sizeof (mbState));
-			const wchar_t *src = str.c_str();
+			const wchar_t *src = wstr.c_str();
 
 			size_t size = wcsrtombs (nullptr, &src, 0, &mbState);
 			if (size == -1)
-				throw StringConversionFailed (SRC_POS, str);
+				throw StringConversionFailed (SRC_POS, wstr);
 
 			vector <char> buf (size + 1);
 			Memory::Zero (&mbState, sizeof (mbState));
 
 			if ((size = wcsrtombs (&buf[0], &src, buf.size(), &mbState)) == -1)
-				throw StringConversionFailed (SRC_POS, str);
+				throw StringConversionFailed (SRC_POS, wstr);
 
-			string s;
-			s.insert (s.begin(), buf.begin(), buf.begin() + size);
-			return s;
+			str.clear();
+			str.insert (0, &buf.front(), size);
+			Memory::Erase (&buf.front(), buf.size());
 		}
 		catch (...)
 		{
-			if (noThrow)
-				return "";
-			throw;
+			if (!noThrow)
+				throw;
 		}
 	}
 

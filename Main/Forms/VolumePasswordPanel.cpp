@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -10,6 +10,7 @@
 #include "Main/GraphicUserInterface.h"
 #include "KeyfilesDialog.h"
 #include "VolumePasswordPanel.h"
+#include "SecurityTokenKeyfilesDialog.h"
 
 namespace TrueCrypt
 {
@@ -166,11 +167,11 @@ namespace TrueCrypt
 		int len = GetWindowText (static_cast <HWND> (textCtrl->GetHandle()), passwordBuf, VolumePassword::MaxSize + 1);
 		password.reset (new VolumePassword (passwordBuf, len));
 #else
-		const wxString &passwordStr = textCtrl->GetValue();
+		wxString passwordStr (textCtrl->GetValue());	// A copy of the password is created here by wxWidgets, which cannot be erased
 		for (size_t i = 0; i < passwordStr.size() && i < VolumePassword::MaxSize; ++i)
 		{
 			passwordBuf[i] = (wchar_t) passwordStr[i];
-			const_cast <wchar_t *> (passwordStr.c_str())[i] = L'X';
+			passwordStr[i] = L'X';
 		}
 		password.reset (new VolumePassword (passwordBuf, passwordStr.size() <= VolumePassword::MaxSize ? passwordStr.size() : VolumePassword::MaxSize));
 #endif
@@ -191,28 +192,67 @@ namespace TrueCrypt
 
 	void VolumePasswordPanel::OnAddKeyfileDirMenuItemSelected (wxCommandEvent& event)
 	{
-		DirectoryPath dir = Gui->SelectDirectory (this, LangString["SELECT_KEYFILE_PATH"]);
-
-		if (!dir.IsEmpty())
+		try
 		{
-			Keyfiles->push_back (make_shared <Keyfile> (dir));
+			DirectoryPath dir = Gui->SelectDirectory (this, LangString["SELECT_KEYFILE_PATH"]);
 
-			UseKeyfilesCheckBox->SetValue (!Keyfiles->empty());
-			OnUpdate();
+			if (!dir.IsEmpty())
+			{
+				Keyfiles->push_back (make_shared <Keyfile> (dir));
+
+				UseKeyfilesCheckBox->SetValue (!Keyfiles->empty());
+				OnUpdate();
+			}
+		}
+		catch (exception &e)
+		{
+			Gui->ShowError (e);
 		}
 	}
 
 	void VolumePasswordPanel::OnAddKeyfilesMenuItemSelected (wxCommandEvent& event)
 	{
-		FilePathList files = Gui->SelectFiles (this, LangString["SELECT_KEYFILES"], false, true);
-
-		if (!files.empty())
+		try
 		{
-			foreach_ref (const FilePath &f, files)
-				Keyfiles->push_back (make_shared <Keyfile> (f));
+			FilePathList files = Gui->SelectFiles (this, LangString["SELECT_KEYFILES"], false, true);
 
-			UseKeyfilesCheckBox->SetValue (!Keyfiles->empty());
-			OnUpdate();
+			if (!files.empty())
+			{
+				foreach_ref (const FilePath &f, files)
+					Keyfiles->push_back (make_shared <Keyfile> (f));
+
+				UseKeyfilesCheckBox->SetValue (!Keyfiles->empty());
+				OnUpdate();
+			}
+		}
+		catch (exception &e)
+		{
+			Gui->ShowError (e);
+		}
+	}
+
+	void VolumePasswordPanel::OnAddSecurityTokenSignatureMenuItemSelected (wxCommandEvent& event)
+	{
+		try
+		{
+			SecurityTokenKeyfilesDialog dialog (this);
+			if (dialog.ShowModal() == wxID_OK)
+			{
+				foreach (const SecurityTokenKeyfilePath &path, dialog.GetSelectedSecurityTokenKeyfilePaths())
+				{
+					Keyfiles->push_back (make_shared <Keyfile> (wstring (path)));
+				}
+
+				if (!dialog.GetSelectedSecurityTokenKeyfilePaths().empty())
+				{
+					UseKeyfilesCheckBox->SetValue (!Keyfiles->empty());
+					OnUpdate();
+				}
+			}
+		}
+		catch (exception &e)
+		{
+			Gui->ShowError (e);
 		}
 	}
 
@@ -226,7 +266,7 @@ namespace TrueCrypt
 		OnUpdate();
 	}
 
-	void VolumePasswordPanel::OnConfigureKeyfilesMenuItemSelected (wxCommandEvent& event)
+	void VolumePasswordPanel::OnKeyfilesButtonClick (wxCommandEvent& event)
 	{
 		KeyfilesDialog dialog (GetParent(), Keyfiles);
 
@@ -239,16 +279,21 @@ namespace TrueCrypt
 		}
 	}
 
-	void VolumePasswordPanel::OnKeyfilesButtonClick (wxCommandEvent& event)
+	void VolumePasswordPanel::OnKeyfilesButtonRightClick (wxMouseEvent& event)
 	{
 		wxMenu popup;
-		Gui->AppendToMenu (popup, _("&Configure..."), this, wxCommandEventHandler (VolumePasswordPanel::OnConfigureKeyfilesMenuItemSelected));
-
-		popup.AppendSeparator();
-		Gui->AppendToMenu (popup, _("Add &Files..."), this, wxCommandEventHandler (VolumePasswordPanel::OnAddKeyfilesMenuItemSelected));
-		Gui->AppendToMenu (popup, _("Add &Directory..."), this, wxCommandEventHandler (VolumePasswordPanel::OnAddKeyfileDirMenuItemSelected));
+		Gui->AppendToMenu (popup, LangString["IDC_KEYADD"], this, wxCommandEventHandler (VolumePasswordPanel::OnAddKeyfilesMenuItemSelected));
+		Gui->AppendToMenu (popup, LangString["IDC_ADD_KEYFILE_PATH"], this, wxCommandEventHandler (VolumePasswordPanel::OnAddKeyfileDirMenuItemSelected));
+		Gui->AppendToMenu (popup, LangString["IDC_TOKEN_FILES_ADD"], this, wxCommandEventHandler (VolumePasswordPanel::OnAddSecurityTokenSignatureMenuItemSelected));
 
 		PopupMenu (&popup, KeyfilesButton->GetPosition().x + 2, KeyfilesButton->GetPosition().y + 2);
+	}
+
+	void VolumePasswordPanel::OnKeyfilesButtonRightDown (wxMouseEvent& event)
+	{
+#ifndef TC_MACOSX
+		event.Skip();
+#endif
 	}
 
 	bool VolumePasswordPanel::PasswordsMatch () const
@@ -260,6 +305,6 @@ namespace TrueCrypt
 	void VolumePasswordPanel::WipeTextCtrl (wxTextCtrl *textCtrl)
 	{
 		textCtrl->SetValue (wxString (L'X', textCtrl->GetLineLength(0)));
-		textCtrl->SetValue (L"");
+		GetPassword (textCtrl);
 	}
 }

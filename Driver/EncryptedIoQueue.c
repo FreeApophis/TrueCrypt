@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -9,6 +9,7 @@
 #include "TCdefs.h"
 #include "Apidrvr.h"
 #include "Ntdriver.h"
+#include "DriveFilter.h"
 #include "EncryptedIoQueue.h"
 #include "EncryptionThreadPool.h"
 #include "Volumes.h"
@@ -150,6 +151,15 @@ static VOID IoThreadProc (PVOID threadArg)
 	EncryptedIoRequest *request;
 
 	KeSetPriorityThread (KeGetCurrentThread(), LOW_REALTIME_PRIORITY);
+
+	if (!queue->IsFilterDevice && queue->SecurityClientContext)
+	{
+#ifdef DEBUG
+		NTSTATUS status =
+#endif
+		SeImpersonateClientEx (queue->SecurityClientContext, NULL);
+		ASSERT (NT_SUCCESS (status));
+	}
 
 	while (!queue->ThreadExitRequested)
 	{
@@ -425,6 +435,14 @@ static VOID MainThreadProc (PVOID threadArg)
 					}
 				}
 			}
+			else if (item->Write && IsHiddenSystemRunning()
+				&& (RegionsOverlap (item->OriginalOffset.QuadPart, item->OriginalOffset.QuadPart + item->OriginalLength - 1, SECTOR_SIZE, TC_BOOT_LOADER_AREA_SECTOR_COUNT * SECTOR_SIZE - 1)
+				 || RegionsOverlap (item->OriginalOffset.QuadPart, item->OriginalOffset.QuadPart + item->OriginalLength - 1, GetBootDriveLength(), _I64_MAX)))
+			{
+				Dump ("Preventing write to boot loader or host protected area\n");
+				CompleteOriginalIrp (item, STATUS_MEDIA_WRITE_PROTECTED, 0);
+				continue;
+			}
 
 			// Original IRP data buffer
 			mdlWaitTime = 0;
@@ -586,6 +604,10 @@ NTSTATUS EncryptedIoQueueHoldWhenIdle (EncryptedIoQueue *queue, int64 timeout)
 
 			if (!NT_SUCCESS (status))
 				return status;
+
+			TCSleep (100);
+			if (InterlockedExchangeAdd (&queue->OutstandingIoCount, 0) > 0)
+				return STATUS_UNSUCCESSFUL;
 		}
 
 		KeClearEvent (&queue->QueueResumedEvent);
@@ -631,7 +653,7 @@ NTSTATUS EncryptedIoQueueResumeFromHold (EncryptedIoQueue *queue)
 }
 
 
-NTSTATUS EncryptedIoQueueStart (EncryptedIoQueue *queue, PEPROCESS process)
+NTSTATUS EncryptedIoQueueStart (EncryptedIoQueue *queue)
 {
 	NTSTATUS status;
 	queue->ThreadExitRequested = FALSE;
@@ -665,7 +687,7 @@ NTSTATUS EncryptedIoQueueStart (EncryptedIoQueue *queue, PEPROCESS process)
 	KeInitializeSpinLock (&queue->IoThreadQueueLock);
 	KeInitializeEvent (&queue->IoThreadQueueNotEmptyEvent, SynchronizationEvent, FALSE);
 
-	status = TCStartThreadInProcess (IoThreadProc, queue, &queue->IoThread, process);
+	status = TCStartThread (IoThreadProc, queue, &queue->IoThread);
 	if (!NT_SUCCESS (status))
 	{
 		queue->ThreadExitRequested = TRUE;

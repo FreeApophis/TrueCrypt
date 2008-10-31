@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <utime.h>
 #include "Platform/File.h"
+#include "Platform/TextReader.h"
 
 namespace TrueCrypt
 {
@@ -100,6 +101,31 @@ namespace TrueCrypt
 		}
 
 		return 512;
+	}
+
+	uint64 File::GetPartitionDeviceStartOffset () const
+	{
+#ifdef TC_LINUX
+
+		// HDIO_GETGEO ioctl is limited by the size of long
+		TextReader tr ("/sys/block/" + string (Path.ToHostDriveOfPartition().ToBaseName()) + "/" + string (Path.ToBaseName()) + "/start");
+		
+		string line;
+		tr.ReadLine (line);
+		return StringConverter::ToUInt64 (line) * GetDeviceSectorSize();
+
+#elif defined (TC_MACOSX)
+
+#ifndef DKIOCGETBASE
+#	define DKIOCGETBASE _IOR('d', 73, uint64)
+#endif
+		uint64 offset;
+		throw_sys_sub_if (ioctl (FileHandle, DKIOCGETBASE, &offset) == -1, wstring (Path));
+		return offset;
+
+#else
+		throw NotImplemented (SRC_POS);
+#endif
 	}
 
 	uint64 File::Length () const

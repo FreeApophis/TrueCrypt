@@ -1,7 +1,7 @@
 ::
 :: Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 ::
-:: Governed by the TrueCrypt License 2.5 the full text of which is contained
+:: Governed by the TrueCrypt License 2.6 the full text of which is contained
 :: in the file License.txt included in TrueCrypt binary and source code
 :: distribution packages.
 ::
@@ -15,6 +15,16 @@ set TC_ARG_TYPE=%~1
 shift
 set TC_ARG_ARCH=%~1
 shift
+
+
+:: Check for spaces in the current directory path
+
+cd | find " " >NUL:
+
+if %ERRORLEVEL% == 0 (
+	echo BuildDriver.cmd: error: MS Build does not support building of projects stored in a path containing spaces. >&2
+	exit /B 1
+)
 
 
 :: Build options

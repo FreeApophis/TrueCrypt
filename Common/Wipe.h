@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -21,6 +21,7 @@ typedef enum
 	are changed, incompatiblity with other versions may arise (upgrade, downgrade, etc.).
 	When adding a new constant, verify that the value is unique within this block. */
 	TC_WIPE_NONE = 0,
+	TC_WIPE_1_RAND = 100,
 	TC_WIPE_3_DOD_5220 = 300,
 	TC_WIPE_7_DOD_5220 = 700,
 	TC_WIPE_35_GUTMANN = 3500

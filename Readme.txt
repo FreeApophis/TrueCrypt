@@ -1,4 +1,4 @@
-This archive contains the source code of TrueCrypt 6.0a.
+This archive contains the source code of TrueCrypt 6.1.
 
 
 Important
@@ -21,6 +21,8 @@ I. Windows
 II. Linux and Mac OS X
 	Requirements for Building TrueCrypt for Linux and Mac OS X
 	Instructions for Building TrueCrypt for Linux and Mac OS X
+	Requirements for Running TrueCrypt on Linux
+	Requirements for Running TrueCrypt on Mac OS X
 
 III. Third-Party Developers (Contributors)
 
@@ -34,9 +36,11 @@ I. Windows
 Requirements for Building TrueCrypt for Windows:
 ------------------------------------------------
 
-- Microsoft Visual C++ 2008 (Professional Edition or compatible)
+- Microsoft Visual C++ 2008 SP1 (Professional Edition or compatible)
 - Microsoft Visual C++ 1.52 (available from MSDN Subscriber Downloads)
 - Microsoft Windows Driver Kit for Windows Server 2008 (build 6001.18001)
+- RSA Security Inc. PKCS #11 Cryptographic Token Interface (Cryptoki) 2.20
+  header files (available at ftp://ftp.rsasecurity.com/pub/pkcs/pkcs-11)
 - NASM 0.99 assembler
 - Yasm assembler
 - gzip compressor
@@ -69,14 +73,18 @@ Instructions for Building TrueCrypt for Windows:
 2) If you have installed the Windows Driver Development Kit in another
    directory than '%SYSTEMDRIVE%\WinDDK', create an environment variable called
    'WINDDK_ROOT' pointing to the DDK installation directory.
-   
-3) Open the 'TrueCrypt.sln' solution in Microsoft Visual Studio 2008.
 
-4) Select 'All' as the active solution configuration.
+3) Copy PKCS #11 header files to a standard include path or create an
+   environment variable called 'PKCS11_INC' pointing to the directory where
+   PKCS #11 header files are installed.
 
-5) Build the solution.
+4) Open the 'TrueCrypt.sln' solution in Microsoft Visual Studio 2008.
 
-6) If successful, there should be newly built TrueCrypt binaries in the
+5) Select 'All' as the active solution configuration.
+
+6) Build the solution.
+
+7) If successful, there should be newly built TrueCrypt binaries in the
    'Release' folder.
 
 
@@ -91,9 +99,14 @@ Requirements for Building TrueCrypt for Linux and Mac OS X:
 - GNU C++ Compiler 4.0 or compatible
 - Apple XCode (Mac OS X only)
 - pkg-config
-- wxWidgets 2.8 library source code (available at http://www.wxwidgets.org)
-- FUSE library (available at http://fuse.sourceforge.net and 
-  http://code.google.com/p/macfuse)
+- wxWidgets 2.8 shared library and header files installed or
+  wxWidgets 2.8 library source code (available at http://www.wxwidgets.org)
+- FUSE library and header files (available at http://fuse.sourceforge.net
+  and http://code.google.com/p/macfuse)
+- RSA Security Inc. PKCS #11 Cryptographic Token Interface (Cryptoki) 2.20
+  header files (available at ftp://ftp.rsasecurity.com/pub/pkcs/pkcs-11)
+  located in a standard include path or in a directory defined by the
+  environment variable 'PKCS11_INC'.
 
 
 Instructions for Building TrueCrypt for Linux and Mac OS X:
@@ -101,8 +114,9 @@ Instructions for Building TrueCrypt for Linux and Mac OS X:
 
 1) Change the current directory to the root of the TrueCrypt source code.
 
-2) Run the following command to configure the wxWidgets library for TrueCrypt 
-   and to build it: 
+2) If you have no wxWidgets shared library installed, run the following
+   command to configure the wxWidgets static library for TrueCrypt and to
+   build it: 
 
    $ make WX_ROOT=/usr/src/wxWidgets wxbuild
 
@@ -114,6 +128,10 @@ Instructions for Building TrueCrypt for Linux and Mac OS X:
 
    $ make
 
+   or if you have no wxWidgets shared library installed:
+   
+   $ make WXSTATIC=1
+
 4) If successful, the TrueCrypt executable should be located in the directory
    'Main'.
 
@@ -122,7 +140,23 @@ interface is built. To build a console-only executable, which requires no GUI
 library, use the 'NOGUI' parameter:
 
    $ make NOGUI=1 WX_ROOT=/usr/src/wxWidgets wxbuild
-   $ make NOGUI=1
+   $ make NOGUI=1 WXSTATIC=1
+
+
+
+Requirements for Running TrueCrypt on Linux:
+--------------------------------------------
+
+- Kernel including FUSE, Device mapper, and encryption modules
+- FUSE library (available at http://fuse.sourceforge.net)
+- Device mapper tools (available at http://sources.redhat.com/dm)
+
+
+Requirements for Running TrueCrypt on Mac OS X:
+-----------------------------------------------
+
+- Mac OS X 10.4 or later
+- MacFUSE 1.3 or later (available at http://code.google.com/p/macfuse)
 
 
 

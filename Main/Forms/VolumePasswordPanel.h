@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -36,9 +36,11 @@ namespace TrueCrypt
 		shared_ptr <VolumePassword> GetPassword (wxTextCtrl *textCtrl) const;
 		void OnAddKeyfileDirMenuItemSelected (wxCommandEvent& event);
 		void OnAddKeyfilesMenuItemSelected (wxCommandEvent& event);
-		void OnConfigureKeyfilesMenuItemSelected (wxCommandEvent& event);
+		void OnAddSecurityTokenSignatureMenuItemSelected (wxCommandEvent& event);
 		void OnDisplayPasswordCheckBoxClick (wxCommandEvent& event);
 		void OnKeyfilesButtonClick (wxCommandEvent& event);
+		void OnKeyfilesButtonRightClick (wxMouseEvent& event);
+		void OnKeyfilesButtonRightDown (wxMouseEvent& event);
 		void OnTextChanged (wxCommandEvent& event) { OnUpdate(); }
 		void OnUpdate () { UpdateEvent.Raise(); }
 		void OnUseKeyfilesCheckBoxClick (wxCommandEvent& event) { OnUpdate(); }

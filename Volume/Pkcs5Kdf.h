@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -57,6 +57,22 @@ namespace TrueCrypt
 	private:
 		Pkcs5HmacRipemd160 (const Pkcs5HmacRipemd160 &);
 		Pkcs5HmacRipemd160 &operator= (const Pkcs5HmacRipemd160 &);
+	};
+
+	class Pkcs5HmacRipemd160_1000 : public Pkcs5Kdf
+	{
+	public:
+		Pkcs5HmacRipemd160_1000 () { }
+		virtual ~Pkcs5HmacRipemd160_1000 () { }
+
+		virtual void DeriveKey (const BufferPtr &key, const VolumePassword &password, const ConstBufferPtr &salt, int iterationCount) const;
+		virtual shared_ptr <Hash> GetHash () const { return shared_ptr <Hash> (new Ripemd160); }
+		virtual int GetIterationCount () const { return 1000; }
+		virtual wstring GetName () const { return L"HMAC-RIPEMD-160"; }
+
+	private:
+		Pkcs5HmacRipemd160_1000 (const Pkcs5HmacRipemd160_1000 &);
+		Pkcs5HmacRipemd160_1000 &operator= (const Pkcs5HmacRipemd160_1000 &);
 	};
 
 	class Pkcs5HmacSha1 : public Pkcs5Kdf

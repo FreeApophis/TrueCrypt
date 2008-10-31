@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -28,9 +28,6 @@ namespace TrueCrypt
 		if ((!newPassword || newPassword->Size() < 1) && (!newKeyfiles || newKeyfiles->empty()))
 			throw PasswordEmpty (SRC_POS);
 
-		if (newPassword)
-			newPassword->CheckPortability();
-		
 		if (!newPkcs5Kdf)
 			newPkcs5Kdf = openVolume->GetPkcs5Kdf();
 
@@ -96,6 +93,19 @@ namespace TrueCrypt
 			options.MountPoint.reset (new DirectoryPath (SlotNumberToMountPoint (options.SlotNumber)));
 	}
 
+	void CoreBase::CreateKeyfile (const FilePath &keyfilePath) const
+	{
+		RandomNumberGenerator::Start();
+		finally_do ({ RandomNumberGenerator::Stop(); });
+
+		SecureBuffer keyfileBuffer (VolumePassword::MaxSize);
+		RandomNumberGenerator::GetData (keyfileBuffer);
+
+		File keyfile;
+		keyfile.Open (keyfilePath, File::CreateWrite);
+		keyfile.Write (keyfileBuffer);
+	}
+
 	VolumeSlotNumber CoreBase::GetFirstFreeSlotNumber (VolumeSlotNumber startFrom) const
 	{
 		if (startFrom < GetFirstSlotNumber())
@@ -158,10 +168,10 @@ namespace TrueCrypt
 		return GetMountedVolume (volumePath);
 	}
 
-	shared_ptr <Volume> CoreBase::OpenVolume (shared_ptr <VolumePath> volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection, shared_ptr <VolumePassword> protectionPassword, shared_ptr <KeyfileList> protectionKeyfiles, bool sharedAccessAllowed, VolumeType::Enum volumeType, bool useBackupHeaders) const
+	shared_ptr <Volume> CoreBase::OpenVolume (shared_ptr <VolumePath> volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection, shared_ptr <VolumePassword> protectionPassword, shared_ptr <KeyfileList> protectionKeyfiles, bool sharedAccessAllowed, VolumeType::Enum volumeType, bool useBackupHeaders, bool partitionInSystemEncryptionScope) const
 	{
 		make_shared_auto (Volume, volume);
-		volume->Open (*volumePath, preserveTimestamps, password, keyfiles, protection, protectionPassword, protectionKeyfiles, sharedAccessAllowed, volumeType, useBackupHeaders);
+		volume->Open (*volumePath, preserveTimestamps, password, keyfiles, protection, protectionPassword, protectionKeyfiles, sharedAccessAllowed, volumeType, useBackupHeaders, partitionInSystemEncryptionScope);
 		return volume;
 	}
 	

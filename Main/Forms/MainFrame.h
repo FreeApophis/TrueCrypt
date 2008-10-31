@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -71,7 +71,9 @@ namespace TrueCrypt
 		void OnCheckFilesystemMenuItemSelected( wxCommandEvent& event ) { CheckFilesystem (); }
 		void OnClearSlotSelectionMenuItemSelected (wxCommandEvent& event);
 		void OnClose (wxCloseEvent& event);
+		void OnCloseAllSecurityTokenSessionsMenuItemSelected (wxCommandEvent& event);
 		void OnContactMenuItemSelected (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"contact"); }
+		void OnCreateKeyfileMenuItemSelected (wxCommandEvent& event) { Gui->CreateKeyfile(); }
 		void OnCreateVolumeButtonClick (wxCommandEvent& event);
 		void OnDefaultKeyfilesMenuItemSelected (wxCommandEvent& event);
 		void OnDismountAllButtonClick (wxCommandEvent& event);
@@ -96,6 +98,7 @@ namespace TrueCrypt
 		void OnListItemSelected (wxListEvent& event);
 		void OnListItemSelectionChanged ();
 		void OnLogoBitmapClick (wxMouseEvent &event) { wxCommandEvent ev; OnAboutMenuItemSelected (ev); }
+		void OnManageSecurityTokenKeyfilesMenuItemSelected (wxCommandEvent& event);
 		void OnMountAllDevicesButtonClick (wxCommandEvent& event);
 		void OnMountAllFavoritesMenuItemSelected (wxCommandEvent& event);
 		void OnMountVolumeMenuItemSelected (wxCommandEvent& event) { MountVolume(); }
@@ -110,7 +113,10 @@ namespace TrueCrypt
 		void OnRepairFilesystemMenuItemSelected( wxCommandEvent& event ) { CheckFilesystem (true); }
 		void OnReportBugMenuItemSelected (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"bugreport"); }
 		void OnRestoreVolumeHeaderMenuItemSelected (wxCommandEvent& event);
+		void OnSecurityTokenPreferencesMenuItemSelected (wxCommandEvent& event);
+		void OnSelectDeviceAndMountMenuItemSelected (wxCommandEvent& event);
 		void OnSelectDeviceButtonClick (wxCommandEvent& event);
+		void OnSelectFileAndMountMenuItemSelected (wxCommandEvent& event);
 		void OnSelectFileButtonClick (wxCommandEvent& event);
 		void OnTimer ();
 		void OnTravelerDiskWizardMenuItemSelected (wxCommandEvent& event);

@@ -1,13 +1,19 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
 
 #include "Tcdefs.h"
 #include "Wipe.h"
+
+
+static BOOL Wipe1PseudoRandom (int pass, byte *buffer, size_t size)
+{
+	return FALSE;
+}
 
 
 // Fill buffer with wipe patterns defined in "National Industrial Security Program Operating Manual", US DoD 5220.22-M.
@@ -137,6 +143,9 @@ size_t GetWipePassCount (WipeAlgorithmId algorithm)
 {
 	switch (algorithm)
 	{
+	case TC_WIPE_1_RAND:
+		return 1;
+
 	case TC_WIPE_3_DOD_5220:
 		return 3;
 
@@ -149,6 +158,8 @@ size_t GetWipePassCount (WipeAlgorithmId algorithm)
 	default:
 		TC_THROW_FATAL_EXCEPTION;
 	}
+
+	return 0;	// Prevent compiler warnings
 }
 
 
@@ -156,6 +167,9 @@ BOOL WipeBuffer (WipeAlgorithmId algorithm, byte randChars[TC_WIPE_RAND_CHAR_COU
 {
 	switch (algorithm)
 	{
+	case TC_WIPE_1_RAND:
+		return Wipe1PseudoRandom (pass, buffer, size);
+
 	case TC_WIPE_3_DOD_5220:
 		return Wipe3Dod5220 (pass, buffer, size);
 
@@ -168,4 +182,6 @@ BOOL WipeBuffer (WipeAlgorithmId algorithm, byte randChars[TC_WIPE_RAND_CHAR_COU
 	default:
 		TC_THROW_FATAL_EXCEPTION;
 	}
+
+	return FALSE;	// Prevent compiler warnings
 }

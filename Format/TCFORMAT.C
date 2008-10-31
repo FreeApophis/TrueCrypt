@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.5 the full text of which is contained in the
+ by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -31,8 +31,11 @@
 #include "Common/Dictionary.h"
 #include "Common/Endian.h"
 #include "Common/resource.h"
+#include "Platform/Finally.h"
+#include "Platform/ForEach.h"
 #include "Random.h"
 #include "Fat.h"
+#include "InPlace.h"
 #include "Resource.h"
 #include "TcFormat.h"
 #include "Format.h"
@@ -49,52 +52,60 @@ using namespace TrueCrypt;
 
 enum wizard_pages
 {
+	/* IMPORTANT: IF YOU ADD/REMOVE/MOVE ANY PAGES THAT ARE RELATED TO SYSTEM ENCRYPTION,
+	REVISE THE 'DECOY_OS_INSTRUCTIONS' STRING! */
+
 	INTRO_PAGE,
-		SYSENC_TYPE_PAGE,
-				SYSENC_HIDDEN_OS_REQ_CHECK_PAGE,
-		SYSENC_SPAN_PAGE,
-		SYSENC_PRE_DRIVE_ANALYSIS_PAGE,
-		SYSENC_DRIVE_ANALYSIS_PAGE,
-		SYSENC_MULTI_BOOT_MODE_PAGE,
-		SYSENC_MULTI_BOOT_SYS_EQ_BOOT_PAGE,
-		SYSENC_MULTI_BOOT_NBR_SYS_DRIVES_PAGE,
-		SYSENC_MULTI_BOOT_ADJACENT_SYS_PAGE,
-		SYSENC_MULTI_BOOT_NONWIN_BOOT_LOADER_PAGE,
-		SYSENC_MULTI_BOOT_OUTCOME_PAGE,
+			SYSENC_TYPE_PAGE,
+					SYSENC_HIDDEN_OS_REQ_CHECK_PAGE,
+			SYSENC_SPAN_PAGE,
+			SYSENC_PRE_DRIVE_ANALYSIS_PAGE,
+			SYSENC_DRIVE_ANALYSIS_PAGE,
+			SYSENC_MULTI_BOOT_MODE_PAGE,
+			SYSENC_MULTI_BOOT_SYS_EQ_BOOT_PAGE,
+			SYSENC_MULTI_BOOT_NBR_SYS_DRIVES_PAGE,
+			SYSENC_MULTI_BOOT_ADJACENT_SYS_PAGE,
+			SYSENC_MULTI_BOOT_NONWIN_BOOT_LOADER_PAGE,
+			SYSENC_MULTI_BOOT_OUTCOME_PAGE,
 	VOLUME_TYPE_PAGE,
-			HIDDEN_VOL_WIZARD_MODE_PAGE,
-	FILE_PAGE,
-			HIDDEN_VOL_HOST_PRE_CIPHER_PAGE,
-			HIDDEN_VOL_PRE_CIPHER_PAGE,
+				HIDDEN_VOL_WIZARD_MODE_PAGE,
+	VOLUME_LOCATION_PAGE,
+		DEVICE_TRANSFORM_MODE_PAGE,
+				HIDDEN_VOL_HOST_PRE_CIPHER_PAGE,
+				HIDDEN_VOL_PRE_CIPHER_PAGE,
 	CIPHER_PAGE,
 	SIZE_PAGE,
-			HIDDEN_VOL_HOST_PASSWORD_PAGE,
+				HIDDEN_VOL_HOST_PASSWORD_PAGE,
 	PASSWORD_PAGE,
-	FILESYS_PAGE,
-		SYSENC_COLLECTING_RANDOM_DATA_PAGE,
-		SYSENC_KEYS_GEN_PAGE,
-		SYSENC_RESCUE_DISK_CREATION_PAGE,
-		SYSENC_RESCUE_DISK_BURN_PAGE,
-		SYSENC_RESCUE_DISK_VERIFIED_PAGE,
-		SYSENC_WIPE_MODE_PAGE,
-		SYSENC_PRETEST_INFO_PAGE,
-		SYSENC_PRETEST_RESULT_PAGE,
-		SYSENC_ENCRYPTION_PAGE,
+		FILESYS_PAGE,
+			SYSENC_COLLECTING_RANDOM_DATA_PAGE,
+			SYSENC_KEYS_GEN_PAGE,
+			SYSENC_RESCUE_DISK_CREATION_PAGE,
+			SYSENC_RESCUE_DISK_BURN_PAGE,
+			SYSENC_RESCUE_DISK_VERIFIED_PAGE,
+			SYSENC_WIPE_MODE_PAGE,
+			SYSENC_PRETEST_INFO_PAGE,
+			SYSENC_PRETEST_RESULT_PAGE,
+			SYSENC_ENCRYPTION_PAGE,
+		NONSYS_INPLACE_ENC_RESUME_PASSWORD_PAGE,
+		NONSYS_INPLACE_ENC_RESUME_PARTITION_SEL_PAGE,
+		NONSYS_INPLACE_ENC_RAND_DATA_PAGE,
+		NONSYS_INPLACE_ENC_WIPE_MODE_PAGE,
+		NONSYS_INPLACE_ENC_ENCRYPTION_PAGE,
+		NONSYS_INPLACE_ENC_ENCRYPTION_FINISHED_PAGE,
 	FORMAT_PAGE,
-	FORMAT_FINISHED_PAGE
+	FORMAT_FINISHED_PAGE,
+					SYSENC_HIDDEN_OS_INITIAL_INFO_PAGE,
+					SYSENC_HIDDEN_OS_WIPE_INFO_PAGE,
+						DEVICE_WIPE_MODE_PAGE,
+						DEVICE_WIPE_PAGE
 };
 
-enum timer_ids
-{
-	TIMER_ID_RANDVIEW = 0xff,
-	TIMER_ID_SYSENC_PROGRESS,
-	TIMER_ID_SYSENC_DRIVE_ANALYSIS_PROGRESS,
-	TIMER_ID_KEYB_LAYOUT_GUARD
-};
-
-#define TIMER_INTERVAL_RANDVIEW							30	// Refresh interval for Random pool display
+#define TIMER_INTERVAL_RANDVIEW							30
 #define TIMER_INTERVAL_SYSENC_PROGRESS					30
+#define TIMER_INTERVAL_NONSYS_INPLACE_ENC_PROGRESS		30
 #define TIMER_INTERVAL_SYSENC_DRIVE_ANALYSIS_PROGRESS	100
+#define TIMER_INTERVAL_WIPE_PROGRESS					30
 #define TIMER_INTERVAL_KEYB_LAYOUT_GUARD				10
 
 enum sys_encryption_cmd_line_switches
@@ -134,6 +145,14 @@ volatile BOOL bHiddenOS = FALSE;		/* If TRUE, we are performing or (or supposed 
 BOOL bDirectSysEncMode = FALSE;
 BOOL bDirectSysEncModeCommand = SYSENC_COMMAND_NONE;
 BOOL DirectDeviceEncMode = FALSE;
+BOOL DirectNonSysInplaceEncResumeMode = FALSE;
+BOOL DirectPromptNonSysInplaceEncResumeMode = FALSE;
+volatile BOOL bInPlaceEncNonSys = FALSE;		/* If TRUE, existing data on a non-system partition/volume are to be encrypted (for system encryption, this flag is ignored) */
+volatile BOOL bInPlaceEncNonSysResumed = FALSE;	/* If TRUE, the wizard is supposed to resume (or has resumed) process of non-system in-place encryption. */
+volatile BOOL bFirstNonSysInPlaceEncResumeDone = FALSE;
+__int64 NonSysInplaceEncBytesDone = 0;
+__int64 NonSysInplaceEncTotalSectors = 0;
+BOOL bDeviceTransformModeChoiceMade = FALSE;		/* TRUE if the user has at least once manually selected the 'in-place' or 'format' option (on the 'device transform mode' page). */
 int nNeedToStoreFilesOver4GB = 0;		/* Whether the user wants to be able to store files larger than 4GB on the volume: -1 = Undecided or error, 0 = No, 1 = Yes */
 int nVolumeEA = 1;			/* Default encryption algorithm */
 BOOL bSystemEncryptionInProgress = FALSE;		/* TRUE when encrypting/decrypting the system partition/drive (FALSE when paused). */
@@ -159,13 +178,16 @@ unsigned __int64 nVolumeSize = 0;		/* The volume size, in bytes. */
 unsigned __int64 nHiddenVolHostSize = 0;	/* Size of the hidden volume host, in bytes */
 __int64 nMaximumHiddenVolSize = 0;		/* Maximum possible size of the hidden volume, in bytes */
 __int64 nbrFreeClusters = 0;
-int nMultiplier = 1024*1024;		/* Size selection multiplier. */
+int nMultiplier = BYTES_PER_MB;		/* Size selection multiplier. */
 char szFileName[TC_MAX_PATH+1];	/* The file selected by the user */
 char szDiskFile[TC_MAX_PATH+1];	/* Fully qualified name derived from szFileName */
 char szRescueDiskISO[TC_MAX_PATH+1];	/* The filename and path to the Rescue Disk ISO file to be burned (for boot encryption) */
+BOOL bDeviceWipeInProgress = FALSE;
+volatile BOOL bTryToCorrectReadErrors = FALSE;
 
-volatile BOOL bThreadCancel = FALSE;	/* TRUE if the user cancels the volume formatting */
-volatile BOOL bThreadRunning = FALSE;	/* Is the thread running */
+volatile BOOL bVolTransformThreadCancel = FALSE;	/* TRUE if the user cancels/pauses volume encryption/format */
+volatile BOOL bVolTransformThreadRunning = FALSE;	/* Is the volume encryption/format thread running */
+volatile BOOL bVolTransformThreadToRun = FALSE;		/* TRUE if the Format/Encrypt button has been clicked and we are proceeding towards launching the thread. */
 
 volatile BOOL bConfirmQuit = FALSE;		/* If TRUE, the user is asked to confirm exit when he clicks the X icon, Exit, etc. */
 volatile BOOL bConfirmQuitSysEncPretest = FALSE;
@@ -186,7 +208,12 @@ char OrigKeyboardLayout [8+1] = "00000409";
 BOOL bKeyboardLayoutChanged = FALSE;		/* TRUE if the keyboard layout was changed to the standard US keyboard layout (from any other layout). */ 
 BOOL bKeybLayoutAltKeyWarningShown = FALSE;	/* TRUE if the user has been informed that it is not possible to type characters by pressing keys while the right Alt key is held down. */ 
 
-BOOL bWarnDeviceFormatAdvanced = TRUE;
+#ifndef _DEBUG
+	BOOL bWarnDeviceFormatAdvanced = TRUE;
+#else
+	BOOL bWarnDeviceFormatAdvanced = FALSE;
+#endif
+
 BOOL bWarnOuterVolSuitableFileSys = TRUE;
 
 Password volumePassword;			/* User password */
@@ -217,6 +244,10 @@ volatile int clusterSize = 0;
 
 SYSENC_MULTIBOOT_CFG	SysEncMultiBootCfg;
 wchar_t SysEncMultiBootCfgOutcome [4096] = {'N','/','A',0};
+volatile int NonSysInplaceEncStatus = NONSYS_INPLACE_ENC_STATUS_NONE;
+
+vector <HostDevice> DeferredNonSysInPlaceEncDevices;
+
 
 static BOOL ElevateWholeWizardProcess (string arguments)
 {
@@ -266,6 +297,8 @@ static void localcleanup (void)
 {
 	char tmp[RANDPOOL_DISPLAY_SIZE+1];
 
+	// System encryption
+
 	if (WizardMode == WIZARD_MODE_SYS_DEVICE
 		&& InstanceHasSysEncMutex ())
 	{
@@ -283,6 +316,22 @@ static void localcleanup (void)
 			// NOP
 		}
 	}
+
+	// Mon-system in-place encryption
+
+	if (bInPlaceEncNonSys && (bVolTransformThreadRunning || bVolTransformThreadToRun))
+	{
+		NonSysInplaceEncPause ();
+	}
+
+	CloseNonSysInplaceEncMutex ();
+	
+
+	// Device wipe
+
+	if (bDeviceWipeInProgress)
+		WipeAbort();
+
 
 	WipePasswordsAndKeyfiles ();
 
@@ -306,14 +355,14 @@ static void localcleanup (void)
 
 	UnregisterRedTick (hInst);
 
-	/* Delete buffered bitmaps (if any) */
+	// Delete buffered bitmaps (if any)
 	if (hbmWizardBitmapRescaled != NULL)
 	{
 		DeleteObject ((HGDIOBJ) hbmWizardBitmapRescaled);
 		hbmWizardBitmapRescaled = NULL;
 	}
 
-	/* Cleanup common code resources */
+	// Cleanup common code resources
 	cleanup ();
 
 	if (BootEncObj != NULL)
@@ -361,7 +410,7 @@ static BOOL SaveSysEncSettings (HWND hwndDlg)
 
 	if (SystemEncryptionStatus == SYSENC_STATUS_NONE)
 	{
-		if (remove (GetConfigPath (FILE_SYSTEM_ENCRYPTION_CFG)) != 0)
+		if (remove (GetConfigPath (TC_APPD_FILENAME_SYSTEM_ENCRYPTION)) != 0)
 		{
 			Error ("CANNOT_SAVE_SYS_ENCRYPTION_SETTINGS");
 			return FALSE;
@@ -372,7 +421,7 @@ static BOOL SaveSysEncSettings (HWND hwndDlg)
 		return TRUE;
 	}
 
-	f = fopen (GetConfigPath (FILE_SYSTEM_ENCRYPTION_CFG), "w");
+	f = fopen (GetConfigPath (TC_APPD_FILENAME_SYSTEM_ENCRYPTION), "w");
 	if (f == NULL)
 	{
 		Error ("CANNOT_SAVE_SYS_ENCRYPTION_SETTINGS");
@@ -468,11 +517,20 @@ static BOOL ChangeSystemEncryptionStatus (int newStatus)
 	SystemEncryptionStatus = newStatus;
 	bSystemEncryptionStatusChanged = TRUE;
 
+	if (newStatus == SYSENC_STATUS_ENCRYPTING)
+	{
+		// If the user has created a hidden OS and now is creating a decoy OS, we must wipe the hidden OS
+		// config area in the MBR.
+		WipeHiddenOSCreationConfig();
+	}
+
 	if (newStatus == SYSENC_STATUS_NONE && !IsHiddenOSRunning())
 	{
 		if (DetermineHiddenOSCreationPhase() != TC_HIDDEN_OS_CREATION_PHASE_NONE
 			&& !ChangeHiddenOSCreationPhase (TC_HIDDEN_OS_CREATION_PHASE_NONE))
 			return FALSE;
+
+		WipeHiddenOSCreationConfig();
 	}
 
 	if (!SaveSysEncSettings (MainDlg))
@@ -505,6 +563,9 @@ static BOOL ChangeWizardMode (int newWizardMode)
 			// was or will be involved).
 			WipePasswordsAndKeyfiles();	
 		}
+
+		if (newWizardMode != WIZARD_MODE_NONSYS_DEVICE)
+			bInPlaceEncNonSys = FALSE;
 
 		if (newWizardMode == WIZARD_MODE_NONSYS_DEVICE && !IsAdmin() && IsUacSupported())
 		{
@@ -550,7 +611,12 @@ static BOOL CreatingHiddenSysVol (void)
 
 static void LoadSettings (HWND hwndDlg)
 {
+	WipeAlgorithmId savedWipeAlgorithm = TC_WIPE_NONE;
+
 	LoadSysEncSettings (hwndDlg);
+
+	if (LoadNonSysInPlaceEncSettings (&savedWipeAlgorithm) != 0)
+		bInPlaceEncNonSysPending = TRUE;
 
 	defaultKeyFilesParam.EnableKeyFiles = FALSE;
 
@@ -559,6 +625,10 @@ static void LoadSettings (HWND hwndDlg)
 	HiddenSectorDetectionStatus = ConfigReadInt ("HiddenSectorDetectionStatus", 0);
 
 	bHistory = ConfigReadInt ("SaveVolumeHistory", FALSE);
+
+	ConfigReadString ("SecurityTokenLibrary", "", SecurityTokenLibraryPath, sizeof (SecurityTokenLibraryPath) - 1);
+	if (SecurityTokenLibraryPath[0])
+		InitSecurityTokenLibrary();
 
 	if (hwndDlg != NULL)
 	{
@@ -580,10 +650,9 @@ static void SaveSettings (HWND hwndDlg)
 	ConfigWriteBegin ();
 
 	ConfigWriteInt ("StartOnLogon",	bStartOnLogon);
-
 	ConfigWriteInt ("HiddenSectorDetectionStatus", HiddenSectorDetectionStatus);
-
 	ConfigWriteInt ("SaveVolumeHistory", bHistory);
+	ConfigWriteString ("SecurityTokenLibrary", SecurityTokenLibraryPath[0] ? SecurityTokenLibraryPath : "");
 
 	if (GetPreferredLangId () != NULL)
 		ConfigWriteString ("Language", GetPreferredLangId ());
@@ -593,11 +662,11 @@ static void SaveSettings (HWND hwndDlg)
 	NormalCursor ();
 }
 
-// WARNING: This function does NOT cause immediate application exit (use e,g. return 1 after calling it
+// WARNING: This function does NOT cause immediate application exit (use e.g. return 1 after calling it
 // from a DialogProc function).
 static void EndMainDlg (HWND hwndDlg)
 {
-	if (nCurPageNo == FILE_PAGE)
+	if (nCurPageNo == VOLUME_LOCATION_PAGE)
 	{
 		if (IsWindow(GetDlgItem(hCurPage, IDC_NO_HISTORY)))
 			bHistory = !IsButtonChecked (GetDlgItem (hCurPage, IDC_NO_HISTORY));
@@ -673,7 +742,7 @@ static BOOL SysDriveOrPartitionFullyEncrypted (BOOL bSilent)
 }
 
 // Adds or removes the wizard to/from the system startup sequence
-static void ManageStartupSeqWiz (BOOL bRemove, const char *arg)
+void ManageStartupSeqWiz (BOOL bRemove, const char *arg)
 {
 	char regk [64];
 
@@ -902,7 +971,7 @@ void SwitchWizardToFileContainerMode (void)
 {
 	ChangeWizardMode (WIZARD_MODE_FILE_CONTAINER);
 
-	LoadPage (MainDlg, FILE_PAGE);
+	LoadPage (MainDlg, VOLUME_LOCATION_PAGE);
 
 	NormalCursor ();
 }
@@ -927,6 +996,7 @@ BOOL SwitchWizardToHiddenOSMode (void)
 			bHiddenVolHost = TRUE;
 			bHiddenVolDirect = FALSE;
 			bWholeSysDrive = FALSE;
+			bInPlaceEncNonSys = FALSE;
 
 			if (bDirectSysEncModeCommand == SYSENC_COMMAND_CREATE_HIDDEN_OS_ELEV)
 			{
@@ -938,10 +1008,7 @@ BOOL SwitchWizardToHiddenOSMode (void)
 				{
 					BootEncObj->CheckRequirementsHiddenOS ();
 
-					if (BootEncObj->IsPagingFileActive ())
-					{
-						AbortProcess ("DISABLE_SWAP_FILE_BEFORE_CREATING_HIDDEN_OS");
-					}
+					BootEncObj->InitialSecurityChecksForHiddenOS ();
 				}
 				catch (Exception &e)
 				{
@@ -963,6 +1030,27 @@ BOOL SwitchWizardToHiddenOSMode (void)
 		return FALSE;
 
 	return TRUE;
+}
+
+void SwitchWizardToNonSysInplaceEncResumeMode (void)
+{
+	if (!IsAdmin() && IsUacSupported())
+	{
+		if (!ElevateWholeWizardProcess ("/zinplace"))
+			AbortProcessSilent ();
+	}
+
+	if (!IsAdmin())
+		AbortProcess("ADMIN_PRIVILEGES_WARN_DEVICES");
+
+	CreateNonSysInplaceEncMutex ();
+
+	bInPlaceEncNonSys = TRUE;
+	bInPlaceEncNonSysResumed = TRUE;
+
+	ChangeWizardMode (WIZARD_MODE_NONSYS_DEVICE);
+
+	LoadPage (MainDlg, NONSYS_INPLACE_ENC_RESUME_PASSWORD_PAGE);
 }
 
 // Use this function e.g. if the config file with the system encryption settings was lost or not written
@@ -1002,7 +1090,7 @@ static BOOL ResolveUnknownSysEncDirection (void)
 					"IDCANCEL",
 					0};
 
-				switch (AskMultiChoice ((void **) tmpStr))
+				switch (AskMultiChoice ((void **) tmpStr, FALSE))
 				{
 				case 1:
 					return ChangeSystemEncryptionStatus (SYSENC_STATUS_ENCRYPTING);
@@ -1208,8 +1296,10 @@ static void VerifySizeAndUpdate (HWND hwndDlg, BOOL bUpdate)
 
 	if (IsButtonChecked (GetDlgItem (hwndDlg, IDC_KB)))
 		nMultiplier = BYTES_PER_KB;
-	else
+	else if (IsButtonChecked (GetDlgItem (hwndDlg, IDC_MB)))
 		nMultiplier = BYTES_PER_MB;
+	else
+		nMultiplier = BYTES_PER_GB;
 
 	if (bDevice && !(bHiddenVol && !bHiddenVolHost))	// If raw device but not a hidden volume
 	{
@@ -1391,7 +1481,7 @@ static void UpdateSysEncProgressBar (void)
 			if (locBootEncStatus.TransformWaitingForIdle)
 			{
 				// The estimate cannot be computed correctly when speed is zero
-				SetWindowTextW (GetDlgItem (hCurPage, IDC_TIMEREMAIN), GetString ("N_A_UISTR"));
+				SetWindowTextW (GetDlgItem (hCurPage, IDC_TIMEREMAIN), GetString ("NOT_APPLICABLE_OR_NOT_AVAILABLE"));
 			}
 
 			if (locBootEncStatus.TransformWaitingForIdle != lastTransformWaitingForIdle)
@@ -1450,8 +1540,7 @@ static void UpdateSysEncControls (void)
 
 	EnableWindow (GetDlgItem (hCurPage, IDC_WIPE_MODE), 
 		!locBootEncStatus.SetupInProgress 
-		&& SystemEncryptionStatus == SYSENC_STATUS_ENCRYPTING
-		&& !bHiddenOS);
+		&& SystemEncryptionStatus == SYSENC_STATUS_ENCRYPTING);
 
 	SetWindowTextW (GetDlgItem (hCurPage, IDC_PAUSE),
 		GetString (locBootEncStatus.SetupInProgress ? "IDC_PAUSE" : "RESUME"));
@@ -1589,7 +1678,7 @@ static void SysEncResume (void)
 			{
 			case SYSENC_STATUS_ENCRYPTING:
 
-				BootEncObj->StartEncryption (nWipeMode);	
+				BootEncObj->StartEncryption (nWipeMode, bTryToCorrectReadErrors ? true : false);	
 				break;
 
 			case SYSENC_STATUS_DECRYPTING:
@@ -1625,22 +1714,6 @@ static void SysEncResume (void)
 	}
 	else
 		Error ("SYSTEM_ENCRYPTION_IN_PROGRESS_ELSEWHERE");
-}
-
-
-BOOL RegisterBootDriver (void)
-{
-	try
-	{
-		BootEncObj->RegisterBootDriver();
-	}
-	catch (Exception &e)
-	{
-		e.Show (NULL);
-		return FALSE;
-	}
-
-	return TRUE;
 }
 
 
@@ -1689,6 +1762,219 @@ static BOOL CheckGapBetweenSysAndHiddenOS (void)
 }
 
 
+static void NonSysInplaceEncPause (void)
+{
+	bVolTransformThreadCancel = TRUE;
+
+	WaitCursor ();
+
+	int waitThreshold = 100;	// Do not block GUI events for more than 10 seconds. IMPORTANT: This prevents deadlocks when the thread calls us back e.g. to update GUI!
+	
+	while (bVolTransformThreadRunning || bVolTransformThreadToRun)
+	{
+		MSG guiMsg;
+
+		bVolTransformThreadCancel = TRUE;
+
+		if (waitThreshold <= 0)
+		{
+			while (PeekMessage (&guiMsg, NULL, 0, 0, PM_REMOVE) != 0)
+			{
+				DispatchMessage (&guiMsg);
+			}
+		}
+		else
+			waitThreshold--;
+
+		Sleep (100);
+	}
+}
+
+
+static void NonSysInplaceEncResume (void)
+{
+	if (bVolTransformThreadRunning || bVolTransformThreadToRun || bVolTransformThreadCancel)
+		return;
+
+	if (!bInPlaceEncNonSysResumed
+		&& !FinalPreTransformPrompts ())
+	{
+		return;
+	}
+
+	CreateNonSysInplaceEncMutex ();
+
+	bFirstNonSysInPlaceEncResumeDone = TRUE;
+
+	SetTimer (MainDlg, TIMER_ID_NONSYS_INPLACE_ENC_PROGRESS, TIMER_INTERVAL_NONSYS_INPLACE_ENC_PROGRESS, NULL);
+
+	bVolTransformThreadCancel = FALSE;
+	bVolTransformThreadToRun = TRUE;
+
+	UpdateNonSysInPlaceEncControls ();
+
+	LastDialogId = "NONSYS_INPLACE_ENC_IN_PROGRESS";
+
+	_beginthread (volTransformThreadFunction, 0, MainDlg);
+
+	return;
+}
+
+
+void ShowNonSysInPlaceEncUIStatus (void)
+{
+	wchar_t nonSysInplaceEncUIStatus [300] = {0};
+
+	switch (NonSysInplaceEncStatus)
+	{
+	case NONSYS_INPLACE_ENC_STATUS_PAUSED:
+		wcscpy (nonSysInplaceEncUIStatus, GetString ("PROGRESS_STATUS_PAUSED"));
+		break;
+	case NONSYS_INPLACE_ENC_STATUS_PREPARING:
+		wcscpy (nonSysInplaceEncUIStatus, GetString ("PROGRESS_STATUS_PREPARING"));
+		break;
+	case NONSYS_INPLACE_ENC_STATUS_RESIZING:
+		wcscpy (nonSysInplaceEncUIStatus, GetString ("PROGRESS_STATUS_RESIZING"));
+		break;
+	case NONSYS_INPLACE_ENC_STATUS_ENCRYPTING:
+		wcscpy (nonSysInplaceEncUIStatus, GetString ("PROGRESS_STATUS_ENCRYPTING"));
+		break;
+	case NONSYS_INPLACE_ENC_STATUS_FINALIZING:
+		wcscpy (nonSysInplaceEncUIStatus, GetString ("PROGRESS_STATUS_FINALIZING"));
+		break;
+	case NONSYS_INPLACE_ENC_STATUS_FINISHED:
+		wcscpy (nonSysInplaceEncUIStatus, GetString ("PROGRESS_STATUS_FINISHED"));
+		break;
+	case NONSYS_INPLACE_ENC_STATUS_ERROR:
+		wcscpy (nonSysInplaceEncUIStatus, GetString ("PROGRESS_STATUS_ERROR"));
+		break;
+	}
+
+	wcscat (nonSysInplaceEncUIStatus, L" ");
+
+	SetWindowTextW (GetDlgItem (hCurPage, IDC_WRITESPEED), nonSysInplaceEncUIStatus);
+}
+
+
+void UpdateNonSysInPlaceEncControls (void)
+{
+	EnableWindow (GetDlgItem (hCurPage, IDC_WIPE_MODE), !(bVolTransformThreadRunning || bVolTransformThreadToRun));
+
+	SetWindowTextW (GetDlgItem (hCurPage, IDC_PAUSE),
+		GetString ((bVolTransformThreadRunning || bVolTransformThreadToRun) ? "IDC_PAUSE" : "RESUME"));
+
+	SetWindowTextW (GetDlgItem (MainDlg, IDCANCEL), GetString (bInPlaceEncNonSysResumed ? "DEFER" : "CANCEL"));
+
+	EnableWindow (GetDlgItem (hCurPage, IDC_PAUSE), bFirstNonSysInPlaceEncResumeDone 
+		&& NonSysInplaceEncStatus != NONSYS_INPLACE_ENC_STATUS_FINALIZING
+		&& NonSysInplaceEncStatus != NONSYS_INPLACE_ENC_STATUS_FINISHED);
+
+	EnableWindow (GetDlgItem (MainDlg, IDC_NEXT), !(bVolTransformThreadRunning || bVolTransformThreadToRun) && !bFirstNonSysInPlaceEncResumeDone);
+	EnableWindow (GetDlgItem (MainDlg, IDC_PREV), !(bVolTransformThreadRunning || bVolTransformThreadToRun) && !bInPlaceEncNonSysResumed);
+	EnableWindow (GetDlgItem (MainDlg, IDCANCEL), 
+		!(bVolTransformThreadToRun 
+		|| NonSysInplaceEncStatus == NONSYS_INPLACE_ENC_STATUS_PREPARING 
+		|| NonSysInplaceEncStatus == NONSYS_INPLACE_ENC_STATUS_RESIZING
+		|| NonSysInplaceEncStatus == NONSYS_INPLACE_ENC_STATUS_FINALIZING
+		|| NonSysInplaceEncStatus == NONSYS_INPLACE_ENC_STATUS_FINISHED));
+
+	if (bVolTransformThreadRunning || bVolTransformThreadToRun)
+	{
+		switch (NonSysInplaceEncStatus)
+		{
+		case NONSYS_INPLACE_ENC_STATUS_PREPARING:
+		case NONSYS_INPLACE_ENC_STATUS_RESIZING:
+		case NONSYS_INPLACE_ENC_STATUS_FINALIZING:
+			ArrowWaitCursor ();
+			break;
+
+		case NONSYS_INPLACE_ENC_STATUS_ENCRYPTING:
+			NormalCursor ();
+			break;
+
+		default:
+			NormalCursor ();
+			break;
+		}
+
+		if (bVolTransformThreadCancel)
+			WaitCursor ();
+	}
+	else
+	{
+		NormalCursor ();
+
+		if (bInPlaceEncNonSysResumed)
+		{
+			SetNonSysInplaceEncUIStatus (NONSYS_INPLACE_ENC_STATUS_PAUSED);
+		}
+		else
+			SetWindowText (GetDlgItem (hCurPage, IDC_WRITESPEED), " ");
+
+		SetWindowText (GetDlgItem (hCurPage, IDC_TIMEREMAIN), " ");
+	}
+
+	ShowNonSysInPlaceEncUIStatus ();
+
+	UpdateNonSysInplaceEncProgressBar ();
+}
+
+
+static void UpdateNonSysInplaceEncProgressBar (void)
+{
+	static int lastNonSysInplaceEncStatus = NONSYS_INPLACE_ENC_STATUS_NONE;
+	int nonSysInplaceEncStatus = NonSysInplaceEncStatus;
+	__int64 totalSectors;
+
+	totalSectors = NonSysInplaceEncTotalSectors;
+
+	if (bVolTransformThreadRunning 
+		&& (nonSysInplaceEncStatus == NONSYS_INPLACE_ENC_STATUS_ENCRYPTING
+		|| nonSysInplaceEncStatus == NONSYS_INPLACE_ENC_STATUS_FINALIZING
+		|| nonSysInplaceEncStatus == NONSYS_INPLACE_ENC_STATUS_FINISHED))
+	{
+		if (lastNonSysInplaceEncStatus != nonSysInplaceEncStatus
+			&& nonSysInplaceEncStatus == NONSYS_INPLACE_ENC_STATUS_ENCRYPTING)
+		{
+			InitNonSysInplaceEncProgressBar ();
+		}
+		else
+		{
+			if (totalSectors <= 0 && nVolumeSize > 0)
+				totalSectors = nVolumeSize / SECTOR_SIZE;
+
+			if (totalSectors > 0)
+				UpdateProgressBarProc (NonSysInplaceEncBytesDone / SECTOR_SIZE);
+		}
+	}
+
+	ShowNonSysInPlaceEncUIStatus ();
+
+	lastNonSysInplaceEncStatus = nonSysInplaceEncStatus;
+}
+
+
+static void InitNonSysInplaceEncProgressBar (void)
+{
+	__int64 totalSectors = NonSysInplaceEncTotalSectors;
+
+	if (totalSectors <= 0)
+	{
+		if (nVolumeSize <= 0)
+			return;
+
+		totalSectors = nVolumeSize / SECTOR_SIZE;
+	}
+
+	InitProgressBar (totalSectors,
+		NonSysInplaceEncBytesDone,
+		FALSE,
+		TRUE,
+		TRUE,
+		TRUE);
+}
+
+
 void DisplayRandPool (HWND hPoolDisplay, BOOL bShow)
 {		
 	unsigned char tmp[4];
@@ -1725,6 +2011,231 @@ void DisplayRandPool (HWND hPoolDisplay, BOOL bShow)
 	}
 }
 
+
+static void WipeAbort (void)
+{
+	EnableWindow (GetDlgItem (hCurPage, IDC_ABORT_BUTTON), FALSE);
+
+	if (bHiddenOS && IsHiddenOSRunning())
+	{
+		/* Decoy system partition wipe */	
+		
+		DecoySystemWipeStatus decoySysPartitionWipeStatus;
+
+		try
+		{
+			decoySysPartitionWipeStatus = BootEncObj->GetDecoyOSWipeStatus();
+		}
+		catch (Exception &e)
+		{
+			e.Show (MainDlg);
+			EnableWindow (GetDlgItem (hCurPage, IDC_ABORT_BUTTON), TRUE);
+			return;
+		}
+
+		if (!decoySysPartitionWipeStatus.WipeInProgress)
+		{
+			EnableWindow (GetDlgItem (hCurPage, IDC_ABORT_BUTTON), TRUE);
+			return;
+		}
+
+		WaitCursor ();
+
+		try
+		{
+			int attempts = SYSENC_PAUSE_RETRIES;
+
+			BootEncObj->AbortDecoyOSWipe ();
+
+			decoySysPartitionWipeStatus = BootEncObj->GetDecoyOSWipeStatus();
+
+			while (decoySysPartitionWipeStatus.WipeInProgress && attempts > 0)
+			{
+				Sleep (SYSENC_PAUSE_RETRY_INTERVAL);
+				attempts--;
+				decoySysPartitionWipeStatus = BootEncObj->GetDecoyOSWipeStatus();
+			}
+
+			if (!decoySysPartitionWipeStatus.WipeInProgress)
+				BootEncObj->CheckDecoyOSWipeResult ();
+
+		}
+		catch (Exception &e)
+		{
+			e.Show (MainDlg);
+		}
+
+		NormalCursor ();
+
+		if (decoySysPartitionWipeStatus.WipeInProgress)
+		{
+			SetTimer (MainDlg, TIMER_ID_WIPE_PROGRESS, TIMER_INTERVAL_WIPE_PROGRESS, NULL);
+			EnableWindow (GetDlgItem (hCurPage, IDC_ABORT_BUTTON), TRUE);
+			Error ("FAILED_TO_INTERRUPT_WIPING");
+			return;
+		}
+	}
+	else
+	{
+		/* Regular device wipe (not decoy system partition wipe) */
+	}
+
+	UpdateWipeControls ();
+	EnableWindow (GetDlgItem (hCurPage, IDC_ABORT_BUTTON), TRUE);
+}
+
+
+static void WipeStart (void)
+{
+	if (bHiddenOS && IsHiddenOSRunning())
+	{
+		/* Decoy system partition wipe */
+
+		EnableWindow (GetDlgItem (hCurPage, IDC_ABORT_BUTTON), FALSE);
+
+		bDeviceWipeInProgress = FALSE;
+		WaitCursor ();
+
+		try
+		{
+			BootEncObj->StartDecoyOSWipe (nWipeMode);	
+
+			bDeviceWipeInProgress = TRUE;
+		}
+		catch (Exception &e)
+		{
+			e.Show (MainDlg);
+		}
+
+		NormalCursor ();
+
+		if (!bDeviceWipeInProgress)
+		{
+			EnableWindow (GetDlgItem (hCurPage, IDC_ABORT_BUTTON), TRUE);
+			Error ("FAILED_TO_START_WIPING");
+			return;
+		}
+	}
+	else
+	{
+		/* Regular device wipe (not decoy system partition wipe) */
+	}
+
+	InitWipeProgressBar ();
+	UpdateWipeProgressBar ();
+	UpdateWipeControls ();
+	EnableWindow (GetDlgItem (hCurPage, IDC_ABORT_BUTTON), TRUE);
+	SetTimer (MainDlg, TIMER_ID_WIPE_PROGRESS, TIMER_INTERVAL_WIPE_PROGRESS, NULL);
+}
+
+
+static void UpdateWipeProgressBar (void)
+{
+	if (bHiddenOS && IsHiddenOSRunning())
+	{
+		/* Decoy system partition wipe */
+
+		DecoySystemWipeStatus decoySysPartitionWipeStatus;
+
+		try
+		{
+			decoySysPartitionWipeStatus = BootEncObj->GetDecoyOSWipeStatus();
+			BootEncStatus = BootEncObj->GetStatus();
+		}
+		catch (...)
+		{
+			return;
+		}
+
+		if (decoySysPartitionWipeStatus.WipedAreaEnd == -1)
+			UpdateProgressBarProc (0);
+		else
+			UpdateProgressBarProc ((decoySysPartitionWipeStatus.WipedAreaEnd - BootEncStatus.ConfiguredEncryptedAreaStart + 1) / SECTOR_SIZE);
+	}
+	else
+	{
+		/* Regular device wipe (not decoy system partition wipe) */
+	}
+}
+
+
+static void InitWipeProgressBar (void)
+{
+	if (bHiddenOS && IsHiddenOSRunning())
+	{
+		/* Decoy system partition wipe */
+
+		DecoySystemWipeStatus decoySysPartitionWipeStatus;
+
+		try
+		{
+			decoySysPartitionWipeStatus = BootEncObj->GetDecoyOSWipeStatus();
+			BootEncStatus = BootEncObj->GetStatus();
+		}
+		catch (...)
+		{
+			return;
+		}
+
+		if (BootEncStatus.ConfiguredEncryptedAreaEnd == -1 
+			|| BootEncStatus.ConfiguredEncryptedAreaStart == -1)
+			return;
+
+		InitProgressBar ((BootEncStatus.ConfiguredEncryptedAreaEnd - BootEncStatus.ConfiguredEncryptedAreaStart + 1) / SECTOR_SIZE,
+			(decoySysPartitionWipeStatus.WipedAreaEnd == BootEncStatus.ConfiguredEncryptedAreaStart || decoySysPartitionWipeStatus.WipedAreaEnd == -1) ?
+			0 :	decoySysPartitionWipeStatus.WipedAreaEnd - BootEncStatus.ConfiguredEncryptedAreaStart + 1,
+			FALSE,
+			TRUE,
+			FALSE,
+			TRUE);
+	}
+	else
+	{
+		/* Regular device wipe (not decoy system partition wipe) */
+	}
+}
+
+
+static void UpdateWipeControls (void)
+{
+	if (bHiddenOS && IsHiddenOSRunning())
+	{
+		/* Decoy system partition wipe */
+
+		DecoySystemWipeStatus decoySysPartitionWipeStatus;
+
+		try
+		{
+			decoySysPartitionWipeStatus = BootEncObj->GetDecoyOSWipeStatus();
+			BootEncStatus = BootEncObj->GetStatus();
+		}
+		catch (...)
+		{
+			return;
+		}
+
+		EnableWindow (GetDlgItem (MainDlg, IDC_NEXT), !decoySysPartitionWipeStatus.WipeInProgress);
+	}
+	else
+	{
+		/* Regular device wipe (not decoy system partition wipe) */
+
+		EnableWindow (GetDlgItem (MainDlg, IDC_NEXT), bDeviceWipeInProgress);
+
+		if (!bDeviceWipeInProgress)
+		{
+			SetWindowText (GetDlgItem (hCurPage, IDC_TIMEREMAIN), " ");
+		}
+	}
+
+	EnableWindow (GetDlgItem (hCurPage, IDC_ABORT_BUTTON), bDeviceWipeInProgress);
+	EnableWindow (GetDlgItem (MainDlg, IDC_PREV), !bDeviceWipeInProgress);
+
+	bConfirmQuit = bDeviceWipeInProgress;
+}
+
+
+
 static void __cdecl sysEncDriveAnalysisThread (void *hwndDlgArg)
 {
 	// Mark the detection process as 'in progress'
@@ -1759,7 +2270,7 @@ static void __cdecl sysEncDriveAnalysisThread (void *hwndDlgArg)
 	bSysEncDriveAnalysisInProgress = FALSE;
 }
 
-static void __cdecl formatThreadFunction (void *hwndDlgArg)
+static void __cdecl volTransformThreadFunction (void *hwndDlgArg)
 {
 	int nStatus;
 	DWORD dwWin32FormatError;
@@ -1771,6 +2282,9 @@ static void __cdecl formatThreadFunction (void *hwndDlgArg)
 		AbortProcess ("ERR_MEM_ALLOC");
 
 	VirtualLock ((LPVOID) volParams, sizeof(FORMAT_VOL_PARAMETERS));
+
+	bVolTransformThreadRunning = TRUE;
+	bVolTransformThreadToRun = FALSE;
 
 	// Check administrator privileges
 	if (!IsAdmin () && !IsUacSupported ())
@@ -1787,81 +2301,46 @@ static void __cdecl formatThreadFunction (void *hwndDlgArg)
 		}
 	}
 
-	if (bDevice == FALSE)
+	if (!bInPlaceEncNonSys)
 	{
-		int x = _access (szDiskFile, 06);
-		if (x == 0 || errno != ENOENT)
+		if (!bDevice)
 		{
-			wchar_t szTmp[512];
-
-			if (! ((bHiddenVol && !bHiddenVolHost) && errno != EACCES))	// Only ask ask for permission to overwrite an existing volume if we're not creating a hidden volume
+			int x = _access (szDiskFile, 06);
+			if (x == 0 || errno != ENOENT)
 			{
-				_snwprintf (szTmp, sizeof szTmp / 2,
-					GetString (errno == EACCES ? "READONLYPROMPT" : "OVERWRITEPROMPT"),
-					szDiskFile);
+				wchar_t szTmp[512];
 
-				x = MessageBoxW (hwndDlg, szTmp, lpszTitle, YES_NO|MB_ICONWARNING|MB_DEFBUTTON2);
-
-				if (x != IDYES)
-					goto cancel;
-			}
-		}
-
-		if (_access (szDiskFile, 06) != 0)
-		{
-			if (errno == EACCES)
-			{
-				if (_chmod (szDiskFile, _S_IREAD | _S_IWRITE) != 0)
+				if (! ((bHiddenVol && !bHiddenVolHost) && errno != EACCES))	// Only ask ask for permission to overwrite an existing volume if we're not creating a hidden volume
 				{
-					MessageBoxW (hwndDlg, GetString ("ACCESSMODEFAIL"), lpszTitle, ICON_HAND);
-					goto cancel;
+					_snwprintf (szTmp, sizeof szTmp / 2,
+						GetString (errno == EACCES ? "READONLYPROMPT" : "OVERWRITEPROMPT"),
+						szDiskFile);
+
+					x = MessageBoxW (hwndDlg, szTmp, lpszTitle, YES_NO|MB_ICONWARNING|MB_DEFBUTTON2);
+
+					if (x != IDYES)
+						goto cancel;
 				}
 			}
-		}
 
-	}
-	else
-	{
-		int x;
-		wchar_t szTmp[4096];
-		int driveNo;
-		WCHAR deviceName[MAX_PATH];
-
-		strcpy ((char *)deviceName, szFileName);
-		ToUNICODE ((char *)deviceName);
-
-		driveNo = GetDiskDeviceDriveLetter (deviceName);
-
-		if (!(bHiddenVol && !bHiddenVolHost))	// Do not ask for permission to overwrite an existing volume if we're creating a hidden volume within it
-		{
-			wchar_t drive[128];
-			wchar_t *type;
-
-			if (strstr (szFileName, "Partition"))
-				type = GetString ( strstr (szFileName, "Partition0") == NULL ? "PARTITION_UPPER_CASE" : "DEVICE_UPPER_CASE");
-			else
-				type = GetString ("DEVICE_UPPER_CASE");
-
-			if (driveNo != -1)
+			if (_access (szDiskFile, 06) != 0)
 			{
-				wchar_t name[128];
-
-				if (!GetDriveLabel (driveNo, name, sizeof (name)))
-					name[0] = 0;
-
-				swprintf_s (drive, sizeof (drive)/2, name[0] ? L" (%hc: '%s')" : L" (%hc:%s)", 'A' + driveNo, name[0] ? name : L"");
+				if (errno == EACCES)
+				{
+					if (_chmod (szDiskFile, _S_IREAD | _S_IWRITE) != 0)
+					{
+						MessageBoxW (hwndDlg, GetString ("ACCESSMODEFAIL"), lpszTitle, ICON_HAND);
+						goto cancel;
+					}
+				}
 			}
-			else
-				drive[0] = 0;
 
-			if (bHiddenOS && bHiddenVolHost)
-				swprintf (szTmp, GetString ("OVERWRITEPROMPT_DEVICE_HIDDEN_OS_PARTITION"), szFileName, drive);
-			else
-				swprintf (szTmp, GetString ("OVERWRITEPROMPT_DEVICE"), type, szFileName, drive);
+		}
+		else
+		{
+			// Partition / device / dynamic volume
 
-
-			x = MessageBoxW (hwndDlg, szTmp, lpszTitle, YES_NO|MB_ICONWARNING|MB_DEFBUTTON2);
-			if (x != IDYES)
+			if (!FinalPreTransformPrompts ())
 				goto cancel;
 		}
 	}
@@ -1884,37 +2363,77 @@ static void __cdecl formatThreadFunction (void *hwndDlgArg)
 	volParams->password = &volumePassword;
 	volParams->hwndDlg = hwndDlg;
 
-	InitProgressBar (GetVolumeDataAreaSize (bHidden, nVolumeSize) / SECTOR_SIZE, 0, FALSE, FALSE, FALSE, TRUE);
+	if (bInPlaceEncNonSys)
+	{
+		HANDLE hPartition = INVALID_HANDLE_VALUE;
 
-	nStatus = FormatVolume (volParams);
+		SetNonSysInplaceEncUIStatus (NONSYS_INPLACE_ENC_STATUS_PREPARING);
+
+		if (!bInPlaceEncNonSysResumed)
+		{
+			bTryToCorrectReadErrors = FALSE;
+
+			nStatus = EncryptPartitionInPlaceBegin (volParams, &hPartition, nWipeMode);
+
+			if (nStatus == ERR_SUCCESS)
+			{
+				nStatus = EncryptPartitionInPlaceResume (hPartition, volParams, nWipeMode, &bTryToCorrectReadErrors);
+			}
+			else if (hPartition != INVALID_HANDLE_VALUE)
+			{
+				CloseHandle (hPartition);
+				hPartition = INVALID_HANDLE_VALUE;
+			}
+		}
+		else
+		{
+			nStatus = EncryptPartitionInPlaceResume (INVALID_HANDLE_VALUE, volParams, nWipeMode, &bTryToCorrectReadErrors);
+		}
+	}
+	else
+	{
+		InitProgressBar (GetVolumeDataAreaSize (bHidden, nVolumeSize) / SECTOR_SIZE, 0, FALSE, FALSE, FALSE, TRUE);
+
+		nStatus = TCFormatVolume (volParams);
+	}
 
 	if (nStatus == ERR_OUTOFMEMORY)
 	{
 		AbortProcess ("OUTOFMEMORY");
 	}
 
+	if (bInPlaceEncNonSys
+		&& nStatus == ERR_USER_ABORT
+		&& NonSysInplaceEncStatus == NONSYS_INPLACE_ENC_STATUS_FINISHED)
+	{
+		// Ignore user abort if non-system in-place encryption successfully finished
+		nStatus = ERR_SUCCESS;
+	}
+
+
 	dwWin32FormatError = GetLastError ();
 
-	if (bHiddenVolHost && !bThreadCancel && nStatus == 0)
+	if (bHiddenVolHost && !bVolTransformThreadCancel && nStatus == 0)
 	{
 		/* Auto mount the newly created hidden volume host */
 		switch (MountHiddenVolHost (hwndDlg, szDiskFile, &hiddenVolHostDriveNo, &volumePassword, FALSE))
 		{
 		case ERR_NO_FREE_DRIVES:
 			MessageBoxW (hwndDlg, GetString ("NO_FREE_DRIVE_FOR_OUTER_VOL"), lpszTitle, ICON_HAND);
-			bThreadCancel = TRUE;
+			bVolTransformThreadCancel = TRUE;
 			break;
 		case ERR_VOL_MOUNT_FAILED:
 		case ERR_PASSWORD_WRONG:
 			MessageBoxW (hwndDlg, GetString ("CANT_MOUNT_OUTER_VOL"), lpszTitle, ICON_HAND);
-			bThreadCancel = TRUE;
+			bVolTransformThreadCancel = TRUE;
 			break;
 		}
 	}
 
 	SetLastError (dwWin32FormatError);
 
-	if (bThreadCancel)
+	if ((bVolTransformThreadCancel || nStatus == ERR_USER_ABORT)
+		&& !(bInPlaceEncNonSys && NonSysInplaceEncStatus == NONSYS_INPLACE_ENC_STATUS_FINISHED))	// Ignore user abort if non-system in-place encryption successfully finished.
 	{
 		if (!bDevice && !(bHiddenVol && !bHiddenVolHost))	// If we're not creating a hidden volume and if it's a file container
 		{
@@ -1924,113 +2443,119 @@ static void __cdecl formatThreadFunction (void *hwndDlgArg)
 		goto cancel;
 	}
 
-	if (nStatus != 0)
+	if (nStatus != ERR_USER_ABORT)
 	{
-		wchar_t szMsg[1024];
-
-		handleError (hwndDlg, nStatus);
-
-		if (!(bHiddenVolHost && hiddenVolHostDriveNo < 0))  // If the error was not that the hidden volume host could not be mounted (this error has already been reported to the user)
+		if (nStatus != 0)
 		{
-			swprintf (szMsg, GetString ("CREATE_FAILED"), szDiskFile);
-			MessageBoxW (hwndDlg, szMsg, lpszTitle, ICON_HAND);
-		}
+			/* An error occurred */
 
-		if (!bDevice && !(bHiddenVol && !bHiddenVolHost))	// If we're not creating a hidden volume and if it's a file container
-		{
-			remove (szDiskFile);		// Delete the container
-		}
+			wchar_t szMsg[8192];
 
-		goto cancel;
-	}
-	else
-	{
-		/* Volume successfully created */
+			handleError (hwndDlg, nStatus);
 
-		RestoreDefaultKeyFilesParam ();
-
-		if (bDevice)
-		{
-			// Handle assigned drive letter (if any)
-
-			WCHAR deviceName[MAX_PATH];
-			int driveLetter = -1;
-
-			strcpy ((char *)deviceName, szDiskFile);
-			ToUNICODE ((char *)deviceName);
-			driveLetter = GetDiskDeviceDriveLetter (deviceName);
-
-			if (!bHiddenVolHost
-				&& !bHiddenOS
-				&& driveLetter > 1)		// If a drive letter is assigned to the device, but not A: or B:
+			if (bInPlaceEncNonSys)
 			{
-				char rootPath[] = { driveLetter + 'A', ':', '\\', 0 };
-				wchar_t szTmp[8192];
-
-				swprintf (szTmp, GetString ("AFTER_FORMAT_DRIVE_LETTER_WARN"), rootPath[0], rootPath[0], rootPath[0], rootPath[0]);
-				MessageBoxW (hwndDlg, szTmp, lpszTitle, MB_ICONWARNING);
+				if (bInPlaceEncNonSysResumed)
+				{
+					SetNonSysInplaceEncUIStatus (NONSYS_INPLACE_ENC_STATUS_PAUSED);
+					Error ("INPLACE_ENC_GENERIC_ERR_RESUME");
+				}
+				else
+				{
+					SetNonSysInplaceEncUIStatus (NONSYS_INPLACE_ENC_STATUS_ERROR);
+					ShowInPlaceEncErrMsgWAltSteps ("INPLACE_ENC_GENERIC_ERR_ALT_STEPS", TRUE);
+				}
 			}
-		}
-
-		if (!bHiddenVolHost)
-		{
-			if (bHiddenVol)
+			else if (!(bHiddenVolHost && hiddenVolHostDriveNo < 0))  // If the error was not that the hidden volume host could not be mounted (this error has already been reported to the user)
 			{
-				bHiddenVolFinished = TRUE;
-
-				if (!bHiddenOS)
-					Warning ("HIDVOL_FORMAT_FINISHED_HELP");
+				swprintf (szMsg, GetString ("CREATE_FAILED"), szDiskFile);
+				MessageBoxW (hwndDlg, szMsg, lpszTitle, ICON_HAND);
 			}
-			else 
+
+			if (!bDevice && !(bHiddenVol && !bHiddenVolHost))	// If we're not creating a hidden volume and if it's a file container
 			{
-				Info("FORMAT_FINISHED_INFO");
-
-				if (bSparseFileSwitch && quickFormat)
-					Warning("SPARSE_FILE_SIZE_NOTE");
+				remove (szDiskFile);		// Delete the container
 			}
+
+			goto cancel;
 		}
 		else
 		{
-			/* We've just created an outer volume (to host a hidden volume within) */
+			/* Volume successfully created */
 
-			bHiddenVolHost = FALSE; 
-			bHiddenVolFinished = FALSE;
-			nHiddenVolHostSize = nVolumeSize;
+			RestoreDefaultKeyFilesParam ();
 
-			// Clear the outer volume password
-			memset(&szVerify[0], 0, sizeof (szVerify));
-			memset(&szRawPassword[0], 0, sizeof (szRawPassword));
+			if (bDevice && !bInPlaceEncNonSys)
+			{
+				// Handle assigned drive letter (if any)
 
-			MessageBeep (MB_OK);
+				HandleOldAssignedDriveLetter ();
+			}
+
+			if (!bHiddenVolHost)
+			{
+				if (bHiddenVol)
+				{
+					bHiddenVolFinished = TRUE;
+
+					if (!bHiddenOS)
+						Warning ("HIDVOL_FORMAT_FINISHED_HELP");
+				}
+				else if (bInPlaceEncNonSys)
+				{
+					Warning ("NONSYS_INPLACE_ENC_FINISHED_INFO");
+
+					HandleOldAssignedDriveLetter ();
+				}
+				else 
+				{
+					Info("FORMAT_FINISHED_INFO");
+
+					if (bSparseFileSwitch && quickFormat)
+						Warning("SPARSE_FILE_SIZE_NOTE");
+				}
+			}
+			else
+			{
+				/* We've just created an outer volume (to host a hidden volume within) */
+
+				bHiddenVolHost = FALSE; 
+				bHiddenVolFinished = FALSE;
+				nHiddenVolHostSize = nVolumeSize;
+
+				// Clear the outer volume password
+				memset(&szVerify[0], 0, sizeof (szVerify));
+				memset(&szRawPassword[0], 0, sizeof (szRawPassword));
+
+				MessageBeep (MB_OK);
+			}
+
+			if (!bInPlaceEncNonSys)
+				SetTimer (hwndDlg, TIMER_ID_RANDVIEW, TIMER_INTERVAL_RANDVIEW, NULL);
+
+			if (volParams != NULL)
+			{
+				burn ((LPVOID) volParams, sizeof(FORMAT_VOL_PARAMETERS));
+				VirtualUnlock ((LPVOID) volParams, sizeof(FORMAT_VOL_PARAMETERS));
+				free ((LPVOID) volParams);
+				volParams = NULL;
+			}
+
+			bVolTransformThreadRunning = FALSE;
+			bVolTransformThreadCancel = FALSE;
+
+			PostMessage (hwndDlg, bInPlaceEncNonSys ? TC_APPMSG_NONSYS_INPLACE_ENC_FINISHED : TC_APPMSG_FORMAT_FINISHED, 0, 0);
+
+			LastDialogId = "FORMAT_FINISHED";
+			_endthread ();
 		}
-
-		SetTimer (hwndDlg, TIMER_ID_RANDVIEW, TIMER_INTERVAL_RANDVIEW, NULL);
-
-		PostMessage (hwndDlg, TC_APPMSG_FORMAT_FINISHED, 0, 0);
-		bThreadRunning = FALSE;
-
-		if (volParams != NULL)
-		{
-			burn ((LPVOID) volParams, sizeof(FORMAT_VOL_PARAMETERS));
-			VirtualUnlock ((LPVOID) volParams, sizeof(FORMAT_VOL_PARAMETERS));
-			free ((LPVOID) volParams);
-			volParams = NULL;
-		}
-
-		LastDialogId = "FORMAT_FINISHED";
-		_endthread ();
 	}
 
 cancel:
-	LastDialogId = "FORMAT_CANCELED";
+	LastDialogId = (bInPlaceEncNonSys ? "NONSYS_INPLACE_ENC_CANCELED" : "FORMAT_CANCELED");
 
-	SetTimer (hwndDlg, TIMER_ID_RANDVIEW, TIMER_INTERVAL_RANDVIEW, NULL);
-
-	PostMessage (hwndDlg, TC_APPMSG_FORMAT_THREAD_ENDED, 0, 0);
-	bThreadRunning = FALSE;
-
-	if (bHiddenVolHost && hiddenVolHostDriveNo < -1 && !bThreadCancel)	// If hidden volume host could not be mounted
-		AbortProcessSilent ();
+	if (!bInPlaceEncNonSys)
+		SetTimer (hwndDlg, TIMER_ID_RANDVIEW, TIMER_INTERVAL_RANDVIEW, NULL);
 
 	if (volParams != NULL)
 	{
@@ -2039,6 +2564,14 @@ cancel:
 		free ((LPVOID) volParams);
 		volParams = NULL;
 	}
+
+	bVolTransformThreadRunning = FALSE;
+	bVolTransformThreadCancel = FALSE;
+
+	PostMessage (hwndDlg, TC_APPMSG_VOL_TRANSFORM_THREAD_ENDED, 0, 0);
+
+	if (bHiddenVolHost && hiddenVolHostDriveNo < -1 && !bVolTransformThreadCancel)	// If hidden volume host could not be mounted
+		AbortProcessSilent ();
 
 	_endthread ();
 }
@@ -2154,8 +2687,8 @@ static void LoadPage (HWND hwndDlg, int nPageNo)
 					 (DLGPROC) PageDialogProc);
 		break;
 
-	case FILE_PAGE:
-		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_FILE_PAGE_DLG), hwndDlg,
+	case VOLUME_LOCATION_PAGE:
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_VOLUME_LOCATION_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
 
 		EnableWindow (GetDlgItem(hCurPage, IDC_NO_HISTORY), !bHistoryCmdLine);
@@ -2165,6 +2698,10 @@ static void LoadPage (HWND hwndDlg, int nPageNo)
 
 		break;
 
+	case DEVICE_TRANSFORM_MODE_PAGE:
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_DEVICE_TRANSFORM_MODE_DLG), hwndDlg,
+					 (DLGPROC) PageDialogProc);
+		break;
 	case HIDDEN_VOL_HOST_PRE_CIPHER_PAGE:
 		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_INFO_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
@@ -2182,7 +2719,7 @@ static void LoadPage (HWND hwndDlg, int nPageNo)
 					 (DLGPROC) PageDialogProc);
 		break;
 	case HIDDEN_VOL_HOST_PASSWORD_PAGE:
-		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_HIDVOL_HOST_PASSWORD_PAGE_DLG), hwndDlg,
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_PASSWORD_ENTRY_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
 		break;
 	case PASSWORD_PAGE:
@@ -2194,6 +2731,7 @@ static void LoadPage (HWND hwndDlg, int nPageNo)
 					 (DLGPROC) PageDialogProc);
 		break;
 	case SYSENC_COLLECTING_RANDOM_DATA_PAGE:
+	case NONSYS_INPLACE_ENC_RAND_DATA_PAGE:
 		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_SYSENC_COLLECTING_RANDOM_DATA_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
 		break;
@@ -2214,6 +2752,7 @@ static void LoadPage (HWND hwndDlg, int nPageNo)
 					 (DLGPROC) PageDialogProc);
 		break;
 	case SYSENC_WIPE_MODE_PAGE:
+	case NONSYS_INPLACE_ENC_WIPE_MODE_PAGE:
 		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_SYSENC_WIPE_MODE_PAGE_DLG), hwndDlg,
 			(DLGPROC) PageDialogProc);
 		break;
@@ -2226,9 +2765,30 @@ static void LoadPage (HWND hwndDlg, int nPageNo)
 					 (DLGPROC) PageDialogProc);
 		break;
 	case SYSENC_ENCRYPTION_PAGE:
-		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_SYSENC_ENCRYPTION_PAGE_DLG), hwndDlg,
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_INPLACE_ENCRYPTION_PAGE_DLG), hwndDlg,
+			(DLGPROC) PageDialogProc);
+		break;
+
+	case NONSYS_INPLACE_ENC_RESUME_PASSWORD_PAGE:
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_PASSWORD_ENTRY_PAGE_DLG), hwndDlg,
+			(DLGPROC) PageDialogProc);
+		break;
+
+	case NONSYS_INPLACE_ENC_RESUME_PARTITION_SEL_PAGE:
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_EXPANDED_LIST_SELECT_PAGE_DLG), hwndDlg,
+			(DLGPROC) PageDialogProc);
+		break;
+
+	case NONSYS_INPLACE_ENC_ENCRYPTION_PAGE:
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_INPLACE_ENCRYPTION_PAGE_DLG), hwndDlg,
+			(DLGPROC) PageDialogProc);
+		break;
+
+	case NONSYS_INPLACE_ENC_ENCRYPTION_FINISHED_PAGE:
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_INFO_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
 		break;
+
 	case FORMAT_PAGE:
 		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_FORMAT_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
@@ -2236,6 +2796,22 @@ static void LoadPage (HWND hwndDlg, int nPageNo)
 	case FORMAT_FINISHED_PAGE:
 		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW ((bHiddenVol && !bHiddenVolHost && !bHiddenVolFinished) ? IDD_HIDVOL_HOST_FILL_PAGE_DLG : IDD_INFO_PAGE_DLG), hwndDlg,
 					 (DLGPROC) PageDialogProc);
+		break;
+
+	case SYSENC_HIDDEN_OS_INITIAL_INFO_PAGE:
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_INFO_PAGE_DLG), hwndDlg, (DLGPROC) PageDialogProc);
+		break;
+
+	case SYSENC_HIDDEN_OS_WIPE_INFO_PAGE:
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_INFO_PAGE_DLG), hwndDlg, (DLGPROC) PageDialogProc);
+		break;
+
+	case DEVICE_WIPE_MODE_PAGE:
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_DEVICE_WIPE_MODE_PAGE_DLG), hwndDlg, (DLGPROC) PageDialogProc);
+		break;
+
+	case DEVICE_WIPE_PAGE:
+		hCurPage = CreateDialogW (hInst, MAKEINTRESOURCEW (IDD_DEVICE_WIPE_PAGE_DLG), hwndDlg, (DLGPROC) PageDialogProc);
 		break;
 	}
 
@@ -2263,6 +2839,13 @@ static void LoadPage (HWND hwndDlg, int nPageNo)
 				Warning ("PASSWORD_HIDDEN_OS_NOTE");
 
 			break;
+
+		case CIPHER_PAGE:
+
+			if (CreatingHiddenSysVol())
+				Warning ("HIDDEN_OS_PRE_CIPHER_WARNING");
+
+			break;
 		}
 	}
 }
@@ -2278,8 +2861,10 @@ int PrintFreeSpace (HWND hwndTextBox, char *lpszDrive, PLARGE_INTEGER lDiskFree)
 		nMultiplier = 1;
 	else if (lDiskFree->QuadPart < BYTES_PER_MB)
 		nMultiplier = BYTES_PER_KB;
-	else
+	else if (lDiskFree->QuadPart < BYTES_PER_GB)
 		nMultiplier = BYTES_PER_MB;
+	else
+		nMultiplier = BYTES_PER_GB;
 
 	if (nMultiplier == 1)
 	{
@@ -2299,7 +2884,7 @@ int PrintFreeSpace (HWND hwndTextBox, char *lpszDrive, PLARGE_INTEGER lDiskFree)
 		else
 			nResourceString = "DISK_FREE_KB";
 	}
-	else 
+	else if (nMultiplier == BYTES_PER_MB)
 	{
 		if (bHiddenVol && !bHiddenVolHost)	// If it's a hidden volume
 			nResourceString = "MAX_HIDVOL_SIZE_MB";
@@ -2308,7 +2893,16 @@ int PrintFreeSpace (HWND hwndTextBox, char *lpszDrive, PLARGE_INTEGER lDiskFree)
 		else
 			nResourceString = "DISK_FREE_MB";
 	}
- 
+ 	else 
+	{
+		if (bHiddenVol && !bHiddenVolHost)	// If it's a hidden volume
+			nResourceString = "MAX_HIDVOL_SIZE_GB";
+		else if (bDevice)
+			nResourceString = "DEVICE_FREE_GB";
+		else
+			nResourceString = "DISK_FREE_GB";
+	}
+
 	if (bHiddenVol && !bHiddenVolHost)	// If it's a hidden volume
 	{
 		_snwprintf (szTmp2, sizeof szTmp2 / 2, GetString (nResourceString), ((double) lDiskFree->QuadPart) / nMultiplier);
@@ -2460,8 +3054,7 @@ BOOL GetFileVolSize (HWND hwndDlg, unsigned __int64 *size)
 }
 
 
-BOOL
-QueryFreeSpace (HWND hwndDlg, HWND hwndTextBox, BOOL display)
+BOOL QueryFreeSpace (HWND hwndDlg, HWND hwndTextBox, BOOL display)
 {
 	if (bHiddenVol && !bHiddenVolHost)	// If it's a hidden volume
 	{
@@ -2563,6 +3156,137 @@ QueryFreeSpace (HWND hwndDlg, HWND hwndTextBox, BOOL display)
 		}
 
 		return TRUE;
+	}
+}
+
+
+static BOOL FinalPreTransformPrompts (void)
+{
+	int x;
+	wchar_t szTmp[4096];
+	int driveNo;
+	WCHAR deviceName[MAX_PATH];
+
+	strcpy ((char *)deviceName, szFileName);
+	ToUNICODE ((char *)deviceName);
+
+	driveNo = GetDiskDeviceDriveLetter (deviceName);
+
+	if (!(bHiddenVol && !bHiddenVolHost))	// Do not ask for permission to overwrite an existing volume if we're creating a hidden volume within it
+	{
+		wchar_t drive[128];
+		wchar_t volumeLabel[128];
+		wchar_t *type;
+		BOOL bTmpIsPartition = FALSE;
+
+		type = GetPathType (szFileName, !bInPlaceEncNonSys, &bTmpIsPartition);
+
+		if (driveNo != -1)
+		{
+			if (!GetDriveLabel (driveNo, volumeLabel, sizeof (volumeLabel)))
+				volumeLabel[0] = 0;
+
+			swprintf_s (drive, sizeof (drive)/2, volumeLabel[0] ? L" (%hc: '%s')" : L" (%hc:%s)", 'A' + driveNo, volumeLabel[0] ? volumeLabel : L"");
+		}
+		else
+		{
+			drive[0] = 0;
+			volumeLabel[0] = 0;
+		}
+
+		if (bHiddenOS && bHiddenVolHost)
+			swprintf (szTmp, GetString ("OVERWRITEPROMPT_DEVICE_HIDDEN_OS_PARTITION"), szFileName, drive);
+		else
+			swprintf (szTmp, GetString (bInPlaceEncNonSys ? "NONSYS_INPLACE_ENC_CONFIRM" : "OVERWRITEPROMPT_DEVICE"), type, szFileName, drive);
+
+
+		x = MessageBoxW (MainDlg, szTmp, lpszTitle, YES_NO | MB_ICONWARNING | (bInPlaceEncNonSys ? MB_DEFBUTTON1 : MB_DEFBUTTON2));
+		if (x != IDYES)
+			return FALSE;
+
+
+		if (driveNo != -1 && bTmpIsPartition && !bInPlaceEncNonSys)
+		{
+			float percentFreeSpace = 100.0;
+			__int64 occupiedBytes = 0;
+
+			// Do a second check. If we find that the partition contains more than 1GB of data or more than 12%
+			// of its space is occupied, we will display an extra warning, however, this time it won't be a Yes/No
+			// dialog box (because users often ignore such dialog boxes).
+
+			if (GetStatsFreeSpaceOnPartition (szFileName, &percentFreeSpace, &occupiedBytes, TRUE) != -1)
+			{
+				if (occupiedBytes > BYTES_PER_GB && percentFreeSpace < 99.99	// "percentFreeSpace < 99.99" is needed because an NTFS filesystem larger than several terabytes can have more than 1GB of data in use, even if there are no files stored on it.
+					|| percentFreeSpace < 88)		// A 24-MB NTFS filesystem has 11.5% of space in use even if there are no files stored on it.
+				{
+					wchar_t tmpMcMsg [8000];
+					wchar_t tmpMcOption1 [500];
+					wchar_t tmpMcOptionCancel [50];
+
+					wcscpy (tmpMcMsg, GetString("OVERWRITEPROMPT_DEVICE_SECOND_WARNING_LOTS_OF_DATA"));
+					wcscpy (tmpMcOption1, GetString("ERASE_FILES_BY_CREATING_VOLUME"));
+					wcscpy (tmpMcOptionCancel, GetString("CANCEL"));
+
+					wcscat (tmpMcMsg, L"\n\n");
+					wcscat (tmpMcMsg, GetString("DRIVE_LETTER_ITEM"));
+					swprintf_s (szTmp, sizeof (szTmp)/2, L"%hc:", 'A' + driveNo);
+					wcscat (tmpMcMsg, szTmp);
+
+					wcscat (tmpMcMsg, L"\n");
+					wcscat (tmpMcMsg, GetString("LABEL_ITEM"));
+					wcscat (tmpMcMsg, volumeLabel[0] != 0 ? volumeLabel : GetString("NOT_APPLICABLE_OR_NOT_AVAILABLE"));
+
+					wcscat (tmpMcMsg, L"\n");
+					wcscat (tmpMcMsg, GetString("SIZE_ITEM"));
+					GetSizeString (nVolumeSize, szTmp);
+					wcscat (tmpMcMsg, szTmp);
+
+					wcscat (tmpMcMsg, L"\n");
+					wcscat (tmpMcMsg, GetString("PATH_ITEM"));
+					wcscat (tmpMcMsg, deviceName);
+
+					wchar_t *tmpStr[] = {L"", tmpMcMsg, tmpMcOption1, tmpMcOptionCancel, 0};
+					switch (AskMultiChoice ((void **) tmpStr, TRUE))
+					{
+					case 1:
+						// Proceed 
+
+						// NOP
+						break;
+
+					default:
+						return FALSE;
+					}
+				}
+			}
+		}
+	}
+	return TRUE;
+}
+
+void HandleOldAssignedDriveLetter (void)
+{
+	if (bDevice)
+	{
+		// Handle assigned drive letter (if any)
+
+		WCHAR deviceName[MAX_PATH];
+		int driveLetter = -1;
+
+		strcpy ((char *)deviceName, szDiskFile);
+		ToUNICODE ((char *)deviceName);
+		driveLetter = GetDiskDeviceDriveLetter (deviceName);
+
+		if (!bHiddenVolHost
+			&& !bHiddenOS
+			&& driveLetter > 1)		// If a drive letter is assigned to the device, but not A: or B:
+		{
+			char rootPath[] = { driveLetter + 'A', ':', '\\', 0 };
+			wchar_t szTmp[8192];
+
+			swprintf (szTmp, GetString ("AFTER_FORMAT_DRIVE_LETTER_WARN"), rootPath[0], rootPath[0], rootPath[0], rootPath[0]);
+			MessageBoxW (MainDlg, szTmp, lpszTitle, MB_ICONWARNING);
+		}
 	}
 }
 
@@ -2706,7 +3430,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				// Ask the user if he wants to try again (to prevent repeated system freezing, etc.)
 
 				char *tmpStr[] = {0, "HIDDEN_SECTOR_DETECTION_FAILED_PREVIOUSLY", "SKIP_HIDDEN_SECTOR_DETECTION", "RETRY_HIDDEN_SECTOR_DETECTION", "IDC_EXIT", 0};
-				switch (AskMultiChoice ((void **) tmpStr))
+				switch (AskMultiChoice ((void **) tmpStr, FALSE))
 				{
 				case 1:
 					// Do not try again
@@ -2729,7 +3453,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			SysEncDriveAnalysisStart = GetTickCount ();
 			InitProgressBar (SYSENC_DRIVE_ANALYSIS_ETA, 0, FALSE, FALSE, FALSE, TRUE);
 
-			_beginthread (sysEncDriveAnalysisThread, 4096, hwndDlg);
+			_beginthread (sysEncDriveAnalysisThread, 0, hwndDlg);
 
 			break;
 
@@ -2858,7 +3582,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 			break;
 
-		case FILE_PAGE:
+		case VOLUME_LOCATION_PAGE:
 			{
 				char *nID;
 
@@ -2881,7 +3605,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 				SendMessage (GetDlgItem (hwndDlg, IDC_COMBO_BOX), CB_LIMITTEXT, TC_MAX_PATH, 0);
 
-				LoadSettings (hwndDlg);
+				LoadCombo (GetDlgItem (hwndDlg, IDC_COMBO_BOX));
 
 				SendMessage (GetDlgItem (hwndDlg, IDC_NO_HISTORY), BM_SETCHECK, bHistory ? BST_UNCHECKED : BST_CHECKED, 0);
 
@@ -2900,6 +3624,39 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				GetDlgItem (GetParent (hwndDlg), IDC_NEXT));
 
 			}
+			break;
+
+		case DEVICE_TRANSFORM_MODE_PAGE:
+
+			if (!bDeviceTransformModeChoiceMade && !bInPlaceEncNonSys)
+			{
+				// The user has not chosen whether to perform in-place encryption or format yet.
+				// We will preselect in-place encryption if the requirements are met and if the
+				// filesystem does not appear empty.
+
+				WaitCursor();
+
+				if (CheckRequirementsForNonSysInPlaceEnc (szDiskFile, TRUE))
+				{
+					bInPlaceEncNonSys = (FileSystemAppearsEmpty (szDiskFile) == 0);
+				}
+			}
+
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("DEVICE_TRANSFORM_MODE_PAGE_TITLE"));
+
+			SendMessage (GetDlgItem (hwndDlg, IDC_DEVICE_TRANSFORM_MODE_INPLACE), WM_SETFONT, (WPARAM) hUserBoldFont, (LPARAM) TRUE);
+			SendMessage (GetDlgItem (hwndDlg, IDC_DEVICE_TRANSFORM_MODE_FORMAT), WM_SETFONT, (WPARAM) hUserBoldFont, (LPARAM) TRUE);
+
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("DEVICE_TRANSFORM_MODE_PAGE_FORMAT_HELP"));
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP2), GetString ("DEVICE_TRANSFORM_MODE_PAGE_INPLACE_HELP"));
+
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
+
+			CheckButton (GetDlgItem (hwndDlg, bInPlaceEncNonSys ? IDC_DEVICE_TRANSFORM_MODE_INPLACE : IDC_DEVICE_TRANSFORM_MODE_FORMAT));
+
+			NormalCursor();
+
 			break;
 
 		case HIDDEN_VOL_HOST_PRE_CIPHER_PAGE:
@@ -2940,6 +3697,9 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						EnableWindow (GetDlgItem (GetParent (hwndDlg), IDCANCEL), TRUE);
 						EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), FALSE);
 						EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), FALSE);
+
+						bConfirmQuit = FALSE;
+						bConfirmQuitSysEncPretest = FALSE;
 					}
 					else
 					{
@@ -2951,7 +3711,6 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				}
 				else
 				{
-
 					SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("HIDVOL_PRE_CIPHER_HELP"));
 				}
 			}
@@ -3041,6 +3800,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					EnableWindow (GetDlgItem (hwndDlg, IDC_SIZEBOX), FALSE);
 					EnableWindow (GetDlgItem (hwndDlg, IDC_KB), FALSE);
 					EnableWindow (GetDlgItem (hwndDlg, IDC_MB), FALSE);
+					EnableWindow (GetDlgItem (hwndDlg, IDC_GB), FALSE);
 
 				}
 				else if (bDevice && !(bHiddenVol && !bHiddenVolHost))	// If raw device but not a hidden volume
@@ -3048,18 +3808,32 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					EnableWindow (GetDlgItem (hwndDlg, IDC_SIZEBOX), FALSE);
 					EnableWindow (GetDlgItem (hwndDlg, IDC_KB), FALSE);
 					EnableWindow (GetDlgItem (hwndDlg, IDC_MB), FALSE);
+					EnableWindow (GetDlgItem (hwndDlg, IDC_GB), FALSE);
 				}
 				else
 				{
 					EnableWindow (GetDlgItem (hwndDlg, IDC_SIZEBOX), TRUE);
 					EnableWindow (GetDlgItem (hwndDlg, IDC_KB), TRUE);
 					EnableWindow (GetDlgItem (hwndDlg, IDC_MB), TRUE);
+					EnableWindow (GetDlgItem (hwndDlg, IDC_GB), TRUE);
 				}
 
-				if (nMultiplier == BYTES_PER_KB)
+				SendMessage (GetDlgItem (hwndDlg, IDC_KB), BM_SETCHECK, BST_UNCHECKED, 0);
+				SendMessage (GetDlgItem (hwndDlg, IDC_MB), BM_SETCHECK, BST_UNCHECKED, 0);
+				SendMessage (GetDlgItem (hwndDlg, IDC_GB), BM_SETCHECK, BST_UNCHECKED, 0);
+
+				switch (nMultiplier)
+				{
+				case BYTES_PER_KB:
 					SendMessage (GetDlgItem (hwndDlg, IDC_KB), BM_SETCHECK, BST_CHECKED, 0);
-				else
+					break;
+				case BYTES_PER_MB:
 					SendMessage (GetDlgItem (hwndDlg, IDC_MB), BM_SETCHECK, BST_CHECKED, 0);
+					break;
+				case BYTES_PER_GB:
+					SendMessage (GetDlgItem (hwndDlg, IDC_GB), BM_SETCHECK, BST_CHECKED, 0);
+					break;
+				}
 
 				if (nUIVolumeSize != 0)
 				{
@@ -3089,26 +3863,27 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			break;
 
 		case HIDDEN_VOL_HOST_PASSWORD_PAGE:
-			{
-				SendMessage (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT), EM_LIMITTEXT, MAX_PASSWORD, 0);
+		case NONSYS_INPLACE_ENC_RESUME_PASSWORD_PAGE:
 
-				SetWindowText (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT), szRawPassword);
+			SendMessage (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT), EM_LIMITTEXT, MAX_PASSWORD, 0);
 
-				SetFocus (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT));
+			SetWindowText (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT), szRawPassword);
 
-				SetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE, KeyFilesEnable);
-				EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
+			SetFocus (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT));
 
-				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("PASSWORD_HIDDENVOL_HOST_DIRECT_HELP"));
+			SetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE, KeyFilesEnable);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
 
-				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("PASSWORD_HIDVOL_HOST_TITLE"));
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString (bInPlaceEncNonSys ? "NONSYS_INPLACE_ENC_RESUME_PASSWORD_PAGE_HELP" : "PASSWORD_HIDDENVOL_HOST_DIRECT_HELP"));
 
-				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
-				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString (bInPlaceEncNonSys ? "PASSWORD" : "PASSWORD_HIDVOL_HOST_TITLE"));
 
-				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
-				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
-			}
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
+
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), !bInPlaceEncNonSys);
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
+
 			break;
 
 		case PASSWORD_PAGE:
@@ -3160,7 +3935,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				}
 				else
 				{
-					wcsncpy (str, GetString (bHiddenOS ? "PASSWORD_DECOY_OS_HELP" : "PASSWORD_HELP"), sizeof (str) / 2);
+					wcsncpy (str, GetString ("PASSWORD_HELP"), sizeof (str) / 2);
 				}
 
 				SendMessage (GetDlgItem (hwndDlg, IDC_PASSWORD), EM_LIMITTEXT, MAX_PASSWORD, 0);
@@ -3172,8 +3947,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				SetFocus (GetDlgItem (hwndDlg, IDC_PASSWORD));
 
 				SetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE, KeyFilesEnable && !SysEncInEffect());
-				EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable && !SysEncInEffect());
-				EnableWindow (GetDlgItem (hwndDlg, IDC_KEYFILES_ENABLE), !SysEncInEffect ());
+				EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
 
 				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), str);
 
@@ -3182,14 +3956,14 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				else if (bHiddenVol)
 					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString (bHiddenVolHost ? "PASSWORD_HIDVOL_HOST_TITLE" : "PASSWORD_HIDVOL_TITLE"));
 				else if (WizardMode == WIZARD_MODE_SYS_DEVICE)
-					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString (bHiddenOS ? "PASSWORD_DECOY_OS_TITLE" : "PASSWORD"));
+					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("PASSWORD"));
 				else
 					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("PASSWORD_TITLE"));
 
 				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
 				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
 
-				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), !(bHiddenOS && !bHiddenVol));
+				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
 
 				VerifyPasswordAndUpdate (hwndDlg, GetDlgItem (GetParent (hwndDlg), IDC_NEXT),
 					 GetDlgItem (hwndDlg, IDC_PASSWORD),
@@ -3230,8 +4004,8 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			}
 			break;
 
-
 		case SYSENC_COLLECTING_RANDOM_DATA_PAGE:
+		case NONSYS_INPLACE_ENC_RAND_DATA_PAGE:
 
 			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("COLLECTING_RANDOM_DATA_TITLE"));
 			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
@@ -3327,29 +4101,36 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			break;
 
 		case SYSENC_WIPE_MODE_PAGE:
+		case NONSYS_INPLACE_ENC_WIPE_MODE_PAGE:
+			{
+				if (nWipeMode == TC_WIPE_1_RAND)
+					nWipeMode = TC_WIPE_NONE;
 
-			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("WIPE_MODE_TITLE"));
-			SetWindowTextW (GetDlgItem (hwndDlg, IDT_WIPE_MODE_INFO), GetString ("WIPE_MODE_INFO"));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("WIPE_MODE_TITLE"));
+				SetWindowTextW (GetDlgItem (hwndDlg, IDT_WIPE_MODE_INFO), GetString ("INPLACE_ENC_WIPE_MODE_INFO"));
 
-			PopulateWipeModeCombo (GetDlgItem (hwndDlg, IDC_WIPE_MODE), 
-				SystemEncryptionStatus == SYSENC_STATUS_DECRYPTING || bHiddenOS);	// Decoy OS must not contain any sensitive data, so it is not necessary to wipe it
+				PopulateWipeModeCombo (GetDlgItem (hwndDlg, IDC_WIPE_MODE), 
+					SystemEncryptionStatus == SYSENC_STATUS_DECRYPTING && !bInPlaceEncNonSys,
+					TRUE);
 
-			SelectAlgo (GetDlgItem (hwndDlg, IDC_WIPE_MODE), (int *) &nWipeMode);
+				SelectAlgo (GetDlgItem (hwndDlg, IDC_WIPE_MODE), (int *) &nWipeMode);
 
-			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
-			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
-			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
-			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
 
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
+				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
+				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
+			}
 			break;
 
 		case SYSENC_PRETEST_INFO_PAGE:
 
 			if (bHiddenOS)
 			{
-				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("OS_CLONING_PREINFO_TITLE"));
-				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("OS_CLONING_PREINFO_HELP"));
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("HIDDEN_OS_CREATION_PREINFO_TITLE"));
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("HIDDEN_OS_CREATION_PREINFO_HELP"));
 				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("START"));
+				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), FALSE);
 			}
 			else
 			{
@@ -3371,28 +4152,19 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				}
 
 				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), finalMsg);
-
 				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("TEST"));
+				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
 			}
 
 			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
 			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
-			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
 
 			break;
 
 		case SYSENC_PRETEST_RESULT_PAGE:
 
-			if (bHiddenOS)
-			{
-				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("DECOY_OS_TITLE"));
-				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("DECOY_OS_INFO"));
-			}
-			else
-			{
-				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("SYS_ENCRYPTION_PRETEST_RESULT_TITLE"));
-				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("SYS_ENCRYPTION_PRETEST_RESULT_INFO"));
-			}
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("SYS_ENCRYPTION_PRETEST_RESULT_TITLE"));
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("SYS_ENCRYPTION_PRETEST_RESULT_INFO"));
 
 			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("ENCRYPT"));
 			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
@@ -3408,10 +4180,6 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 			if (CreateSysEncMutex ())
 			{
-				unsigned int hiddenOSCreationPhase = DetermineHiddenOSCreationPhase();
-
-				bHiddenOS = (hiddenOSCreationPhase != TC_HIDDEN_OS_CREATION_PHASE_NONE);
-
 				try
 				{
 					BootEncStatus = BootEncObj->GetStatus();
@@ -3448,19 +4216,18 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 				ToHyperlink (hwndDlg, IDC_MORE_INFO_SYS_ENCRYPTION);
 
-				if (SystemEncryptionStatus == SYSENC_STATUS_DECRYPTING
-					|| bHiddenOS)	// Decoy OS must not contain any sensitive data, so it is not necessary to wipe it
+				if (SystemEncryptionStatus == SYSENC_STATUS_DECRYPTING)
 				{
 					nWipeMode = TC_WIPE_NONE;
 					EnableWindow (GetDlgItem (hwndDlg, IDC_WIPE_MODE), FALSE);
 					EnableWindow (GetDlgItem (hwndDlg, IDT_WIPE_MODE), FALSE);
-					PopulateWipeModeCombo (GetDlgItem (hwndDlg, IDC_WIPE_MODE), TRUE);
+					PopulateWipeModeCombo (GetDlgItem (hwndDlg, IDC_WIPE_MODE), TRUE, TRUE);
 					SelectAlgo (GetDlgItem (hwndDlg, IDC_WIPE_MODE), (int *) &nWipeMode);
 				}
 				else
 				{
 					EnableWindow (GetDlgItem (hwndDlg, IDC_WIPE_MODE), !bSystemEncryptionInProgress);
-					PopulateWipeModeCombo (GetDlgItem (hwndDlg, IDC_WIPE_MODE), FALSE);
+					PopulateWipeModeCombo (GetDlgItem (hwndDlg, IDC_WIPE_MODE), FALSE, TRUE);
 					SelectAlgo (GetDlgItem (hwndDlg, IDC_WIPE_MODE), (int *) &nWipeMode);
 				}
 
@@ -3473,6 +4240,80 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				return 0;
 			}
 			return 0;
+
+		case NONSYS_INPLACE_ENC_RESUME_PARTITION_SEL_PAGE:
+
+			{
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("FILE_TITLE"));
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("NONSYS_INPLACE_ENC_RESUME_VOL_SELECT_HELP"));
+
+				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
+				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), FALSE);
+				
+				foreach (const HostDevice &device, DeferredNonSysInPlaceEncDevices)
+				{
+					SendMessage (GetDlgItem (hwndDlg, IDC_LIST_BOX), LB_ADDSTRING, 0, (LPARAM) device.Path.c_str());
+				}
+				 
+				// Deselect all
+				SendMessage (GetDlgItem (hwndDlg, IDC_LIST_BOX), LB_SETCURSEL, -1, 0);
+			}
+
+			break;
+
+		case NONSYS_INPLACE_ENC_ENCRYPTION_PAGE:
+
+			if (bInPlaceEncNonSysResumed)
+			{
+				WipeAlgorithmId savedWipeAlgorithm = TC_WIPE_NONE;
+
+				if (LoadNonSysInPlaceEncSettings (&savedWipeAlgorithm) != 0)
+					nWipeMode = savedWipeAlgorithm;
+			}
+
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("ENCRYPTION"));
+
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("NONSYS_INPLACE_ENC_ENCRYPTION_PAGE_INFO"));
+
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDCANCEL), GetString (bInPlaceEncNonSysResumed ? "DEFER" : "CANCEL"));
+
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
+
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString (bInPlaceEncNonSysResumed ? "RESUME" : "ENCRYPT"));
+
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_PAUSE), GetString ("IDC_PAUSE"));
+
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), !bInPlaceEncNonSysResumed);
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDCANCEL), TRUE);
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDHELP), TRUE);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_PAUSE), FALSE);
+
+			ShowWindow (GetDlgItem (hwndDlg, IDC_MORE_INFO_SYS_ENCRYPTION), SW_HIDE);
+
+			EnableWindow (GetDlgItem (hwndDlg, IDC_WIPE_MODE), TRUE);
+			PopulateWipeModeCombo (GetDlgItem (hwndDlg, IDC_WIPE_MODE), FALSE, TRUE);
+			SelectAlgo (GetDlgItem (hwndDlg, IDC_WIPE_MODE), (int *) &nWipeMode);
+
+			break;
+
+		case NONSYS_INPLACE_ENC_ENCRYPTION_FINISHED_PAGE:
+
+			bConfirmQuit = FALSE;
+
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("NONSYS_INPLACE_ENC_FINISHED_TITLE"));
+
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("NONSYS_INPLACE_ENC_FINISHED_INFO"));
+
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("FINALIZE"));
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), FALSE);
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
+
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDCANCEL), GetString ("EXIT"));
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDCANCEL), FALSE);
+
+			break;
 
 		case FORMAT_PAGE:
 			{
@@ -3657,7 +4498,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						swprintf (msg, GetString ("HIDVOL_HOST_FILLING_HELP_SYSENC"), hiddenVolHostDriveNo + 'A', szMaxRecomOuterVolFillSize);			
 					}
 					else
-						swprintf (msg, GetString ("HIDVOL_HOST_FILLING_HELP"), hiddenVolHostDriveNo + 'A');			
+						swprintf (msg, GetString ("HIDVOL_HOST_FILLING_HELP"), hiddenVolHostDriveNo + 'A');
 
 					SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), msg);
 					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("HIDVOL_HOST_FILLING_TITLE"));
@@ -3667,7 +4508,10 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					if (bHiddenOS)
 						SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("SYSENC_HIDDEN_VOL_FORMAT_FINISHED_HELP"));
 					else
-						SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("FORMAT_FINISHED_HELP"));
+					{
+						SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString (bInPlaceEncNonSys ? "NONSYS_INPLACE_ENC_FINISHED_INFO" : "FORMAT_FINISHED_HELP"));
+						bConfirmQuit = FALSE;
+					}
 
 					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString (bHiddenVol ? "HIDVOL_FORMAT_FINISHED_TITLE" : "FORMAT_FINISHED_TITLE"));
 				}
@@ -3676,13 +4520,105 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
 				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
-				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), (!bHiddenVol || bHiddenVolFinished) && !bHiddenOS);
+				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), (!bHiddenVol || bHiddenVolFinished) && !bHiddenOS && !bInPlaceEncNonSys);
 
-				if (!bHiddenVol || bHiddenVolFinished)
+				if ((!bHiddenVol || bHiddenVolFinished) && !bHiddenOS)
 					SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDCANCEL), GetString ("EXIT"));
 			}
 			break;
 
+		case SYSENC_HIDDEN_OS_INITIAL_INFO_PAGE:
+
+			if (!IsHiddenOSRunning() || !bHiddenOS)
+			{
+				ReportUnexpectedState (SRC_POS);
+				EndMainDlg (MainDlg);
+				return 0;
+			}
+
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("SYSENC_HIDDEN_OS_INITIAL_INFO_TITLE"));
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("FIRST_HIDDEN_OS_BOOT_INFO"));
+
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDCANCEL), GetString ("DEFER"));
+
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), FALSE);
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDCANCEL), TRUE);
+			break;
+
+		case SYSENC_HIDDEN_OS_WIPE_INFO_PAGE:
+
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("SYSENC_HIDDEN_OS_WIPE_INFO_TITLE"));
+			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("SYSENC_HIDDEN_OS_WIPE_INFO"));
+
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
+
+			break;
+
+		case DEVICE_WIPE_MODE_PAGE:
+
+			if (nWipeMode == TC_WIPE_NONE)
+				nWipeMode = TC_WIPE_1_RAND;
+
+			if (bHiddenOS && IsHiddenOSRunning())
+			{
+				// Decoy system partition wipe
+
+				WipeAbort(); // In case the GUI previously crashed and the driver is still wiping
+				SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDCANCEL), GetString ("CANCEL"));
+			}
+			else
+			{
+				// Regular device wipe (not decoy system partition wipe)
+
+				// Title bar
+				SetWindowText (MainDlg, TC_APP_NAME);
+
+				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), FALSE);
+			}
+
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("WIPE_MODE_TITLE"));
+			SetWindowTextW (GetDlgItem (hwndDlg, IDT_WIPE_MODE_INFO), GetString ("WIPE_MODE_INFO"));
+
+			PopulateWipeModeCombo (GetDlgItem (hwndDlg, IDC_WIPE_MODE), FALSE, FALSE);
+
+			SelectAlgo (GetDlgItem (hwndDlg, IDC_WIPE_MODE), (int *) &nWipeMode);
+
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("NEXT"));
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_PREV), GetString ("PREV"));
+
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDCANCEL), TRUE);
+
+			break;
+
+		case DEVICE_WIPE_PAGE:
+
+			if (bHiddenOS && IsHiddenOSRunning())
+			{
+				// Decoy system partition wipe
+
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("DEVICE_WIPE_PAGE_INFO_HIDDEN_OS"));
+				ShowWindow(GetDlgItem(hwndDlg, IDC_TIMEREMAIN), SW_HIDE);
+				ShowWindow(GetDlgItem(hwndDlg, IDT_LEFT), SW_HIDE);
+			}
+			else
+			{
+				// Regular device wipe (not decoy system partition wipe)
+
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("DEVICE_WIPE_PAGE_INFO"));
+			}
+
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_BOX_TITLE), GetString ("DEVICE_WIPE_PAGE_TITLE"));
+			SetWindowTextW (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), GetString ("WIPE"));
+			SetWindowTextW (GetDlgItem (hCurPage, IDC_WIPE_MODE), (wstring (L"  ") + GetWipeModeName (nWipeMode)).c_str());
+
+			EnableWindow (GetDlgItem (hwndDlg, IDC_ABORT_BUTTON), FALSE);
+			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), TRUE);
+
+			break;
 		}
 		return 0;
 
@@ -3823,6 +4759,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 		{
 			bHiddenVol = TRUE;
 			bHiddenVolHost = TRUE;
+			bInPlaceEncNonSys = FALSE;
 			return 1;
 		}
 
@@ -3873,6 +4810,84 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			}
 		}
 
+		if (bInPlaceEncNonSys)
+		{
+			switch (nCurPageNo)
+			{
+			case NONSYS_INPLACE_ENC_RESUME_PARTITION_SEL_PAGE:
+
+				if (lw == IDC_LIST_BOX 
+					&& (hw == LBN_SELCHANGE || hw == LBN_DBLCLK))
+				{
+					BOOL tmpbDevice = FALSE;
+
+					EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), FALSE);
+
+					int selPartitionItemId = (int) SendMessage (GetDlgItem (hwndDlg, IDC_LIST_BOX), LB_GETCURSEL, 0, 0);
+
+					if (selPartitionItemId == LB_ERR)
+					{
+						// Deselect all
+						SendMessage (GetDlgItem (hwndDlg, IDC_LIST_BOX), LB_SETCURSEL, -1, 0);
+
+						SetFocus (GetDlgItem (MainDlg, IDC_NEXT));
+						return 1;
+					}
+
+					SetFocus (GetDlgItem (MainDlg, IDC_NEXT));
+
+					strcpy (szFileName, DeferredNonSysInPlaceEncDevices [selPartitionItemId].Path.c_str());
+					CreateFullVolumePath (szDiskFile, szFileName, &tmpbDevice);
+
+					nVolumeSize = GetDeviceSize (szDiskFile);
+					if (nVolumeSize == -1)
+					{
+						handleWin32Error (MainDlg);
+						return 1;
+					}
+
+					EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
+
+					return 1;
+				}
+				break;
+
+			case  NONSYS_INPLACE_ENC_ENCRYPTION_PAGE:
+				{
+					switch (lw)
+					{
+					case IDC_PAUSE:
+
+						// Pause/resume non-system in-place encryption
+
+						if (bVolTransformThreadRunning || bVolTransformThreadToRun)
+						{
+							EnableWindow (GetDlgItem (hCurPage, IDC_PAUSE), FALSE);
+							NonSysInplaceEncPause ();
+						}
+						else
+							NonSysInplaceEncResume ();
+
+						return 1;
+
+					case IDC_WIPE_MODE:
+						if (hw == CBN_SELCHANGE)
+						{
+							nWipeMode = (WipeAlgorithmId) SendMessage (GetDlgItem (hCurPage, IDC_WIPE_MODE),
+								CB_GETITEMDATA, 
+								SendMessage (GetDlgItem (hCurPage, IDC_WIPE_MODE), CB_GETCURSEL, 0, 0),
+								0);
+
+							return 1;
+						}
+						break;
+					}
+				}
+				break;
+			}
+		}
+
+
 		if (lw == IDC_OPEN_OUTER_VOLUME && nCurPageNo == FORMAT_FINISHED_PAGE)
 		{
 			OpenVolumeExplorerWindow (hiddenVolHostDriveNo);
@@ -3888,7 +4903,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 		if (lw == IDC_ABORT_BUTTON && nCurPageNo == FORMAT_PAGE)
 		{
 			if (MessageBoxW (hwndDlg, GetString ("FORMAT_ABORT"), lpszTitle, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2 ) == IDYES)
-				bThreadCancel = TRUE;
+				bVolTransformThreadCancel = TRUE;
 			return 1;
 		}
 
@@ -3950,14 +4965,18 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			return 1;
 		}
 
-		if (hw == CBN_EDITCHANGE && nCurPageNo == FILE_PAGE)
+		if (hw == CBN_EDITCHANGE && nCurPageNo == VOLUME_LOCATION_PAGE)
 		{
 			EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), 
 				GetWindowTextLength (GetDlgItem (hCurPage, IDC_COMBO_BOX)) > 0);
+
+			bDeviceTransformModeChoiceMade = FALSE;
+			bInPlaceEncNonSys = FALSE;
+
 			return 1;
 		}
 		
-		if (hw == CBN_SELCHANGE && nCurPageNo == FILE_PAGE)
+		if (hw == CBN_SELCHANGE && nCurPageNo == VOLUME_LOCATION_PAGE)
 		{
 			LPARAM nIndex;
 
@@ -3968,6 +4987,9 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
 			else
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), FALSE);
+
+			bDeviceTransformModeChoiceMade = FALSE;
+			bInPlaceEncNonSys = FALSE;
 
 			return 1;
 		}
@@ -4006,69 +5028,101 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			return 1;
 		}
 		
-		if (lw == IDC_KEY_FILES && (nCurPageNo == PASSWORD_PAGE || nCurPageNo == HIDDEN_VOL_HOST_PASSWORD_PAGE))
+		if (nCurPageNo == PASSWORD_PAGE 
+			|| nCurPageNo == HIDDEN_VOL_HOST_PASSWORD_PAGE 
+			|| nCurPageNo == NONSYS_INPLACE_ENC_RESUME_PASSWORD_PAGE)
 		{
-			KeyFilesDlgParam param;
-			param.EnableKeyFiles = KeyFilesEnable;
-			param.FirstKeyFile = FirstKeyFile;
-
-			if (IDOK == DialogBoxParamW (hInst,
-				MAKEINTRESOURCEW (IDD_KEYFILES), hwndDlg,
-				(DLGPROC) KeyFilesDlgProc, (LPARAM) &param))
+			if (lw == IDC_KEY_FILES)
 			{
-				KeyFilesEnable = param.EnableKeyFiles;
-				FirstKeyFile = param.FirstKeyFile;
+				if (SysEncInEffect())
+				{
+					Warning ("KEYFILES_NOT_SUPPORTED_FOR_SYS_ENCRYPTION");
+					return 1;
+				}
 
-				SetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE, KeyFilesEnable);
+				KeyFilesDlgParam param;
+				param.EnableKeyFiles = KeyFilesEnable;
+				param.FirstKeyFile = FirstKeyFile;
+
+				if (IDOK == DialogBoxParamW (hInst,
+					MAKEINTRESOURCEW (IDD_KEYFILES), hwndDlg,
+					(DLGPROC) KeyFilesDlgProc, (LPARAM) &param))
+				{
+					KeyFilesEnable = param.EnableKeyFiles;
+					FirstKeyFile = param.FirstKeyFile;
+
+					SetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE, KeyFilesEnable);
+					EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
+
+					if (nCurPageNo != HIDDEN_VOL_HOST_PASSWORD_PAGE && nCurPageNo != NONSYS_INPLACE_ENC_RESUME_PASSWORD_PAGE)
+					{
+						VerifyPasswordAndUpdate (hwndDlg, GetDlgItem (GetParent (hwndDlg), IDC_NEXT),
+							GetDlgItem (hCurPage, IDC_PASSWORD),
+							GetDlgItem (hCurPage, IDC_VERIFY),
+							volumePassword.Text, szVerify, KeyFilesEnable && FirstKeyFile!=NULL);
+					}
+				}
+
+				return 1;
+			}
+
+			if (lw == IDC_KEYFILES_ENABLE)
+			{
+				KeyFilesEnable = GetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE);
 				EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
 
-				if (nCurPageNo != HIDDEN_VOL_HOST_PASSWORD_PAGE)
+				if (nCurPageNo != HIDDEN_VOL_HOST_PASSWORD_PAGE && nCurPageNo != NONSYS_INPLACE_ENC_RESUME_PASSWORD_PAGE)
 				{
 					VerifyPasswordAndUpdate (hwndDlg, GetDlgItem (GetParent (hwndDlg), IDC_NEXT),
 						GetDlgItem (hCurPage, IDC_PASSWORD),
 						GetDlgItem (hCurPage, IDC_VERIFY),
 						volumePassword.Text, szVerify, KeyFilesEnable && FirstKeyFile!=NULL);
 				}
-			}
 
-			return 1;
+				return 1;
+			}
 		}
 
-		if (lw == IDC_KEYFILES_ENABLE && (nCurPageNo == PASSWORD_PAGE || nCurPageNo == HIDDEN_VOL_HOST_PASSWORD_PAGE))
+		if (nCurPageNo == HIDDEN_VOL_HOST_PASSWORD_PAGE
+			|| nCurPageNo == NONSYS_INPLACE_ENC_RESUME_PASSWORD_PAGE)
 		{
-			KeyFilesEnable = GetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE);
-			EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
-
-			if (nCurPageNo != HIDDEN_VOL_HOST_PASSWORD_PAGE)
+			if (hw == EN_CHANGE)
 			{
-				VerifyPasswordAndUpdate (hwndDlg, GetDlgItem (GetParent (hwndDlg), IDC_NEXT),
-					GetDlgItem (hCurPage, IDC_PASSWORD),
-					GetDlgItem (hCurPage, IDC_VERIFY),
-					volumePassword.Text, szVerify, KeyFilesEnable && FirstKeyFile!=NULL);
+				GetWindowText (GetDlgItem (hCurPage, IDC_PASSWORD_DIRECT), (char *) volumePassword.Text, sizeof (volumePassword.Text));
+				volumePassword.Length = strlen ((char *) volumePassword.Text);
+				return 1;
 			}
 
-			return 1;
+			if (lw == IDC_SHOW_PASSWORD_SINGLE)
+			{
+				SendMessage (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT),
+					EM_SETPASSWORDCHAR,
+					GetCheckBox (hwndDlg, IDC_SHOW_PASSWORD_SINGLE) ? 0 : '*',
+					0);
+				InvalidateRect (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT), NULL, TRUE);
+				return 1;
+			}
 		}
 
-		if (hw == EN_CHANGE && nCurPageNo == HIDDEN_VOL_HOST_PASSWORD_PAGE)
+		if ((lw == IDC_KB || lw == IDC_MB || lw == IDC_GB) && nCurPageNo == SIZE_PAGE)
 		{
-			GetWindowText (GetDlgItem (hCurPage, IDC_PASSWORD_DIRECT), (char *) volumePassword.Text, sizeof (volumePassword.Text));
-			volumePassword.Length = strlen ((char *) volumePassword.Text);
-			return 1;
-		}
+			SendMessage (GetDlgItem (hwndDlg, IDC_KB), BM_SETCHECK, BST_UNCHECKED, 0);
+			SendMessage (GetDlgItem (hwndDlg, IDC_MB), BM_SETCHECK, BST_UNCHECKED, 0);
+			SendMessage (GetDlgItem (hwndDlg, IDC_GB), BM_SETCHECK, BST_UNCHECKED, 0);
 
-		if (lw == IDC_SHOW_PASSWORD_HIDVOL_HOST && nCurPageNo == HIDDEN_VOL_HOST_PASSWORD_PAGE)
-		{
-			SendMessage (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT),
-						EM_SETPASSWORDCHAR,
-						GetCheckBox (hwndDlg, IDC_SHOW_PASSWORD_HIDVOL_HOST) ? 0 : '*',
-						0);
-			InvalidateRect (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT), NULL, TRUE);
-			return 1;
-		}
+			switch (lw)
+			{
+			case IDC_KB:
+				SendMessage (GetDlgItem (hwndDlg, IDC_KB), BM_SETCHECK, BST_CHECKED, 0);
+				break;
+			case IDC_MB:
+				SendMessage (GetDlgItem (hwndDlg, IDC_MB), BM_SETCHECK, BST_CHECKED, 0);
+				break;
+			case IDC_GB:
+				SendMessage (GetDlgItem (hwndDlg, IDC_GB), BM_SETCHECK, BST_CHECKED, 0);
+				break;
+			}
 
-		if ((lw == IDC_KB || lw == IDC_MB) && nCurPageNo == SIZE_PAGE)
-		{
 			VerifySizeAndUpdate (hwndDlg, FALSE);
 			return 1;
 		}
@@ -4085,13 +5139,13 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			return 1;
 		}
 
-		if (lw == IDC_SELECT_VOLUME_LOCATION && nCurPageNo == FILE_PAGE)
+		if (lw == IDC_SELECT_VOLUME_LOCATION && nCurPageNo == VOLUME_LOCATION_PAGE)
 		{
 			if (!bDevice)
 			{
 				// Select file
 
-				if (BrowseFiles (hwndDlg, "OPEN_TITLE", szFileName, bHistory, !bHiddenVolDirect) == FALSE)
+				if (BrowseFiles (hwndDlg, "OPEN_TITLE", szFileName, bHistory, !bHiddenVolDirect, NULL) == FALSE)
 					return 1;
 
 				AddComboItem (GetDlgItem (hwndDlg, IDC_COMBO_BOX), szFileName, bHistory);
@@ -4120,9 +5174,43 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					EnableDisableFileNext (GetDlgItem (hwndDlg, IDC_COMBO_BOX),
 						GetDlgItem (GetParent (hwndDlg), IDC_NEXT));
 
+					bDeviceTransformModeChoiceMade = FALSE;
+					bInPlaceEncNonSys = FALSE;
 				}
 				return 1;
 			}
+		}
+
+		if (nCurPageNo == DEVICE_TRANSFORM_MODE_PAGE)
+		{
+			switch (lw)
+			{
+			case IDC_DEVICE_TRANSFORM_MODE_FORMAT:
+
+				bInPlaceEncNonSys = FALSE;
+				bDeviceTransformModeChoiceMade = TRUE;
+
+				return 1;
+
+			case IDC_DEVICE_TRANSFORM_MODE_INPLACE:
+
+				bInPlaceEncNonSys = TRUE;
+				bDeviceTransformModeChoiceMade = TRUE;
+
+				bHiddenVol = FALSE;
+				bHiddenVolDirect = FALSE;
+				bHiddenVolHost = FALSE;
+				bSparseFileSwitch = FALSE;
+				quickFormat = FALSE;
+
+				return 1;
+			}
+		}
+
+		if (lw == IDC_HIDVOL_WIZ_MODE_FULL && nCurPageNo == HIDDEN_VOL_WIZARD_MODE_PAGE)
+		{
+			bHiddenVolDirect = FALSE;
+			return 1;
 		}
 			
 		if (hw == CBN_SELCHANGE && nCurPageNo == CIPHER_PAGE)
@@ -4183,7 +5271,8 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			return 1;
 		}
 		
-		if (lw == IDC_DISPLAY_POOL_CONTENTS && nCurPageNo == SYSENC_COLLECTING_RANDOM_DATA_PAGE)
+		if (lw == IDC_DISPLAY_POOL_CONTENTS 
+			&& (nCurPageNo == SYSENC_COLLECTING_RANDOM_DATA_PAGE || nCurPageNo == NONSYS_INPLACE_ENC_RAND_DATA_PAGE))
 		{
 			showKeys = IsButtonChecked (GetDlgItem (hCurPage, IDC_DISPLAY_POOL_CONTENTS));
 			DisplayRandPool (hRandPoolSys, showKeys);
@@ -4206,7 +5295,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			{
 				char tmpszRescueDiskISO [TC_MAX_PATH+1];
 
-				if (!BrowseFiles (hwndDlg, "OPEN_TITLE", tmpszRescueDiskISO, FALSE, TRUE))
+				if (!BrowseFiles (hwndDlg, "OPEN_TITLE", tmpszRescueDiskISO, FALSE, TRUE, NULL))
 					return 1;
 
 				strcpy (szRescueDiskISO, tmpszRescueDiskISO);
@@ -4230,7 +5319,10 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			return 1;
 		}
 
-		if (nCurPageNo == SYSENC_WIPE_MODE_PAGE && hw == CBN_SELCHANGE)
+		if ((nCurPageNo == SYSENC_WIPE_MODE_PAGE 
+			|| nCurPageNo == NONSYS_INPLACE_ENC_WIPE_MODE_PAGE 
+			|| nCurPageNo == DEVICE_WIPE_MODE_PAGE)
+			&& hw == CBN_SELCHANGE)
 		{
 			nWipeMode = (WipeAlgorithmId) SendMessage (GetDlgItem (hCurPage, IDC_WIPE_MODE),
 				CB_GETITEMDATA, 
@@ -4238,6 +5330,19 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				0);
 
 			return 1;
+		}
+
+		if (nCurPageNo == DEVICE_WIPE_PAGE)
+		{
+			switch (lw)
+			{
+			case IDC_ABORT_BUTTON:
+
+				if (AskWarnNoYes ("CONFIRM_WIPE_ABORT") == IDYES)
+					WipeAbort();
+
+				return 1;
+			}
 		}
 
 		if (lw == IDC_NO_HISTORY)
@@ -4311,6 +5416,8 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 			if (ComServerMode)
 			{
+				InitDialog (hwndDlg);
+
 				if (!ComServerFormat ())
 				{
 					handleWin32Error (hwndDlg);
@@ -4321,6 +5428,12 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 			SHGetFolderPath (NULL, CSIDL_MYDOCUMENTS, NULL, 0, szRescueDiskISO);
 			strcat (szRescueDiskISO, "\\TrueCrypt Rescue Disk.iso");
+
+#ifdef _DEBUG
+			// For faster testing
+			sprintf (szVerify, "%s", "q");
+			sprintf (szRawPassword, "%s", "q");
+#endif
 
 			PostMessage (hwndDlg, TC_APPMSG_PERFORM_POST_WMINIT_TASKS, 0, 0);
 		}
@@ -4335,10 +5448,13 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 		return 0;
 
 	case WM_TIMER:
+
 		switch (wParam)
 		{
 		case TIMER_ID_RANDVIEW:
-			if (WizardMode == WIZARD_MODE_SYS_DEVICE)
+
+			if (WizardMode == WIZARD_MODE_SYS_DEVICE
+				|| bInPlaceEncNonSys)
 			{
 				DisplayRandPool (hRandPoolSys, showKeys);
 			}
@@ -4419,6 +5535,25 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 							if (BootEncStatus.DriveMounted)	// If we had been really encrypting/decrypting (not just proceeding to deinstall)
 								BootEncObj->CheckEncryptionSetupResult();
 						}
+						catch (SystemException &e)
+						{
+							if (!bTryToCorrectReadErrors
+								&& SystemEncryptionStatus == SYSENC_STATUS_ENCRYPTING
+								&& (e.ErrorCode == ERROR_CRC || e.ErrorCode == ERROR_IO_DEVICE))
+							{
+								bTryToCorrectReadErrors = (AskWarnYesNo ("ENABLE_BAD_SECTOR_ZEROING") == IDYES);
+
+								if (bTryToCorrectReadErrors)
+								{
+									SysEncResume();
+									return 1;
+								}
+							}
+							else
+							{
+								e.Show (hwndDlg);
+							}
+						}
 						catch (Exception &e)
 						{
 							e.Show (hwndDlg);
@@ -4441,13 +5576,11 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 								EnableWindow (GetDlgItem (hCurPage, IDC_WIPE_MODE), FALSE);
 								EnableWindow (GetDlgItem (hCurPage, IDC_PAUSE), FALSE);
 
+								WipeHiddenOSCreationConfig();	// For extra conservative security
+
+								ChangeSystemEncryptionStatus (SYSENC_STATUS_NONE);
+
 								Info ("SYSTEM_ENCRYPTION_FINISHED");
-
-								HandleDecoyOSCompletion ();
-
-								if (WipeHiddenOSCreationConfig())
-									ChangeSystemEncryptionStatus (SYSENC_STATUS_NONE);
-
 								return 1;
 							}
 							break;
@@ -4484,6 +5617,21 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						}
 					}
 				}
+			}
+			return 1;
+
+		case TIMER_ID_NONSYS_INPLACE_ENC_PROGRESS:
+
+			if (bInPlaceEncNonSys)
+			{
+				// Non-system in-place encryption
+
+				if (!bVolTransformThreadRunning && !bVolTransformThreadToRun)
+				{
+					KillTimer (hwndDlg, TIMER_ID_NONSYS_INPLACE_ENC_PROGRESS);
+				}
+
+				UpdateNonSysInPlaceEncControls ();
 			}
 			return 1;
 
@@ -4567,8 +5715,102 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				LoadPage (hwndDlg, SYSENC_DRIVE_ANALYSIS_PAGE + 1);
 			}
 			return 1;
+
+		case TIMER_ID_WIPE_PROGRESS:
+
+			// Manage device wipe and update related GUI
+
+			if (bHiddenOS && IsHiddenOSRunning())
+			{
+				// Decoy system partition wipe 
+
+				DecoySystemWipeStatus decoySysPartitionWipeStatus;
+
+				try
+				{
+					decoySysPartitionWipeStatus = BootEncObj->GetDecoyOSWipeStatus();
+					BootEncStatus = BootEncObj->GetStatus();
+				}
+				catch (Exception &e)
+				{
+					KillTimer (MainDlg, TIMER_ID_WIPE_PROGRESS);
+
+					try
+					{
+						BootEncObj->AbortDecoyOSWipe ();
+					}
+					catch (Exception &e)
+					{
+						e.Show (hwndDlg);
+					}
+
+					e.Show (hwndDlg);
+					EndMainDlg (MainDlg);
+					return 1;
+				}
+
+				if (decoySysPartitionWipeStatus.WipeInProgress)
+				{
+					ArrowWaitCursor ();
+
+					UpdateWipeProgressBar ();
+				}
+
+				if (bDeviceWipeInProgress != decoySysPartitionWipeStatus.WipeInProgress)
+				{
+					bDeviceWipeInProgress = decoySysPartitionWipeStatus.WipeInProgress;
+
+					UpdateWipeProgressBar ();
+					UpdateWipeControls ();
+
+					if (!bDeviceWipeInProgress)
+					{
+						// The driver stopped wiping
+
+						KillTimer (hwndDlg, TIMER_ID_WIPE_PROGRESS);
+
+						try
+						{
+							BootEncObj->CheckDecoyOSWipeResult();
+						}
+						catch (Exception &e)
+						{
+							e.Show (hwndDlg);
+							AbortProcessSilent();
+						}
+
+						if (BootEncStatus.ConfiguredEncryptedAreaEnd == decoySysPartitionWipeStatus.WipedAreaEnd)
+						{
+							// Decoy system partition has been fully wiped
+
+							ChangeHiddenOSCreationPhase (TC_HIDDEN_OS_CREATION_PHASE_WIPED);
+
+							SetWindowTextW (GetDlgItem (MainDlg, IDCANCEL), GetString ("EXIT"));
+							EnableWindow (GetDlgItem (MainDlg, IDCANCEL), TRUE);
+							EnableWindow (GetDlgItem (MainDlg, IDC_PREV), FALSE);
+							EnableWindow (GetDlgItem (MainDlg, IDC_NEXT), FALSE);
+							EnableWindow (GetDlgItem (hCurPage, IDC_ABORT_BUTTON), FALSE);
+
+							Info ("WIPE_FINISHED_DECOY_SYSTEM_PARTITION");
+
+							TextInfoDialogBox (TC_TBXID_DECOY_OS_INSTRUCTIONS);
+
+							return 1;
+						}
+					}
+				}
+			}
+			else
+			{
+				// Regular device wipe (not decoy system partition wipe)
+
+				//Info ("WIPE_FINISHED");
+			}
+			return 1;
 		}
+
 		return 0;
+
 
 	case TC_APPMSG_PERFORM_POST_WMINIT_TASKS:
 
@@ -4596,42 +5838,77 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			SetWindowText (hMasterKey, tmp);
 			SetWindowText (hHeaderKey, tmp);
 
-			NormalCursor ();
-
 			LoadPage (hwndDlg, FORMAT_FINISHED_PAGE);
 		}
 		return 1;
 
-	case TC_APPMSG_FORMAT_THREAD_ENDED:
+	case TC_APPMSG_NONSYS_INPLACE_ENC_FINISHED:
 
-		// Format was cancelled (did not finish)
+		// A partition has just been fully encrypted in place
 
-		EnableWindow (GetDlgItem (hCurPage, IDC_QUICKFORMAT), (bDevice || bSparseFileSwitch) && !(bHiddenVol && !bHiddenVolHost));
-		EnableWindow (GetDlgItem (hCurPage, IDC_FILESYS), TRUE);
-		EnableWindow (GetDlgItem (hCurPage, IDC_CLUSTERSIZE), TRUE);
-		EnableWindow (GetDlgItem (hwndDlg, IDC_PREV), TRUE);
-		EnableWindow (GetDlgItem (hwndDlg, IDHELP), TRUE);
-		EnableWindow (GetDlgItem (hwndDlg, IDCANCEL), TRUE);
-		EnableWindow (GetDlgItem (hCurPage, IDC_ABORT_BUTTON), FALSE);
-		EnableWindow (GetDlgItem (hwndDlg, IDC_NEXT), TRUE);
-		SendMessage (GetDlgItem (hCurPage, IDC_PROGRESS_BAR), PBM_SETPOS, 0, 0L);
-		SetFocus (GetDlgItem (hwndDlg, IDC_NEXT));
+		KillTimer (hwndDlg, TIMER_ID_NONSYS_INPLACE_ENC_PROGRESS);
+
+		LoadPage (hwndDlg, NONSYS_INPLACE_ENC_ENCRYPTION_FINISHED_PAGE);
+
+		return 1;
+
+	case TC_APPMSG_VOL_TRANSFORM_THREAD_ENDED:
+
+		if (bInPlaceEncNonSys)
+		{
+			// In-place encryption was interrupted/paused (did not finish)
+
+			KillTimer (hwndDlg, TIMER_ID_NONSYS_INPLACE_ENC_PROGRESS);
+
+			UpdateNonSysInPlaceEncControls ();
+		}
+		else
+		{
+			// Format has been aborted (did not finish)
+
+			EnableWindow (GetDlgItem (hCurPage, IDC_QUICKFORMAT), (bDevice || bSparseFileSwitch) && !(bHiddenVol && !bHiddenVolHost));
+			EnableWindow (GetDlgItem (hCurPage, IDC_FILESYS), TRUE);
+			EnableWindow (GetDlgItem (hCurPage, IDC_CLUSTERSIZE), TRUE);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_PREV), TRUE);
+			EnableWindow (GetDlgItem (hwndDlg, IDHELP), TRUE);
+			EnableWindow (GetDlgItem (hwndDlg, IDCANCEL), TRUE);
+			EnableWindow (GetDlgItem (hCurPage, IDC_ABORT_BUTTON), FALSE);
+			EnableWindow (GetDlgItem (hwndDlg, IDC_NEXT), TRUE);
+			SendMessage (GetDlgItem (hCurPage, IDC_PROGRESS_BAR), PBM_SETPOS, 0, 0L);
+			SetFocus (GetDlgItem (hwndDlg, IDC_NEXT));
+		}
 
 		NormalCursor ();
 		return 1;
 
 	case WM_HELP:
+
 		OpenPageHelp (hwndDlg, nCurPageNo);
 		return 1;
 
 	case TC_APPMSG_FORMAT_USER_QUIT:
 
-		if (bThreadRunning)
+		if (nCurPageNo == NONSYS_INPLACE_ENC_ENCRYPTION_PAGE
+			&& (bVolTransformThreadRunning || bVolTransformThreadToRun || bInPlaceEncNonSysResumed))
 		{
 			// Non-system encryption in progress
+			if (AskNoYes ("NONSYS_INPLACE_ENC_DEFER_CONFIRM") == IDYES)
+			{
+				NonSysInplaceEncPause ();
+
+				EndMainDlg (hwndDlg);
+				return 1;
+			}
+			else
+				return 1;	// Disallow close
+		}
+		else if (bVolTransformThreadRunning || bVolTransformThreadToRun)
+		{
+			// Format (non-in-place encryption) in progress
 			if (AskNoYes ("FORMAT_ABORT") == IDYES)
 			{
-				bThreadCancel = TRUE;
+				bVolTransformThreadCancel = TRUE;
+
 				EndMainDlg (hwndDlg);
 				return 1;
 			}
@@ -4647,7 +5924,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			if (AskYesNo (SystemEncryptionStatus == SYSENC_STATUS_DECRYPTING ? 
 				"SYSTEM_DECRYPTION_DEFER_CONFIRM" : "SYSTEM_ENCRYPTION_DEFER_CONFIRM") == IDYES)
 			{
-				if (nCurPageNo == SYSENC_PRETEST_RESULT_PAGE && !bHiddenOS)
+				if (nCurPageNo == SYSENC_PRETEST_RESULT_PAGE)
 					TextInfoDialogBox (TC_TBXID_SYS_ENC_RESCUE_DISK);
 
 				try
@@ -4703,6 +5980,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 
 	case WM_COMMAND:
+
 		if (lw == IDHELP)
 		{
 			OpenPageHelp (hwndDlg, nCurPageNo);
@@ -4721,17 +5999,24 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				{
 				case WIZARD_MODE_FILE_CONTAINER:
 
+					WaitCursor ();
 					CloseSysEncMutex ();
 					ChangeWizardMode (WIZARD_MODE_FILE_CONTAINER);
 					bHiddenOS = FALSE;
+					bInPlaceEncNonSys = FALSE;
 					nNewPageNo = VOLUME_TYPE_PAGE - 1;	// Skip irrelevant pages
 					break;
 
 				case WIZARD_MODE_NONSYS_DEVICE:
 
+					WaitCursor ();
 					CloseSysEncMutex ();
+
 					if (!ChangeWizardMode (WIZARD_MODE_NONSYS_DEVICE))
+					{
+						NormalCursor ();
 						return 1;
+					}
 
 					bHiddenOS = FALSE;
 					nNewPageNo = VOLUME_TYPE_PAGE - 1;	// Skip irrelevant pages
@@ -4739,7 +6024,9 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 				case WIZARD_MODE_SYS_DEVICE:
 
+					WaitCursor ();
 					bHiddenVol = FALSE;
+					bInPlaceEncNonSys = FALSE;
 					SwitchWizardToSysEncMode ();
 					return 1;
 				}
@@ -4772,13 +6059,17 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					return 1;
 				}
 
-				if (AskWarnYesNo ("DECOY_OS_REQUIREMENTS") == IDNO)
+				if (AskWarnYesNo ("DECOY_OS_REINSTALL_WARNING") == IDNO)
 				{
 					NormalCursor ();
 					return 1;
 				}
 
-				Warning ("NO_HIBERNATION_DURING_HIDDEN_OS_CREATION");
+				if (AskWarnYesNo ("DECOY_OS_REQUIREMENTS") == IDNO)
+				{
+					NormalCursor ();
+					return 1;
+				}
 
 				if (!IsAdmin() && IsUacSupported())
 				{
@@ -4802,9 +6093,16 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				}
 
 				// This check requires admin rights
-				if (BootEncObj->IsPagingFileActive ())
-					AbortProcess ("DISABLE_SWAP_FILE_BEFORE_CREATING_HIDDEN_OS");
-
+				try
+				{
+					BootEncObj->InitialSecurityChecksForHiddenOS ();
+				}
+				catch (Exception &e)
+				{
+					e.Show (hwndDlg);
+					EndMainDlg (MainDlg);	// Some of the checks need the wizard to be restarted (results are cached until exit and the checks would fail even if the issues were rectified).
+					return 1;
+				}
 
 				nNewPageNo = SYSENC_MULTI_BOOT_MODE_PAGE - 1;	// Skip irrelevant pages
 			}
@@ -4982,6 +6280,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					{
 						bHiddenVol = TRUE;
 						bHiddenVolHost = TRUE;
+						bInPlaceEncNonSys = FALSE;
 					}
 				}
 				else
@@ -5002,7 +6301,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					bHiddenVol = FALSE;
 					bHiddenVolHost = FALSE;
 					bHiddenVolDirect = FALSE;
-					nNewPageNo = FILE_PAGE - 1;		// Skip the hidden volume creation wizard mode selection
+					nNewPageNo = VOLUME_LOCATION_PAGE - 1;		// Skip the hidden volume creation wizard mode selection
 				}
 			}
 
@@ -5028,9 +6327,11 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				}
 			}
 
-			else if (nCurPageNo == FILE_PAGE)
+			else if (nCurPageNo == VOLUME_LOCATION_PAGE)
 			{
 				BOOL tmpbDevice;
+
+				WaitCursor();
 
 				GetWindowText (GetDlgItem (hCurPage, IDC_COMBO_BOX), szFileName, sizeof (szFileName));
 				CreateFullVolumePath (szDiskFile, szFileName, &tmpbDevice);
@@ -5041,43 +6342,57 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					{
 						// Not a valid device path
 						Error ("CANNOT_CALC_SPACE");
+						NormalCursor ();
 						return 1;
 					}
 					else
 					{
 						if (AskWarnYesNo ("DEVICE_SELECTED_IN_NON_DEVICE_MODE") == IDNO)
+						{
+							NormalCursor ();
 							return 1;
+						}
 
 						SwitchWizardToNonSysDeviceMode ();
+						NormalCursor ();
 						return 1;
 					}
 				}
 
 				MoveEditToCombo (GetDlgItem (hCurPage, IDC_COMBO_BOX), bHistory);
 
-				if (IsMountedVolume (szFileName))
+				if (IsMountedVolume (szDiskFile))
 				{
 					Error ("ALREADY_MOUNTED");
+					NormalCursor ();
 					return 1;
 				}
 
 				if (bDevice)
 				{
-					switch (IsSystemDevicePath (szFileName, hCurPage, TRUE))
+					switch (IsSystemDevicePath (szDiskFile, hCurPage, TRUE))
 					{
 					case 1:
 					case 2:
 						if (AskYesNo ("CONFIRM_SYSTEM_ENCRYPTION_MODE") == IDNO)
 						{
+							NormalCursor ();
 							return 1;
 						}
 						szFileName[0] = 0;
+						szDiskFile[0] = 0;
 						SwitchWizardToSysEncMode ();
+						NormalCursor ();
 						return 1;
 
 					case -1:
-						Error ("ERR_CANNOT_DETERMINE_VOLUME_TYPE");
-						return 1;
+						// In some environments (such as PE), the system volume is not located on a hard drive.
+						// Therefore, we must interpret this return code as "Not a system device path" (otherwise,
+						// non-system devices could not be TC-formatted in such environments). Note that this is
+						// rather safe, because bReliableRequired is set to TRUE.
+
+						// NOP
+						break;
 					}
 				}
 				else
@@ -5085,6 +6400,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					if (CheckFileExtension(szFileName) 
 						&& AskWarnNoYes ("EXE_FILE_EXTENSION_CONFIRM") == IDNO)
 					{
+						NormalCursor ();
 						return 1;
 					}
 				}
@@ -5102,7 +6418,8 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						if(!QueryFreeSpace (hwndDlg, GetDlgItem (hwndDlg, IDC_SPACE_LEFT), FALSE))
 						{
 							MessageBoxW (hwndDlg, GetString ("CANT_GET_VOLSIZE"), lpszTitle, ICON_HAND);
-							nNewPageNo = FILE_PAGE - 1; 
+							NormalCursor ();
+							return 1;
 						}
 						else
 							nHiddenVolHostSize = nVolumeSize;
@@ -5111,30 +6428,57 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					{
 						if (!GetFileVolSize (hwndDlg, &nHiddenVolHostSize))
 						{
-							nNewPageNo = FILE_PAGE - 1;
+							NormalCursor ();
+							return 1;
 						}
 						else if (IsSparseFile (hwndDlg))
 						{
 							// Hidden volumes must not be created within sparse file containers
 							Warning ("HIDDEN_VOL_HOST_SPARSE");
-							nNewPageNo = FILE_PAGE - 1;
+							NormalCursor ();
+							return 1;
 						}
 					}
 				}
 				else
 				{
-					if (!bHiddenVol)
-						nNewPageNo = HIDDEN_VOL_PRE_CIPHER_PAGE;		// Skip the extra info on hidden volume 
-					else if (!bHiddenVolHost)
-						nNewPageNo = HIDDEN_VOL_HOST_PRE_CIPHER_PAGE;	// Skip the info on the outer volume
+					if (!bHiddenVol && !bDevice)
+						nNewPageNo = CIPHER_PAGE - 1;
+					else if (bHiddenVol)
+						nNewPageNo = (bHiddenVolHost ? HIDDEN_VOL_HOST_PRE_CIPHER_PAGE : HIDDEN_VOL_PRE_CIPHER_PAGE) - 1;
 				}
-				
+			}
+
+			else if (nCurPageNo == DEVICE_TRANSFORM_MODE_PAGE)
+			{
+				if (bInPlaceEncNonSys)
+				{
+					// Check requirements for non-system in-place encryption
+
+					if (!CheckRequirementsForNonSysInPlaceEnc (szDiskFile, FALSE))
+					{
+						return 1;
+					}
+
+					// We are going to skip the Size page so we must get the size here
+					nVolumeSize = GetDeviceSize (szDiskFile);
+
+					if (nVolumeSize == -1)
+					{
+						handleWin32Error (MainDlg);
+						return 1;
+					}
+
+					if (AskWarnYesNo ("NONSYS_INPLACE_ENC_CONFIRM_BACKUP") == IDNO)
+						return 1;
+				}
+				nNewPageNo = CIPHER_PAGE - 1;
 			}
 
 			else if (nCurPageNo == HIDDEN_VOL_HOST_PRE_CIPHER_PAGE)
 			{
 				if (bHiddenVolHost)
-					nNewPageNo = HIDDEN_VOL_PRE_CIPHER_PAGE;		// Skip the info on the hiddem volume
+					nNewPageNo = CIPHER_PAGE - 1;		// Skip the info on the hiddem volume
 			}
 
 			else if (nCurPageNo == CIPHER_PAGE)
@@ -5157,7 +6501,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 				RandSetHashFunction (hash_algo);
 
-				if (SysEncInEffect ())
+				if (SysEncInEffect () || bInPlaceEncNonSys)
 					nNewPageNo = PASSWORD_PAGE - 1;			// Skip irrelevant pages
 			}
 
@@ -5173,7 +6517,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 					char root[TC_MAX_PATH];
 
-					if (GetVolumePathName (szFileName, root, sizeof (root))
+					if (GetVolumePathName (szDiskFile, root, sizeof (root))
 						&& GetVolumeInformation (root, NULL, 0, NULL, NULL, NULL, szFileSystemNameBuffer, sizeof(szFileSystemNameBuffer))
 						&& !strncmp (szFileSystemNameBuffer, "FAT32", 5))
 					{
@@ -5221,8 +6565,8 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						Error ("UNSUPPORTED_CHARS_IN_PWD");
 						return 1;
 					}
-					// Check password length (do not check if it's for an outer volume or decoy OS).
-					else if (!bHiddenVolHost && !(bHiddenOS && !bHiddenVol)
+					// Check password length (do not check if it's for an outer volume).
+					else if (!bHiddenVolHost
 						&& !CheckPasswordLength (hwndDlg, GetDlgItem (hCurPage, IDC_PASSWORD)))
 					{
 						return 1;
@@ -5258,7 +6602,11 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					nNewPageNo = SYSENC_COLLECTING_RANDOM_DATA_PAGE - 1;	// Skip irrelevant pages
 				}
 
-				if (WizardMode != WIZARD_MODE_SYS_DEVICE
+				if (bInPlaceEncNonSys)
+				{
+					nNewPageNo = NONSYS_INPLACE_ENC_RAND_DATA_PAGE - 1;		// Skip irrelevant pages
+				}
+				else if (WizardMode != WIZARD_MODE_SYS_DEVICE
 					&& !FileSize4GBLimitQuestionNeeded () 
 					|| CreatingHiddenSysVol())		// If we're creating a hidden volume for a hidden OS, we don't need to format it with any filesystem (the entire OS will be copied to the hidden volume sector by sector).
 				{
@@ -5266,7 +6614,8 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				}
 			}
 
-			else if (nCurPageNo == HIDDEN_VOL_HOST_PASSWORD_PAGE)
+			else if (nCurPageNo == HIDDEN_VOL_HOST_PASSWORD_PAGE
+				|| nCurPageNo == NONSYS_INPLACE_ENC_RESUME_PASSWORD_PAGE)
 			{
 				WaitCursor ();
 
@@ -5280,128 +6629,183 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				{
 					KeyFilesApply (&volumePassword, FirstKeyFile);
 				}
-
-				/* Mount the volume which is to host the new hidden volume as read only */
-
-				if (hiddenVolHostDriveNo >= 0)		// If the hidden volume host is currently mounted (e.g. after previous unsuccessful dismount attempt)
+			
+				if (!bInPlaceEncNonSys)
 				{
-					BOOL tmp_result;
 
-					// Dismount the hidden volume host (in order to remount it as read-only subsequently)
-					while (!(tmp_result = UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE)))
+					/* Mount the volume which is to host the new hidden volume as read only */
+
+					if (hiddenVolHostDriveNo >= 0)		// If the hidden volume host is currently mounted (e.g. after previous unsuccessful dismount attempt)
 					{
-						if (MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_OUTER_VOL"), lpszTitle, MB_RETRYCANCEL) != IDRETRY)
+						BOOL tmp_result;
+
+						// Dismount the hidden volume host (in order to remount it as read-only subsequently)
+						while (!(tmp_result = UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE)))
 						{
-							// Cancel
-							NormalCursor();
-							return 1;
-						}
-					}
-					if (tmp_result)		// If dismounted
-						hiddenVolHostDriveNo = -1;
-				}
-
-				if (hiddenVolHostDriveNo < 0)		// If the hidden volume host is not mounted
-				{
-					int retCode;
-
-					// Mount the hidden volume host as read-only (to ensure consistent and secure
-					// results of the volume bitmap scanning)
-					switch (MountHiddenVolHost (hwndDlg, szDiskFile, &hiddenVolHostDriveNo, &volumePassword, TRUE))
-					{
-					case ERR_NO_FREE_DRIVES:
-						NormalCursor ();
-						MessageBoxW (hwndDlg, GetString ("NO_FREE_DRIVE_FOR_OUTER_VOL"), lpszTitle, ICON_HAND);
-						return 1;
-					case ERR_VOL_MOUNT_FAILED:
-					case ERR_PASSWORD_WRONG:
-						NormalCursor ();
-						return 1;
-					case 0:
-
-						/* Hidden volume host successfully mounted as read-only */
-
-						WaitCursor ();
-
-						// Verify that the outer volume contains a suitable file system, retrieve cluster size, and 
-						// scan the volume bitmap
-						if (!IsAdmin () && IsUacSupported ())
-							retCode = UacAnalyzeHiddenVolumeHost (hwndDlg, &hiddenVolHostDriveNo, GetVolumeDataAreaSize (FALSE, nHiddenVolHostSize), &realClusterSize, &nbrFreeClusters);
-						else
-							retCode = AnalyzeHiddenVolumeHost (hwndDlg, &hiddenVolHostDriveNo, GetVolumeDataAreaSize (FALSE, nHiddenVolHostSize), &realClusterSize, &nbrFreeClusters);
-
-						switch (retCode)
-						{
-						case -1:	// Fatal error
-							CloseVolumeExplorerWindows (hwndDlg, hiddenVolHostDriveNo);
-
-							if (UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE))
-								hiddenVolHostDriveNo = -1;
-
-							AbortProcessSilent ();
-							break;
-
-						case 0:		// Unsupported file system (or other non-fatal error which has already been reported)
-							if (bHiddenVolDirect)
+							if (MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_OUTER_VOL"), lpszTitle, MB_RETRYCANCEL) != IDRETRY)
 							{
+								// Cancel
+								NormalCursor();
+								return 1;
+							}
+						}
+						if (tmp_result)		// If dismounted
+							hiddenVolHostDriveNo = -1;
+					}
+
+					if (hiddenVolHostDriveNo < 0)		// If the hidden volume host is not mounted
+					{
+						int retCode;
+
+						// Mount the hidden volume host as read-only (to ensure consistent and secure
+						// results of the volume bitmap scanning)
+						switch (MountHiddenVolHost (hwndDlg, szDiskFile, &hiddenVolHostDriveNo, &volumePassword, TRUE))
+						{
+						case ERR_NO_FREE_DRIVES:
+							NormalCursor ();
+							MessageBoxW (hwndDlg, GetString ("NO_FREE_DRIVE_FOR_OUTER_VOL"), lpszTitle, ICON_HAND);
+							return 1;
+						case ERR_VOL_MOUNT_FAILED:
+						case ERR_PASSWORD_WRONG:
+							NormalCursor ();
+							return 1;
+						case 0:
+
+							/* Hidden volume host successfully mounted as read-only */
+
+							WaitCursor ();
+
+							// Verify that the outer volume contains a suitable file system, retrieve cluster size, and 
+							// scan the volume bitmap
+							if (!IsAdmin () && IsUacSupported ())
+								retCode = UacAnalyzeHiddenVolumeHost (hwndDlg, &hiddenVolHostDriveNo, GetVolumeDataAreaSize (FALSE, nHiddenVolHostSize), &realClusterSize, &nbrFreeClusters);
+							else
+								retCode = AnalyzeHiddenVolumeHost (hwndDlg, &hiddenVolHostDriveNo, GetVolumeDataAreaSize (FALSE, nHiddenVolHostSize), &realClusterSize, &nbrFreeClusters);
+
+							switch (retCode)
+							{
+							case -1:	// Fatal error
 								CloseVolumeExplorerWindows (hwndDlg, hiddenVolHostDriveNo);
 
 								if (UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE))
 									hiddenVolHostDriveNo = -1;
-							}
-							NormalCursor ();
-							return 1;
 
-						case 1:
+								AbortProcessSilent ();
+								break;
 
-							// Determine the maximum possible size of the hidden volume
-							if (DetermineMaxHiddenVolSize (hwndDlg) < 1)
-							{
-								// Non-fatal error while determining maximum possible size of the hidden volume
-								NormalCursor();
-								return 1;
-							}
-							else
-							{
-								BOOL tmp_result;
-
-								/* Maximum possible size of the hidden volume successfully determined */
-
-								// Dismount the hidden volume host
-								while (!(tmp_result = UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE)))
+							case 0:		// Unsupported file system (or other non-fatal error which has already been reported)
+								if (bHiddenVolDirect)
 								{
-									if (MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_OUTER_VOL"), lpszTitle, MB_RETRYCANCEL) != IDRETRY)
+									CloseVolumeExplorerWindows (hwndDlg, hiddenVolHostDriveNo);
+
+									if (UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE))
+										hiddenVolHostDriveNo = -1;
+								}
+								NormalCursor ();
+								return 1;
+
+							case 1:
+
+								// Determine the maximum possible size of the hidden volume
+								if (DetermineMaxHiddenVolSize (hwndDlg) < 1)
+								{
+									// Non-fatal error while determining maximum possible size of the hidden volume
+									NormalCursor();
+									return 1;
+								}
+								else
+								{
+									BOOL tmp_result;
+
+									/* Maximum possible size of the hidden volume successfully determined */
+
+									// Dismount the hidden volume host
+									while (!(tmp_result = UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE)))
 									{
-										// Cancel
-										NormalCursor();
-										return 1;
+										if (MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_OUTER_VOL"), lpszTitle, MB_RETRYCANCEL) != IDRETRY)
+										{
+											// Cancel
+											NormalCursor();
+											return 1;
+										}
+									}
+
+									if (tmp_result)		// If dismounted
+									{
+										hiddenVolHostDriveNo = -1;
+
+										bHiddenVolHost = FALSE; 
+										bHiddenVolFinished = FALSE;
+
+										// Clear the outer volume password
+										WipePasswordsAndKeyfiles ();
+
+										RestoreDefaultKeyFilesParam ();
+
+										EnableWindow (GetDlgItem (MainDlg, IDC_NEXT), TRUE);
+										NormalCursor ();
+
+										nNewPageNo = HIDDEN_VOL_HOST_PRE_CIPHER_PAGE;
 									}
 								}
-
-								if (tmp_result)		// If dismounted
-								{
-									hiddenVolHostDriveNo = -1;
-
-									bHiddenVolHost = FALSE; 
-									bHiddenVolFinished = FALSE;
-
-									// Clear the outer volume password
-									WipePasswordsAndKeyfiles ();
-
-									RestoreDefaultKeyFilesParam ();
-
-									EnableWindow (GetDlgItem (MainDlg, IDC_NEXT), TRUE);
-									NormalCursor ();
-
-									nNewPageNo = HIDDEN_VOL_HOST_PRE_CIPHER_PAGE;
-								}
+								break;
 							}
 							break;
 						}
-						break;
 					}
 				}
-				NormalCursor();
+				else
+				{
+					/* Scan all available partitions to discover all partitions where non-system in-place
+					encryption has been interrupted. */
+
+					BOOL tmpbDevice;
+					DeferredNonSysInPlaceEncDevices.clear();
+
+					foreach (const HostDevice &device, GetAvailableHostDevices (true, true))
+					{
+						if (device.IsPartition || device.DynamicVolume)
+						{
+							OpenVolumeContext volume;
+
+							if (OpenVolume (&volume, device.Path.c_str(), &volumePassword, FALSE, FALSE, TRUE) == ERR_SUCCESS)
+							{
+								if ((volume.CryptoInfo->HeaderFlags & TC_HEADER_FLAG_NONSYS_INPLACE_ENC) != 0
+									&& volume.CryptoInfo->EncryptedAreaLength.Value != volume.CryptoInfo->VolumeSize.Value)
+								{
+									DeferredNonSysInPlaceEncDevices.push_back (device);
+								}
+
+								CloseVolume (&volume);
+							}
+						}
+					}
+
+					if (DeferredNonSysInPlaceEncDevices.empty())
+					{
+						Warning ("FOUND_NO_PARTITION_W_DEFERRED_INPLACE_ENC");
+
+						NormalCursor();
+						return 1;
+					}
+					else if (DeferredNonSysInPlaceEncDevices.size() == 1)
+					{
+						CreateFullVolumePath (szDiskFile, DeferredNonSysInPlaceEncDevices.front().Path.c_str(), &tmpbDevice);
+
+						nVolumeSize = GetDeviceSize (szDiskFile);
+						if (nVolumeSize == -1)
+						{
+							handleWin32Error (MainDlg);
+							NormalCursor();
+							return 1;
+						}
+
+						nNewPageNo = NONSYS_INPLACE_ENC_ENCRYPTION_PAGE - 1;	// Skip irrelevant pages
+					}
+
+					NormalCursor();
+				}
+
 			}
 
 			else if (nCurPageNo == FILESYS_PAGE)
@@ -5414,22 +6818,26 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				nNewPageNo = FORMAT_PAGE - 1;	// Skip irrelevant pages
 			}
 
-			else if (nCurPageNo == SYSENC_COLLECTING_RANDOM_DATA_PAGE)
+			else if (nCurPageNo == SYSENC_COLLECTING_RANDOM_DATA_PAGE
+				|| nCurPageNo == NONSYS_INPLACE_ENC_RAND_DATA_PAGE)
 			{
 				char tmp[RANDPOOL_DISPLAY_SIZE+1];
 
-				/* Generate master key and other related data (except the rescue disk) for system encryption. */
+				if (!bInPlaceEncNonSys)
+				{
+					/* Generate master key and other related data (except the rescue disk) for system encryption. */
 
-				try
-				{
-					WaitCursor();
-					BootEncObj->PrepareInstallation (!bWholeSysDrive, volumePassword, nVolumeEA, FIRST_MODE_OF_OPERATION_ID, hash_algo, "");
-				}
-				catch (Exception &e)
-				{
-					e.Show (hwndDlg);
-					NormalCursor ();
-					return 1;
+					try
+					{
+						WaitCursor();
+						BootEncObj->PrepareInstallation (!bWholeSysDrive, volumePassword, nVolumeEA, FIRST_MODE_OF_OPERATION_ID, hash_algo, "");
+					}
+					catch (Exception &e)
+					{
+						e.Show (hwndDlg);
+						NormalCursor ();
+						return 1;
+					}
 				}
 
 				KillTimer (hwndDlg, TIMER_ID_RANDVIEW);
@@ -5509,16 +6917,8 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				}
 			}
 
-			else if (nCurPageNo == SYSENC_RESCUE_DISK_VERIFIED_PAGE)
-			{
-				if (bHiddenOS)
-				{
-					// Decoy OS must not contain any sensitive data, so it is not necessary to wipe it
-					nNewPageNo = SYSENC_PRETEST_INFO_PAGE - 1;			// Skip irrelevant pages
-				}
-			}
-
-			else if (nCurPageNo == SYSENC_WIPE_MODE_PAGE)
+			else if (nCurPageNo == SYSENC_WIPE_MODE_PAGE
+				|| nCurPageNo == NONSYS_INPLACE_ENC_WIPE_MODE_PAGE)
 			{
 				if (nWipeMode > 0 
 					&& AskWarnYesNo ("WIPE_MODE_WARN") == IDNO)
@@ -5532,12 +6932,8 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					return 1;
 
 				bConfirmQuitSysEncPretest = TRUE;
-
-				// No printable materials for hidden OS, because they are saved as temp files when printing and 
-				// any physical papers with specific info could reveal the existence of a hidden OS (note that
-				// the existing materials are tailored to non-hidden system encryption and we would need new 
-				// special versions tailed for hidden OS).
-				if (!bHiddenOS)		
+				
+				if (!bHiddenOS)	// This text is not tailored to hidden OS
 					TextInfoDialogBox (TC_TBXID_SYS_ENCRYPTION_PRETEST);
 
 				if (AskWarnYesNo ("CONFIRM_RESTART") == IDNO)
@@ -5550,17 +6946,15 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				{
 					WaitCursor();
 
-					if (bHiddenOS)
+#if 0
+					// Make sure the Rescue Disk is not in the drive
+					while (BootEncObj->VerifyRescueDisk ())
 					{
-						// Make sure the Rescue Disk is not in the drive (we need to read the config flags from 
-						// the system drive, not from the Rescue Disk).
-						while (BootEncObj->VerifyRescueDisk ())
-						{
-							Error ("REMOVE_RESCUE_DISK_FROM_DRIVE");
-						}
+						Error ("REMOVE_RESCUE_DISK_FROM_DRIVE");
 					}
+#endif
 
-					BootEncObj->Install();
+					BootEncObj->Install (bHiddenOS ? true : false);
 				}
 				catch (Exception &e)
 				{
@@ -5572,8 +6966,8 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 
 				/* Add the main TrueCrypt app to the system startup sequence (the TrueCrypt Background Task), which
-				we need e.g. for notifications about prevented hibernation, hidden OS leak protection, inconsistent 
-				hidden OS installs (TrueCrypt upgraded in the decoy system but not in the hidden one), etc.
+				we need e.g. for notifications about prevented hibernation, about hidden OS leak protection, about 
+				inconsistent hidden OS installs (TrueCrypt upgraded in the decoy system but not in the hidden one), etc.
 				Note that this must be done before calling ChangeSystemEncryptionStatus(), which broadcasts the change,
 				so that the main app (if it's running with different cached settings) will not overwrite our new
 				settings when it exits. */
@@ -5584,10 +6978,12 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 				if (bHiddenOS)
 				{
-					/* IMPORTANT: When creating or about to create a hidden OS, the system encryption status must be set
-					to SYSENC_STATUS_PRETEST (not to any special hidden-OS status), because some remnants of the XML 
-					configuration file could remain on the disk (file system journals, etc.) indicating that a hidden 
-					OS has been created on the computer. Instead, we update our raw config flags in the master boot record. */
+					/* When we are going to create a hidden OS, the system encryption status is set
+					to SYSENC_STATUS_PRETEST (not to any special hidden-OS status), in case the XML 
+					configuration file and its properties somehow leaks somewhere outside the system
+					partition (which will be wiped later on) indicating that a hidden OS has been created
+					on the computer. Instead, we update our raw config flags in the master boot record
+					(which is also altered when our boot loader is installed). */
 
 					if (!ChangeSystemEncryptionStatus (SYSENC_STATUS_PRETEST)
 						|| !ChangeHiddenOSCreationPhase (TC_HIDDEN_OS_CREATION_PHASE_CLONING))
@@ -5624,8 +7020,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 			else if (nCurPageNo == SYSENC_PRETEST_RESULT_PAGE)
 			{
-				if (!bHiddenOS)
-					TextInfoDialogBox (TC_TBXID_SYS_ENC_RESCUE_DISK);
+				TextInfoDialogBox (TC_TBXID_SYS_ENC_RESCUE_DISK);
 
 				// Begin the actual encryption process
 
@@ -5657,17 +7052,32 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 				return 1;
 			}
+			else if (nCurPageNo == NONSYS_INPLACE_ENC_RESUME_PARTITION_SEL_PAGE)
+			{
+				nNewPageNo = NONSYS_INPLACE_ENC_ENCRYPTION_PAGE - 1;	// Skip irrelevant pages
+			}
+			else if (nCurPageNo == NONSYS_INPLACE_ENC_ENCRYPTION_PAGE)
+			{
+				/* In-place encryption start  (the 'Next' button has been clicked) */
 
+				NonSysInplaceEncResume ();
+				return 1;
+			}
+			else if (nCurPageNo == NONSYS_INPLACE_ENC_ENCRYPTION_FINISHED_PAGE)
+			{
+				PostMessage (hwndDlg, TC_APPMSG_FORMAT_USER_QUIT, 0, 0);
+				return 1;
+			}
 			else if (nCurPageNo == FORMAT_PAGE)
 			{
 				/* Format start  (the 'Next' button has been clicked on the Format page) */
 
-				if (bThreadRunning)
+				if (bVolTransformThreadRunning || bVolTransformThreadToRun)
 					return 1;
-				else
-					bThreadRunning = TRUE;
+				
+				bVolTransformThreadCancel = FALSE;
 
-				bThreadCancel = FALSE;
+				bVolTransformThreadToRun = TRUE;
 
 				fileSystem = SendMessage (GetDlgItem (hCurPage, IDC_FILESYS), CB_GETITEMDATA,
 					SendMessage (GetDlgItem (hCurPage, IDC_FILESYS), CB_GETCURSEL, 0, 0) , 0);
@@ -5697,7 +7107,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 							}
 							else
 							{
-								bThreadRunning = FALSE;
+								bVolTransformThreadToRun = FALSE;
 								return 1;
 							}
 						}
@@ -5707,13 +7117,13 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 							if (nCurrentOS == WIN_2000)
 							{
 								Error("HIDDEN_VOL_HOST_UNSUPPORTED_FILESYS_WIN2000");
-								bThreadRunning = FALSE;
+								bVolTransformThreadToRun = FALSE;
 								return 1;
 							}
 							else if (GetVolumeDataAreaSize (FALSE, nVolumeSize) <= TC_MAX_FAT_FS_SIZE
 								&& AskYesNo("HIDDEN_VOL_HOST_NTFS_ASK") == IDNO)
 							{
-								bThreadRunning = FALSE;
+								bVolTransformThreadToRun = FALSE;
 								return 1;
 							}
 						}
@@ -5731,7 +7141,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					&& nNeedToStoreFilesOver4GB == 1
 					&& AskWarnNoYes("CONFIRM_FAT_FOR_FILES_OVER_4GB") == IDNO)
 				{
-					bThreadRunning = FALSE;
+					bVolTransformThreadToRun = FALSE;
 					return 1;
 				}
 
@@ -5761,14 +7171,13 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 				LastDialogId = "FORMAT_IN_PROGRESS";
 				ArrowWaitCursor ();
-				_beginthread (formatThreadFunction, 4096, hwndDlg);
+				_beginthread (volTransformThreadFunction, 0, MainDlg);
 
 				return 1;
 			}
 
 			else if (nCurPageNo == FORMAT_FINISHED_PAGE)
 			{
-
 				if (!bHiddenVol || bHiddenVolFinished)
 				{
 					/* Wizard loop restart */
@@ -5778,8 +7187,24 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						if (!ChangeWizardMode (WIZARD_MODE_SYS_DEVICE))
 							return 1;
 
+						// Hidden volume for hidden OS has been created. Now we will prepare our boot loader
+						// that will handle the OS cloning. 
+						try
+						{
+							WaitCursor();
+
+							BootEncObj->PrepareHiddenOSCreation (nVolumeEA, FIRST_MODE_OF_OPERATION_ID, hash_algo);
+						}
+						catch (Exception &e)
+						{
+							e.Show (MainDlg);
+							NormalCursor();
+							return 1;
+						}
+
 						bHiddenVol = FALSE;
-						LoadPage (hwndDlg, PASSWORD_PAGE);
+
+						LoadPage (hwndDlg, SYSENC_PRETEST_INFO_PAGE);
 					}
 					else
 						LoadPage (hwndDlg, INTRO_PAGE);
@@ -5881,6 +7306,9 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 										}
 									}
 
+									// Prevent having to recreate the outer volume due to inadvertent exit
+									bConfirmQuit = TRUE;
+
 									hiddenVolHostDriveNo = -1;
 
 									nNewPageNo = HIDDEN_VOL_HOST_PRE_CIPHER_PAGE;
@@ -5898,6 +7326,16 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						}
 					}
 				}
+			}
+
+			else if (nCurPageNo == DEVICE_WIPE_PAGE)
+			{
+				if (AskWarnOkCancel (bHiddenOS && IsHiddenOSRunning() ? "CONFIRM_WIPE_START_DECOY_SYS_PARTITION" : "CONFIRM_WIPE_START") == IDOK)
+				{
+					WipeStart ();
+					ArrowWaitCursor();
+				}
+				return 1;
 			}
 
 			LoadPage (hwndDlg, nNewPageNo + 1);
@@ -5942,6 +7380,10 @@ ovf_end:
 
 					nNewPageNo = (nMultiBoot <= 1 ? SYSENC_MULTI_BOOT_MODE_PAGE + 1 : SYSENC_MULTI_BOOT_OUTCOME_PAGE + 1);		// Skip irrelevant pages
 				}
+				else
+				{
+					nNewPageNo = VOLUME_LOCATION_PAGE + 1;
+				}
 			}
 			else if (nCurPageNo == HIDDEN_VOL_WIZARD_MODE_PAGE)
 			{
@@ -5955,7 +7397,7 @@ ovf_end:
 				if (WizardMode != WIZARD_MODE_SYS_DEVICE)
 					nNewPageNo = INTRO_PAGE + 1;	// Skip irrelevant pages
 			}
-			else if (nCurPageNo == FILE_PAGE)
+			else if (nCurPageNo == VOLUME_LOCATION_PAGE)
 			{
 				BOOL tmpbDevice;
 
@@ -5970,6 +7412,11 @@ ovf_end:
 
 				if (!bHiddenVol)
 					nNewPageNo = VOLUME_TYPE_PAGE + 1;		// Skip the hidden volume creation wizard mode selection
+			}
+
+			else if (nCurPageNo == HIDDEN_VOL_HOST_PRE_CIPHER_PAGE)
+			{
+				nNewPageNo = VOLUME_LOCATION_PAGE + 1;
 			}
 
 			else if (nCurPageNo == CIPHER_PAGE)
@@ -5991,9 +7438,9 @@ ovf_end:
 						nNewPageNo = SYSENC_MULTI_BOOT_MODE_PAGE + 1;		// Skip irrelevant pages
 				}
 				else if (!bHiddenVol)
-					nNewPageNo = HIDDEN_VOL_HOST_PRE_CIPHER_PAGE;	// Skip the extra info on hidden volume 
+					nNewPageNo = (bDevice ? DEVICE_TRANSFORM_MODE_PAGE : VOLUME_LOCATION_PAGE) + 1;	
 				else if (bHiddenVolHost)
-					nNewPageNo = HIDDEN_VOL_PRE_CIPHER_PAGE;		// Skip the info on the hidden volume
+					nNewPageNo = HIDDEN_VOL_HOST_PRE_CIPHER_PAGE + 1;		// Skip the info on the hidden volume
 			}
 
 			else if (nCurPageNo == SIZE_PAGE)
@@ -6040,19 +7487,25 @@ ovf_end:
 							bKeyboardLayoutChanged = FALSE;
 					}
 				}
+				else if (bInPlaceEncNonSys)
+					nNewPageNo = CIPHER_PAGE + 1;
 			}
 
-			else if (nCurPageNo == HIDDEN_VOL_HOST_PASSWORD_PAGE)
+			else if (nCurPageNo == HIDDEN_VOL_HOST_PASSWORD_PAGE
+				|| nCurPageNo == NONSYS_INPLACE_ENC_RESUME_PASSWORD_PAGE)
 			{
 				// Store the password in case we need to restore it after keyfile is applied to it
 				GetWindowText (GetDlgItem (hCurPage, IDC_PASSWORD_DIRECT), szRawPassword, sizeof (szRawPassword));
 
 				GetWindowText (GetDlgItem (hCurPage, IDC_PASSWORD_DIRECT), (char *) volumePassword.Text, sizeof (volumePassword.Text));
 				volumePassword.Length = strlen ((char *) volumePassword.Text);
-				nNewPageNo = FILE_PAGE + 1;
+
+				if (!bInPlaceEncNonSys)
+					nNewPageNo = VOLUME_LOCATION_PAGE + 1;
 			}
 
-			else if (nCurPageNo == SYSENC_COLLECTING_RANDOM_DATA_PAGE)
+			else if (nCurPageNo == SYSENC_COLLECTING_RANDOM_DATA_PAGE
+				|| nCurPageNo == NONSYS_INPLACE_ENC_RAND_DATA_PAGE)
 			{
 				char tmp[RANDPOOL_DISPLAY_SIZE+1];
 
@@ -6083,12 +7536,6 @@ ovf_end:
 					nNewPageNo = SYSENC_RESCUE_DISK_VERIFIED_PAGE;	// Skip irrelevant pages
 			}
 
-			else if (nCurPageNo == SYSENC_PRETEST_INFO_PAGE)
-			{
-				if (bHiddenOS)
-					nNewPageNo = SYSENC_RESCUE_DISK_VERIFIED_PAGE + 1;	// Skip irrelevant pages
-			}
-
 			else if (nCurPageNo == FORMAT_PAGE)
 			{
 				char tmp[RNG_POOL_SIZE*2+1];
@@ -6107,8 +7554,11 @@ ovf_end:
 					// Skip irrelevant pages
 
 					if (FileSize4GBLimitQuestionNeeded ()
-						&& !CreatingHiddenSysVol())		// If we're creating a hidden volume for a hidden OS, we don't need to be format it with any filesystem (the entire OS will be copied to the hidden volume sector by sector).
+						&& !CreatingHiddenSysVol()		// If we're creating a hidden volume for a hidden OS, we don't need to format it with any filesystem (the entire OS will be copied to the hidden volume sector by sector).
+						&& !bInPlaceEncNonSys)
+					{
 						nNewPageNo = FILESYS_PAGE + 1;
+					}
 					else
 						nNewPageNo = PASSWORD_PAGE + 1;		
 				}
@@ -6153,18 +7603,39 @@ void ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 
 		for (i = 0; i < nNoCommandLineArgs; i++)
 		{
+			enum
+			{
+				OptionHistory,
+				OptionNoIsoCheck,
+				OptionQuit,
+				OptionTokenLib,
+				CommandResumeSysEncLogOn,
+				CommandResumeSysEnc,
+				CommandDecryptSysEnc,
+				CommandEncDev,
+				CommandHiddenSys,
+				CommandResumeInplaceLogOn,
+				CommandResumeHiddenSys,
+				CommandSysEnc,
+				CommandResumeInplace,
+			};
+
 			argument args[]=
 			{
-				{"/sysenc", "/s"},	
-				{"/dsysenc", "/d"},
-				{"/isysenc", "/i"},	
-				{"/risysenc", "/r"},	
-				{"/csysenc", "/c"},
-				{"/acsysenc", "/a"},
-				{"/noisocheck", "/n"},
-				{"/encdev", "/e"},
-				{"/history", "/h"},
-				{"/quit", "/q"}
+				{ OptionHistory,				"/history",			"/h", FALSE },
+				{ OptionNoIsoCheck,				"/noisocheck",		"/n", FALSE },
+				{ OptionQuit,					"/quit",			"/q", FALSE },
+				{ OptionTokenLib,				"/tokenlib",		NULL, FALSE },
+
+				{ CommandResumeSysEncLogOn,		"/acsysenc",		"/a", TRUE },
+				{ CommandResumeSysEnc,			"/csysenc",			"/c", TRUE },
+				{ CommandDecryptSysEnc,			"/dsysenc",			"/d", TRUE },
+				{ CommandEncDev,				"/encdev",			"/e", TRUE },
+				{ CommandHiddenSys,				"/isysenc",			"/i", TRUE },	
+				{ CommandResumeInplaceLogOn,	"/prinplace",		"/p", TRUE },
+				{ CommandResumeHiddenSys,		"/risysenc",		"/r", TRUE },	
+				{ CommandSysEnc,				"/sysenc",			"/s", TRUE },	
+				{ CommandResumeInplace,			"/zinplace",		"/z", TRUE }
 			};
 
 			argumentspec as;
@@ -6182,7 +7653,7 @@ void ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 
 			switch (x)
 			{
-			case 's':
+			case CommandSysEnc:
 				// Encrypt system partition/drive (passed by Mount if system encryption hasn't started or to reverse decryption)
 
 				// From now on, we should be the only instance of the TC wizard allowed to deal with system encryption
@@ -6200,7 +7671,7 @@ void ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 
 				break;
 
-			case 'd':
+			case CommandDecryptSysEnc:
 				// Decrypt system partition/drive (passed by Mount, also to reverse encryption in progress, when paused)
 
 				// From now on, we should be the only instance of the TC wizard allowed to deal with system encryption
@@ -6217,7 +7688,7 @@ void ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 				}
 				break;
 
-			case 'i':
+			case CommandHiddenSys:
 				// Create a hidden operating system (passed by Mount when the user selects System -> Create Hidden Operating System)
 
 				// From now on, we should be the only instance of the TC wizard allowed to deal with system encryption
@@ -6235,7 +7706,7 @@ void ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 
 				break;
 
-			case 'r':
+			case CommandResumeHiddenSys:
 				// Resume process of creation of a hidden operating system (passed by Wizard when the user needs to UAC-elevate the whole wizard process)
 
 				// From now on, we should be the only instance of the TC wizard allowed to deal with system encryption
@@ -6253,7 +7724,7 @@ void ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 
 				break;
 
-			case 'c':
+			case CommandResumeSysEnc:
 				// Resume previous system-encryption operation (passed by Mount) e.g. encryption, decryption, or pretest 
 
 				// From now on, we should be the only instance of the TC wizard allowed to deal with system encryption
@@ -6270,7 +7741,7 @@ void ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 				}
 				break;
 
-			case 'a':
+			case CommandResumeSysEncLogOn:
 				// Same as csysenc but passed only by the system (from the startup sequence)
 
 				// From now on, we should be the only instance of the TC wizard allowed to deal with system encryption
@@ -6287,16 +7758,27 @@ void ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 				}
 				break;
 
-			case 'e':
+			case CommandEncDev:
 				// Resume process of creation of a non-sys-device-hosted volume (passed by Wizard when the user needs to UAC-elevate)
 				DirectDeviceEncMode = TRUE;
 				break;
 
-			case 'n':
+			case CommandResumeInplace:
+				// Resume interrupted process of non-system in-place encryption of a partition
+				DirectNonSysInplaceEncResumeMode = TRUE;
+				break;
+
+			case CommandResumeInplaceLogOn:
+				// Ask the user whether to resume interrupted process of non-system in-place encryption of a partition
+				// This switch is passed only by the system (from the startup sequence).
+				DirectPromptNonSysInplaceEncResumeMode = TRUE;
+				break;
+
+			case OptionNoIsoCheck:
 				bDontVerifyRescueDisk = TRUE;
 				break;
 
-			case 'h':
+			case OptionHistory:
 				{
 					char szTmp[8];
 					GetArgumentValue (lpszCommandLineArgs, nArgPos, &i, nNoCommandLineArgs,
@@ -6314,8 +7796,16 @@ void ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 					}
 				}
 				break;
+				
+			case OptionTokenLib:
+				if (GetArgumentValue (lpszCommandLineArgs, nArgPos, &i, nNoCommandLineArgs, SecurityTokenLibraryPath, sizeof (SecurityTokenLibraryPath)) == HAS_ARGUMENT)
+					InitSecurityTokenLibrary();
+				else
+					Error ("COMMAND_LINE_ERROR");
 
-			case 'q':
+				break;
+
+			case OptionQuit:
 				{
 					// Used to indicate non-install elevation
 					char szTmp[32];
@@ -6373,8 +7863,10 @@ int DetermineMaxHiddenVolSize (HWND hwndDlg)
 	// Prepare the hidden volume size parameters
 	if (nMaximumHiddenVolSize < BYTES_PER_MB)
 		nMultiplier = BYTES_PER_KB;
-	else
+	else if (nMaximumHiddenVolSize < BYTES_PER_GB)
 		nMultiplier = BYTES_PER_MB;
+	else
+		nMultiplier = BYTES_PER_GB;
 
 	nUIVolumeSize = 0;								// Set the initial value for the hidden volume size input field to the max
 	nVolumeSize = nUIVolumeSize * nMultiplier;		// Chop off possible remainder
@@ -6394,7 +7886,7 @@ int AnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, __int64 hiddenVolHostSi
 	DWORD dwResult;
 	int result;
 	char szFileSystemNameBuffer[256];
-	char szFileName[7] = {'\\','\\','.','\\',*driveNo + 'A',':',0};
+	char tmpPath[7] = {'\\','\\','.','\\',*driveNo + 'A',':',0};
 	char szRootPathName[4] = {*driveNo + 'A', ':', '\\', 0};
 	BYTE readBuffer[SECTOR_SIZE*2];
 	LARGE_INTEGER offset, offsetNew;
@@ -6413,7 +7905,7 @@ int AnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, __int64 hiddenVolHostSi
 	{
 		// We do not support creating hidden volumes within volumes created by TrueCrypt 5.1a or earlier.
 		Error ("ERR_VOL_FORMAT_BAD");
-		goto efsf_error;
+		return 0;
 	}
 
 	if (volProp.hiddenVolume)
@@ -6423,7 +7915,14 @@ int AnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, __int64 hiddenVolHostSi
 		return 0;
 	}
 
-	hDevice = CreateFile (szFileName, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+	if (volProp.volumeHeaderFlags & TC_HEADER_FLAG_NONSYS_INPLACE_ENC
+		|| volProp.volumeHeaderFlags & TC_HEADER_FLAG_ENCRYPTED_SYSTEM)
+	{
+		Warning ("ERR_HIDDEN_VOL_HOST_ENCRYPTED_INPLACE");
+		return 0;
+	}
+
+	hDevice = CreateFile (tmpPath, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 
 	if (hDevice == INVALID_HANDLE_VALUE)
 	{
@@ -6449,6 +7948,7 @@ int AnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, __int64 hiddenVolHostSi
 	}
 
 	CloseHandle (hDevice);
+	hDevice = INVALID_HANDLE_VALUE;
 
 	// Determine file system type
 
@@ -6571,12 +8071,12 @@ int ScanVolClusterBitmap (HWND hwndDlg, int *driveNo, __int64 nbrClusters, __int
 	HANDLE hDevice;
 	DWORD lBytesReturned;
 	BYTE rmnd;
-	char szFileName[7] = {'\\','\\','.','\\', *driveNo + 'A', ':', 0};
+	char tmpPath[7] = {'\\','\\','.','\\', *driveNo + 'A', ':', 0};
 
 	DWORD bufLen;
 	__int64 bitmapCnt;
 
-	hDevice = CreateFile (szFileName, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+	hDevice = CreateFile (tmpPath, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 
 	if (hDevice == INVALID_HANDLE_VALUE)
 	{
@@ -6657,14 +8157,10 @@ static BOOL WipeHiddenOSCreationConfig (void)
 	{
 		try
 		{
-			for (int wipePass = 0; wipePass < PRAND_DISK_WIPE_PASSES/3 + 1; wipePass++)
-			{
-				BootEncObj->SetHiddenOSCreationPhase (TC_HIDDEN_OS_CREATION_PHASE_NONE);
-				BootEncObj->SetHiddenOSCreationPhase (TC_HIDDEN_OS_CREATION_PHASE_CLONING);
-				BootEncObj->SetHiddenOSCreationPhase (TC_HIDDEN_OS_CREATION_PHASE_DECOY_OS);
-			}
+			WaitCursor();
+			finally_do ({ NormalCursor(); });
 
-			BootEncObj->SetHiddenOSCreationPhase (TC_HIDDEN_OS_CREATION_PHASE_NONE);
+			BootEncObj->WipeHiddenOSCreationConfig();
 		}
 		catch (Exception &e)
 		{
@@ -6674,25 +8170,6 @@ static BOOL WipeHiddenOSCreationConfig (void)
 	}
 
 	return TRUE;
-}
-
-
-// This should be called as soon as the system partition/drive has been successfully and fully encrypted.
-// IMPORTANT: It must be called before calling ChangeSystemEncryptionStatus (SYSENC_STATUS_NONE).
-static void HandleDecoyOSCompletion (void)
-{
-	bHiddenOS = (DetermineHiddenOSCreationPhase() != TC_HIDDEN_OS_CREATION_PHASE_NONE);
-
-	if (bHiddenOS && !IsHiddenOSRunning())
-	{
-		// We have just finished encrypting the decoy OS, by which we also complete the entire process of
-		// creation of a hidden operating system
-
-		Warning ("HIDDEN_OS_CREATION_PROCESS_FINISHED_WARN");
-		Info ("HIDDEN_OS_CREATION_PROCESS_FINISHED_INFO");
-
-		Warning ("SHUT_DOWN_COMPUTER_NOW");
-	}
 }
 
 
@@ -6706,33 +8183,16 @@ static void AfterSysEncProgressWMInitTasks (HWND hwndDlg)
 		{
 		case SYSENC_STATUS_ENCRYPTING:
 
-			if (!IsHiddenOSRunning())
-			{
-				try
-				{
-					// Unregister the volume class filter because it's really needed only in the hidden OS
-					BootEncObj->RegisterFilterDriver (false, true);
-				}
-				catch (Exception &e)
-				{
-					e.Show (hwndDlg);
-					AbortProcessSilent();
-				}
-			}
-
 			if (BootEncStatus.ConfiguredEncryptedAreaStart == BootEncStatus.EncryptedAreaStart
 				&& BootEncStatus.ConfiguredEncryptedAreaEnd == BootEncStatus.EncryptedAreaEnd)
 			{
 				// The partition/drive had been fully encrypted
 
 				ManageStartupSeqWiz (TRUE, "");
+				WipeHiddenOSCreationConfig();	// For extra conservative security
+				ChangeSystemEncryptionStatus (SYSENC_STATUS_NONE);
+
 				Info ("SYSTEM_ENCRYPTION_FINISHED");
-
-				HandleDecoyOSCompletion ();
-
-				if (WipeHiddenOSCreationConfig())
-					ChangeSystemEncryptionStatus (SYSENC_STATUS_NONE);
-
 				EndMainDlg (MainDlg);
 				return;
 			}
@@ -6778,7 +8238,7 @@ static void AfterSysEncProgressWMInitTasks (HWND hwndDlg)
 static void AfterWMInitTasks (HWND hwndDlg)
 {
 	// Note that if bDirectSysEncModeCommand is not SYSENC_COMMAND_NONE, we already have the mutex.
-
+	
 	// SYSENC_COMMAND_DECRYPT has the highest priority because it also performs uninstallation (restores the
 	// original contents of the first drive cylinder, etc.) so it must be attempted regardless of the phase
 	// or content of configuration files.
@@ -7002,8 +8462,8 @@ static void AfterWMInitTasks (HWND hwndDlg)
 	if (bDirectSysEncMode && CreateSysEncMutex ())
 	{
 		// We were launched either by Mount or by the system (startup sequence). Most of such cases should have 
-		// been handled above already. Here we handle only the pretest phase (which can also be the hidden OS 
-		// creation/cloning phase actually) and possible inconsistencies.
+		// been handled above already. Here we handle only the pretest phase (which can also be a hidden OS 
+		// creation phase actually) and possible inconsistencies.
 
 		switch (SystemEncryptionStatus)
 		{
@@ -7013,7 +8473,7 @@ static void AfterWMInitTasks (HWND hwndDlg)
 
 				bHiddenOS = (hiddenOSCreationPhase != TC_HIDDEN_OS_CREATION_PHASE_NONE);
 
-				// Evaluate the results of the system encryption pretest (or of the hidden OS creation/cloning process)
+				// Evaluate the results of the system encryption pretest (or of the hidden OS creation process)
 
 				try
 				{
@@ -7029,57 +8489,56 @@ static void AfterWMInitTasks (HWND hwndDlg)
 
 				if (BootEncStatus.DriveMounted)
 				{
-					/* Pretest (or hidden OS cloning) successful.
-					Another possibility is that the hidden OS has been booted for the first time. */
+					/* Pretest successful or hidden OS has been booted during the process of hidden OS creation. */
 
 					switch (hiddenOSCreationPhase)
 					{
 					case TC_HIDDEN_OS_CREATION_PHASE_NONE:
 
-						// Pretest successful (no hidden operating system involved)
+						// Pretest successful (or the hidden OS has been booted for the first time since the user started installing a new decoy OS)
 
 						if (IsHiddenOSRunning())
 						{
-							// The hidden OS has been booted for the first time
-
-							Info ("FIRST_HIDDEN_OS_BOOT_INFO");
+							// The hidden OS has been booted for the first time since the user started installing a
+							// new decoy OS (presumably, our MBR config flags have been erased).
+							
+							// As for things we are responsible for, the process of hidden OS creation is completed
+							// (the rest is up to the user).
 
 							ManageStartupSeqWiz (TRUE, "");
 							ChangeSystemEncryptionStatus (SYSENC_STATUS_NONE);
 
 							EndMainDlg (MainDlg);
+							
 							return;
 						}
 
-						LoadPage (hwndDlg, SYSENC_PRETEST_RESULT_PAGE);
-						break; 
-
-					case TC_HIDDEN_OS_CREATION_PHASE_DECOY_OS:
-
-						// Hidden OS successfully created by cloning. Now we are supposed to encrypt the decoy OS.
+						// Pretest successful (no hidden operating system involved)
 
 						LoadPage (hwndDlg, SYSENC_PRETEST_RESULT_PAGE);
-						break; 
+						return;
+
+					case TC_HIDDEN_OS_CREATION_PHASE_WIPING:
+
+						// Hidden OS has been booted when we are supposed to wipe the original OS
+
+						LoadPage (hwndDlg, SYSENC_HIDDEN_OS_INITIAL_INFO_PAGE);
+						return;
+
+					case TC_HIDDEN_OS_CREATION_PHASE_WIPED:
+
+						// Hidden OS has been booted and the original OS wiped. Now the user is required to install a new, decoy, OS.
+
+						TextInfoDialogBox (TC_TBXID_DECOY_OS_INSTRUCTIONS);
+
+						EndMainDlg (MainDlg);
+						return;
 
 					default:
 
-						// Unexpected/unknown status -- "fix" the inconsistency
-
-						if (ChangeSystemEncryptionStatus (SYSENC_STATUS_NONE))
-						{
-							ManageStartupSeqWiz (TRUE, "");
-
-							// Remove our boot loader and restore the original one (if available)
-
-							WaitCursor ();
-
-							ForceRemoveSysEnc();
-
-							NormalCursor();
-							CloseSysEncMutex ();
-						}
+						// Unexpected/unknown status
+						ReportUnexpectedState (SRC_POS);
 						EndMainDlg (MainDlg);
-						InconsistencyResolved (SRC_POS);
 						return;
 					}
 				}
@@ -7087,8 +8546,9 @@ static void AfterWMInitTasks (HWND hwndDlg)
 				{
 					BOOL bAnswerTerminate = FALSE, bAnswerRetry = FALSE;
 
-					/* Pretest failed (or hidden OS cloning was not finished) */
-
+					/* Pretest failed 
+					or hidden OS cloning has been interrupted (and non-hidden OS is running)
+					or wiping of the original OS has not been started (and non-hidden OS is running) */
 
 					if (hiddenOSCreationPhase == TC_HIDDEN_OS_CREATION_PHASE_NONE)
 					{
@@ -7109,19 +8569,19 @@ static void AfterWMInitTasks (HWND hwndDlg)
 					}
 					else
 					{
-						// Hidden OS cloning was interrupted (or finished but decoy OS password was not entered).
-
+						// Hidden OS cloning was interrupted or wiping of the original OS has not been started
+						
 						char *tmpStr[] = {0,
-							hiddenOSCreationPhase == TC_HIDDEN_OS_CREATION_PHASE_DECOY_OS ? "RESTART_AND_ENTER_DECOY_OS_PASSWORD" : "OS_CLONING_NOT_FINISHED_ASK",
-							"OS_CLONING_NOT_FINISHED_CHOICE_RETRY",
-							"OS_CLONING_NOT_FINISHED_CHOICE_TERMINATE",
-							"OS_CLONING_NOT_FINISHED_CHOICE_ASK_LATER",
+							hiddenOSCreationPhase == TC_HIDDEN_OS_CREATION_PHASE_WIPING ? "OS_WIPING_NOT_FINISHED_ASK" : "HIDDEN_OS_CREATION_NOT_FINISHED_ASK",
+							"HIDDEN_OS_CREATION_NOT_FINISHED_CHOICE_RETRY",
+							"HIDDEN_OS_CREATION_NOT_FINISHED_CHOICE_TERMINATE",
+							"HIDDEN_OS_CREATION_NOT_FINISHED_CHOICE_ASK_LATER",
 							0};
 
-						switch (AskMultiChoice ((void **) tmpStr))
+						switch (AskMultiChoice ((void **) tmpStr, FALSE))
 						{
 						case 1:
-							// User wants to restart and continue OS cloning (or enter decoy OS password)
+							// User wants to restart and continue/retry
 							bAnswerTerminate = FALSE;
 							bAnswerRetry = TRUE;
 							break;
@@ -7142,11 +8602,20 @@ static void AfterWMInitTasks (HWND hwndDlg)
 
 					if (bAnswerRetry)
 					{
-						// User wants to restart and retry the pretest (or continue OS cloning or enter decoy OS password)
+						// User wants to restart and retry the pretest (or hidden OS creation)
 
 						// We re-register the driver for boot because the user may have selected
 						// "Last Known Good Configuration" from the Windows boot menu.
-						RegisterBootDriver ();
+						// Note that we need to do this even when creating a hidden OS (because 
+						// the hidden OS needs our boot driver and it will be a clone of this OS).
+						try
+						{
+							BootEncObj->RegisterBootDriver (bHiddenOS ? true : false);
+						}
+						catch (Exception &e)
+						{
+							e.Show (NULL);
+						}
 
 						if (AskWarnYesNo ("CONFIRM_RESTART") == IDYES)
 						{
@@ -7211,6 +8680,46 @@ static void AfterWMInitTasks (HWND hwndDlg)
 		if (DirectDeviceEncMode)
 		{
 			SwitchWizardToNonSysDeviceMode();
+			return;
+		}
+
+		if (DirectPromptNonSysInplaceEncResumeMode
+			&& !bInPlaceEncNonSysPending)
+		{
+			// This instance of the wizard has been launched via the system startup sequence to prompt for resume of
+			// a non-system in-place encryption process. However, no config file indicates that any such process
+			// has been interrupted. This inconsistency may occur, for example, when the process is finished
+			// but the wizard is not removed from the startup sequence because system encryption is in progress.
+			// Therefore, we remove it from the startup sequence now if possible.
+
+			if (!IsNonInstallMode () && SystemEncryptionStatus == SYSENC_STATUS_NONE)
+				ManageStartupSeqWiz (TRUE, "");
+
+			AbortProcessSilent ();
+		}
+
+		if (DirectNonSysInplaceEncResumeMode)
+		{
+			SwitchWizardToNonSysInplaceEncResumeMode();
+			return;
+		}
+		else if (DirectPromptNonSysInplaceEncResumeMode)
+		{
+			if (NonSysInplaceEncInProgressElsewhere ())
+				AbortProcessSilent ();
+
+			if (AskWarnYesNo ("NONSYS_INPLACE_ENC_RESUME_PROMPT") == IDYES)
+				SwitchWizardToNonSysInplaceEncResumeMode();
+			else
+				AbortProcessSilent ();
+
+			return;
+		}
+		else if (bInPlaceEncNonSysPending
+			&& !NonSysInplaceEncInProgressElsewhere ()
+			&& AskWarnYesNo ("NONSYS_INPLACE_ENC_RESUME_PROMPT") == IDYES)
+		{
+			SwitchWizardToNonSysInplaceEncResumeMode();
 			return;
 		}
 

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -11,6 +11,7 @@
 #include "Volume/Hash.h"
 #include "Main/GraphicUserInterface.h"
 #include "EncryptionOptionsWizardPage.h"
+#include "EncryptionTestDialog.h"
 
 namespace TrueCrypt
 {
@@ -112,16 +113,8 @@ namespace TrueCrypt
 	
 	void EncryptionOptionsWizardPage::OnTestButtonClick (wxCommandEvent& event)
 	{
-		try
-		{
-			EncryptionTest::TestAll();
-			Gui->ShowInfo ("TESTS_PASSED");
-		}
-		catch (Exception &e)
-		{
-			Gui->ShowError (e);
-			Gui->ShowError ("TESTS_FAILED");
-		}
+		EncryptionTestDialog dialog (this);
+		dialog.ShowModal();
 	}
 
 	void EncryptionOptionsWizardPage::SetEncryptionAlgorithm (shared_ptr <EncryptionAlgorithm> algorithm)

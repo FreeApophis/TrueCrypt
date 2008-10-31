@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -128,6 +128,28 @@ namespace TrueCrypt
 		Serializer sr (stream);
 		MountedVolumeInfo->Serialize (stream);
 		sr.Serialize ("Repair", Repair);
+	}
+
+	// DismountFilesystemRequest
+	void DismountFilesystemRequest::Deserialize (shared_ptr <Stream> stream)
+	{
+		CoreServiceRequest::Deserialize (stream);
+		Serializer sr (stream);
+		sr.Deserialize ("Force", Force);
+		MountPoint = sr.DeserializeWString ("MountPoint");
+	}
+
+	bool DismountFilesystemRequest::RequiresElevation () const
+	{
+		return !Core->HasAdminPrivileges();
+	}
+
+	void DismountFilesystemRequest::Serialize (shared_ptr <Stream> stream) const
+	{
+		CoreServiceRequest::Serialize (stream);
+		Serializer sr (stream);
+		sr.Serialize ("Force", Force);
+		sr.Serialize ("MountPoint", wstring (MountPoint));
 	}
 
 	// DismountVolumeRequest
@@ -265,6 +287,7 @@ namespace TrueCrypt
 	TC_SERIALIZER_FACTORY_ADD_CLASS (CoreServiceRequest);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (ChangePasswordRequest);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (CheckFilesystemRequest);
+	TC_SERIALIZER_FACTORY_ADD_CLASS (DismountFilesystemRequest);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (DismountVolumeRequest);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (ExitRequest);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (GetDeviceSizeRequest);

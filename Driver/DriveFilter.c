@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -9,11 +9,12 @@
 #include "TCdefs.h"
 #include <ntddk.h>
 #include <ntddvol.h>
+#include "Cache.h"
 #include "Crc.h"
 #include "Crypto.h"
 #include "Apidrvr.h"
 #include "EncryptedIoQueue.h"
-#include "Endian.h"
+#include "Common/Endian.h"
 #include "Ntdriver.h"
 #include "Ntvol.h"
 #include "Volumes.h"
@@ -44,6 +45,14 @@ static KSPIN_LOCK SetupStatusSpinLock;
 static int64 SetupStatusEncryptedAreaEnd;
 static BOOL TransformWaitingForIdle;
 static NTSTATUS SetupResult;
+
+static WipeDecoySystemRequest WipeDecoyRequest;
+static volatile BOOL DecoySystemWipeInProgress = FALSE;
+static volatile BOOL DecoySystemWipeThreadAbortRequested;
+static KSPIN_LOCK DecoySystemWipeStatusSpinLock;
+static int64 DecoySystemWipedAreaEnd;
+static PKTHREAD DecoySystemWipeThread;
+static NTSTATUS DecoySystemWipeResult;
 
 
 NTSTATUS LoadBootArguments ()
@@ -89,6 +98,9 @@ NTSTATUS LoadBootArguments ()
 		Dump ("DecoySystemPartitionStart = %I64u\n", BootArgs.DecoySystemPartitionStart);
 		Dump ("BootArgumentsCrc32 = %x\n", BootArgs.BootArgumentsCrc32);
 
+		if (CacheBootPassword && BootArgs.BootPassword.Length > 0)
+			AddPasswordToCache (&BootArgs.BootPassword);
+
 		status = STATUS_SUCCESS;
 	}
 
@@ -103,12 +115,17 @@ NTSTATUS DriveFilterAddDevice (PDRIVER_OBJECT driverObject, PDEVICE_OBJECT pdo)
 	DriveFilterExtension *Extension;
 	NTSTATUS status;
 	PDEVICE_OBJECT filterDeviceObject = NULL;
+	PDEVICE_OBJECT attachedDeviceObject;
 
 	Dump ("DriveFilterAddDevice pdo=%p\n", pdo);
 
+	attachedDeviceObject = IoGetAttachedDeviceReference (pdo);
+
 	DriverMutexWait();
-	status = IoCreateDevice (driverObject, sizeof (DriveFilterExtension), NULL, FILE_DEVICE_DISK, 0, FALSE, &filterDeviceObject);  // Using pdo->DeviceType instead of FILE_DEVICE_DISK induces a bug in Disk Management console on Vista
+	status = IoCreateDevice (driverObject, sizeof (DriveFilterExtension), NULL, attachedDeviceObject->DeviceType, 0, FALSE, &filterDeviceObject);
 	DriverMutexRelease();
+
+	ObDereferenceObject (attachedDeviceObject);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -140,7 +157,7 @@ NTSTATUS DriveFilterAddDevice (PDRIVER_OBJECT driverObject, PDEVICE_OBJECT pdo)
 
 	if (!BootDriveFound)
 	{
-		status = EncryptedIoQueueStart (&Extension->Queue, NULL);
+		status = EncryptedIoQueueStart (&Extension->Queue);
 		if (!NT_SUCCESS (status))
 			goto err;
 
@@ -228,7 +245,7 @@ static NTSTATUS MountDrive (DriveFilterExtension *Extension, Password *password,
 		goto ret;
 	}
 
-	if (VolumeReadHeader (!hiddenVolume, header, password, &Extension->Queue.CryptoInfo, Extension->HeaderCryptoInfo) == 0)
+	if (ReadVolumeHeader (!hiddenVolume, header, password, &Extension->Queue.CryptoInfo, Extension->HeaderCryptoInfo) == 0)
 	{
 		// Header decrypted
 		status = STATUS_SUCCESS;
@@ -522,8 +539,7 @@ static NTSTATUS DispatchPnp (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilterE
 			if (attachedDevice == DeviceObject || (attachedDevice->Flags & DO_POWER_PAGABLE))
 				DeviceObject->Flags |= DO_POWER_PAGABLE;
 
-			if (attachedDevice != DeviceObject)
-				ObDereferenceObject (attachedDevice);
+			ObDereferenceObject (attachedDevice);
 		}
 
 		// Prevent creation of hibernation and crash dump files
@@ -594,19 +610,19 @@ static NTSTATUS DispatchPower (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilte
 			TCSleep (200);
 	}
 
+#if 0	// Dismount of the system drive is disabled until there is a way to do it without causing system errors (see the documentation for more info)
 	if (DriverShuttingDown
 		&& Extension->DriveMounted
 		&& irpSp->MinorFunction == IRP_MN_SET_POWER
 		&& irpSp->Parameters.Power.Type == DevicePowerState)
 	{
-		Dump ("IRP_MN_SET_POWER\n");
-
 		if (Extension->QueueStarted && EncryptedIoQueueIsRunning (&Extension->Queue))
 			EncryptedIoQueueStop (&Extension->Queue);
 
 		if (Extension->DriveMounted)
 			DismountDrive (Extension);
 	}
+#endif // 0
 
 	PoStartNextPowerIrp (Irp);
 
@@ -673,11 +689,8 @@ void ReopenBootVolumeHeader (PIRP irp, PIO_STACK_LOCATION irpSp)
 		return;
 	}
 
-	if (irpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof (ReopenBootVolumeHeaderRequest))
-	{
-		irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
+	if (!ValidateIOBufferSize (irp, sizeof (ReopenBootVolumeHeaderRequest), ValidateInput))
 		return;
-	}
 
 	if (!BootDriveFound || !BootDriveFilterExtension || !BootDriveFilterExtension->DriveMounted || !BootDriveFilterExtension->HeaderCryptoInfo
 		|| request->VolumePassword.Length > MAX_PASSWORD)
@@ -705,7 +718,7 @@ void ReopenBootVolumeHeader (PIRP irp, PIO_STACK_LOCATION irpSp)
 		goto ret;
 	}
 
-	if (VolumeReadHeader (!BootDriveFilterExtension->HiddenSystem, header, &request->VolumePassword, NULL, BootDriveFilterExtension->HeaderCryptoInfo) == 0)
+	if (ReadVolumeHeader (!BootDriveFilterExtension->HiddenSystem, header, &request->VolumePassword, NULL, BootDriveFilterExtension->HeaderCryptoInfo) == 0)
 	{
 		Dump ("Header reopened\n");
 		
@@ -1169,7 +1182,6 @@ static VOID SetupThreadProc (PVOID threadArg)
 	{
 		if (SetupRequest.SetupMode == SetupEncryption)
 		{
-
 			if (offset.QuadPart + setupBlockSize > Extension->ConfiguredEncryptedAreaEnd + 1)
 				setupBlockSize = (ULONG) (Extension->ConfiguredEncryptedAreaEnd + 1 - offset.QuadPart);
 
@@ -1200,8 +1212,37 @@ static VOID SetupThreadProc (PVOID threadArg)
 		if (!NT_SUCCESS (status))
 		{
 			Dump ("TCReadDevice error %x  offset=%I64d\n", status, offset.QuadPart);
-			SetupResult = status;
-			goto err;
+
+			if (SetupRequest.ZeroUnreadableSectors && SetupRequest.SetupMode == SetupEncryption)
+			{
+				// Zero unreadable sectors
+
+				uint64 zeroedSectorCount;
+
+				status = ZeroUnreadableSectors (BootDriveFilterExtension->LowerDeviceObject, offset, setupBlockSize, &zeroedSectorCount);
+				if (!NT_SUCCESS (status))
+				{
+					SetupResult = status;
+					goto err;
+				}
+
+				// Retry read
+
+				status = TCReadDevice (BootDriveFilterExtension->LowerDeviceObject, buffer, offset, setupBlockSize);
+				if (!NT_SUCCESS (status))
+				{
+					SetupResult = status;
+					goto err;
+				}
+			}
+			else
+			{
+				if (status == STATUS_NOT_IMPLEMENTED)
+					status = STATUS_NONCONTINUABLE_EXCEPTION;	// Use a distinct error code
+
+				SetupResult = status;
+				goto err;
+			}
 		}
 
 		dataUnit.Value = offset.QuadPart / ENCRYPTION_DATA_UNIT_SIZE;
@@ -1230,6 +1271,13 @@ static VOID SetupThreadProc (PVOID threadArg)
 					status = TCWriteDevice (BootDriveFilterExtension->LowerDeviceObject, wipeBuffer, offset, setupBlockSize);
 					if (!NT_SUCCESS (status))
 					{
+						// Undo failed write operation
+						DecryptDataUnits (buffer, &dataUnit, setupBlockSize / ENCRYPTION_DATA_UNIT_SIZE, Extension->Queue.CryptoInfo);
+						TCWriteDevice (BootDriveFilterExtension->LowerDeviceObject, buffer, offset, setupBlockSize);
+
+						if (status == STATUS_NOT_IMPLEMENTED)
+							status = STATUS_NONCONTINUABLE_EXCEPTION;	// Use a distinct error code
+
 						SetupResult = status;
 						goto err;
 					}
@@ -1247,6 +1295,18 @@ static VOID SetupThreadProc (PVOID threadArg)
 		if (!NT_SUCCESS (status))
 		{
 			Dump ("TCWriteDevice error %x\n", status);
+
+			// Undo failed write operation
+			if (SetupRequest.SetupMode == SetupEncryption)
+				DecryptDataUnits (buffer, &dataUnit, setupBlockSize / ENCRYPTION_DATA_UNIT_SIZE, Extension->Queue.CryptoInfo);
+			else
+				EncryptDataUnits (buffer, &dataUnit, setupBlockSize / ENCRYPTION_DATA_UNIT_SIZE, Extension->Queue.CryptoInfo);
+
+			TCWriteDevice (BootDriveFilterExtension->LowerDeviceObject, buffer, offset, setupBlockSize);
+
+			if (status == STATUS_NOT_IMPLEMENTED)
+				status = STATUS_NONCONTINUABLE_EXCEPTION;	// Use a distinct error code
+
 			SetupResult = status;
 			goto err;
 		}
@@ -1283,6 +1343,9 @@ static VOID SetupThreadProc (PVOID threadArg)
 abort:
 	SetupResult = STATUS_SUCCESS;
 err:
+
+	if (Extension->Queue.EncryptedAreaEnd == -1)
+		Extension->Queue.EncryptedAreaStart = -1;
 
 	if (EncryptedIoQueueIsSuspended (&Extension->Queue))
 		EncryptedIoQueueResumeFromHold (&Extension->Queue);
@@ -1355,12 +1418,7 @@ NTSTATUS StartBootEncryptionSetup (PDEVICE_OBJECT DeviceObject, PIRP irp, PIO_ST
 
 void GetBootDriveVolumeProperties (PIRP irp, PIO_STACK_LOCATION irpSp)
 {
-	if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (VOLUME_PROPERTIES_STRUCT))
-	{
-		irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
-		irp->IoStatus.Information = 0;
-	}
-	else
+	if (ValidateIOBufferSize (irp, sizeof (VOLUME_PROPERTIES_STRUCT), ValidateOutput))
 	{
 		DriveFilterExtension *Extension = BootDriveFilterExtension;
 		VOLUME_PROPERTIES_STRUCT *prop = (VOLUME_PROPERTIES_STRUCT *) irp->AssociatedIrp.SystemBuffer;
@@ -1379,8 +1437,10 @@ void GetBootDriveVolumeProperties (PIRP irp, PIO_STACK_LOCATION irpSp)
 			prop->mode = Extension->Queue.CryptoInfo->mode;
 			prop->pkcs5 = Extension->Queue.CryptoInfo->pkcs5;
 			prop->pkcs5Iterations = Extension->Queue.CryptoInfo->noIterations;
+#if 0
 			prop->volumeCreationTime = Extension->Queue.CryptoInfo->volume_creation_time;
 			prop->headerCreationTime = Extension->Queue.CryptoInfo->header_creation_time;
+#endif
 			prop->volFormatVersion = Extension->Queue.CryptoInfo->LegacyVolume ? TC_VOLUME_FORMAT_VERSION_PRE_6_0 : TC_VOLUME_FORMAT_VERSION;
 
 			prop->totalBytesRead = Extension->Queue.TotalBytesRead;
@@ -1395,12 +1455,9 @@ void GetBootDriveVolumeProperties (PIRP irp, PIO_STACK_LOCATION irpSp)
 
 void GetBootEncryptionStatus (PIRP irp, PIO_STACK_LOCATION irpSp)
 {
-	if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (BootEncryptionStatus))
-	{
-		irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
-		irp->IoStatus.Information = 0;
-	}
-	else
+	/* IMPORTANT: Do NOT add any potentially time-consuming operations to this function. */
+
+	if (ValidateIOBufferSize (irp, sizeof (BootEncryptionStatus), ValidateOutput))
 	{
 		DriveFilterExtension *Extension = BootDriveFilterExtension;
 		BootEncryptionStatus *bootEncStatus = (BootEncryptionStatus *) irp->AssociatedIrp.SystemBuffer;
@@ -1459,12 +1516,7 @@ void GetBootEncryptionStatus (PIRP irp, PIO_STACK_LOCATION irpSp)
 
 void GetBootLoaderVersion (PIRP irp, PIO_STACK_LOCATION irpSp)
 {
-	if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (uint16))
-	{
-		irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
-		irp->IoStatus.Information = 0;
-	}
-	else
+	if (ValidateIOBufferSize (irp, sizeof (uint16), ValidateOutput))
 	{
 		if (BootArgsValid)
 		{
@@ -1483,12 +1535,7 @@ void GetBootLoaderVersion (PIRP irp, PIO_STACK_LOCATION irpSp)
 
 void GetBootEncryptionAlgorithmName (PIRP irp, PIO_STACK_LOCATION irpSp)
 {
-	if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < sizeof (GetBootEncryptionAlgorithmNameRequest))
-	{
-		irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
-		irp->IoStatus.Information = 0;
-	}
-	else
+	if (ValidateIOBufferSize (irp, sizeof (GetBootEncryptionAlgorithmNameRequest), ValidateOutput))
 	{
 		if (BootDriveFilterExtension && BootDriveFilterExtension->DriveMounted)
 		{
@@ -1549,4 +1596,252 @@ NTSTATUS AbortBootEncryptionSetup ()
 	TCStopThread (EncryptionSetupThread, NULL);
 
 	return STATUS_SUCCESS;
+}
+
+
+static VOID DecoySystemWipeThreadProc (PVOID threadArg)
+{
+	DriveFilterExtension *Extension = BootDriveFilterExtension;
+
+	LARGE_INTEGER offset;
+	UINT64_STRUCT dataUnit;
+	ULONG wipeBlockSize = TC_ENCRYPTION_SETUP_IO_BLOCK_SIZE;
+
+	CRYPTO_INFO *wipeCryptoInfo = NULL;
+	byte *wipeBuffer = NULL;
+	byte *wipeRandBuffer = NULL;
+	byte wipeRandChars[TC_WIPE_RAND_CHAR_COUNT];
+	size_t wipePass;
+	int ea = Extension->Queue.CryptoInfo->ea;
+
+	KIRQL irql;
+	NTSTATUS status;
+
+	DecoySystemWipeResult = STATUS_UNSUCCESSFUL;
+
+	wipeBuffer = TCalloc (TC_ENCRYPTION_SETUP_IO_BLOCK_SIZE);
+	if (!wipeBuffer)
+	{
+		DecoySystemWipeResult = STATUS_INSUFFICIENT_RESOURCES;
+		goto ret;
+	}
+	
+	wipeRandBuffer = TCalloc (TC_ENCRYPTION_SETUP_IO_BLOCK_SIZE);
+	if (!wipeRandBuffer)
+	{
+		DecoySystemWipeResult = STATUS_INSUFFICIENT_RESOURCES;
+		goto ret;
+	}
+
+	wipeCryptoInfo = crypto_open();
+	if (!wipeCryptoInfo)
+	{
+		DecoySystemWipeResult = STATUS_INSUFFICIENT_RESOURCES;
+		goto ret;
+	}
+
+	wipeCryptoInfo->ea = ea;
+	wipeCryptoInfo->mode = Extension->Queue.CryptoInfo->mode;
+
+	if (EAInit (ea, WipeDecoyRequest.WipeKey, wipeCryptoInfo->ks) != ERR_SUCCESS)
+	{
+		DecoySystemWipeResult = STATUS_INVALID_PARAMETER;
+		goto ret;
+	}
+
+	memcpy (wipeCryptoInfo->k2, WipeDecoyRequest.WipeKey + EAGetKeySize (ea), EAGetKeySize (ea));
+	
+	if (!EAInitMode (wipeCryptoInfo))
+	{
+		DecoySystemWipeResult = STATUS_INVALID_PARAMETER;
+		goto err;
+	}
+
+	EncryptDataUnits (wipeRandBuffer, &dataUnit, wipeBlockSize / ENCRYPTION_DATA_UNIT_SIZE, wipeCryptoInfo);
+	memcpy (wipeRandChars, wipeRandBuffer, sizeof (wipeRandChars));
+
+	burn (WipeDecoyRequest.WipeKey, sizeof (WipeDecoyRequest.WipeKey));
+
+	offset.QuadPart = Extension->ConfiguredEncryptedAreaStart;
+		
+	Dump ("Wiping decoy system:  start offset = %I64d\n", offset.QuadPart);
+
+	while (!DecoySystemWipeThreadAbortRequested)
+	{
+		if (offset.QuadPart + wipeBlockSize > Extension->ConfiguredEncryptedAreaEnd + 1)
+			wipeBlockSize = (ULONG) (Extension->ConfiguredEncryptedAreaEnd + 1 - offset.QuadPart);
+
+		if (offset.QuadPart > Extension->ConfiguredEncryptedAreaEnd)
+			break;
+
+		for (wipePass = 1; wipePass <= GetWipePassCount (WipeDecoyRequest.WipeAlgorithm); ++wipePass)
+		{
+			if (!WipeBuffer (WipeDecoyRequest.WipeAlgorithm, wipeRandChars, wipePass, wipeBuffer, wipeBlockSize))
+			{
+				dataUnit.Value = offset.QuadPart / ENCRYPTION_DATA_UNIT_SIZE;
+				EncryptDataUnits (wipeRandBuffer, &dataUnit, wipeBlockSize / ENCRYPTION_DATA_UNIT_SIZE, wipeCryptoInfo);
+				memcpy (wipeBuffer, wipeRandBuffer, wipeBlockSize);
+			}
+
+			while (!NT_SUCCESS (EncryptedIoQueueHoldWhenIdle (&Extension->Queue, 500)))
+			{
+				if (DecoySystemWipeThreadAbortRequested)
+					goto abort;
+			}
+
+			status = TCWriteDevice (BootDriveFilterExtension->LowerDeviceObject, wipeBuffer, offset, wipeBlockSize);
+
+			if (!NT_SUCCESS (status))
+			{
+				DecoySystemWipeResult = status;
+				goto err;
+			}
+
+			EncryptedIoQueueResumeFromHold (&Extension->Queue);
+		}
+
+		offset.QuadPart += wipeBlockSize;
+
+		KeAcquireSpinLock (&DecoySystemWipeStatusSpinLock, &irql);
+		DecoySystemWipedAreaEnd = offset.QuadPart - 1;
+		KeReleaseSpinLock (&DecoySystemWipeStatusSpinLock, irql);
+	}
+
+abort:
+	DecoySystemWipeResult = STATUS_SUCCESS;
+err:
+
+	if (EncryptedIoQueueIsSuspended (&Extension->Queue))
+		EncryptedIoQueueResumeFromHold (&Extension->Queue);
+
+	Dump ("Wipe end: DecoySystemWipedAreaEnd=%I64d (%I64d)\n", DecoySystemWipedAreaEnd, DecoySystemWipedAreaEnd / 1024 / 1024);
+
+ret:
+	if (wipeCryptoInfo)
+		crypto_close (wipeCryptoInfo);
+
+	if (wipeRandBuffer)
+		TCfree (wipeRandBuffer);
+
+	if (wipeBuffer)
+		TCfree (wipeBuffer);
+
+	DecoySystemWipeInProgress = FALSE;
+	PsTerminateSystemThread (DecoySystemWipeResult);
+}
+
+
+NTSTATUS StartDecoySystemWipe (PDEVICE_OBJECT DeviceObject, PIRP irp, PIO_STACK_LOCATION irpSp)
+{
+	NTSTATUS status;
+	WipeDecoySystemRequest *request;
+
+	if (!UserCanAccessDriveDevice())
+		return STATUS_ACCESS_DENIED;
+
+	if (!IsHiddenSystemRunning()
+		|| irpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof (WipeDecoySystemRequest))
+		return STATUS_INVALID_PARAMETER;
+
+	if (DecoySystemWipeInProgress)
+		return STATUS_SUCCESS;
+
+	request = (WipeDecoySystemRequest *) irp->AssociatedIrp.SystemBuffer;
+	WipeDecoyRequest = *request;
+
+	burn (request->WipeKey, sizeof (request->WipeKey));
+
+	DecoySystemWipeThreadAbortRequested = FALSE;
+	KeInitializeSpinLock (&DecoySystemWipeStatusSpinLock);
+	DecoySystemWipedAreaEnd = BootDriveFilterExtension->ConfiguredEncryptedAreaStart;
+
+	DecoySystemWipeInProgress = TRUE;
+	status = TCStartThread (DecoySystemWipeThreadProc, DeviceObject, &DecoySystemWipeThread);
+	
+	if (!NT_SUCCESS (status))
+		DecoySystemWipeInProgress = FALSE;
+
+	return status;
+}
+
+
+BOOL IsDecoySystemWipeInProgress()
+{
+	return DecoySystemWipeInProgress;
+}
+
+
+void GetDecoySystemWipeStatus (PIRP irp, PIO_STACK_LOCATION irpSp)
+{
+	if (ValidateIOBufferSize (irp, sizeof (DecoySystemWipeStatus), ValidateOutput))
+	{
+		DecoySystemWipeStatus *wipeStatus = (DecoySystemWipeStatus *) irp->AssociatedIrp.SystemBuffer;
+
+		if (!IsHiddenSystemRunning())
+		{
+			irp->IoStatus.Status = STATUS_INVALID_PARAMETER;
+			irp->IoStatus.Information = 0;
+		}
+		else
+		{
+			wipeStatus->WipeInProgress = DecoySystemWipeInProgress;
+			wipeStatus->WipeAlgorithm = WipeDecoyRequest.WipeAlgorithm;
+
+			if (DecoySystemWipeInProgress)
+			{
+				KIRQL irql;
+				KeAcquireSpinLock (&DecoySystemWipeStatusSpinLock, &irql);
+				wipeStatus->WipedAreaEnd = DecoySystemWipedAreaEnd;
+				KeReleaseSpinLock (&DecoySystemWipeStatusSpinLock, irql);
+			}
+			else
+				wipeStatus->WipedAreaEnd = DecoySystemWipedAreaEnd;
+			
+			irp->IoStatus.Information = sizeof (DecoySystemWipeStatus);
+			irp->IoStatus.Status = STATUS_SUCCESS;
+		}
+	}
+}
+
+
+NTSTATUS GetDecoySystemWipeResult()
+{
+	return DecoySystemWipeResult;
+}
+
+
+NTSTATUS AbortDecoySystemWipe ()
+{
+	if (!IoIsSystemThread (PsGetCurrentThread()) && !UserCanAccessDriveDevice())
+		return STATUS_ACCESS_DENIED;
+
+	if (DecoySystemWipeInProgress)
+	{
+		DecoySystemWipeThreadAbortRequested = TRUE;
+		TCStopThread (DecoySystemWipeThread, NULL);
+	}
+
+	return STATUS_SUCCESS;
+}
+
+
+uint64 GetBootDriveLength ()
+{
+	return BootDriveLength.QuadPart;
+}
+
+
+NTSTATUS WriteBootDriveSector (PIRP irp, PIO_STACK_LOCATION irpSp)
+{
+	WriteBootDriveSectorRequest *request;
+
+	if (!UserCanAccessDriveDevice())
+		return STATUS_ACCESS_DENIED;
+
+	if (!BootDriveFilterExtension
+		|| irpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof (WriteBootDriveSectorRequest))
+		return STATUS_INVALID_PARAMETER;
+
+	request = (WriteBootDriveSectorRequest *) irp->AssociatedIrp.SystemBuffer;
+	return TCWriteDevice (BootDriveFilterExtension->LowerDeviceObject, request->Data, request->Offset, sizeof (request->Data));
 }

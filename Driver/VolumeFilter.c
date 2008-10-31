@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -26,12 +26,17 @@ NTSTATUS VolumeFilterAddDevice (PDRIVER_OBJECT driverObject, PDEVICE_OBJECT pdo)
 	VolumeFilterExtension *Extension;
 	NTSTATUS status;
 	PDEVICE_OBJECT filterDeviceObject = NULL;
+	PDEVICE_OBJECT attachedDeviceObject;
 
 	Dump ("VolumeFilterAddDevice pdo=%p\n", pdo);
 
+	attachedDeviceObject = IoGetAttachedDeviceReference (pdo);
+
 	DriverMutexWait();
-	status = IoCreateDevice (driverObject, sizeof (VolumeFilterExtension), NULL, pdo->DeviceType, 0, FALSE, &filterDeviceObject);
+	status = IoCreateDevice (driverObject, sizeof (VolumeFilterExtension), NULL, attachedDeviceObject->DeviceType, 0, FALSE, &filterDeviceObject);
 	DriverMutexRelease();
+
+	ObDereferenceObject (attachedDeviceObject);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -192,8 +197,7 @@ static NTSTATUS DispatchPnp (PDEVICE_OBJECT DeviceObject, PIRP Irp, VolumeFilter
 			if (attachedDevice == DeviceObject || (attachedDevice->Flags & DO_POWER_PAGABLE))
 				DeviceObject->Flags |= DO_POWER_PAGABLE;
 
-			if (attachedDevice != DeviceObject)
-				ObDereferenceObject (attachedDevice);
+			ObDereferenceObject (attachedDevice);
 		}
 
 		return PassFilteredIrp (Extension->LowerDeviceObject, Irp, OnDeviceUsageNotificationCompleted, Extension);

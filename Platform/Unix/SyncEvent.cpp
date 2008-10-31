@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -24,11 +24,15 @@ namespace TrueCrypt
 
 	SyncEvent::~SyncEvent ()
 	{
-		assert (Initialized);
+#ifdef DEBUG
+		int status =
+#endif
+		pthread_cond_destroy (&SystemSyncEvent);
 
-		int status = pthread_cond_destroy (&SystemSyncEvent);
+#ifdef DEBUG
 		if (status != 0)
-			throw SystemException (SRC_POS, status);
+			SystemLog::WriteException (SystemException (SRC_POS, status));
+#endif
 
 		Initialized = false;
 	}

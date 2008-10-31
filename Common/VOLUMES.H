@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.5 the full text of which is contained in the
+ by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -109,18 +109,22 @@ extern "C" {
 
 // Volume header flags
 #define TC_HEADER_FLAG_ENCRYPTED_SYSTEM			0x1
+#define TC_HEADER_FLAG_NONSYS_INPLACE_ENC		0x2		// The volume has been created using non-system in-place encryption
 
 
 #ifndef TC_HEADER_Volume_VolumeHeader
 
 #include "Password.h"
 
-uint16 GetHeaderField16 (byte *header, size_t offset);
-uint32 GetHeaderField32 (byte *header, size_t offset);
-UINT64_STRUCT GetHeaderField64 (byte *header, size_t offset);
-int VolumeReadHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCRYPTO_INFO *retInfo, CRYPTO_INFO *retHeaderCryptoInfo);
+extern BOOL ReadVolumeHeaderRecoveryMode;
+
+uint16 GetHeaderField16 (byte *header, int offset);
+uint32 GetHeaderField32 (byte *header, int offset);
+UINT64_STRUCT GetHeaderField64 (byte *header, int offset);
+int ReadVolumeHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCRYPTO_INFO *retInfo, CRYPTO_INFO *retHeaderCryptoInfo);
 #ifndef TC_WINDOWS_BOOT
-int VolumeWriteHeader (BOOL bBoot, char *encryptedHeader, int ea, int mode, Password *password, int pkcs5_prf, char *masterKeydata, PCRYPTO_INFO *retInfo, unsigned __int64 volumeSize, unsigned __int64 hiddenVolumeSize, unsigned __int64 encryptedAreaStart, unsigned __int64 encryptedAreaLength, uint16 requiredProgramVersion, uint32 headerFlags, BOOL bWipeMode);
+int CreateVolumeHeaderInMemory (BOOL bBoot, char *encryptedHeader, int ea, int mode, Password *password, int pkcs5_prf, char *masterKeydata, PCRYPTO_INFO *retInfo, unsigned __int64 volumeSize, unsigned __int64 hiddenVolumeSize, unsigned __int64 encryptedAreaStart, unsigned __int64 encryptedAreaLength, uint16 requiredProgramVersion, uint32 headerFlags, BOOL bWipeMode);
+int WriteRandomDataToReservedHeaderAreas (HANDLE dev, CRYPTO_INFO *cryptoInfo, uint64 dataAreaSize, BOOL bPrimaryOnly, BOOL bBackupOnly);
 #endif
 
 #endif // !TC_HEADER_Volume_VolumeHeader

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -126,33 +126,36 @@ namespace TrueCrypt
 				}
 			}
 
-			SizeDone.Set (Options->Size);
-
-			// Backup header
-			SecureBuffer backupHeader (Layout->GetHeaderSize());
-
-			SecureBuffer backupHeaderSalt (VolumeHeader::GetSaltSize());
-			RandomNumberGenerator::GetData (backupHeaderSalt);
-
-			Options->VolumeHeaderKdf->DeriveKey (HeaderKey, *PasswordKey, backupHeaderSalt);
-
-			Layout->GetHeader()->EncryptNew (backupHeader, backupHeaderSalt, HeaderKey, Options->VolumeHeaderKdf);
-
-			if (Options->Quick || Options->Type == VolumeType::Hidden)
-				VolumeFile->SeekEnd (Layout->GetBackupHeaderOffset());
-
-			VolumeFile->Write (backupHeader);
-
-			if (Options->Type == VolumeType::Normal)
+			if (!AbortRequested)
 			{
-				// Write random data to space reserved for hidden volume backup header
-				Core->RandomizeEncryptionAlgorithmKey (Options->EA);
-				Options->EA->Encrypt (backupHeader);
+				SizeDone.Set (Options->Size);
+
+				// Backup header
+				SecureBuffer backupHeader (Layout->GetHeaderSize());
+
+				SecureBuffer backupHeaderSalt (VolumeHeader::GetSaltSize());
+				RandomNumberGenerator::GetData (backupHeaderSalt);
+
+				Options->VolumeHeaderKdf->DeriveKey (HeaderKey, *PasswordKey, backupHeaderSalt);
+
+				Layout->GetHeader()->EncryptNew (backupHeader, backupHeaderSalt, HeaderKey, Options->VolumeHeaderKdf);
+
+				if (Options->Quick || Options->Type == VolumeType::Hidden)
+					VolumeFile->SeekEnd (Layout->GetBackupHeaderOffset());
 
 				VolumeFile->Write (backupHeader);
-			}
 
-			VolumeFile->Flush();
+				if (Options->Type == VolumeType::Normal)
+				{
+					// Write random data to space reserved for hidden volume backup header
+					Core->RandomizeEncryptionAlgorithmKey (Options->EA);
+					Options->EA->Encrypt (backupHeader);
+
+					VolumeFile->Write (backupHeader);
+				}
+
+				VolumeFile->Flush();
+			}
 		}
 		catch (Exception &e)
 		{
@@ -178,27 +181,20 @@ namespace TrueCrypt
 
 		{
 #ifdef TC_UNIX
-			UserId origDeviceOwner;
-			origDeviceOwner.SystemId = (uid_t) -1;
+			// Temporarily take ownership of a device if the user is not an administrator
+			UserId origDeviceOwner ((uid_t) -1);
 
 			if (!Core->HasAdminPrivileges() && options->Path.IsDevice())
 			{
-				// Temporarily take ownership of the device to be formatted
-				struct stat statData;
-				throw_sys_if (stat (string (options->Path).c_str(), &statData) == -1);
-
-				UserId owner;
-				owner.SystemId = getuid();
-				Core->SetFileOwner (options->Path, owner);
-				origDeviceOwner.SystemId = statData.st_uid;
+				origDeviceOwner = FilesystemPath (wstring (options->Path)).GetOwner();
+				Core->SetFileOwner (options->Path, UserId (getuid()));
 			}
-			
+
 			finally_do_arg2 (FilesystemPath, options->Path, UserId, origDeviceOwner,
-				{
-					if (finally_arg2.SystemId != (uid_t) -1)
-						Core->SetFileOwner (finally_arg, finally_arg2);
-				}
-			);
+			{
+				if (finally_arg2.SystemId != (uid_t) -1)
+					Core->SetFileOwner (finally_arg, finally_arg2);
+			});
 #endif
 
 			VolumeFile.reset (new File);

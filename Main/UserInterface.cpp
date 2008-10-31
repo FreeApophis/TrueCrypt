@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -14,8 +14,9 @@
 #include "Platform/PlatformTest.h"
 #ifdef TC_UNIX
 #include "Platform/Unix/Process.h"
-#include <sys/utsname.h>
 #endif
+#include "Platform/SystemInfo.h"
+#include "Common/SecurityToken.h"
 #include "Volume/EncryptionTest.h"
 #include "Application.h"
 #include "FavoriteVolume.h"
@@ -31,6 +32,13 @@ namespace TrueCrypt
 	{
 		Core->WarningEvent.Disconnect (this);
 		Core->VolumeMountedEvent.Disconnect (this);
+
+		try
+		{
+			if (SecurityToken::IsInitialized())
+				SecurityToken::CloseLibrary();
+		}
+		catch (...) { }
 	}
 
 	void UserInterface::CheckRequirementsForMountingVolume () const
@@ -38,16 +46,10 @@ namespace TrueCrypt
 #ifdef TC_LINUX
 		if (!Preferences.NonInteractive)
 		{
-			utsname unameData;
-			if (uname (&unameData) != -1)
-			{
-				vector <string> osVersion = StringConverter::Split (unameData.release, ".-");
-				if (osVersion.size() >= 3
-					&& osVersion[0] == "2" && osVersion[1] == "6" && StringConverter::ToUInt32 (osVersion[2]) < 24)
-				{
-						ShowWarning (_("Your system uses an old version of the Linux kernel.\n\nDue to a bug in the Linux kernel, your system may stop responding when writing data to a TrueCrypt volume. This problem can be solved by upgrading the kernel to version 2.6.24 or later."));
-				}
-			}
+			vector <int> osVersion = SystemInfo::GetVersion();
+
+			if (osVersion.size() >= 3 && osVersion[0] == 2 && osVersion[1] == 6 && osVersion[2] < 24)
+				ShowWarning (_("Your system uses an old version of the Linux kernel.\n\nDue to a bug in the Linux kernel, your system may stop responding when writing data to a TrueCrypt volume. This problem can be solved by upgrading the kernel to version 2.6.24 or later."));
 		}
 #endif // TC_LINUX
 	}
@@ -143,6 +145,8 @@ namespace TrueCrypt
 	void UserInterface::DismountVolumes (VolumeInfoList volumes, bool ignoreOpenFiles, bool interactive) const
 	{
 		BusyScope busy (this);
+
+		volumes.sort (VolumeInfo::FirstVolumeMountedAfterSecond);
 
 		wxString message;
 		bool twoPassMode = volumes.size() > 1;
@@ -251,7 +255,7 @@ namespace TrueCrypt
 
 			wxString protection;
 			if (volume.Type == VolumeType::Hidden)
-				protection = LangString["N_A_UISTR"];
+				protection = LangString["NOT_APPLICABLE_OR_NOT_AVAILABLE"];
 			else if (volume.HiddenVolumeProtectionTriggered)
 				protection = LangString["HID_VOL_DAMAGE_PREVENTED"];
 			else
@@ -381,7 +385,7 @@ namespace TrueCrypt
 		}
 
 		// PasswordIncorrect 
-		if (dynamic_cast <const PasswordIncorrect *> (&ex))
+		if (dynamic_cast <const PasswordException *> (&ex))
 		{
 			wxString message = ExceptionTypeToString (typeid (ex));
 
@@ -395,6 +399,27 @@ namespace TrueCrypt
 			return message;
 		}
 
+		// PKCS#11 Exception
+		if (dynamic_cast <const Pkcs11Exception *> (&ex))
+		{
+			string errorString = string (dynamic_cast <const Pkcs11Exception &> (ex));
+			
+			if (LangString.Exists (errorString))
+				return LangString[errorString];
+
+			if (errorString.find ("CKR_") == 0)
+			{
+				errorString = errorString.substr (4);
+				for (size_t i = 0; i < errorString.size(); ++i)
+				{
+					if (errorString[i] == '_')
+						errorString[i] = ' ';
+				}
+			}
+
+			return LangString["SECURITY_TOKEN_ERROR"] + L":\n\n" + StringConverter::ToWide (errorString);
+		}
+
 		// Other library exceptions
 		return ExceptionTypeToString (typeid (ex));
 	}
@@ -406,6 +431,7 @@ namespace TrueCrypt
 		EX2MSG (EncryptedSystemRequired,			_("This operation must be performed only when the system hosted on the volume is running."));
 		EX2MSG (ExternalException,					LangString["EXCEPTION_OCCURRED"]);
 		EX2MSG (InsufficientData,					_("Not enough data available."));
+		EX2MSG (InvalidSecurityTokenKeyfilePath,	LangString["INVALID_TOKEN_KEYFILE_PATH"]);
 		EX2MSG (HigherVersionRequired,				LangString["NEW_VERSION_REQUIRED"]);
 		EX2MSG (MissingArgument,					_("A required argument is missing."));
 		EX2MSG (MissingVolumeData,					_("Volume data missing."));
@@ -416,15 +442,22 @@ namespace TrueCrypt
 		EX2MSG (PasswordEmpty,						_("No password or keyfile specified."));
 		EX2MSG (PasswordIncorrect,					LangString["PASSWORD_WRONG"]);
 		EX2MSG (PasswordKeyfilesIncorrect,			LangString["PASSWORD_OR_KEYFILE_WRONG"]);
+		EX2MSG (PasswordOrKeyboardLayoutIncorrect,	LangString["PASSWORD_OR_KEYFILE_WRONG"] + _("\n\nNote that pre-boot authentication passwords need to be typed in the pre-boot environment where non-US keyboard layouts are not available. Therefore, pre-boot authentication passwords must always be typed using the standard US keyboard layout (otherwise, the password will be typed incorrectly in most cases). However, note that you do NOT need a real US keyboard; you just need to change the keyboard layout in your operating system."));
+		EX2MSG (PasswordOrMountOptionsIncorrect,	LangString["PASSWORD_OR_KEYFILE_OR_MODE_WRONG"] + _("\n\nNote: If you are attempting to mount a partition located on an encrypted system drive without pre-boot authentication or to mount the encrypted system partition of an operating system that is not running, you can do so by selecting 'Options >' > 'Mount partition using system encryption'."));
 		EX2MSG (PasswordTooLong,					StringFormatter (_("Password is longer than {0} characters."), (int) VolumePassword::MaxSize));
+		EX2MSG (PartitionDeviceRequired,			_("Partition device required."));
 		EX2MSG (ProtectionPasswordIncorrect,		_("Incorrect keyfile(s) and/or password to the protected hidden volume or the hidden volume does not exist."));
 		EX2MSG (ProtectionPasswordKeyfilesIncorrect,	_("Incorrect password to the protected hidden volume or the hidden volume does not exist."));
 		EX2MSG (RootDeviceUnavailable,				LangString["NODRIVER"]);
+		EX2MSG (SecurityTokenKeyfileAlreadyExists,	LangString["TOKEN_KEYFILE_ALREADY_EXISTS"]);
+		EX2MSG (SecurityTokenKeyfileNotFound,		LangString["TOKEN_KEYFILE_NOT_FOUND"]);
+		EX2MSG (SecurityTokenLibraryNotInitialized,	LangString["PKCS11_MODULE_INIT_FAILED"]);
 		EX2MSG (StringConversionFailed,				_("Invalid characters encountered."));
 		EX2MSG (StringFormatterException,			_("Error while parsing formatted string."));
 		EX2MSG (UnportablePassword,					LangString["UNSUPPORTED_CHARS_IN_PWD"]);
-		EX2MSG (UnsupportedSectorSize,					LangString["LARGE_SECTOR_UNSUPPORTED"]);
+		EX2MSG (UnsupportedSectorSize,				LangString["LARGE_SECTOR_UNSUPPORTED"]);
 		EX2MSG (VolumeAlreadyMounted,				LangString["VOL_ALREADY_MOUNTED"]);
+		EX2MSG (VolumeEncryptionNotCompleted,		LangString["ERR_ENCRYPTION_NOT_COMPLETED"]);
 		EX2MSG (VolumeHostInUse,					_("The host file/device is already in use."));
 		EX2MSG (VolumeSlotUnavailable,				_("Volume slot unavailable."));
 
@@ -459,7 +492,7 @@ namespace TrueCrypt
 		{
 			struct AdminPasswordRequestHandler : public GetStringFunctor
 			{
-				virtual string operator() ()
+				virtual void operator() (string &str)
 				{
 					throw ElevationFailed (SRC_POS, "sudo", 1, "");
 				}
@@ -470,6 +503,21 @@ namespace TrueCrypt
 
 		Core->WarningEvent.Connect (EventConnector <UserInterface> (this, &UserInterface::OnWarning));
 		Core->VolumeMountedEvent.Connect (EventConnector <UserInterface> (this, &UserInterface::OnVolumeMounted));
+
+		if (!CmdLine->Preferences.SecurityTokenModule.IsEmpty() && !SecurityToken::IsInitialized())
+		{
+			try
+			{
+				InitSecurityTokenLibrary();
+			}
+			catch (exception &e)
+			{
+				if (Preferences.NonInteractive)
+					throw;
+
+				ShowError (e);
+			}
+		}
 	}
 	
 	void UserInterface::ListMountedVolumes (const VolumeInfoList &volumes) const
@@ -593,10 +641,13 @@ namespace TrueCrypt
 				ShowInfo (LangString[newMountedVolumes.size() > 1 ? "HIDVOL_PROT_WARN_AFTER_MOUNT_PLURAL" : "HIDVOL_PROT_WARN_AFTER_MOUNT"]);
 		}
 
+		if (!newMountedVolumes.empty() && GetPreferences().CloseSecurityTokenSessionsAfterMount)
+			SecurityToken::CloseAllSessions();
+
 		return newMountedVolumes;
 	}
 
-	VolumeInfoList UserInterface::MountAllFavoriteVolumes (MountOptions &options) const
+	VolumeInfoList UserInterface::MountAllFavoriteVolumes (MountOptions &options)
 	{
 		BusyScope busy (this);
 		
@@ -627,13 +678,24 @@ namespace TrueCrypt
 				}
 				catch (...)
 				{
+					UserPreferences prefs = GetPreferences();
+					if (prefs.CloseSecurityTokenSessionsAfterMount)
+						Preferences.CloseSecurityTokenSessionsAfterMount = false;
+
 					shared_ptr <VolumeInfo> volume = MountVolume (options);
+
+					if (prefs.CloseSecurityTokenSessionsAfterMount)
+						Preferences.CloseSecurityTokenSessionsAfterMount = true;
+
 					if (!volume)
 						break;
 					newMountedVolumes.push_back (volume);
 				}
 			}
 		}
+
+		if (!newMountedVolumes.empty() && GetPreferences().CloseSecurityTokenSessionsAfterMount)
+			SecurityToken::CloseAllSessions();
 
 		return newMountedVolumes;
 	}
@@ -673,6 +735,9 @@ namespace TrueCrypt
 
 		if (options.Protection == VolumeProtection::HiddenVolumeReadOnly)
 			ShowInfo ("HIDVOL_PROT_WARN_AFTER_MOUNT");
+
+		if (GetPreferences().CloseSecurityTokenSessionsAfterMount)
+			SecurityToken::CloseAllSessions();
 
 		return volume;
 	}
@@ -730,11 +795,17 @@ namespace TrueCrypt
 #elif defined (TC_MACOSX)
 
 		args.push_back (string (path));
-		Process::Execute ("open", args);
+		try
+		{
+			Process::Execute ("open", args);
+		}
+		catch (exception &e) { ShowError (e); }
 
 #else
 		// MIME handler for directory seems to be unavailable through wxWidgets
-		if (GetTraits()->GetDesktopEnvironment() == L"GNOME")
+		wxString desktop = GetTraits()->GetDesktopEnvironment();
+
+		if (desktop == L"GNOME" || desktop.empty())
 		{
 			args.push_back ("--no-default-window");
 			args.push_back ("--no-desktop");
@@ -744,16 +815,28 @@ namespace TrueCrypt
 				Process::Execute ("nautilus", args, 2000);
 			}
 			catch (TimeOut&) { }
+			catch (exception &e) { ShowError (e); }
 		}
-		else if (GetTraits()->GetDesktopEnvironment() == L"KDE")
+		else if (desktop == L"KDE")
 		{
-			args.push_back ("openURL");
-			args.push_back (string (path));
 			try
 			{
-				Process::Execute ("kfmclient", args, 2000);
+				args.push_back (string (path));
+				Process::Execute ("dolphin", args, 2000);
 			}
 			catch (TimeOut&) { }
+			catch (exception&)
+			{
+				args.clear();
+				args.push_back ("openURL");
+				args.push_back (string (path));
+				try
+				{
+					Process::Execute ("kfmclient", args, 2000);
+				}
+				catch (TimeOut&) { }
+				catch (exception &e) { ShowError (e); }
+			}
 		}
 #endif
 	}
@@ -854,8 +937,16 @@ namespace TrueCrypt
 			}
 			return true;
 
+		case CommandId::BackupHeaders:
+			BackupVolumeHeaders (cmdLine.ArgVolumePath);
+			return true;
+
 		case CommandId::ChangePassword:
 			ChangePassword (cmdLine.ArgVolumePath, cmdLine.ArgPassword, cmdLine.ArgKeyfiles, cmdLine.ArgNewPassword, cmdLine.ArgNewKeyfiles, cmdLine.ArgHash);
+			return true;
+
+		case CommandId::CreateKeyfile:
+			CreateKeyfile (cmdLine.ArgFilePath);
 			return true;
 
 		case CommandId::CreateVolume:
@@ -883,6 +974,10 @@ namespace TrueCrypt
 				return true;
 			}
 
+		case CommandId::DeleteSecurityTokenKeyfiles:
+			DeleteSecurityTokenKeyfiles();
+			return true;
+
 		case CommandId::DismountVolumes:
 			DismountVolumes (cmdLine.ArgVolumes, cmdLine.ArgForce, !Preferences.NonInteractive);
 			return true;
@@ -909,6 +1004,10 @@ namespace TrueCrypt
 					"--auto-mount=devices|favorites\n"
 					" Auto mount device-hosted or favorite volumes.\n"
 					"\n"
+					"--backup-headers[=VOLUME_PATH]\n"
+					" Backup volume headers to a file. All required options are requested from the\n"
+					" user.\n"
+					"\n"
 					"-c, --create[=VOLUME_PATH]\n"
 					" Create a new volume. Most options are requested from the user if not specified\n"
 					" on command line. See also options --encryption, -k, --filesystem, --hash, -p,\n"
@@ -926,6 +1025,9 @@ namespace TrueCrypt
 					"  6) Dismount the outer volume.\n"
 					"  If at any step the hidden volume protection is triggered, start again from 1).\n"
 					"\n"
+					"--create-keyfile[=FILE_PATH]\n"
+					" Create a new keyfile containing pseudo-random data.\n"
+					"\n"
 					"-C, --change[=VOLUME_PATH]\n"
 					" Change a password and/or keyfile(s) of a volume. Most options are requested\n"
 					" from the user if not specified on command line. PKCS-5 PRF HMAC hash\n"
@@ -936,15 +1038,29 @@ namespace TrueCrypt
 					" Dismount a mounted volume. If MOUNTED_VOLUME is not specified, all\n"
 					" volumes are dismounted. See below for description of MOUNTED_VOLUME.\n"
 					"\n"
+					"--delete-token-keyfiles\n"
+					" Delete keyfiles from security tokens. See also command --list-token-keyfiles.\n"
+					"\n"
+					"--import-token-keyfiles\n"
+					" Import keyfiles to a security token. See also option --token-lib.\n"
+					"\n"
 					"-l, --list[=MOUNTED_VOLUME]\n"
 					" Display a list of mounted volumes. If MOUNTED_VOLUME is not specified, all\n"
 					" volumes are listed. By default, the list contains only volume path, virtual\n"
 					" device, and mount point. A more detailed list can be enabled by verbose\n"
 					" output option (-v). See below for description of MOUNTED_VOLUME.\n"
 					"\n"
+					"--list-token-keyfiles\n"
+					" Display a list of all available security token keyfiles. See also command\n"
+					" --import-token-keyfiles.\n"
+					"\n"
 					"--mount[=VOLUME_PATH]\n"
 					" Mount a volume. Volume path and other options are requested from the user\n"
 					" if not specified on command line.\n"
+					"\n"
+					"--restore-headers[=VOLUME_PATH]\n"
+					" Restore volume headers from the embedded or an external backup. All required\n"
+					" options are requested from the user.\n"
 					"\n"
 					"--test\n"
 					" Test internal algorithms used in the process of encryption and decryption.\n"
@@ -992,15 +1108,20 @@ namespace TrueCrypt
 					" and/or keyfiles. When a directory is specified, all files inside it will be\n"
 					" used (non-recursively). Multiple keyfiles must be separated by comma.\n"
 					" Use double comma (,,) to specify a comma contained in keyfile's name.\n"
-					" An empty keyfile (-k \"\") disables interactive requests for keyfiles. See also\n"
-					" options --new-keyfiles, --protection-keyfiles.\n"
+					" Keyfile stored on a security token must be specified as\n"
+					" token://slot/SLOT_NUMBER/file/FILENAME. An empty keyfile (-k \"\") disables\n"
+					" interactive requests for keyfiles. See also options --import-token-keyfiles,\n"
+					" --list-token-keyfiles, --new-keyfiles, --protection-keyfiles.\n"
 					"\n"
-					"-m, --mount-options=headerbak|nokernelcrypto|readonly|ro|timestamp|ts\n"
+					"-m, --mount-options=headerbak|nokernelcrypto|readonly|ro|system|timestamp|ts\n"
 					" Specify comma-separated mount options for a TrueCrypt volume:\n"
 					"  headerbak: Use backup headers when mounting a volume.\n"
 					"  nokernelcrypto: Do not use kernel cryptographic services.\n"
-					"  readonly|ro: Mount volume read-only.\n"
-					"  timestamp|ts: Update (do not preserve) host-file timestamps.\n"
+					"  readonly|ro: Mount volume as read-only.\n"
+					"  system: Mount partition using system encryption.\n"
+					"  timestamp|ts: Do not preserve host-file timestamps (note that the operating\n"
+					"   system under certain circumstances does not alter host-file timestamps, which\n"
+					"   may be mistakenly interpreted to mean that this option does not work).\n"
 					" See also option --fs-options.\n"
 					"\n"
 					"-p, --password=PASSWORD\n"
@@ -1048,6 +1169,9 @@ namespace TrueCrypt
 					" Use text user interface. Graphical user interface is used by default if\n"
 					" available.\n"
 					"\n"
+					"--token-lib=LIB_PATH\n"
+					" Use specified PKCS #11 security token library.\n"
+					"\n"
 					"--volume-type=TYPE\n"
 					" Use specified volume type when creating a new volume. TYPE can be 'normal'\n"
 					" or 'hidden'. See option -c for more information on creating hidden volumes.\n"
@@ -1056,13 +1180,13 @@ namespace TrueCrypt
 					" Enable verbose output.\n"
 					"\n"
 					"\nExamples:\n\n"
-					"Create a new volume using text interface:\n"
+					"Create a new volume:\n"
 					"truecrypt -t -c\n"
 					"\n"
 					"Mount a volume:\n"
 					"truecrypt volume.tc /media/truecrypt1\n"
 					"\n"
-					"Mount a volume read-only, using keyfiles:\n"
+					"Mount a volume as read-only, using keyfiles:\n"
 					"truecrypt -m ro -k keyfile1,keyfile2 volume.tc\n"
 					"\n"
 					"Mount a volume without mounting its filesystem:\n"
@@ -1103,11 +1227,23 @@ namespace TrueCrypt
 			}
 			return true;
 
+		case CommandId::ImportSecurityTokenKeyfiles:
+			ImportSecurityTokenKeyfiles();
+			return true;
+
+		case CommandId::ListSecurityTokenKeyfiles:
+			ListSecurityTokenKeyfiles();
+			return true;
+
 		case CommandId::ListVolumes:
 			if (Preferences.Verbose)
 				DisplayVolumeProperties (cmdLine.ArgVolumes);
 			else
 				ListMountedVolumes (cmdLine.ArgVolumes);
+			return true;
+
+		case CommandId::RestoreHeaders:
+			RestoreVolumeHeaders (cmdLine.ArgVolumePath);
 			return true;
 
 		case CommandId::Test:

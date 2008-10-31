@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -16,12 +16,14 @@
 #include "Platform/Unix/Process.h"
 #endif
 
+#include "Common/SecurityToken.h"
 #include "Application.h"
 #include "GraphicUserInterface.h"
 #include "FatalErrorHandler.h"
 #include "Forms/DeviceSelectionDialog.h"
 #include "Forms/MainFrame.h"
 #include "Forms/MountOptionsDialog.h"
+#include "Forms/SecurityTokenKeyfilesDialog.h"
 
 namespace TrueCrypt
 {
@@ -91,37 +93,39 @@ namespace TrueCrypt
 			OnVolumesAutoDismounted();
 	}
 	
-	void GraphicUserInterface::BackupVolumeHeaders (wxWindow *parent, shared_ptr <VolumePath> volumePath) const
+	void GraphicUserInterface::BackupVolumeHeaders (shared_ptr <VolumePath> volumePath) const
 	{
+		wxWindow *parent = GetActiveWindow();
+
+		if (!volumePath || volumePath->IsEmpty())
+			volumePath = make_shared <VolumePath> (SelectVolumeFile (GetActiveWindow()));
+
+		if (volumePath->IsEmpty())
+			throw UserAbort (SRC_POS);
+
 		if (Core->IsVolumeMounted (*volumePath))
 		{
-			Gui->ShowInfo ("DISMOUNT_FIRST");
+			ShowInfo ("DISMOUNT_FIRST");
 			return;
 		}
 
 #ifdef TC_UNIX
-		UserId origDeviceOwner;
-		origDeviceOwner.SystemId = (uid_t) -1;
+		// Temporarily take ownership of a device if the user is not an administrator
+		UserId origDeviceOwner ((uid_t) -1);
 
 		if (!Core->HasAdminPrivileges() && volumePath->IsDevice())
 		{
-			// Temporarily take ownership of the device
-			struct stat statData;
-			throw_sys_if (stat (string (*volumePath).c_str(), &statData) == -1);
-
-			UserId owner;
-			owner.SystemId = getuid();
-			Core->SetFileOwner (*volumePath, owner);
-			origDeviceOwner.SystemId = statData.st_uid;
+			origDeviceOwner = FilesystemPath (wstring (*volumePath)).GetOwner();
+			Core->SetFileOwner (*volumePath, UserId (getuid()));
 		}
 
 		finally_do_arg2 (FilesystemPath, *volumePath, UserId, origDeviceOwner,
-			{
-				if (finally_arg2.SystemId != (uid_t) -1)
-					Core->SetFileOwner (finally_arg, finally_arg2);
-			}
-		);
+		{
+			if (finally_arg2.SystemId != (uid_t) -1)
+				Core->SetFileOwner (finally_arg, finally_arg2);
+		});
 #endif
+
 		ShowInfo ("EXTERNAL_VOL_HEADER_BAK_FIRST_INFO");
 
 		shared_ptr <Volume> normalVolume;
@@ -186,6 +190,7 @@ namespace TrueCrypt
 				choices.Add (LangString["VOLUME_DOES_NOT_CONTAIN_HIDDEN"]);
 
 				wxSingleChoiceDialog choiceDialog (parent, LangString["DOES_VOLUME_CONTAIN_HIDDEN"], Application::GetName(), choices);
+				choiceDialog.SetSize (wxSize (Gui->GetCharWidth (&choiceDialog) * 60, -1));
 				choiceDialog.SetSelection (-1);
 
 				if (choiceDialog.ShowModal() != wxID_OK)
@@ -221,7 +226,7 @@ namespace TrueCrypt
 		wxString confirmMsg = LangString["CONFIRM_VOL_HEADER_BAK"];
 		confirmMsg.Replace (L"%hs", L"%s");
 
-		if (!Gui->AskYesNo (wxString::Format (confirmMsg, wstring (*volumePath).c_str()), true))
+		if (!AskYesNo (wxString::Format (confirmMsg, wstring (*volumePath).c_str()), true))
 			return;
 
 		FilePathList files = SelectFiles (parent, wxEmptyString, true, false);
@@ -230,7 +235,6 @@ namespace TrueCrypt
 
 		File backupFile;
 		backupFile.Open (*files.front(), File::CreateWrite);
-
 
 		RandomNumberGenerator::Start();
 		finally_do ({ RandomNumberGenerator::Stop(); });
@@ -260,7 +264,7 @@ namespace TrueCrypt
 			backupFile.Write (newHeaderBuffer);
 		}
 
-		Gui->ShowWarning ("VOL_HEADER_BACKED_UP");
+		ShowWarning ("VOL_HEADER_BACKED_UP");
 	}
 
 	void GraphicUserInterface::BeginInteractiveBusyState (wxWindow *window)
@@ -273,16 +277,29 @@ namespace TrueCrypt
 		window->SetCursor (*arrowWaitCursor);
 	}
 
-	void GraphicUserInterface::ChangePassword (shared_ptr <VolumePath> volumePath, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, shared_ptr <VolumePassword> newPassword, shared_ptr <KeyfileList> newKeyfiles, shared_ptr <Hash> newHash) const
+	void GraphicUserInterface::CreateKeyfile (shared_ptr <FilePath> keyfilePath) const
 	{
-		Gui->ShowError (_("This feature is currently supported only in text mode."));
-		throw UserAbort (SRC_POS);
-	}
+		try
+		{
+			FilePath path;
 
-	void GraphicUserInterface::CreateVolume (shared_ptr <VolumeCreationOptions> options, const FilesystemPath &randomSourcePath) const
-	{
-		Gui->ShowError (_("This feature is currently supported only in text mode."));
-		throw UserAbort (SRC_POS);
+			if (!keyfilePath)
+			{
+				FilePathList files = SelectFiles (GetActiveWindow(), wxEmptyString, true);
+				
+				if (files.empty())
+					return;
+
+				keyfilePath = files.front();
+			}
+
+			Core->CreateKeyfile (*keyfilePath);
+			ShowInfo ("KEYFILE_CREATED");
+		}
+		catch (exception &e)
+		{
+			ShowError (e);
+		}
 	}
 
 	void GraphicUserInterface::ClearListCtrlSelection (wxListCtrl *listCtrl) const
@@ -374,14 +391,17 @@ namespace TrueCrypt
 	{
 		struct AdminPasswordRequestHandler : public GetStringFunctor
 		{
-			virtual string operator() ()
+			virtual void operator() (string &passwordStr)
 			{
 				wxPasswordEntryDialog dialog (Gui->GetActiveWindow(), LangString["ENTER_PASSWORD"] + L":", _("Administrator privileges required"));
 
 				if (dialog.ShowModal() != wxID_OK)
 					throw UserAbort (SRC_POS);
 
-				return StringConverter::ToSingle (wstring (dialog.GetValue()));
+				wstring wPassword (dialog.GetValue());	// A copy of the password is created here by wxWidgets, which cannot be erased
+				finally_do_arg (wstring *, &wPassword, { StringConverter::Erase (*finally_arg); });
+
+				StringConverter::ToSingle (wPassword, passwordStr);
 			}
 		};
 
@@ -476,6 +496,49 @@ namespace TrueCrypt
 		return width + offset;
 	}
 
+	void GraphicUserInterface::InitSecurityTokenLibrary () const
+	{
+		if (Preferences.SecurityTokenModule.IsEmpty())
+			throw_err (LangString ["NO_PKCS11_MODULE_SPECIFIED"]);
+
+		struct PinRequestHandler : public GetPinFunctor
+		{
+			virtual void operator() (string &passwordStr)
+			{
+				if (Gui->GetPreferences().NonInteractive)
+					throw MissingArgument (SRC_POS);
+
+				wxPasswordEntryDialog dialog (Gui->GetActiveWindow(), wxString::Format (LangString["ENTER_TOKEN_PASSWORD"], StringConverter::ToWide (passwordStr).c_str()), LangString["IDD_TOKEN_PASSWORD"]);
+				dialog.SetSize (wxSize (Gui->GetCharWidth (&dialog) * 50, -1));
+
+				if (dialog.ShowModal() != wxID_OK)
+					throw UserAbort (SRC_POS);
+
+				wstring wPassword (dialog.GetValue());	// A copy of the password is created here by wxWidgets, which cannot be erased
+				finally_do_arg (wstring *, &wPassword, { StringConverter::Erase (*finally_arg); });
+
+				StringConverter::ToSingle (wPassword, passwordStr);
+			}
+		};
+
+		struct WarningHandler : public SendExceptionFunctor
+		{
+			virtual void operator() (const Exception &e)
+			{
+				Gui->ShowError (e);
+			}
+		};
+
+		try
+		{
+			SecurityToken::InitLibrary (Preferences.SecurityTokenModule, auto_ptr <GetPinFunctor> (new PinRequestHandler), auto_ptr <SendExceptionFunctor> (new WarningHandler));
+		}
+		catch (Exception &e)
+		{
+			ShowError (e);
+			throw_err (LangString ["PKCS11_MODULE_INIT_FAILED"]);
+		}
+	}
 
 	void GraphicUserInterface::InsertToListCtrl (wxListCtrl *listCtrl, long itemIndex, const vector <wstring> &itemFields, int imageIndex, void *itemDataPtr) const
 	{
@@ -511,6 +574,12 @@ namespace TrueCrypt
 			}
 		}
 		return true;
+	}
+
+	void GraphicUserInterface::ListSecurityTokenKeyfiles () const
+	{
+		SecurityTokenKeyfilesDialog dialog (nullptr);
+		dialog.ShowModal();
 	}
 
 	void GraphicUserInterface::MoveListCtrlItem (wxListCtrl *listCtrl, long itemIndex, long newItemIndex) const
@@ -570,17 +639,10 @@ namespace TrueCrypt
 		shared_ptr <VolumeInfo> volume;
 
 		if (!options.Path || options.Path->IsEmpty())
-		{
-			if (Preferences.NonInteractive)
-				throw MissingArgument (SRC_POS);
+			options.Path = make_shared <VolumePath> (SelectVolumeFile (GetActiveWindow()));
 
-			wxString path = wxGetTextFromUser (_("Enter volume path: "), Application::GetName());
-			
-			if (path.empty())
-				throw UserAbort();
-
-			options.Path = make_shared <VolumePath> (wstring (path));
-		}
+		if (options.Path->IsEmpty())
+			throw UserAbort (SRC_POS);
 
 		if (Core->IsVolumeMounted (*options.Path))
 		{
@@ -653,7 +715,9 @@ namespace TrueCrypt
 		}
 
 #ifdef TC_LINUX
-		if (volume && !Preferences.NonInteractive && !Preferences.DisableKernelEncryptionModeWarning && volume->EncryptionModeName != L"XTS"
+		if (volume && !Preferences.NonInteractive && !Preferences.DisableKernelEncryptionModeWarning
+			&& volume->EncryptionModeName != L"XTS"
+			&& (volume->EncryptionModeName != L"LRW" || volume->EncryptionAlgorithmMinBlockSize != 16 || volume->EncryptionAlgorithmKeySize != 32)
 			&& !AskYesNo (LangString["ENCRYPTION_MODE_NOT_SUPPORTED_BY_KERNEL"] + _("\n\nDo you want to show this message next time you mount such a volume?"), true, true))
 		{
 			UserPreferences prefs = GetPreferences();
@@ -853,7 +917,10 @@ namespace TrueCrypt
 	void GraphicUserInterface::OnVolumesAutoDismounted ()
 	{
 		if (GetPreferences().WipeCacheOnAutoDismount)
+		{
 			Core->WipePasswordCache();
+			SecurityToken::CloseAllSessions();
+		}
 	}
 
 	void GraphicUserInterface::OpenDocument (wxWindow *parent, const wxFileName &document)
@@ -982,36 +1049,37 @@ namespace TrueCrypt
 		}
 	}
 
-	void GraphicUserInterface::RestoreVolumeHeaders (wxWindow *parent, shared_ptr <VolumePath> volumePath) const
+	void GraphicUserInterface::RestoreVolumeHeaders (shared_ptr <VolumePath> volumePath) const
 	{
+		wxWindow *parent = GetActiveWindow();
+
+		if (!volumePath || volumePath->IsEmpty())
+			volumePath = make_shared <VolumePath> (SelectVolumeFile (GetActiveWindow()));
+
+		if (volumePath->IsEmpty())
+			throw UserAbort (SRC_POS);
+
 		if (Core->IsVolumeMounted (*volumePath))
 		{
-			Gui->ShowInfo ("DISMOUNT_FIRST");
+			ShowInfo ("DISMOUNT_FIRST");
 			return;
 		}
 
 #ifdef TC_UNIX
-		UserId origDeviceOwner;
-		origDeviceOwner.SystemId = (uid_t) -1;
+		// Temporarily take ownership of a device if the user is not an administrator
+		UserId origDeviceOwner ((uid_t) -1);
 
 		if (!Core->HasAdminPrivileges() && volumePath->IsDevice())
 		{
-			// Temporarily take ownership of the device
-			struct stat statData;
-			throw_sys_if (stat (string (*volumePath).c_str(), &statData) == -1);
-
-			UserId owner;
-			owner.SystemId = getuid();
-			Core->SetFileOwner (*volumePath, owner);
-			origDeviceOwner.SystemId = statData.st_uid;
+			origDeviceOwner = FilesystemPath (wstring (*volumePath)).GetOwner();
+			Core->SetFileOwner (*volumePath, UserId (getuid()));
 		}
 
 		finally_do_arg2 (FilesystemPath, *volumePath, UserId, origDeviceOwner,
-			{
-				if (finally_arg2.SystemId != (uid_t) -1)
-					Core->SetFileOwner (finally_arg, finally_arg2);
-			}
-		);
+		{
+			if (finally_arg2.SystemId != (uid_t) -1)
+				Core->SetFileOwner (finally_arg, finally_arg2);
+		});
 #endif
 
 		// Ask whether to restore internal or external backup
@@ -1021,6 +1089,7 @@ namespace TrueCrypt
 		choices.Add (LangString["HEADER_RESTORE_EXTERNAL"]);
 
 		wxSingleChoiceDialog choiceDialog (parent, LangString["HEADER_RESTORE_EXTERNAL_INTERNAL"], Application::GetName(), choices);
+		choiceDialog.SetSize (wxSize (Gui->GetCharWidth (&choiceDialog) * 80, -1));
 		choiceDialog.SetSelection (-1);
 
 		if (choiceDialog.ShowModal() != wxID_OK)
@@ -1109,10 +1178,10 @@ namespace TrueCrypt
 			wxString confirmMsg = LangString["CONFIRM_VOL_HEADER_RESTORE"];
 			confirmMsg.Replace (L"%hs", L"%s");
 
-			if (!Gui->AskYesNo (wxString::Format (confirmMsg, wstring (*volumePath).c_str()), true, true))
+			if (!AskYesNo (wxString::Format (confirmMsg, wstring (*volumePath).c_str()), true, true))
 				return;
 
-			FilePathList files = Gui->SelectFiles (parent, wxEmptyString, false, false);
+			FilePathList files = SelectFiles (parent, wxEmptyString, false, false);
 			if (files.empty())
 				return;
 
@@ -1159,6 +1228,9 @@ namespace TrueCrypt
 					// Test volume layouts
 					foreach (shared_ptr <VolumeLayout> layout, VolumeLayout::GetAvailableLayouts ())
 					{
+						if (layout->HasDriveHeader())
+							continue;
+
 						if (!legacyBackup && (typeid (*layout) == typeid (VolumeLayoutV1Normal) || typeid (*layout) == typeid (VolumeLayoutV1Hidden)))
 							continue;
 
@@ -1170,7 +1242,7 @@ namespace TrueCrypt
 
 						// Decrypt header
 						shared_ptr <VolumePassword> passwordKey = Keyfile::ApplyListToPassword (options.Keyfiles, options.Password);
-						if (layout->GetHeader()->Decrypt (headerBuffer, *passwordKey, layout->GetSupportedEncryptionAlgorithms(), layout->GetSupportedEncryptionModes()))
+						if (layout->GetHeader()->Decrypt (headerBuffer, *passwordKey, layout->GetSupportedKeyDerivationFunctions(), layout->GetSupportedEncryptionAlgorithms(), layout->GetSupportedEncryptionModes()))
 						{
 							decryptedLayout = layout;
 							break;
@@ -1221,7 +1293,7 @@ namespace TrueCrypt
 			}
 		}
 
-		Gui->ShowInfo ("VOL_HEADER_RESTORED");
+		ShowInfo ("VOL_HEADER_RESTORED");
 	}
 
 	DevicePath GraphicUserInterface::SelectDevice (wxWindow *parent) const
@@ -1278,11 +1350,18 @@ namespace TrueCrypt
 			typedef pair <wstring, wstring> StringPair;
 			foreach (StringPair p, fileExtensions)
 			{
+				if (p.first == L"*" || p.first == L"*.*")
+				{
+					wildcards += L"|" + wildcards.substr (0, wildcards.find (L"*|") + 1);
+					wildcards = wildcards.substr (wildcards.find (L"*|") + 2);
+					continue;
+				}
+
 				wildcards += wxString (L"|") + p.second + L" (*." + p.first + L")|*." + p.first;
 			}
 		}
 
-		wxFileDialog dialog (parent, caption, wstring (directory), wxString(), wildcards, style);
+		wxFileDialog dialog (parent, !caption.empty() ? caption : LangString ["OPEN_TITLE"], wstring (directory), wxString(), wildcards, style);
 
 		if (dialog.ShowModal() == wxID_OK)
 		{
@@ -1489,6 +1568,12 @@ namespace TrueCrypt
 			| wxICON_EXCLAMATION
 #endif
 			, true);
+	}
+
+	void GraphicUserInterface::ThrowTextModeRequired () const
+	{
+		Gui->ShowError (_("This feature is currently supported only in text mode."));
+		throw UserAbort (SRC_POS);
 	}
 
 	bool GraphicUserInterface::UpdateListCtrlItem (wxListCtrl *listCtrl, long itemIndex, const vector <wstring> &itemFields) const

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -19,7 +19,6 @@ namespace TrueCrypt
 	void ElevationFailed::Serialize (shared_ptr <Stream> stream) const
 	{
 		ExecutedProcessFailed::Serialize (stream);
-		Serializer sr (stream);
 	}
 
 #define TC_EXCEPTION(TYPE) TC_SERIALIZER_FACTORY_ADD(TYPE)

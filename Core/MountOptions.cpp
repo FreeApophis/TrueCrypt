@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -26,6 +26,7 @@ namespace TrueCrypt
 		TC_CLONE (NoKernelCrypto);
 		TC_CLONE_SHARED (VolumePassword, Password);
 		TC_CLONE_SHARED (VolumePath, Path);
+		TC_CLONE (PartitionInSystemEncryptionScope);
 		TC_CLONE (PreserveTimestamps);
 		TC_CLONE (Protection);
 		TC_CLONE_SHARED (VolumePassword, ProtectionPassword);
@@ -64,6 +65,7 @@ namespace TrueCrypt
 		else
 			Path.reset();
 
+		sr.Deserialize ("PartitionInSystemEncryptionScope", PartitionInSystemEncryptionScope);
 		sr.Deserialize ("PreserveTimestamps", PreserveTimestamps);
 
 		Protection = static_cast <VolumeProtection::Enum> (sr.DeserializeInt32 ("Protection"));
@@ -105,6 +107,7 @@ namespace TrueCrypt
 		if (Path)
 			sr.Serialize ("Path", wstring (*Path));
 
+		sr.Serialize ("PartitionInSystemEncryptionScope", PartitionInSystemEncryptionScope);
 		sr.Serialize ("PreserveTimestamps", PreserveTimestamps);
 		sr.Serialize ("Protection", static_cast <uint32> (Protection));
 

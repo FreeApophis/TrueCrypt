@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -12,8 +12,8 @@
 #include "TCdefs.h"
 #include "Apidrvr.h"
 
-#define TC_ENC_IO_QUEUE_MAX_FRAGMENT_SIZE (128 * 1024)
-#define TC_ENC_IO_QUEUE_MEM_ALLOC_RETRY_DELAY 10
+#define TC_ENC_IO_QUEUE_MAX_FRAGMENT_SIZE (256 * 1024)
+#define TC_ENC_IO_QUEUE_MEM_ALLOC_RETRY_DELAY 5
 #define TC_ENC_IO_QUEUE_MEM_ALLOC_TIMEOUT (60 * 1000)
 
 typedef struct
@@ -25,6 +25,7 @@ typedef struct
 	// File-handle-based IO
 	HANDLE HostFileHandle;
 	int64 VirtualDeviceLength;
+	SECURITY_CLIENT_CONTEXT *SecurityClientContext;
 
 	// Filter device
 	BOOL IsFilterDevice;
@@ -111,7 +112,7 @@ NTSTATUS EncryptedIoQueueAddIrp (EncryptedIoQueue *queue, PIRP irp);
 BOOL EncryptedIoQueueIsRunning (EncryptedIoQueue *queue);
 BOOL EncryptedIoQueueIsSuspended (EncryptedIoQueue *queue);
 NTSTATUS EncryptedIoQueueResumeFromHold (EncryptedIoQueue *queue);
-NTSTATUS EncryptedIoQueueStart (EncryptedIoQueue *queue, PEPROCESS process);
+NTSTATUS EncryptedIoQueueStart (EncryptedIoQueue *queue);
 NTSTATUS EncryptedIoQueueStop (EncryptedIoQueue *queue);
 NTSTATUS EncryptedIoQueueHoldWhenIdle (EncryptedIoQueue *queue, int64 timeout);
 

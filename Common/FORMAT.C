@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.5 the full text of which is contained in the
+ by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -26,7 +26,8 @@
 #include "Language.h"
 #include "Progress.h"
 #include "Resource.h"
-#include "../Format/FormatCom.h"
+#include "Format/FormatCom.h"
+#include "Format/Tcformat.h"
 
 
 uint64 GetVolumeDataAreaSize (BOOL hiddenVolume, uint64 volumeSize)
@@ -53,7 +54,7 @@ uint64 GetVolumeDataAreaSize (BOOL hiddenVolume, uint64 volumeSize)
 }
 
 
-int FormatVolume (volatile FORMAT_VOL_PARAMETERS *volParams)
+int TCFormatVolume (volatile FORMAT_VOL_PARAMETERS *volParams)
 {
 	int nStatus;
 	PCRYPTO_INFO cryptoInfo = NULL;
@@ -71,8 +72,10 @@ int FormatVolume (volatile FORMAT_VOL_PARAMETERS *volParams)
 	char devName[MAX_PATH] = { 0 };
 	int driveLetter = -1;
 	WCHAR deviceName[MAX_PATH];
-	uint64 dataOffset;
+	uint64 dataOffset, dataAreaSize;
 	LARGE_INTEGER offset;
+	BOOL bFailedRequiredDASD = FALSE;
+
 
 	/* WARNING: Note that if Windows fails to format the volume as NTFS and the volume size is
 	less than TC_MAX_FAT_FS_SIZE, the user is asked within this function whether he wants to instantly
@@ -95,9 +98,9 @@ int FormatVolume (volatile FORMAT_VOL_PARAMETERS *volParams)
 		dataOffset = TC_VOLUME_DATA_OFFSET;
 	}
 
-	volParams->size = GetVolumeDataAreaSize (volParams->hiddenVol, volParams->size);
+	dataAreaSize = GetVolumeDataAreaSize (volParams->hiddenVol, volParams->size);
 
-	num_sectors = volParams->size / SECTOR_SIZE;
+	num_sectors = dataAreaSize / SECTOR_SIZE;
 
 	if (volParams->bDevice)
 	{
@@ -109,8 +112,7 @@ int FormatVolume (volatile FORMAT_VOL_PARAMETERS *volParams)
 
 	VirtualLock (header, sizeof (header));
 
-	/* Copies any header structures into header, but does not do any disk I/O */
-	nStatus = VolumeWriteHeader (FALSE,
+	nStatus = CreateVolumeHeaderInMemory (FALSE,
 				     header,
 				     volParams->ea,
 					 FIRST_MODE_OF_OPERATION_ID,
@@ -118,10 +120,10 @@ int FormatVolume (volatile FORMAT_VOL_PARAMETERS *volParams)
 				     volParams->pkcs5,
 					 NULL,
 				     &cryptoInfo,
-					 volParams->size,
-					 volParams->hiddenVol ? volParams->size : 0,
+					 dataAreaSize,
+					 volParams->hiddenVol ? dataAreaSize : 0,
 					 dataOffset,
-					 volParams->size,
+					 dataAreaSize,
 					 0,
 					 volParams->headerFlags,
 					 FALSE);
@@ -147,11 +149,26 @@ begin_format:
 
 		if (IsDeviceMounted (devName))
 		{
-			if ((dev = DismountDrive (devName)) == INVALID_HANDLE_VALUE)
+			if ((dev = DismountDrive (devName, volParams->volumePath)) == INVALID_HANDLE_VALUE)
 			{
 				Error ("FORMAT_CANT_DISMOUNT_FILESYS");
 				nStatus = ERR_DONT_REPORT; 
 				goto error;
+			}
+
+			/* Gain "raw" access to the partition (it contains a live filesystem and the filesystem driver 
+			would otherwise prevent us from writing to hidden sectors). */
+
+			if (!DeviceIoControl (dev,
+				FSCTL_ALLOW_EXTENDED_DASD_IO,
+				NULL,
+				0,   
+				NULL,
+				0,
+				&dwResult,
+				NULL))
+			{
+				bFailedRequiredDASD = TRUE;
 			}
 		}
 		else if (nCurrentOS == WIN_VISTA_OR_LATER && driveLetter == -1)
@@ -191,8 +208,25 @@ begin_format:
 			}
 		}
 
-		// Perform open - 'quick format' - close - open to prevent Windows from restoring NTFS boot sector backup
-		for (nPass = 0; nPass < 2; nPass++)
+		// For extra safety, we will try to gain "raw" access to the partition. Note that this should actually be
+		// redundant because if the filesystem was mounted, we already tried to obtain DASD above. If we failed,
+		// bFailedRequiredDASD was set to TRUE and therefore we will perform pseudo "quick format" below. However, 
+		// for extra safety, in case IsDeviceMounted() failed to detect a live filesystem, we will blindly
+		// send FSCTL_ALLOW_EXTENDED_DASD_IO (possibly for a second time) without checking the result.
+
+		DeviceIoControl (dev,
+			FSCTL_ALLOW_EXTENDED_DASD_IO,
+			NULL,
+			0,   
+			NULL,
+			0,
+			&dwResult,
+			NULL);
+
+
+		// If DASD is needed but we failed to obtain it, perform open - 'quick format' - close - open 
+		// so that the filesystem driver does not prevent us from formatting hidden sectors.
+		for (nPass = (bFailedRequiredDASD ? 0 : 1); nPass < 2; nPass++)
 		{
 			int retryCount;
 
@@ -222,7 +256,9 @@ begin_format:
 				}
 				else
 				{
-					nStatus = ERR_OS_ERROR; 
+					handleWin32Error (volParams->hwndDlg);
+					Error ("CANT_ACCESS_VOL");
+					nStatus = ERR_DONT_REPORT; 
 					goto error;
 				}
 			}
@@ -232,12 +268,19 @@ begin_format:
 
 			if (nPass == 0)
 			{
-				char buf[65536];
+				char buf [2 * TC_MAX_VOLUME_SECTOR_SIZE];
 				DWORD bw;
 
-				// Pseudo "quick format" to prevent Windows from restoring NTFS boot sector backup
+				// Perform pseudo "quick format" so that the filesystem driver does not prevent us from 
+				// formatting hidden sectors
 				memset (buf, 0, sizeof (buf));
-				WriteFile (dev, buf, sizeof (buf), &bw, NULL);
+
+				if (!WriteFile (dev, buf, sizeof (buf), &bw, NULL))
+				{
+					nStatus = ERR_OS_ERROR; 
+					goto error;
+				}
+
 				FlushFileBuffers (dev);
 				CloseHandle (dev);
 				dev = INVALID_HANDLE_VALUE;
@@ -271,7 +314,7 @@ begin_format:
 		if (!volParams->hiddenVol && !bInstantRetryOtherFilesys)
 		{
 			LARGE_INTEGER volumeSize;
-			volumeSize.QuadPart = volParams->size + TC_VOLUME_HEADER_GROUP_SIZE;
+			volumeSize.QuadPart = dataAreaSize + TC_VOLUME_HEADER_GROUP_SIZE;
 
 			if (volParams->sparseFileSwitch && volParams->quickFormat)
 			{
@@ -308,7 +351,7 @@ begin_format:
 			bTimeStampValid = TRUE;
 	}
 
-	KillTimer (volParams->hwndDlg, 0xff);
+	KillTimer (volParams->hwndDlg, TIMER_ID_RANDVIEW);
 
 	/* Volume header */
 
@@ -317,7 +360,7 @@ begin_format:
 	{
 		LARGE_INTEGER headerOffset;
 
-		// Check hidden volume volParams->size
+		// Check hidden volume size
 		if (volParams->hiddenVolHostSize < TC_MIN_HIDDEN_VOLUME_HOST_SIZE || volParams->hiddenVolHostSize > TC_MAX_HIDDEN_VOLUME_HOST_SIZE)
 		{		
 			nStatus = ERR_VOL_SIZE_WRONG;
@@ -394,7 +437,18 @@ begin_format:
 	{
 	case FILESYS_NONE:
 	case FILESYS_NTFS:
+
+		if (volParams->bDevice && !StartFormatWriteThread())
+		{
+			nStatus = ERR_OS_ERROR; 
+			goto error;
+		}
+
 		nStatus = FormatNoFs (startSector, num_sectors, dev, cryptoInfo, volParams->quickFormat);
+
+		if (volParams->bDevice)
+			StopFormatWriteThread();
+
 		break;
 		
 	case FILESYS_FAT:
@@ -411,7 +465,17 @@ begin_format:
 		GetFatParams (&ft); 
 		*(volParams->realClusterSize) = ft.cluster_size * SECTOR_SIZE;
 
+		if (volParams->bDevice && !StartFormatWriteThread())
+		{
+			nStatus = ERR_OS_ERROR; 
+			goto error;
+		}
+
 		nStatus = FormatFat (startSector, &ft, (void *) dev, cryptoInfo, volParams->quickFormat);
+
+		if (volParams->bDevice)
+			StopFormatWriteThread();
+
 		break;
 
 	default:
@@ -423,7 +487,7 @@ begin_format:
 		goto error;
 
 	// Write header backup
-	offset.QuadPart = volParams->hiddenVol ? volParams->hiddenVolHostSize - TC_HIDDEN_VOLUME_HEADER_OFFSET : volParams->size + TC_VOLUME_HEADER_GROUP_SIZE;
+	offset.QuadPart = volParams->hiddenVol ? volParams->hiddenVolHostSize - TC_HIDDEN_VOLUME_HEADER_OFFSET : dataAreaSize + TC_VOLUME_HEADER_GROUP_SIZE;
 
 	if (!SetFilePointerEx ((HANDLE) dev, offset, NULL, FILE_BEGIN))
 	{
@@ -431,7 +495,7 @@ begin_format:
 		goto error;
 	}
 
-	nStatus = VolumeWriteHeader (FALSE,
+	nStatus = CreateVolumeHeaderInMemory (FALSE,
 		header,
 		volParams->ea,
 		FIRST_MODE_OF_OPERATION_ID,
@@ -439,10 +503,10 @@ begin_format:
 		volParams->pkcs5,
 		cryptoInfo->master_keydata,
 		&cryptoInfo,
-		volParams->size,
-		volParams->hiddenVol ? volParams->size : 0,
+		dataAreaSize,
+		volParams->hiddenVol ? dataAreaSize : 0,
 		dataOffset,
-		volParams->size,
+		dataAreaSize,
 		0,
 		volParams->headerFlags,
 		FALSE);
@@ -453,74 +517,13 @@ begin_format:
 		goto error;
 	}
 
-	// Fill reserved header sectors with random data
+	// Fill reserved header sectors (including the backup header area) with random data
 	if (!volParams->hiddenVol)
 	{
-		char temporaryKey[MASTER_KEYDATA_SIZE];
-		char originalK2[MASTER_KEYDATA_SIZE];
-		
-		byte buf[TC_VOLUME_HEADER_GROUP_SIZE - TC_VOLUME_HEADER_EFFECTIVE_SIZE];
-		BOOL backupHeaders = FALSE;
+		nStatus = WriteRandomDataToReservedHeaderAreas (dev, cryptoInfo, dataAreaSize, FALSE, FALSE);
 
-		memcpy (originalK2, cryptoInfo->k2, sizeof (cryptoInfo->k2));
-
-		while (TRUE)
-		{
-			// Temporary keys
-			if (!RandgetBytes (temporaryKey, EAGetKeySize (cryptoInfo->ea), TRUE)
-				|| !RandgetBytes (cryptoInfo->k2, sizeof (cryptoInfo->k2), FALSE))
-			{
-				nStatus = ERR_PARAMETER_INCORRECT; 
-				goto error;
-			}
-
-			nStatus = EAInit (cryptoInfo->ea, temporaryKey, cryptoInfo->ks);
-			if (nStatus != ERR_SUCCESS)
-				goto error;
-
-			if (!EAInitMode (cryptoInfo))
-			{
-				nStatus = ERR_MODE_INIT_FAILED;
-				goto error;
-			}
-
-			offset.QuadPart = backupHeaders ? volParams->size + TC_VOLUME_HEADER_GROUP_SIZE : TC_VOLUME_HEADER_OFFSET;
-			offset.QuadPart += TC_VOLUME_HEADER_EFFECTIVE_SIZE;
-
-			if (!SetFilePointerEx ((HANDLE) dev, offset, NULL, FILE_BEGIN))
-			{
-				nStatus = ERR_OS_ERROR;
-				goto error;
-			}
-
-			EncryptBuffer (buf, sizeof (buf), cryptoInfo);
-
-			if (_lwrite ((HFILE) dev, buf, sizeof (buf)) == HFILE_ERROR)
-			{
-				nStatus = ERR_OS_ERROR;
-				goto error;
-			}
-
-			if (backupHeaders)
-				break;
-
-			backupHeaders = TRUE;
-		}
-
-		memcpy (cryptoInfo->k2, originalK2, sizeof (cryptoInfo->k2));
-	
-		nStatus = EAInit (cryptoInfo->ea, cryptoInfo->master_keydata, cryptoInfo->ks);
 		if (nStatus != ERR_SUCCESS)
 			goto error;
-
-		if (!EAInitMode (cryptoInfo))
-		{
-			nStatus = ERR_MODE_INIT_FAILED;
-			goto error;
-		}
-
-		burn (temporaryKey, sizeof (temporaryKey));
-		burn (originalK2, sizeof (originalK2));
 	}
 
 error:
@@ -600,7 +603,7 @@ error:
 			if (!UnmountVolume (volParams->hwndDlg, driveNo, FALSE))
 				MessageBoxW (volParams->hwndDlg, GetString ("CANT_DISMOUNT_VOLUME"), lpszTitle, ICON_HAND);
 
-			if (volParams->size <= TC_MAX_FAT_FS_SIZE)
+			if (dataAreaSize <= TC_MAX_FAT_FS_SIZE)
 			{
 				if (AskErrYesNo ("FORMAT_NTFS_FAILED_ASK_FAT") == IDYES)
 				{
@@ -640,6 +643,7 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, P
 	char sector[SECTOR_SIZE], write_buf[WRITE_BUF_SIZE];
 	unsigned __int64 nSecNo = startSector;
 	int retVal = 0;
+	DWORD err;
 	char temporaryKey[MASTER_KEYDATA_SIZE];
 	char originalK2[MASTER_KEYDATA_SIZE];
 
@@ -736,11 +740,14 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, P
 	return 0;
 
 fail:
+	err = GetLastError();
 
 	burn (temporaryKey, sizeof(temporaryKey));
 	burn (originalK2, sizeof(originalK2));
 	VirtualUnlock (temporaryKey, sizeof (temporaryKey));
 	VirtualUnlock (originalK2, sizeof (originalK2));
+
+	SetLastError (err);
 	return (retVal ? retVal : ERR_OS_ERROR);
 }
 
@@ -813,6 +820,119 @@ BOOL WriteSector (void *dev, char *sector,
 }
 
 
+static volatile BOOL WriteThreadRunning;
+static volatile BOOL WriteThreadExitRequested;
+static HANDLE WriteThreadHandle;
+
+static byte *WriteThreadBuffer;
+static HANDLE WriteBufferEmptyEvent;
+static HANDLE WriteBufferFullEvent;
+
+static volatile HANDLE WriteRequestHandle;
+static volatile int WriteRequestSize; 
+static volatile DWORD WriteRequestResult;
+
+
+static void __cdecl FormatWriteThreadProc (void *arg)
+{
+	DWORD bytesWritten;
+
+	SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+
+	while (!WriteThreadExitRequested)
+	{
+		if (WaitForSingleObject (WriteBufferFullEvent, INFINITE) == WAIT_FAILED)
+		{
+			handleWin32Error (NULL);
+			break;
+		}
+
+		if (WriteThreadExitRequested)
+			break;
+
+		if (!WriteFile (WriteRequestHandle, WriteThreadBuffer, WriteRequestSize, &bytesWritten, NULL))
+			WriteRequestResult = GetLastError();
+		else		
+			WriteRequestResult = ERROR_SUCCESS;
+
+		if (!SetEvent (WriteBufferEmptyEvent))
+		{
+			handleWin32Error (NULL);
+			break;
+		}
+	}
+
+	WriteThreadRunning = FALSE;
+	_endthread();
+}
+
+
+static BOOL StartFormatWriteThread ()
+{
+	DWORD sysErr;
+
+	WriteBufferEmptyEvent = NULL;
+	WriteBufferFullEvent = NULL;
+	WriteThreadBuffer = NULL;
+
+	WriteBufferEmptyEvent = CreateEvent (NULL, FALSE, TRUE, NULL);
+	if (!WriteBufferEmptyEvent)
+		goto err;
+
+	WriteBufferFullEvent = CreateEvent (NULL, FALSE, FALSE, NULL);
+	if (!WriteBufferFullEvent)
+		goto err;
+
+	WriteThreadBuffer = TCalloc (WRITE_BUF_SIZE);
+	if (!WriteThreadBuffer)
+	{
+		SetLastError (ERROR_OUTOFMEMORY);
+		goto err;
+	}
+
+	WriteThreadExitRequested = FALSE;
+	WriteRequestResult = ERROR_SUCCESS;
+
+	WriteThreadHandle = (HANDLE) _beginthread (FormatWriteThreadProc, 0, NULL);
+	if ((uintptr_t) WriteThreadHandle == -1L)
+		goto err;
+
+	WriteThreadRunning = TRUE;
+	return TRUE;
+
+err:
+	sysErr = GetLastError();
+
+	if (WriteBufferEmptyEvent)
+		CloseHandle (WriteBufferEmptyEvent);
+	if (WriteBufferFullEvent)
+		CloseHandle (WriteBufferFullEvent);
+	if (WriteThreadBuffer)
+		TCfree (WriteThreadBuffer);
+
+	SetLastError (sysErr);
+	return FALSE;
+}
+
+
+static void StopFormatWriteThread ()
+{
+	if (WriteThreadRunning)
+	{
+		WaitForSingleObject (WriteBufferEmptyEvent, INFINITE);
+
+		WriteThreadExitRequested = TRUE;
+		SetEvent (WriteBufferFullEvent);
+
+		WaitForSingleObject (WriteThreadHandle, INFINITE);
+	}
+
+	CloseHandle (WriteBufferEmptyEvent);
+	CloseHandle (WriteBufferFullEvent);
+	TCfree (WriteThreadBuffer);
+}
+
+
 BOOL FlushFormatWriteBuffer (void *dev, char *write_buf, int *write_buf_cnt, __int64 *nSecNo, PCRYPTO_INFO cryptoInfo)
 {
 	UINT64_STRUCT unitNo;
@@ -825,8 +945,29 @@ BOOL FlushFormatWriteBuffer (void *dev, char *write_buf, int *write_buf_cnt, __i
 
 	EncryptDataUnits (write_buf, &unitNo, *write_buf_cnt / ENCRYPTION_DATA_UNIT_SIZE, cryptoInfo);
 
-	if (!WriteFile ((HANDLE) dev, write_buf, *write_buf_cnt, &bytesWritten, NULL))
-		return FALSE;
+	if (WriteThreadRunning)
+	{
+		if (WaitForSingleObject (WriteBufferEmptyEvent, INFINITE) == WAIT_FAILED)
+			return FALSE;
+		
+		if (WriteRequestResult != ERROR_SUCCESS)
+		{
+			SetLastError (WriteRequestResult);
+			return FALSE;
+		}
+
+		memcpy (WriteThreadBuffer, write_buf, *write_buf_cnt);
+		WriteRequestHandle = dev;
+		WriteRequestSize = *write_buf_cnt;
+
+		if (!SetEvent (WriteBufferFullEvent))
+			return FALSE;
+	}
+	else
+	{
+		if (!WriteFile ((HANDLE) dev, write_buf, *write_buf_cnt, &bytesWritten, NULL))
+			return FALSE;
+	}
 
 	*write_buf_cnt = 0;
 	return TRUE;

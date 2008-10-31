@@ -52,12 +52,13 @@ BEGIN
                     "Button",BS_AUTOCHECKBOX | BS_MULTILINE | WS_TABSTOP,162,10,165,16
     CONTROL         "Enabled",IDC_PREF_BKG_TASK_ENABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,42,111,10
     CONTROL         "Exit when there are no mounted volumes",IDC_CLOSE_BKG_TASK_WHEN_NOVOL,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,126,42,160,10
-    CONTROL         "Start TrueCrypt",IDC_PREF_LOGON_START,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,76,114,10
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,140,42,188,10
+    CONTROL         "Start TrueCrypt Background Task",IDC_PREF_LOGON_START,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,76,126,10
     CONTROL         "Mount all device-hosted TrueCrypt volumes",IDC_PREF_LOGON_MOUNT_DEVICES,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,126,71,202,10
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,140,71,188,10
     CONTROL         "Mount favorite volumes",IDC_PREF_LOGON_MOUNT_FAVORITES,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,126,82,202,10
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,140,82,188,10
     CONTROL         "User logs off",IDC_PREF_DISMOUNT_LOGOFF,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,81,109,114,11
     CONTROL         "Screen saver is launched",IDC_PREF_DISMOUNT_SCREENSAVER,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,81,120,114,10
@@ -80,10 +81,8 @@ BEGIN
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,162,228,165,11
     CONTROL         "Wipe cached passwords on auto-dismount",IDC_PREF_WIPE_CACHE_ON_AUTODISMOUNT,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,240,296,11
-    PUSHBUTTON      "Hot Key Settings...",IDC_PREFS_HOTKEY_SETTINGS,4,262,81,14
-    PUSHBUTTON      "Default Keyfiles...",IDC_PREFS_KEYFILE_SETTINGS,91,262,81,14
-    DEFPUSHBUTTON   "OK",IDOK,226,262,50,14
-    PUSHBUTTON      "Cancel",IDCANCEL,282,262,50,14
+    DEFPUSHBUTTON   "OK",IDOK,225,262,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,281,262,50,14
     GROUPBOX        "Windows",IDT_WINDOWS_RELATED_SETTING,4,164,328,50
     GROUPBOX        "Default Mount Options",IDT_DEFAULT_MOUNT_OPTIONS,4,2,328,26
     GROUPBOX        "TrueCrypt Background Task",IDT_TASKBAR_ICON,4,31,328,27
@@ -92,6 +91,7 @@ BEGIN
     LTEXT           "Dismount all when:",IDT_AUTO_DISMOUNT_ON,9,115,71,17
     GROUPBOX        "Password Cache",IDT_PW_CACHE_OPTIONS,4,217,328,38
     GROUPBOX        "Actions to perform upon log on to Windows",IDT_LOGON,4,61,328,35
+    PUSHBUTTON      "More Settings...",IDC_MORE_SETTINGS,5,262,85,14
 END
 
 IDD_VOLUME_PROPERTIES DIALOGEX 60, 30, 284, 186
@@ -234,6 +234,43 @@ BEGIN
     GROUPBOX        "Shortcut",IDT_ASSIGN_HOTKEY,7,108,367,53
 END
 
+IDD_TOKEN_PREFERENCES DIALOGEX 0, 0, 316, 199
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "TrueCrypt - Security Token Preferences"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    EDITTEXT        IDC_PKCS11_MODULE,16,23,204,13,ES_AUTOHSCROLL
+    PUSHBUTTON      "Select &Library...",IDC_SELECT_PKCS11_MODULE,226,22,75,14
+    PUSHBUTTON      "Auto-&Detect Library",IDC_AUTO_DETECT_PKCS11_MODULE,16,41,112,14
+    CONTROL         "&Close token session (log out) after a volume is successfully mounted",IDC_CLOSE_TOKEN_SESSION_AFTER_MOUNT,
+                    "Button",BS_AUTOCHECKBOX | WS_GROUP | WS_TABSTOP,16,154,284,9
+    DEFPUSHBUTTON   "OK",IDOK,205,178,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,259,178,50,14
+    GROUPBOX        "PKCS #11 Library Path",IDT_PKCS11_LIB_PATH,7,7,302,129
+    GROUPBOX        "Security Options",IDT_SECURITY_OPTIONS,7,140,302,30
+    LTEXT           "",IDT_PKCS11_LIB_HELP,16,63,286,65
+END
+
+IDD_SYSENC_SETTINGS DIALOGEX 0, 0, 370, 242
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "TrueCrypt - System Encryption Settings"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    CONTROL         "Do not &show any texts in the pre-boot authentication screen (except the below custom message)",IDC_DISABLE_BOOT_LOADER_OUTPUT,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,18,22,339,9
+    EDITTEXT        IDC_CUSTOM_BOOT_LOADER_MESSAGE,18,52,216,14,ES_AUTOHSCROLL
+    CONTROL         "&Cache pre-boot authentication password in driver memory (for mounting of non-system volumes)",IDC_BOOT_LOADER_CACHE_PASSWORD,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,18,178,339,10
+    CONTROL         "Allow pre-boot &authentication to be bypassed by pressing the Esc key (enables boot manager)",IDC_ALLOW_ESC_PBA_BYPASS,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,18,193,340,10
+    DEFPUSHBUTTON   "OK",IDOK,257,220,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,313,220,50,14
+    LTEXT           "Display this custom message in the pre-boot authentication screen (24 characters maximum):",IDT_CUSTOM_BOOT_LOADER_MESSAGE,18,41,337,8
+    GROUPBOX        "Boot Loader Screen Options",IDT_BOOT_LOADER_SCREEN_OPTIONS,8,7,355,150
+    GROUPBOX        "Security Options",IDT_SECURITY_OPTIONS,8,163,355,49
+    LTEXT           "",IDC_CUSTOM_BOOT_LOADER_MESSAGE_HELP,18,74,337,73
+END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -293,6 +330,22 @@ BEGIN
         TOPMARGIN, 7
         BOTTOMMARGIN, 232
     END
+
+    IDD_TOKEN_PREFERENCES, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 309
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 192
+    END
+
+    IDD_SYSENC_SETTINGS, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 363
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 235
+    END
 END
 #endif    // APSTUDIO_INVOKED
 
@@ -303,8 +356,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 6,0,1,0
- PRODUCTVERSION 6,0,1,0
+ FILEVERSION 6,1,0,0
+ PRODUCTVERSION 6,1,0,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -321,12 +374,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt"
-            VALUE "FileVersion", "6.0a"
+            VALUE "FileVersion", "6.1"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "6.0a"
+            VALUE "ProductVersion", "6.1"
         END
     END
     BLOCK "VarFileInfo"
@@ -390,6 +443,8 @@ BEGIN
         MENUITEM "Mount Favorite Volumes",      IDM_MOUNT_FAVORITE_VOLUMES
         MENUITEM "Save Currently Mounted Volumes as Favorite", IDM_SAVE_FAVORITE_VOLUMES
         MENUITEM SEPARATOR
+        MENUITEM "Resume Interrupted Process",  IDM_RESUME_INTERRUPTED_PROC
+        MENUITEM SEPARATOR
         MENUITEM "Mount Volume",                IDM_MOUNT_VOLUME
         MENUITEM "Mount Volume with Options",   IDM_MOUNT_VOLUME_OPTIONS
         MENUITEM "Auto-Mount All Device-Hosted Volumes", IDM_MOUNTALL
@@ -414,12 +469,14 @@ BEGIN
         MENUITEM "Create Rescue Disk...",       IDM_CREATE_RESCUE_DISK
         MENUITEM "Verify Rescue Disk",          IDM_VERIFY_RESCUE_DISK
         MENUITEM SEPARATOR
+        MENUITEM "Mount Without Pre-Boot &Authentication...", IDM_MOUNT_SYSENC_PART_WITHOUT_PBA
+        MENUITEM SEPARATOR
         MENUITEM "Change Password...",          IDM_CHANGE_SYS_PASSWORD
         MENUITEM "Set Header Key Derivation Algorithm...", IDM_CHANGE_SYS_HEADER_KEY_DERIV_ALGO
         MENUITEM SEPARATOR
-        MENUITEM "Mount Without Pre-Boot &Authentication...", IDM_MOUNT_SYSENC_PART_WITHOUT_PBA
+        MENUITEM "Properties...",               IDM_SYSTEM_ENCRYPTION_STATUS
         MENUITEM SEPARATOR
-        MENUITEM "Properties",                  IDM_SYSTEM_ENCRYPTION_STATUS
+        MENUITEM "Settings...",                 IDM_SYS_ENC_SETTINGS
     END
     POPUP "&Keyfiles"
     BEGIN
@@ -427,6 +484,9 @@ BEGIN
         MENUITEM "Remove All Keyfiles from Volume...", IDM_REMOVE_ALL_KEYFILES_FROM_VOL
         MENUITEM SEPARATOR
         MENUITEM "Generate Random Keyfile...",  IDM_GENERATE_KEYFILE
+        MENUITEM SEPARATOR
+        MENUITEM "Manage Security Token Keyfiles...", IDM_MANAGE_TOKEN_KEYFILES
+        MENUITEM "Close All Security Token Sessions", IDM_CLOSE_ALL_TOKEN_SESSIONS
         MENUITEM SEPARATOR
         MENUITEM "Set Default Keyfiles/Paths...", IDM_SET_DEFAULT_KEYFILES
     END
@@ -451,7 +511,9 @@ BEGIN
     BEGIN
         MENUITEM "Language...",                 IDM_LANGUAGE
         MENUITEM "Hot Keys...",                 IDM_HOTKEY_SETTINGS
+        MENUITEM "System Encryption...",        IDM_SYSENC_SETTINGS
         MENUITEM "Default Keyfiles...",         IDM_DEFAULT_KEYFILES
+        MENUITEM "Security Tokens...",          IDM_TOKEN_PREFERENCES
         MENUITEM SEPARATOR
         MENUITEM "Preferences...",              IDM_PREFERENCES
     END

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -28,12 +28,15 @@ namespace TrueCrypt
 		parser.SetSwitchChars (L"-");
 
 		parser.AddOption (L"",  L"auto-mount",			_("Auto mount device-hosted/favorite volumes"));
+		parser.AddSwitch (L"",  L"backup-headers",		_("Backup volume headers"));
 		parser.AddSwitch (L"",  L"background-task",		_("Start Background Task"));
 #ifdef TC_WINDOWS
 		parser.AddSwitch (L"",  L"cache",				_("Cache passwords and keyfiles"));
 #endif
 		parser.AddSwitch (L"C", L"change",				_("Change password or keyfiles"));
 		parser.AddSwitch (L"c", L"create",				_("Create new volume"));
+		parser.AddSwitch (L"",	L"create-keyfile",		_("Create new keyfile"));
+		parser.AddSwitch (L"",	L"delete-token-keyfiles", _("Delete security token keyfiles"));
 		parser.AddSwitch (L"d", L"dismount",			_("Dismount volume"));
 		parser.AddOption (L"",	L"encryption",			_("Encryption algorithm"));
 		parser.AddSwitch (L"",	L"explore",				_("Open explorer window for mounted volume"));
@@ -44,8 +47,10 @@ namespace TrueCrypt
 #endif
 		parser.AddOption (L"",	L"hash",				_("Hash algorithm"));
 		parser.AddSwitch (L"h", L"help",				_("Display detailed command line help"), wxCMD_LINE_OPTION_HELP);
+		parser.AddSwitch (L"",	L"import-token-keyfiles", _("Import keyfiles to security token"));
 		parser.AddOption (L"k", L"keyfiles",			_("Keyfiles"));
 		parser.AddSwitch (L"l", L"list",				_("List mounted volumes"));
+		parser.AddSwitch (L"",	L"list-token-keyfiles",	_("List security token keyfiles"));
 		parser.AddSwitch (L"",	L"load-preferences",	_("Load user preferences"));
 		parser.AddSwitch (L"",	L"mount",				_("Mount volume interactively"));
 		parser.AddOption (L"m", L"mount-options",		_("TrueCrypt volume mount options"));
@@ -57,11 +62,13 @@ namespace TrueCrypt
 		parser.AddOption (L"",	L"protection-keyfiles",	_("Keyfiles for protected hidden volume"));
 		parser.AddOption (L"",	L"protection-password",	_("Password for protected hidden volume"));
 		parser.AddOption (L"",	L"random-source",		_("Use file as source of random data"));
+		parser.AddSwitch (L"",  L"restore-headers",		_("Restore volume headers"));
 		parser.AddSwitch (L"",	L"quick",				_("Enable quick format"));
 		parser.AddOption (L"",	L"size",				_("Size in bytes"));
 		parser.AddOption (L"",	L"slot",				_("Volume slot number"));
 		parser.AddSwitch (L"",	L"test",				_("Test internal algorithms"));
 		parser.AddSwitch (L"t", L"text",				_("Use text user interface"));
+		parser.AddOption (L"",	L"token-lib",			_("Security token library"));
 		parser.AddSwitch (L"v", L"verbose",				_("Enable verbose output"));
 		parser.AddSwitch (L"",	L"version",				_("Display version information"));
 		parser.AddSwitch (L"",	L"volume-properties",	_("Display volume properties"));
@@ -73,6 +80,7 @@ namespace TrueCrypt
 		bool param1IsVolume = false;
 		bool param1IsMountedVolumeSpec = false;
 		bool param1IsMountPoint = false;
+		bool param1IsFile = false;
 
 		if (parser.Parse () > 0)
 			throw_err (_("Incorrect command line specified."));
@@ -137,6 +145,13 @@ namespace TrueCrypt
 			}
 		}
 
+		if (parser.Found (L"backup-headers"))
+		{
+			CheckCommandSingle();
+			ArgCommand = CommandId::BackupHeaders;
+			param1IsVolume = true;
+		}
+
 		if (parser.Found (L"change"))
 		{
 			CheckCommandSingle();
@@ -151,18 +166,43 @@ namespace TrueCrypt
 			param1IsVolume = true;
 		}
 
+		if (parser.Found (L"create-keyfile"))
+		{
+			CheckCommandSingle();
+			ArgCommand = CommandId::CreateKeyfile;
+			param1IsFile = true;
+		}
+			
+		if (parser.Found (L"delete-token-keyfiles"))
+		{
+			CheckCommandSingle();
+			ArgCommand = CommandId::DeleteSecurityTokenKeyfiles;
+		}
+
 		if (parser.Found (L"dismount"))
 		{
 			CheckCommandSingle();
 			ArgCommand = CommandId::DismountVolumes;
 			param1IsMountedVolumeSpec = true;
 		}
-		
+
+		if (parser.Found (L"import-token-keyfiles"))
+		{
+			CheckCommandSingle();
+			ArgCommand = CommandId::ImportSecurityTokenKeyfiles;
+		}
+
 		if (parser.Found (L"list"))
 		{
 			CheckCommandSingle();
 			ArgCommand = CommandId::ListVolumes;
 			param1IsMountedVolumeSpec = true;
+		}
+
+		if (parser.Found (L"list-token-keyfiles"))
+		{
+			CheckCommandSingle();
+			ArgCommand = CommandId::ListSecurityTokenKeyfiles;
 		}
 
 		if (parser.Found (L"mount"))
@@ -264,6 +304,8 @@ namespace TrueCrypt
 					ArgMountOptions.NoKernelCrypto = true;
 				else if (token == L"readonly" || token == L"ro")
 					ArgMountOptions.Protection = VolumeProtection::ReadOnly;
+				else if (token == L"system")
+					ArgMountOptions.PartitionInSystemEncryptionScope = true;
 				else if (token == L"timestamp" || token == L"ts")
 					ArgMountOptions.PreserveTimestamps = false;
 #ifdef TC_WINDOWS
@@ -317,6 +359,13 @@ namespace TrueCrypt
 		if (parser.Found (L"random-source", &str))
 			ArgRandomSourcePath = FilesystemPath (str);
 
+		if (parser.Found (L"restore-headers"))
+		{
+			CheckCommandSingle();
+			ArgCommand = CommandId::RestoreHeaders;
+			param1IsVolume = true;
+		}
+
 		if (parser.Found (L"slot", &str))
 		{
 			unsigned long number;
@@ -347,6 +396,9 @@ namespace TrueCrypt
 				throw_err (LangString["PARAMETER_INCORRECT"] + L": " + str);
 			}
 		}
+
+		if (parser.Found (L"token-lib", &str))
+			Preferences.SecurityTokenModule = wstring (str);
 
 		if (parser.Found (L"verbose"))
 			Preferences.Verbose = true;
@@ -388,6 +440,11 @@ namespace TrueCrypt
 				wxFileName mountPoint (wstring (Directory::AppendSeparator (s)));
 				mountPoint.Normalize (wxPATH_NORM_ABSOLUTE | wxPATH_NORM_DOTS);
 				ArgMountPoint.reset (new DirectoryPath (wstring (mountPoint.GetPath())));
+			}
+
+			if (param1IsFile)
+			{
+				ArgFilePath.reset (new FilePath (parser.GetParam (0)));
 			}
 		}
 

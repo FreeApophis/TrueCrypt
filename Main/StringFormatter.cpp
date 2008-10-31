@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -68,16 +68,16 @@ namespace TrueCrypt
 
 		if (numberExpected
 			|| endTagExpected
-			|| !arg0.WasReferenced() && !arg0.IsEmpty()
-			|| !arg1.WasReferenced() && !arg1.IsEmpty()
-			|| !arg2.WasReferenced() && !arg2.IsEmpty()
-			|| !arg3.WasReferenced() && !arg3.IsEmpty()
-			|| !arg4.WasReferenced() && !arg4.IsEmpty()
-			|| !arg5.WasReferenced() && !arg5.IsEmpty()
-			|| !arg6.WasReferenced() && !arg6.IsEmpty()
-			|| !arg7.WasReferenced() && !arg7.IsEmpty()
-			|| !arg8.WasReferenced() && !arg8.IsEmpty()
-			|| !arg9.WasReferenced() && !arg9.IsEmpty()
+			|| (!arg0.WasReferenced() && !arg0.IsEmpty())
+			|| (!arg1.WasReferenced() && !arg1.IsEmpty())
+			|| (!arg2.WasReferenced() && !arg2.IsEmpty())
+			|| (!arg3.WasReferenced() && !arg3.IsEmpty())
+			|| (!arg4.WasReferenced() && !arg4.IsEmpty())
+			|| (!arg5.WasReferenced() && !arg5.IsEmpty())
+			|| (!arg6.WasReferenced() && !arg6.IsEmpty())
+			|| (!arg7.WasReferenced() && !arg7.IsEmpty())
+			|| (!arg8.WasReferenced() && !arg8.IsEmpty())
+			|| (!arg9.WasReferenced() && !arg9.IsEmpty())
 			)
 			throw StringFormatterException (SRC_POS, wstring (format));
 	}

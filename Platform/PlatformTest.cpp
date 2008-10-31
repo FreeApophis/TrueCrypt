@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -44,6 +44,20 @@ namespace TrueCrypt
 		uint64 i64 = 0x0123456789abcdefULL;
 		string str = "string test";
 		wstring wstr = L"wstring test";
+
+		string convStr = "test";
+		StringConverter::ToSingle (wstr, convStr);
+		if (convStr != "wstring test")
+			throw TestFailed (SRC_POS);
+
+		StringConverter::Erase (convStr);
+		if (convStr != "            ")
+			throw TestFailed (SRC_POS);
+
+		wstring wEraseTest = L"erase test";
+		StringConverter::Erase (wEraseTest);
+		if (wEraseTest != L"          ")
+			throw TestFailed (SRC_POS);
 
 		list <string> stringList;
 		stringList.push_back (str + "1");

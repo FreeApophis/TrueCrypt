@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.5 the full text of which is contained in the
+ by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -113,7 +113,7 @@ namespace TrueCrypt
 		}
 	}
 
-	static void PutBoot (fatparams * ft, byte *boot)
+	static void PutBoot (fatparams * ft, byte *boot, uint32 volumeId)
 	{
 		int cnt = 0;
 
@@ -186,7 +186,7 @@ namespace TrueCrypt
 		boot[cnt++] = 0x00;	/* reserved */
 		boot[cnt++] = 0x29;	/* boot sig */
 
-		RandomNumberGenerator::GetDataFast (BufferPtr (boot + cnt, 4));	/* vol id */
+		*(int32 *)(boot + cnt) = volumeId;
 		cnt += 4;
 
 		memcpy (boot + cnt, ft->volume_name, 11);	/* vol title */
@@ -223,10 +223,9 @@ namespace TrueCrypt
 		// Free cluster count
 		*(uint32 *)(sector + 488) = Endian::Little (ft->cluster_count - ft->size_root_dir / SECTOR_SIZE / ft->cluster_size);
 
-		sector[492+3] = 0xff; /* Nxt_Free */
-		sector[492+2] = 0xff;
-		sector[492+1] = 0xff;
-		sector[492+0] = 0xff;
+		// Next free cluster
+		*(uint32 *)(sector + 492) = Endian::Little ((uint32) 2);
+
 		sector[508+3] = 0xaa; /* TrailSig */
 		sector[508+2] = 0x55;
 		sector[508+1] = 0x00;
@@ -253,7 +252,10 @@ namespace TrueCrypt
 
 		sector.Zero();
 
-		PutBoot (ft, (byte *) sector);
+		uint32 volumeId;
+		RandomNumberGenerator::GetDataFast (BufferPtr ((byte *) &volumeId, sizeof (volumeId)));
+
+		PutBoot (ft, (byte *) sector, volumeId);
 		writeSector (sector); ++sectorNumber;
 
 		/* fat32 boot area */
@@ -274,7 +276,7 @@ namespace TrueCrypt
 
 			/* bootsector backup */
 			sector.Zero();
-			PutBoot (ft, (byte *) sector);
+			PutBoot (ft, (byte *) sector, volumeId);
 			writeSector (sector); ++sectorNumber;
 
 			PutFSInfo((byte *) sector, ft);

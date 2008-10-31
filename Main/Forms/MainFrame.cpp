@@ -1,13 +1,13 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.5 the full text of which is contained
+ Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
 
 #include "System.h"
-#include "Volume/EncryptionTest.h"
+#include "Common/SecurityToken.h"
 #include "Main/Main.h"
 #include "Main/Resources.h"
 #include "Main/Application.h"
@@ -17,9 +17,11 @@
 #include "MainFrame.h"
 #include "AboutDialog.h"
 #include "ChangePasswordDialog.h"
+#include "EncryptionTestDialog.h"
 #include "FavoriteVolumesDialog.h"
 #include "LegalNoticesDialog.h"
 #include "PreferencesDialog.h"
+#include "SecurityTokenKeyfilesDialog.h"
 #ifdef TC_WINDOWS
 #include "TravelerDiskWizard.h"
 #endif
@@ -43,6 +45,18 @@ namespace TrueCrypt
 		InitTaskBarIcon();
 		InitEvents();
 		InitMessageFilter();
+
+		if (!GetPreferences().SecurityTokenModule.IsEmpty() && !SecurityToken::IsInitialized())
+		{
+			try
+			{
+				Gui->InitSecurityTokenLibrary();
+			}
+			catch (exception &e)
+			{
+				Gui->ShowError (e);
+			}
+		}
 	}
 
 	MainFrame::~MainFrame ()
@@ -240,10 +254,16 @@ namespace TrueCrypt
 		SetMinSize (wxSize (-1, -1));
 
 		size_t slotListRowCount = 12;
+
 #ifndef TC_WINDOWS
-		if (wxSystemSettings::GetMetric (wxSYS_SCREEN_Y) < 600)
-			slotListRowCount = 6;
+		int screenHeight = wxSystemSettings::GetMetric (wxSYS_SCREEN_Y);
+		
+		if (screenHeight < 480)
+			slotListRowCount = 1;
+		else if (screenHeight <= 600)
+			slotListRowCount = slotListRowCount * screenHeight / 1000;
 #endif
+
 		Gui->SetListCtrlHeight (SlotListCtrl, slotListRowCount);
 
 #ifdef __WXGTK__
@@ -335,7 +355,7 @@ namespace TrueCrypt
 		};
 
 		mTimer.reset (dynamic_cast <wxTimer *> (new Timer (this)));
-		mTimer->Start (1000);
+		mTimer->Start (2000);
 	}
 
 #ifdef TC_WINDOWS
@@ -628,9 +648,9 @@ namespace TrueCrypt
 
 		try
 		{
-			Gui->BackupVolumeHeaders (this, GetSelectedVolumePath());
+			Gui->BackupVolumeHeaders (GetSelectedVolumePath());
 		}
-		catch (Exception &e)
+		catch (exception &e)
 		{
 			Gui->ShowError (e);
 		}
@@ -646,6 +666,17 @@ namespace TrueCrypt
 	{
 		if (GetPreferences().WipeCacheOnClose)
 			Core->WipePasswordCache();
+
+#ifdef TC_MACOSX
+		if (!event.CanVeto() && GetPreferences().DismountOnLogOff)
+		{
+			try
+			{
+				Gui->DismountVolumes (Core->GetMountedVolumes(), GetPreferences().ForceAutoDismount, false);
+			}
+			catch (...) { }
+		}
+#endif
 
 		if (!Gui->IsTheOnlyTopLevelWindow (this))
 		{
@@ -692,6 +723,22 @@ namespace TrueCrypt
 		return;
 	}
 
+	void MainFrame::OnCloseAllSecurityTokenSessionsMenuItemSelected (wxCommandEvent& event)
+	{
+		try
+		{
+			{
+				wxBusyCursor busy;
+				SecurityToken::CloseAllSessions();
+			}
+			Gui->ShowInfo ("ALL_TOKEN_SESSIONS_CLOSED");
+		}
+		catch (exception &e)
+		{
+			Gui->ShowError (e);
+		}
+	}
+
 	void MainFrame::OnCreateVolumeButtonClick (wxCommandEvent& event)
 	{
 		(new VolumeCreationWizard (nullptr))->Show();
@@ -703,7 +750,7 @@ namespace TrueCrypt
 		dialog.SelectPage (dialog.DefaultKeyfilesPage);
 		dialog.ShowModal();
 	}
-	
+
 	void MainFrame::OnDeviceChange (const DirectoryPath &mountPoint)
 	{
 		// Check if any host device has been removed and force dismount of volumes accordingly
@@ -736,16 +783,8 @@ namespace TrueCrypt
 
 	void MainFrame::OnEncryptionTestMenuItemSelected (wxCommandEvent& event)
 	{
-		try
-		{
-			EncryptionTest::TestAll();
-			Gui->ShowInfo ("TESTS_PASSED");
-		}
-		catch (Exception &e)
-		{
-			Gui->ShowError (e);
-			Gui->ShowError ("TESTS_FAILED");
-		}
+		EncryptionTestDialog dialog (this);
+		dialog.ShowModal();
 	}
 
 	void MainFrame::OnExitButtonClick (wxCommandEvent& event)
@@ -920,6 +959,14 @@ namespace TrueCrypt
 		else if (IsFreeSlotSelected())
 		{
 			Gui->AppendToMenu (popup, _("Mount Volume"), this, wxCommandEventHandler (MainFrame::OnMountVolumeMenuItemSelected));
+			
+			popup.AppendSeparator();
+
+			Gui->AppendToMenu (popup, LangString["SELECT_FILE_AND_MOUNT"], this, wxCommandEventHandler (MainFrame::OnSelectFileAndMountMenuItemSelected));
+			Gui->AppendToMenu (popup, LangString["SELECT_DEVICE_AND_MOUNT"], this, wxCommandEventHandler (MainFrame::OnSelectDeviceAndMountMenuItemSelected));
+
+			popup.AppendSeparator();
+
 			Gui->AppendToMenu (popup, _("Deselect"), this, wxCommandEventHandler (MainFrame::OnClearSlotSelectionMenuItemSelected));
 
 			PopupMenu (&popup);
@@ -946,7 +993,20 @@ namespace TrueCrypt
 
 		UpdateControls();
 	}
-		
+	
+	void MainFrame::OnManageSecurityTokenKeyfilesMenuItemSelected (wxCommandEvent& event)
+	{
+		try
+		{
+			SecurityTokenKeyfilesDialog dialog (this, false);
+			dialog.ShowModal();
+		}
+		catch (exception &e)
+		{
+			Gui->ShowError (e);
+		}
+	}
+
 	void MainFrame::OnMountAllDevicesButtonClick (wxCommandEvent& event)
 	{
 		MountAllDevices();
@@ -965,7 +1025,11 @@ namespace TrueCrypt
 
 		if (event.IsChecked())
 		{
-			VolumeHistory::Clear();
+			try
+			{
+				VolumeHistory::Clear();
+			}
+			catch (exception &e) { Gui->ShowError (e); }
 		}
 	}
 
@@ -1000,11 +1064,30 @@ namespace TrueCrypt
 
 		try
 		{
-			Gui->RestoreVolumeHeaders (this, GetSelectedVolumePath());
+			Gui->RestoreVolumeHeaders (GetSelectedVolumePath());
 		}
-		catch (Exception &e)
+		catch (exception &e)
 		{
 			Gui->ShowError (e);
+		}
+	}
+
+	void MainFrame::OnSecurityTokenPreferencesMenuItemSelected (wxCommandEvent& event)
+	{
+		PreferencesDialog dialog (this);
+		dialog.SelectPage (dialog.SecurityTokensPage);
+		dialog.ShowModal();
+	}
+
+	
+	void MainFrame::OnSelectDeviceAndMountMenuItemSelected (wxCommandEvent& event)
+	{
+		DevicePath path = Gui->SelectDevice (this);
+
+		if (!path.IsEmpty())
+		{
+			SetVolumePath (path);
+			OnMountVolumeMenuItemSelected (event);
 		}
 	}
 
@@ -1014,6 +1097,17 @@ namespace TrueCrypt
 
 		if (!path.IsEmpty())
 			SetVolumePath (path);
+	}
+
+	void MainFrame::OnSelectFileAndMountMenuItemSelected (wxCommandEvent& event)
+	{
+		FilePath path = Gui->SelectVolumeFile (this);
+
+		if (!path.IsEmpty())
+		{
+			SetVolumePath (path);
+			OnMountVolumeMenuItemSelected (event);
+		}
 	}
 
 	void MainFrame::OnSelectFileButtonClick (wxCommandEvent& event)
