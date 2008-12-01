@@ -582,11 +582,7 @@ static bool CopyActivePartitionToHiddenVolume (byte drive, byte &exitKey)
 	sectorsRemaining = EncryptedVirtualPartition.SectorCount;
 
 	if (!(sectorsRemaining == ActivePartition.SectorCount))
-	{
-		PrintError ("Hidden volume size differs from system partition");
-		crypto_close (BootCryptoInfo);
-		goto err;
-	}
+		TC_THROW_FATAL_EXCEPTION;
 
 	InitScreen();
 	Print ("\r\nCopying system to hidden volume. To abort, press Esc.\r\n\r\n");
@@ -604,7 +600,11 @@ static bool CopyActivePartitionToHiddenVolume (byte drive, byte &exitKey)
 			fragmentSectorCount = sectorsRemaining.LowPart;
 
 		if (ReadWriteSectors (false, TC_BOOT_LOADER_BUFFER_SEGMENT, 0, drive, ActivePartition.StartSector + sectorOffset, fragmentSectorCount, false) != BiosResultSuccess)
-			break;
+		{
+			Print ("To fix bad sectors: 1) Terminate 2) Encrypt and decrypt sys partition 3) Retry\r\n");
+			crypto_close (BootCryptoInfo);
+			goto err;
+		}
 
 		AcquireSectorBuffer();
 
@@ -621,7 +621,10 @@ static bool CopyActivePartitionToHiddenVolume (byte drive, byte &exitKey)
 		ReleaseSectorBuffer();
 
 		if (ReadWriteSectors (true, TC_BOOT_LOADER_BUFFER_SEGMENT, 0, drive, HiddenVolumeStartSector + sectorOffset, fragmentSectorCount, false) != BiosResultSuccess)
-			break;
+		{
+			crypto_close (BootCryptoInfo);
+			goto err;
+		}
 
 		sectorsRemaining = sectorsRemaining - fragmentSectorCount;
 		sectorOffset = sectorOffset + fragmentSectorCount;

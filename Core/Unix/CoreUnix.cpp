@@ -139,6 +139,48 @@ namespace TrueCrypt
 		return mountedVolume;
 	}
 
+	bool CoreUnix::FilesystemSupportsLargeFiles (const FilePath &filePath) const
+	{
+		string path = filePath;
+		size_t pos;
+		
+		while ((pos = path.find_last_of ('/')) != string::npos)
+		{
+			path = path.substr (0, pos);
+
+			if (path.empty())
+				break;
+
+			try
+			{
+				MountedFilesystemList filesystems = GetMountedFilesystems (DevicePath(), path);
+				if (!filesystems.empty())
+				{
+					const MountedFilesystem &fs = *filesystems.front();
+
+					if (fs.Type == "fat"
+						|| fs.Type == "fat32"
+						|| fs.Type == "vfat"
+						|| fs.Type == "fatfs"
+						|| fs.Type == "msdos"
+						|| fs.Type == "msdosfs"
+						|| fs.Type == "umsdos"
+						|| fs.Type == "dos"
+						|| fs.Type == "dosfs"
+						)
+					{
+						return false;
+					}
+
+					return true;
+				}
+			}
+			catch (...) { }
+		}
+
+		return true;	// Prevent errors if the filesystem cannot be identified
+	}
+
 	string CoreUnix::GetDefaultMountPointPrefix () const
 	{
 		const char *envPrefix = getenv ("TRUECRYPT_MOUNT_PREFIX");

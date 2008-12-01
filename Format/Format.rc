@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 6,1,0,0
- PRODUCTVERSION 6,1,0,0
+ FILEVERSION 6,1,1,0
+ PRODUCTVERSION 6,1,1,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -46,12 +46,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Format"
-            VALUE "FileVersion", "6.1"
+            VALUE "FileVersion", "6.1a"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt Format.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "6.1"
+            VALUE "ProductVersion", "6.1a"
         END
     END
     BLOCK "VarFileInfo"
@@ -190,7 +190,7 @@ BEGIN
                     "Button",BS_AUTORADIOBUTTON,0,87,217,10
     LTEXT           "More information about system encryption",IDC_MORE_INFO_ON_SYS_ENCRYPTION,16,136,190,10,SS_NOTIFY
     LTEXT           "Creates a virtual encrypted disk within a file. Recommended for inexperienced users.",IDT_FILE_CONTAINER,16,20,205,16
-    LTEXT           "Encrypts a non-system partition, a partition on an external or secondary drive, on a USB memory stick, etc.",IDT_NON_SYS_DEVICE,16,66,205,16
+    LTEXT           "Encrypts a non-system partition on any internal or external drive (e.g. a flash drive). Optionally, creates a hidden volume.",IDT_NON_SYS_DEVICE,16,66,205,16
     LTEXT           "Encrypts the partition/drive where Windows is installed. Anyone who wants to gain access and use the system, read and write files, etc., will need to enter the correct password each time before Windows boots. Optionally, creates a hidden system.",IDT_SYS_DEVICE,16,100,205,33
 END
 
@@ -226,7 +226,7 @@ BEGIN
     EDITTEXT        IDC_PASSWORD_DIRECT,50,11,149,14,ES_PASSWORD | ES_AUTOHSCROLL
     CONTROL         "&Display password",IDC_SHOW_PASSWORD_SINGLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,50,27,84,11,WS_EX_TRANSPARENT
     CONTROL         "U&se keyfiles",IDC_KEYFILES_ENABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,50,38,82,11
-    PUSHBUTTON      "&Keyfiles..",IDC_KEY_FILES,135,29,64,14,WS_DISABLED
+    PUSHBUTTON      "&Keyfiles..",IDC_KEY_FILES,135,29,64,14
     LTEXT           "",IDC_BOX_HELP,0,57,225,94
     RTEXT           "Password:",IDT_PASSWORD,0,15,48,8
 END

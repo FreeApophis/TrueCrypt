@@ -149,6 +149,8 @@ namespace TrueCrypt
 				PoolHash = Hash::GetAvailableAlgorithms().front();
 			}
 		}
+
+		AddSystemDataToPool (true);
 	}
 
 	void RandomNumberGenerator::Stop ()

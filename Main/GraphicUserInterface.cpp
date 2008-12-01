@@ -21,6 +21,7 @@
 #include "GraphicUserInterface.h"
 #include "FatalErrorHandler.h"
 #include "Forms/DeviceSelectionDialog.h"
+#include "Forms/KeyfileGeneratorDialog.h"
 #include "Forms/MainFrame.h"
 #include "Forms/MountOptionsDialog.h"
 #include "Forms/SecurityTokenKeyfilesDialog.h"
@@ -281,20 +282,8 @@ namespace TrueCrypt
 	{
 		try
 		{
-			FilePath path;
-
-			if (!keyfilePath)
-			{
-				FilePathList files = SelectFiles (GetActiveWindow(), wxEmptyString, true);
-				
-				if (files.empty())
-					return;
-
-				keyfilePath = files.front();
-			}
-
-			Core->CreateKeyfile (*keyfilePath);
-			ShowInfo ("KEYFILE_CREATED");
+			KeyfileGeneratorDialog dialog (GetActiveWindow());
+			dialog.ShowModal();
 		}
 		catch (exception &e)
 		{
@@ -945,6 +934,20 @@ namespace TrueCrypt
 				if (wxExecute (fileType->GetOpenCommand (document.GetFullPath())) != 0)
 					return;
 #else
+				foreach (const string &pdfViewer, StringConverter::Split ("evince kpdf xpdf"))
+				{
+					try
+					{
+						list <string> args;
+						args.push_back (StringConverter::ToSingle (wstring (document.GetFullPath())));
+
+						Process::Execute (pdfViewer, args, 2000);
+						return;
+					}
+					catch (TimeOut&) { return; }
+					catch (...) { }
+				}
+
 				if (wxExecute (fileType->GetOpenCommand (L"\"" + document.GetFullPath() + L"\"")) != 0)
 					return;
 #endif

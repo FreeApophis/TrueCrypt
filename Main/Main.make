@@ -32,6 +32,7 @@ OBJS += Forms/EncryptionTestDialog.o
 OBJS += Forms/FavoriteVolumesDialog.o
 OBJS += Forms/Forms.o
 OBJS += Forms/InfoWizardPage.o
+OBJS += Forms/KeyfileGeneratorDialog.o
 OBJS += Forms/KeyfilesDialog.o
 OBJS += Forms/KeyfilesPanel.o
 OBJS += Forms/LegalNoticesDialog.o

@@ -3872,7 +3872,6 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			SetFocus (GetDlgItem (hwndDlg, IDC_PASSWORD_DIRECT));
 
 			SetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE, KeyFilesEnable);
-			EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
 
 			SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString (bInPlaceEncNonSys ? "NONSYS_INPLACE_ENC_RESUME_PASSWORD_PAGE_HELP" : "PASSWORD_HIDDENVOL_HOST_DIRECT_HELP"));
 
@@ -5052,7 +5051,9 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					FirstKeyFile = param.FirstKeyFile;
 
 					SetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE, KeyFilesEnable);
-					EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
+
+					if (nCurPageNo != HIDDEN_VOL_HOST_PASSWORD_PAGE && nCurPageNo != NONSYS_INPLACE_ENC_RESUME_PASSWORD_PAGE)
+						EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
 
 					if (nCurPageNo != HIDDEN_VOL_HOST_PASSWORD_PAGE && nCurPageNo != NONSYS_INPLACE_ENC_RESUME_PASSWORD_PAGE)
 					{
@@ -5069,10 +5070,11 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			if (lw == IDC_KEYFILES_ENABLE)
 			{
 				KeyFilesEnable = GetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE);
-				EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
 
 				if (nCurPageNo != HIDDEN_VOL_HOST_PASSWORD_PAGE && nCurPageNo != NONSYS_INPLACE_ENC_RESUME_PASSWORD_PAGE)
 				{
+					EnableWindow (GetDlgItem (hwndDlg, IDC_KEY_FILES), KeyFilesEnable);
+
 					VerifyPasswordAndUpdate (hwndDlg, GetDlgItem (GetParent (hwndDlg), IDC_NEXT),
 						GetDlgItem (hCurPage, IDC_PASSWORD),
 						GetDlgItem (hCurPage, IDC_VERIFY),
@@ -5998,6 +6000,18 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				switch (GetSelectedWizardMode (hCurPage))
 				{
 				case WIZARD_MODE_FILE_CONTAINER:
+
+					if (CurrentOSMajor >= 6 && IsUacSupported() && IsAdmin() && !IsNonInstallMode())
+					{
+						static bool warningConfirmed = false;
+						if (!warningConfirmed)
+						{
+							if (AskWarnYesNo ("CONTAINER_ADMIN_WARNING") == IDYES)
+								exit (0);
+
+							warningConfirmed = true;
+						}
+					}
 
 					WaitCursor ();
 					CloseSysEncMutex ();

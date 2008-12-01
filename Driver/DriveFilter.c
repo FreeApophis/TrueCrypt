@@ -1237,9 +1237,6 @@ static VOID SetupThreadProc (PVOID threadArg)
 			}
 			else
 			{
-				if (status == STATUS_NOT_IMPLEMENTED)
-					status = STATUS_NONCONTINUABLE_EXCEPTION;	// Use a distinct error code
-
 				SetupResult = status;
 				goto err;
 			}
@@ -1275,9 +1272,6 @@ static VOID SetupThreadProc (PVOID threadArg)
 						DecryptDataUnits (buffer, &dataUnit, setupBlockSize / ENCRYPTION_DATA_UNIT_SIZE, Extension->Queue.CryptoInfo);
 						TCWriteDevice (BootDriveFilterExtension->LowerDeviceObject, buffer, offset, setupBlockSize);
 
-						if (status == STATUS_NOT_IMPLEMENTED)
-							status = STATUS_NONCONTINUABLE_EXCEPTION;	// Use a distinct error code
-
 						SetupResult = status;
 						goto err;
 					}
@@ -1303,9 +1297,6 @@ static VOID SetupThreadProc (PVOID threadArg)
 				EncryptDataUnits (buffer, &dataUnit, setupBlockSize / ENCRYPTION_DATA_UNIT_SIZE, Extension->Queue.CryptoInfo);
 
 			TCWriteDevice (BootDriveFilterExtension->LowerDeviceObject, buffer, offset, setupBlockSize);
-
-			if (status == STATUS_NOT_IMPLEMENTED)
-				status = STATUS_NONCONTINUABLE_EXCEPTION;	// Use a distinct error code
 
 			SetupResult = status;
 			goto err;

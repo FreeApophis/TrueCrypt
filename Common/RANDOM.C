@@ -156,6 +156,8 @@ Randfree ()
 	bThreadTerminate = FALSE;
 	DeleteCriticalSection (&critRandProt);
 
+	bRandDidInit = FALSE;
+
 	if (pRandPool != NULL)
 	{
 		burn (pRandPool, RANDOMPOOL_ALLOCSIZE);
@@ -164,7 +166,6 @@ Randfree ()
 	}
 
 	nRandIndex = 0;
-	bRandDidInit = FALSE;
 }
 
 
@@ -283,6 +284,9 @@ RandaddBuf (void *buf, int len)
 BOOL
 RandpeekBytes (unsigned char *buf, int len)
 {
+	if (!bRandDidInit)
+		return FALSE;
+
 	if (len > RNG_POOL_SIZE)
 	{
 		Error ("ERR_NOT_ENOUGH_RANDOM_DATA");	

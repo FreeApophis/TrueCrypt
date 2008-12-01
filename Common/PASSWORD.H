@@ -25,7 +25,7 @@ extern "C" {
 typedef struct
 {
 	// Modifying this structure can introduce incompatibility with previous versions
-	__int32 Length;
+	unsigned __int32 Length;
 	unsigned char Text[MAX_PASSWORD + 1];
 	char Pad[3]; // keep 64-bit alignment
 } Password;

@@ -74,6 +74,7 @@ typedef struct
 {
 	int nReturnCode;					/* Return code back from driver */
 	BOOL FilesystemDirty;
+	BOOL VolumeMountedReadOnlyAfterAccessDenied;
 
 	short wszVolume[TC_MAX_PATH];		/* Volume to be mounted */
 	Password VolumePassword;			/* User password */

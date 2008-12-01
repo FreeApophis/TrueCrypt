@@ -215,7 +215,7 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile)
 	KeyFile *kf;
 	KeyFile *kfSub = &kfSubStruct;
 	static unsigned __int8 keyPool [KEYFILE_POOL_SIZE];
-	int i;
+	size_t i;
 	struct stat statStruct;
 	char searchPath [TC_MAX_PATH*2];
 	struct _finddata_t fBuf;
@@ -345,7 +345,7 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile)
 
 	/* Mix the keyfile pool contents into the password */
 
-	for (i = 0; i < (int)sizeof(keyPool); i++)
+	for (i = 0; i < sizeof (keyPool); i++)
 	{
 		if (i < password->Length)
 			password->Text[i] += keyPool[i];

@@ -1184,6 +1184,109 @@ KeyfilesDialogBase::~KeyfilesDialogBase()
 	CreateKeyfileButtton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( KeyfilesDialogBase::OnCreateKeyfileButttonClick ), NULL, this );
 }
 
+KeyfileGeneratorDialogBase::KeyfileGeneratorDialogBase( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxDialog( parent, id, title, pos, size, style )
+{
+	this->SetSizeHints( wxDefaultSize, wxDefaultSize );
+	
+	MainSizer = new wxBoxSizer( wxVERTICAL );
+	
+	wxBoxSizer* bSizer144;
+	bSizer144 = new wxBoxSizer( wxVERTICAL );
+	
+	wxBoxSizer* bSizer145;
+	bSizer145 = new wxBoxSizer( wxHORIZONTAL );
+	
+	
+	bSizer145->Add( 0, 0, 1, wxEXPAND, 5 );
+	
+	wxStaticText* m_staticText49;
+	m_staticText49 = new wxStaticText( this, wxID_ANY, _("Mixing PRF:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText49->Wrap( -1 );
+	bSizer145->Add( m_staticText49, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	wxArrayString HashChoiceChoices;
+	HashChoice = new wxChoice( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, HashChoiceChoices, 0 );
+	HashChoice->SetSelection( 0 );
+	bSizer145->Add( HashChoice, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	
+	bSizer145->Add( 0, 0, 1, wxEXPAND, 5 );
+	
+	bSizer144->Add( bSizer145, 0, wxEXPAND, 5 );
+	
+	wxStaticBoxSizer* sbSizer43;
+	sbSizer43 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, wxEmptyString ), wxVERTICAL );
+	
+	wxBoxSizer* bSizer147;
+	bSizer147 = new wxBoxSizer( wxHORIZONTAL );
+	
+	wxStaticText* m_staticText52;
+	m_staticText52 = new wxStaticText( this, wxID_ANY, _("Random Pool:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText52->Wrap( -1 );
+	bSizer147->Add( m_staticText52, 0, wxTOP|wxBOTTOM|wxLEFT|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	RandomPoolStaticText = new wxStaticText( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	RandomPoolStaticText->Wrap( -1 );
+	RandomPoolStaticText->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), 70, 90, 90, false, wxT("Courier New") ) );
+	
+	bSizer147->Add( RandomPoolStaticText, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	ShowRandomPoolCheckBox = new wxCheckBox( this, wxID_ANY, _("Show"), wxDefaultPosition, wxDefaultSize, 0 );
+	ShowRandomPoolCheckBox->SetValue(true);
+	
+	bSizer147->Add( ShowRandomPoolCheckBox, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	sbSizer43->Add( bSizer147, 0, wxEXPAND|wxTOP, 5 );
+	
+	
+	sbSizer43->Add( 0, 0, 1, wxEXPAND, 5 );
+	
+	MouseStaticText = new wxStaticText( this, wxID_ANY, _("IMPORTANT: Move your mouse as randomly as possible within this window. The longer you move it, the better. This significantly increases the cryptographic strength of the keyfile."), wxDefaultPosition, wxDefaultSize, 0 );
+	MouseStaticText->Wrap( -1 );
+	sbSizer43->Add( MouseStaticText, 0, wxALL|wxALIGN_CENTER_HORIZONTAL, 5 );
+	
+	
+	sbSizer43->Add( 0, 0, 1, wxEXPAND, 5 );
+	
+	bSizer144->Add( sbSizer43, 1, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
+	
+	wxBoxSizer* bSizer146;
+	bSizer146 = new wxBoxSizer( wxHORIZONTAL );
+	
+	GenerateButton = new wxButton( this, wxID_ANY, _("Generate and Save Keyfile..."), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer146->Add( GenerateButton, 0, wxALL, 5 );
+	
+	
+	bSizer146->Add( 0, 0, 1, wxEXPAND, 5 );
+	
+	wxButton* m_button61;
+	m_button61 = new wxButton( this, wxID_CANCEL, _("Close"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer146->Add( m_button61, 0, wxALL, 5 );
+	
+	bSizer144->Add( bSizer146, 0, wxEXPAND, 5 );
+	
+	MainSizer->Add( bSizer144, 1, wxEXPAND|wxALL, 5 );
+	
+	this->SetSizer( MainSizer );
+	this->Layout();
+	MainSizer->Fit( this );
+	
+	// Connect Events
+	this->Connect( wxEVT_MOTION, wxMouseEventHandler( KeyfileGeneratorDialogBase::OnMouseMotion ) );
+	HashChoice->Connect( wxEVT_COMMAND_CHOICE_SELECTED, wxCommandEventHandler( KeyfileGeneratorDialogBase::OnHashSelected ), NULL, this );
+	ShowRandomPoolCheckBox->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( KeyfileGeneratorDialogBase::OnShowRandomPoolCheckBoxClicked ), NULL, this );
+	GenerateButton->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( KeyfileGeneratorDialogBase::OnGenerateButtonClick ), NULL, this );
+}
+
+KeyfileGeneratorDialogBase::~KeyfileGeneratorDialogBase()
+{
+	// Disconnect Events
+	this->Disconnect( wxEVT_MOTION, wxMouseEventHandler( KeyfileGeneratorDialogBase::OnMouseMotion ) );
+	HashChoice->Disconnect( wxEVT_COMMAND_CHOICE_SELECTED, wxCommandEventHandler( KeyfileGeneratorDialogBase::OnHashSelected ), NULL, this );
+	ShowRandomPoolCheckBox->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( KeyfileGeneratorDialogBase::OnShowRandomPoolCheckBoxClicked ), NULL, this );
+	GenerateButton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( KeyfileGeneratorDialogBase::OnGenerateButtonClick ), NULL, this );
+}
+
 LegalNoticesDialogBase::LegalNoticesDialogBase( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxDialog( parent, id, title, pos, size, style )
 {
 	this->SetSizeHints( wxDefaultSize, wxDefaultSize );

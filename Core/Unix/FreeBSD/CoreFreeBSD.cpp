@@ -170,6 +170,8 @@ namespace TrueCrypt
 			if (sysMountList[i].f_mntonname[0])
 				mf->MountPoint = DirectoryPath (sysMountList[i].f_mntonname);
 
+			mf->Type = sysMountList[i].f_fstypename;
+
 			if ((devicePath.IsEmpty() || devicePath == mf->Device) && (mountPoint.IsEmpty() || mountPoint == mf->MountPoint))
 				mountedFilesystems.push_back (mf);
 		}

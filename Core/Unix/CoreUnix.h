@@ -25,6 +25,7 @@ namespace TrueCrypt
 		virtual void CheckFilesystem (shared_ptr <VolumeInfo> mountedVolume, bool repair = false) const; 
 		virtual void DismountFilesystem (const DirectoryPath &mountPoint, bool force) const;
 		virtual shared_ptr <VolumeInfo> DismountVolume (shared_ptr <VolumeInfo> mountedVolume, bool ignoreOpenFiles = false, bool syncVolumeInfo = false);
+		virtual bool FilesystemSupportsLargeFiles (const FilePath &filePath) const;
 		virtual DirectoryPath GetDeviceMountPoint (const DevicePath &devicePath) const;
 		virtual uint64 GetDeviceSize (const DevicePath &devicePath) const;
 		virtual int GetOSMajorVersion () const { throw NotApplicable (SRC_POS); }

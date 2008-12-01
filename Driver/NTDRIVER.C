@@ -188,7 +188,7 @@ NTSTATUS TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 	NTSTATUS ntStatus;
 
 #ifdef _DEBUG
-	if (irpSp->MajorFunction == IRP_MJ_DEVICE_CONTROL && Extension->IsVolumeDevice)
+	if (irpSp->MajorFunction == IRP_MJ_DEVICE_CONTROL && (Extension->bRootDevice || Extension->IsVolumeDevice))
 	{
 		switch (irpSp->Parameters.DeviceIoControl.IoControlCode)
 		{
@@ -1274,7 +1274,7 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		{
 			MOUNT_STRUCT *mount = (MOUNT_STRUCT *) Irp->AssociatedIrp.SystemBuffer;
 
-			if (mount->VolumePassword.Length > MAX_PASSWORD)
+			if (mount->VolumePassword.Length > MAX_PASSWORD || mount->ProtectedHidVolPassword.Length > MAX_PASSWORD)
 			{
 				Irp->IoStatus.Status = STATUS_INVALID_PARAMETER;
 				Irp->IoStatus.Information = 0;
@@ -1287,6 +1287,7 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 
 			Irp->IoStatus.Information = sizeof (MOUNT_STRUCT);
 			Irp->IoStatus.Status = MountDevice (DeviceObject, mount);
+
 			DriverMutexRelease ();
 
 			burn (&mount->VolumePassword, sizeof (mount->VolumePassword));

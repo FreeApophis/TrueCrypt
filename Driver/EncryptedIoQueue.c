@@ -386,6 +386,54 @@ static VOID MainThreadProc (PVOID threadArg)
 				continue;
 			}
 
+			// Handle misaligned reads to support Windows System Assessment Tool which reads from disk devices at offsets not aligned on sector boundaries
+			if (queue->IsFilterDevice
+				&& !item->Write
+				&& item->OriginalLength > 0
+				&& (item->OriginalLength & (ENCRYPTION_DATA_UNIT_SIZE - 1)) == 0
+				&& (item->OriginalOffset.QuadPart & (ENCRYPTION_DATA_UNIT_SIZE - 1)) != 0)
+			{
+				byte *buffer;
+				ULONG alignedLength = item->OriginalLength + ENCRYPTION_DATA_UNIT_SIZE;
+				LARGE_INTEGER alignedOffset;
+				alignedOffset.QuadPart = item->OriginalOffset.QuadPart & ~((LONGLONG) ENCRYPTION_DATA_UNIT_SIZE - 1);
+
+				buffer = TCalloc (alignedLength);
+				if (!buffer)
+				{
+					CompleteOriginalIrp (item, STATUS_INSUFFICIENT_RESOURCES, 0);
+					continue;
+				}
+
+				item->Status = TCReadDevice (queue->LowerDeviceObject, buffer, alignedOffset, alignedLength);
+
+				if (NT_SUCCESS (item->Status))
+				{
+					UINT64_STRUCT dataUnit;
+
+					dataBuffer = (PUCHAR) MmGetSystemAddressForMdlSafe (irp->MdlAddress, HighPagePriority);
+					if (!dataBuffer)
+					{
+						TCfree (buffer);
+						CompleteOriginalIrp (item, STATUS_INSUFFICIENT_RESOURCES, 0);
+						continue;
+					}
+
+					GetIntersection (alignedOffset.QuadPart, alignedLength, queue->EncryptedAreaStart, queue->EncryptedAreaEnd, &intersectStart, &intersectLength);
+					if (intersectLength > 0)
+					{
+						dataUnit.Value = intersectStart / ENCRYPTION_DATA_UNIT_SIZE;
+						DecryptDataUnits (buffer + (intersectStart - alignedOffset.QuadPart), &dataUnit, intersectLength / ENCRYPTION_DATA_UNIT_SIZE, queue->CryptoInfo);
+					}
+
+					memcpy (dataBuffer, buffer + (item->OriginalOffset.LowPart & (ENCRYPTION_DATA_UNIT_SIZE - 1)), item->OriginalLength);
+				}
+
+				TCfree (buffer);
+				CompleteOriginalIrp (item, item->Status, NT_SUCCESS (item->Status) ? item->OriginalLength : 0);
+				continue;
+			}
+
 			// Validate offset and length
 			if (item->OriginalLength == 0
 				|| (item->OriginalLength & (ENCRYPTION_DATA_UNIT_SIZE - 1)) != 0
@@ -605,7 +653,7 @@ NTSTATUS EncryptedIoQueueHoldWhenIdle (EncryptedIoQueue *queue, int64 timeout)
 			if (!NT_SUCCESS (status))
 				return status;
 
-			TCSleep (100);
+			TCSleep (1);
 			if (InterlockedExchangeAdd (&queue->OutstandingIoCount, 0) > 0)
 				return STATUS_UNSUCCESSFUL;
 		}

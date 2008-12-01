@@ -1848,24 +1848,7 @@ namespace TrueCrypt
 
 	void BootEncryption::CheckEncryptionSetupResult ()
 	{
-		try
-		{
-			CallDriver (TC_IOCTL_GET_BOOT_ENCRYPTION_SETUP_RESULT);
-		}
-		catch (SystemException &e)
-		{
-			// Encryption of the whole drive may for some reason end with "incorrect function" (STATUS_NOT_IMPLEMENTED) error
-			if (e.ErrorCode == STATUS_NONCONTINUABLE_EXCEPTION
-				&& GetStatus().ConfiguredEncryptedAreaEnd + 1 >= GetSystemDriveConfiguration().DrivePartition.Info.PartitionLength.QuadPart)
-			{
-				SetLastError (ERROR_INVALID_FUNCTION);
-				handleWin32Error (NULL);
-				Error ("WHOLE_DRIVE_ENCRYPTION_FAILED");
-				throw UserAbort (SRC_POS);
-			}
-
-			throw;
-		}
+		CallDriver (TC_IOCTL_GET_BOOT_ENCRYPTION_SETUP_RESULT);
 	}
 
 
@@ -1883,9 +1866,6 @@ namespace TrueCrypt
 				InstallVolumeHeader ();
 
 			RegisterBootDriver (hiddenSystem);
-
-			// Prevent system log errors caused by rejecting crash dumps
-			WriteLocalMachineRegistryDword ("System\\CurrentControlSet\\Control\\CrashControl", "CrashDumpEnabled", 0);
 		}
 		catch (Exception &)
 		{
@@ -1925,6 +1905,31 @@ namespace TrueCrypt
 		CheckRequirements ();
 
 		SystemDriveConfiguration config = GetSystemDriveConfiguration();
+
+		// Some chipset drivers may prevent access to the last sector of the drive
+		if (!systemPartitionOnly)
+		{
+			DISK_GEOMETRY geometry = GetDriveGeometry (config.DriveNumber);
+			Buffer sector (geometry.BytesPerSector);
+
+			Device device (config.DevicePath);
+
+			try
+			{
+				device.SeekAt (config.DrivePartition.Info.PartitionLength.QuadPart - geometry.BytesPerSector);
+				device.Read (sector.Ptr(), sector.Size());
+			}
+			catch (SystemException &e)
+			{
+				if (e.ErrorCode != ERROR_CRC)
+				{
+					e.Show (ParentWindow);
+					Error ("WHOLE_DRIVE_ENCRYPTION_PREVENTED_BY_DRIVERS");
+					throw UserAbort (SRC_POS);
+				}
+			}
+		}
+
 		BackupSystemLoader ();
 
 		uint64 volumeSize;

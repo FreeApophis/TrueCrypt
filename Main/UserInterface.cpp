@@ -1310,11 +1310,11 @@ namespace TrueCrypt
 			return wxString::Format (L"%.1f %s", (double)(speed/1024.0/1024/1024/1024), LangString["TB_PER_SEC"].c_str());
 		else if (speed > 1024ULL*1024*1024*99)
 			s << speed/1024/1024/1024 << L" " << LangString["GB_PER_SEC"].c_str();
-		else if (speed > 1024ULL*1024*1024)
+		else if (speed > 1024ULL*1024*999)
 			return wxString::Format (L"%.1f %s", (double)(speed/1024.0/1024/1024), LangString["GB_PER_SEC"].c_str());
-		else if (speed > 1024ULL*1024*99)
+		else if (speed > 1024ULL*1024*9)
 			s << speed/1024/1024 << L" " << LangString["MB_PER_SEC"].c_str();
-		else if (speed > 1024ULL*1024)
+		else if (speed > 1024ULL*999)
 			return wxString::Format (L"%.1f %s", (double)(speed/1024.0/1024), LangString["MB_PER_SEC"].c_str());
 		else if (speed > 1024ULL)
 			s << speed/1024 << L" " << LangString["KB_PER_SEC"].c_str();

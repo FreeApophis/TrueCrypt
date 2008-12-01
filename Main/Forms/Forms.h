@@ -380,6 +380,39 @@ namespace TrueCrypt
 	};
 	
 	///////////////////////////////////////////////////////////////////////////////
+	/// Class KeyfileGeneratorDialogBase
+	///////////////////////////////////////////////////////////////////////////////
+	class KeyfileGeneratorDialogBase : public wxDialog 
+	{
+		private:
+		
+		protected:
+			wxBoxSizer* MainSizer;
+			
+			wxChoice* HashChoice;
+			
+			wxStaticText* RandomPoolStaticText;
+			wxCheckBox* ShowRandomPoolCheckBox;
+			
+			wxStaticText* MouseStaticText;
+			
+			wxButton* GenerateButton;
+			
+			
+			// Virtual event handlers, overide them in your derived class
+			virtual void OnMouseMotion( wxMouseEvent& event ){ event.Skip(); }
+			virtual void OnHashSelected( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnShowRandomPoolCheckBoxClicked( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnGenerateButtonClick( wxCommandEvent& event ){ event.Skip(); }
+			
+		
+		public:
+			KeyfileGeneratorDialogBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxEmptyString, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize, long style = wxDEFAULT_DIALOG_STYLE );
+			~KeyfileGeneratorDialogBase();
+		
+	};
+	
+	///////////////////////////////////////////////////////////////////////////////
 	/// Class LegalNoticesDialogBase
 	///////////////////////////////////////////////////////////////////////////////
 	class LegalNoticesDialogBase : public wxDialog 

@@ -15,10 +15,10 @@
 #define TC_APP_NAME						"TrueCrypt"
 
 // Version displayed to user 
-#define VERSION_STRING					"6.1"
+#define VERSION_STRING					"6.1a"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x0610
+#define VERSION_NUM						0x061a
 
 // Sector size of encrypted filesystem, which may differ from sector size 
 // of host filesystem/device (this is fully supported since v4.3). 

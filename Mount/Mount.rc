@@ -356,8 +356,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 6,1,0,0
- PRODUCTVERSION 6,1,0,0
+ FILEVERSION 6,1,1,0
+ PRODUCTVERSION 6,1,1,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -374,12 +374,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt"
-            VALUE "FileVersion", "6.1"
+            VALUE "FileVersion", "6.1a"
             VALUE "LegalCopyright", "TrueCrypt Foundation"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "6.1"
+            VALUE "ProductVersion", "6.1a"
         END
     END
     BLOCK "VarFileInfo"

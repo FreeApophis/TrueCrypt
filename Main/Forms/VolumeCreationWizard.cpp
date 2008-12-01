@@ -110,7 +110,7 @@ namespace TrueCrypt
 
 		case Step::VolumeLocation:
 			{
-				VolumeLocationWizardPage *page = new VolumeLocationWizardPage (GetPageParent(), SelectedVolumeHostType, SelectedVolumeType == VolumeType::Hidden);
+				VolumeLocationWizardPage *page = new VolumeLocationWizardPage (GetPageParent(), SelectedVolumeHostType);
 				page->SetPageTitle (LangString["VOLUME_LOCATION"]);
 
 				if (SelectedVolumeType == VolumeType::Hidden)
@@ -439,6 +439,8 @@ namespace TrueCrypt
 					shared_ptr <VolumeInfo> volume = Core->MountVolume (mountOptions);
 					finally_do_arg (shared_ptr <VolumeInfo>, volume, { Core->DismountVolume (finally_arg); });
 
+					Thread::Sleep (2000);	// Try to prevent race conditions caused by OS
+
 					// Temporarily take ownership of the device if the user is not an administrator
 					UserId origDeviceOwner ((uid_t) -1);
 
@@ -650,6 +652,15 @@ namespace TrueCrypt
 						return GetCurrentStep();
 				}
 
+				if (forward
+					&& SelectedVolumeHostType == VolumeHostType::File
+					&& VolumeSize > 4 * BYTES_PER_GB
+					&& (OuterVolume || SelectedVolumeType != VolumeType::Hidden)
+					&& !Core->FilesystemSupportsLargeFiles (SelectedVolumePath))
+				{
+					Gui->ShowWarning (LangString["VOLUME_TOO_LARGE_FOR_FAT32"]);
+				}
+
 				return Step::VolumePassword;
 			}
 
@@ -676,6 +687,14 @@ namespace TrueCrypt
 					{
 						return GetCurrentStep();
 					}
+				}
+
+				if (forward && OuterVolume)
+				{
+					// Use FAT to prevent problems with free space
+					QuickFormatEnabled = false;
+					SelectedFilesystemType = VolumeCreationOptions::FilesystemType::FAT;
+					return Step::CreationProgress;
 				}
 
 				if (VolumeSize > 4 * BYTES_PER_GB)

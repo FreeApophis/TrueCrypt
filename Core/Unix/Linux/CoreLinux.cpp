@@ -223,6 +223,9 @@ namespace TrueCrypt
 			if (entry->mnt_dir)
 				mf->MountPoint = DirectoryPath (entry->mnt_dir);
 
+			if (entry->mnt_type)
+				mf->Type = entry->mnt_type;
+
 			if ((devicePath.IsEmpty() || devicePath == mf->Device) && (mountPoint.IsEmpty() || mountPoint == mf->MountPoint))
 				mountedFilesystems.push_back (mf);
 		}
@@ -264,12 +267,18 @@ namespace TrueCrypt
 
 		// Load device mapper kernel module
 		list <string> execArgs;
-		execArgs.push_back ("dm_mod");
-		try
+		foreach (const string &dmModule, StringConverter::Split ("dm_mod dm-mod dm"))
 		{
-			Process::Execute ("modprobe", execArgs);
+			execArgs.clear();
+			execArgs.push_back (dmModule);
+
+			try
+			{
+				Process::Execute ("modprobe", execArgs);
+				break;
+			}
+			catch (...) { }
 		}
-		catch (...) { }
 
 		bool loopDevAttached = false;
 		bool nativeDevCreated = false;

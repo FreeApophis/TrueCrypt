@@ -1,4 +1,4 @@
-This archive contains the source code of TrueCrypt 6.1.
+This archive contains the source code of TrueCrypt 6.1a.
 
 
 Important
@@ -40,7 +40,7 @@ Requirements for Building TrueCrypt for Windows:
 - Microsoft Visual C++ 1.52 (available from MSDN Subscriber Downloads)
 - Microsoft Windows Driver Kit for Windows Server 2008 (build 6001.18001)
 - RSA Security Inc. PKCS #11 Cryptographic Token Interface (Cryptoki) 2.20
-  header files (available at ftp://ftp.rsasecurity.com/pub/pkcs/pkcs-11)
+  header files (available at ftp://ftp.rsasecurity.com/pub/pkcs/pkcs-11/v2-20)
 - NASM 0.99 assembler
 - Yasm assembler
 - gzip compressor
@@ -74,9 +74,9 @@ Instructions for Building TrueCrypt for Windows:
    directory than '%SYSTEMDRIVE%\WinDDK', create an environment variable called
    'WINDDK_ROOT' pointing to the DDK installation directory.
 
-3) Copy PKCS #11 header files to a standard include path or create an
+3) Copy the PKCS #11 header files to a standard include path or create an
    environment variable called 'PKCS11_INC' pointing to the directory where
-   PKCS #11 header files are installed.
+   the PKCS #11 header files are installed.
 
 4) Open the 'TrueCrypt.sln' solution in Microsoft Visual Studio 2008.
 
@@ -104,7 +104,7 @@ Requirements for Building TrueCrypt for Linux and Mac OS X:
 - FUSE library and header files (available at http://fuse.sourceforge.net
   and http://code.google.com/p/macfuse)
 - RSA Security Inc. PKCS #11 Cryptographic Token Interface (Cryptoki) 2.20
-  header files (available at ftp://ftp.rsasecurity.com/pub/pkcs/pkcs-11)
+  header files (available at ftp://ftp.rsasecurity.com/pub/pkcs/pkcs-11/v2-20)
   located in a standard include path or in a directory defined by the
   environment variable 'PKCS11_INC'.
 

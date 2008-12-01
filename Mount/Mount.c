@@ -109,7 +109,7 @@ int nSelectedDriveIndex = -1;		/* Item number of selected drive */
 int cmdUnmountDrive = 0;			/* Volume drive letter to unmount (-1 = all) */
 Password VolumePassword;			/* Password used for mounting volumes */
 Password CmdVolumePassword;			/* Password passed from command line */
-BOOL CmdVolumePasswordValid;
+BOOL CmdVolumePasswordValid = FALSE;
 MountOptions mountOptions;
 MountOptions defaultMountOptions;
 KeyFile *FirstCmdKeyFile;
@@ -4542,7 +4542,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						defaultKeyFilesParam.FirstKeyFile = KeyFileCloneAll (FirstCmdKeyFile);
 					}
 
-					if (!MountAllDevices (hwndDlg, !Silent))
+					if (!MountAllDevices (hwndDlg, !Silent && !CmdVolumePasswordValid && !FirstCmdKeyFile && IsPasswordCacheEmpty()))
 						exitCode = 1;
 				}
 
@@ -6611,9 +6611,9 @@ static void HandleHotKey (HWND hwndDlg, WPARAM wParam)
 
 	case HK_DISMOUNT_ALL:
 		if (DismountAll (hwndDlg, FALSE, TRUE, UNMOUNT_MAX_AUTO_RETRIES, UNMOUNT_AUTO_RETRY_DELAY) && bDisplayMsgBoxOnHotkeyDismount)
-			Info ("MOUNTED_VOLUMES_DISMOUNTED");
+			InfoTopMost ("MOUNTED_VOLUMES_DISMOUNTED");
 		else if (bDisplayMsgBoxOnHotkeyDismount)
-			Info ("DISMOUNT_ALL_ATTEMPT_COMPLETED");
+			InfoTopMost ("DISMOUNT_ALL_ATTEMPT_COMPLETED");
 
 		if (!bDisplayMsgBoxOnHotkeyDismount && bPlaySoundOnHotkeyMountDismount)
 			MessageBeep(-1);
@@ -6633,7 +6633,7 @@ static void HandleHotKey (HWND hwndDlg, WPARAM wParam)
 				MessageBeep(-1);
 
 			if (bDisplayMsgBoxOnHotkeyDismount)
-				Info ("VOLUMES_DISMOUNTED_CACHE_WIPED");
+				InfoTopMost ("VOLUMES_DISMOUNTED_CACHE_WIPED");
 		}
 		break;
 
@@ -6646,7 +6646,7 @@ static void HandleHotKey (HWND hwndDlg, WPARAM wParam)
 				MessageBeep(-1);
 
 			if (bDisplayMsgBoxOnHotkeyDismount)
-				Info ("VOLUMES_DISMOUNTED_CACHE_WIPED");
+				InfoTopMost ("VOLUMES_DISMOUNTED_CACHE_WIPED");
 		}
 		TaskBarIconRemove (hwndDlg);
 		EndMainDlg (hwndDlg);
@@ -6689,7 +6689,9 @@ int BackupVolumeHeader (HWND hwndDlg, BOOL bRequireConfirmation, char *lpszVolum
 	OpenVolumeContext volume;
 	OpenVolumeContext hiddenVolume;
 	Password hiddenVolPassword;
-	
+	byte temporaryKey[MASTER_KEYDATA_SIZE];
+	byte originalK2[MASTER_KEYDATA_SIZE];
+
 	volume.VolumeIsOpen = FALSE;
 	hiddenVolume.VolumeIsOpen = FALSE;
 
@@ -6700,10 +6702,6 @@ int BackupVolumeHeader (HWND hwndDlg, BOOL bRequireConfirmation, char *lpszVolum
 		if (AskErrNoYes ("BACKUP_HEADER_NOT_FOR_SYS_DEVICE") == IDYES)
 			CreateRescueDisk ();
 
-		return 0;
-
-	case -1:
-		Error ("ERR_CANNOT_DETERMINE_VOLUME_TYPE");
 		return 0;
 	}
 
@@ -6812,9 +6810,6 @@ noHidden:
 	int backupFileSize = legacyVolume ? TC_VOLUME_HEADER_SIZE_LEGACY * 2 : TC_VOLUME_HEADER_GROUP_SIZE;
 
 	// Fill backup buffer with random data
-	byte temporaryKey[MASTER_KEYDATA_SIZE];
-	byte originalK2[MASTER_KEYDATA_SIZE];
-
 	memcpy (originalK2, volume.CryptoInfo->k2, sizeof (volume.CryptoInfo->k2));
 
 	if (Randinit() != ERR_SUCCESS)
@@ -6887,6 +6882,8 @@ error:
 
 	burn (&VolumePassword, sizeof (VolumePassword));
 	burn (&hiddenVolPassword, sizeof (hiddenVolPassword));
+	burn (temporaryKey, sizeof (temporaryKey));
+	burn (originalK2, sizeof (originalK2));
 	
 	RestoreDefaultKeyFilesParam();
 	NormalCursor();
@@ -7380,6 +7377,8 @@ static BOOL CALLBACK SecurityTokenPreferencesDlgProc (HWND hwndDlg, UINT msg, WP
 					}
 				}
 
+				CloseSecurityTokenSessionsAfterMount = (IsDlgButtonChecked (hwndDlg, IDC_CLOSE_TOKEN_SESSION_AFTER_MOUNT) == BST_CHECKED);
+
 				WaitCursor ();
 				SaveSettings (hwndDlg);
 				NormalCursor ();
@@ -7466,10 +7465,6 @@ static BOOL CALLBACK SecurityTokenPreferencesDlgProc (HWND hwndDlg, UINT msg, WP
 					SetDlgItemText (hwndDlg, IDC_PKCS11_MODULE, securityTokenLibraryPath);
 				return 1;
 			}
-			
-		case IDC_CLOSE_TOKEN_SESSION_AFTER_MOUNT:
-			CloseSecurityTokenSessionsAfterMount = (IsDlgButtonChecked (hwndDlg, IDC_CLOSE_TOKEN_SESSION_AFTER_MOUNT) == BST_CHECKED);
-			return 1;
 		}
 		return 0;
 	}

@@ -150,7 +150,9 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	/* 26-4-99 NT for some partitions returns this code, it is really a	access denied */
 	if (ntStatus == 0xc000001b)
 		ntStatus = STATUS_ACCESS_DENIED;
-	
+
+	mount->VolumeMountedReadOnlyAfterAccessDenied = FALSE;
+
 	if (mount->bMountReadOnly || ntStatus == STATUS_ACCESS_DENIED)
 	{
 		ntStatus = ZwCreateFile (&Extension->hDeviceFile,
@@ -168,6 +170,9 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			FILE_SYNCHRONOUS_IO_NONALERT,
 			NULL,
 			0);
+
+		if (NT_SUCCESS (ntStatus) && !mount->bMountReadOnly)
+			mount->VolumeMountedReadOnlyAfterAccessDenied = TRUE;
 
 		Extension->bReadOnly = TRUE;
 		DeviceObject->Characteristics |= FILE_READ_ONLY_DEVICE;

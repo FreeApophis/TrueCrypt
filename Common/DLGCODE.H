@@ -369,6 +369,7 @@ char *GetConfigPath (char *fileName);
 char GetSystemDriveLetter (void);
 void OpenPageHelp (HWND hwndDlg, int nPage);
 int Info (char *stringId);
+int InfoTopMost (char *stringId);
 int InfoDirect (const wchar_t *msg);
 int Warning (char *stringId);
 int WarningTopMost (char *stringId);
@@ -434,6 +435,7 @@ BOOL DisablePagingFile ();
 BOOL CALLBACK SecurityTokenPasswordDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
 BOOL CALLBACK SecurityTokenKeyfileDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
 BOOL InitSecurityTokenLibrary ();
+BOOL FileHasReadOnlyAttribute (const char *path);
 BOOL IsFileOnReadOnlyFilesystem (const char *path);
 void CheckFilesystem (int driveNo, BOOL fixErrors);
 

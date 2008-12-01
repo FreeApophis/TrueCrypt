@@ -2071,14 +2071,6 @@ void InitApp (HINSTANCE hInstance, char *lpszCommandLine)
 				break;
 			}
 		}
-
-#ifndef SETUP
-		if (CurrentOSMajor == 6 && CurrentOSMinor == 0 && osEx.dwBuildNumber < 6000)
-		{
-			Error ("UNSUPPORTED_BETA_OS");
-			exit (0);
-		}
-#endif
 	}
 
 	/* Get the attributes for the standard dialog class */
@@ -3172,7 +3164,7 @@ static int SelectMultipleFilesOffset;
 BOOL SelectMultipleFiles (HWND hwndDlg, char *stringId, char *lpszFileName, BOOL keepHistory)
 {
 	OPENFILENAMEW ofn;
-	wchar_t file[131072] = { 0 };
+	wchar_t file[0xffff * 2] = { 0 };	// The size must not exceed 0xffff*2 due to a bug in Windows 2000 and XP SP1
 	wchar_t filter[1024];
 	BOOL status = FALSE;
 
@@ -5422,7 +5414,7 @@ retry:
 	if (mount.UseBackupHeader != mountOptions->UseBackupHeader
 		&& mount.UseBackupHeader)
 	{
-		if (bReportWrongPassword && !quiet)
+		if (bReportWrongPassword && !Silent)
 			Warning ("HEADER_DAMAGED_AUTO_USED_HEADER_BAK");
 	}
 	
@@ -5434,6 +5426,30 @@ retry:
 
 		if (AskWarnYesNoString (msg) == IDYES)
 			CheckFilesystem (driveNo, TRUE);
+	}
+
+	if (mount.VolumeMountedReadOnlyAfterAccessDenied
+		&& !Silent
+		&& !bDevice
+		&& !FileHasReadOnlyAttribute (volumePath)
+		&& !IsFileOnReadOnlyFilesystem (volumePath))
+	{
+		wchar_t msg[1024];
+		wchar_t mountPoint[] = { L'A' + driveNo, L':', 0 };
+		wsprintfW (msg, GetString ("MOUNTED_CONTAINER_FORCED_READ_ONLY"), mountPoint);
+
+		WarningDirect (msg);
+	}
+
+	if (mount.VolumeMountedReadOnlyAfterAccessDenied
+		&& !Silent
+		&& bDevice)
+	{
+		wchar_t msg[1024];
+		wchar_t mountPoint[] = { L'A' + driveNo, L':', 0 };
+		wsprintfW (msg, GetString ("MOUNTED_DEVICE_FORCED_READ_ONLY"), mountPoint);
+
+		WarningDirect (msg);
 	}
 
 	ResetWrongPwdRetryCount ();
@@ -6637,6 +6653,13 @@ int Info (char *stringId)
 {
 	if (Silent) return 0;
 	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONINFORMATION);
+}
+
+
+int InfoTopMost (char *stringId)
+{
+	if (Silent) return 0;
+	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONINFORMATION | MB_SETFOREGROUND | MB_TOPMOST);
 }
 
 
@@ -8305,6 +8328,13 @@ std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties, bool 
 	}
 
 	return devices;
+}
+
+
+BOOL FileHasReadOnlyAttribute (const char *path)
+{
+	DWORD attributes = GetFileAttributes (path);
+	return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_READONLY) != 0;
 }
 
 

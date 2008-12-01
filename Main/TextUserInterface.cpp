@@ -915,7 +915,7 @@ namespace TrueCrypt
 				if (UI->GetPreferences().NonInteractive)
 					throw MissingArgument (SRC_POS);
 
-				UI->ShowString (wxString::Format (LangString["ENTER_TOKEN_PASSWORD"], StringConverter::ToWide (passwordStr).c_str()) + L": ");
+				UI->ShowString (wxString::Format (LangString["ENTER_TOKEN_PASSWORD"], StringConverter::ToWide (passwordStr).c_str()) + L" ");
 
 				TextUserInterface::SetTerminalEcho (false);
 				finally_do ({ TextUserInterface::SetTerminalEcho (true); });

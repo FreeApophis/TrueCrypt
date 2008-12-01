@@ -18,6 +18,7 @@ namespace TrueCrypt
 	public:
 		DevicePath Device;
 		DirectoryPath MountPoint;
+		string Type;
 	};
 
 	typedef list < shared_ptr <MountedFilesystem> > MountedFilesystemList;
