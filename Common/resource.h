@@ -41,6 +41,7 @@
 #define IDD_TOKEN_PASSWORD              537
 #define IDD_TOKEN_KEYFILES              538
 #define IDD_NEW_TOKEN_KEYFILE           539
+#define IDD_RANDOM_POOL_ENRICHMENT      540
 #define IDT_TOKEN_PASSWORD              5000
 #define IDC_PRINT                       5001
 #define IDC_KEY                         5002
@@ -150,15 +151,17 @@
 #define IDT_TOKEN_KEYFILE_NAME          5106
 #define IDC_TOKEN_KEYFILE_NAME          5107
 #define IDT_TOKEN_PASSWORD_INFO         5108
+#define IDT_RANDOM_POOL_ENRICHMENT_NOTE 5109
+#define IDC_CONTINUE                    5110
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
-#define _APS_NEXT_RESOURCE_VALUE        540
+#define _APS_NEXT_RESOURCE_VALUE        541
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         5109
+#define _APS_NEXT_CONTROL_VALUE         5111
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

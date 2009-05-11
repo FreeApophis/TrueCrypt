@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -7,7 +7,7 @@
 */
 
 
-/* In this file, _WIN32_WINNT is defined as 0x0600 to make file shrink available (Vista
+/* In this file, _WIN32_WINNT is defined as 0x0600 to make filesystem shrink available (Vista
 or later). _WIN32_WINNT cannot be defined as 0x0600 for the entire user-space projects
 because it breaks the main font app when the app is running on XP (likely an MS bug).
 IMPORTANT: Due to this issue, functions in this file must not directly interact with GUI. */
@@ -117,7 +117,7 @@ BOOL CheckRequirementsForNonSysInPlaceEnc (const char *devicePath, BOOL silent)
 	/* Volume type (must be a partition or a dynamic volume) */
 
 	if (sscanf (devicePath, "\\Device\\HarddiskVolume%d", &partitionNumber) != 1
-		&& sscanf (devicePath, "\\Device\\Harddisk%d\\Partition%d", &partitionNumber, &driveNumber) != 2)
+		&& sscanf (devicePath, "\\Device\\Harddisk%d\\Partition%d", &driveNumber, &partitionNumber) != 2)
 	{
 		if (!silent)
 			Error ("INPLACE_ENC_INVALID_PATH");
@@ -125,7 +125,7 @@ BOOL CheckRequirementsForNonSysInPlaceEnc (const char *devicePath, BOOL silent)
 		return FALSE;
 	}
 
-	if (driveNumber == 0)
+	if (partitionNumber == 0)
 	{
 		if (!silent)
 			Warning ("RAW_DEV_NOT_SUPPORTED_FOR_INPLACE_ENC");
@@ -499,46 +499,48 @@ int EncryptPartitionInPlaceBegin (volatile FORMAT_VOL_PARAMETERS *volParams, vol
 	area is occuppied by data until the very end of the process). */
 
 	// Prepare the backup header
-	nStatus = CreateVolumeHeaderInMemory (FALSE,
-		header,
-		volParams->ea,
-		FIRST_MODE_OF_OPERATION_ID,
-		volParams->password,
-		volParams->pkcs5,
-		NULL,
-		&cryptoInfo,
-		dataAreaSize,
-		0,
-		TC_VOLUME_DATA_OFFSET + dataAreaSize,	// Start of the encrypted area = the first byte of the backup heeader (encrypting from the end)
-		0,	// No data is encrypted yet
-		0,
-		volParams->headerFlags | TC_HEADER_FLAG_NONSYS_INPLACE_ENC,
-		FALSE);
-
-	if (nStatus != 0)
-		goto closing_seq;
-
-	offset.QuadPart = TC_VOLUME_DATA_OFFSET + dataAreaSize;
-
-	if (!SetFilePointerEx (dev, offset, NULL, FILE_BEGIN))
+	for (int wipePass = 0; wipePass < (wipeAlgorithm == TC_WIPE_NONE ? 1 : PRAND_DISK_WIPE_PASSES); wipePass++)
 	{
-		nStatus = ERR_OS_ERROR;
-		goto closing_seq;
+		nStatus = CreateVolumeHeaderInMemory (FALSE,
+			header,
+			volParams->ea,
+			FIRST_MODE_OF_OPERATION_ID,
+			volParams->password,
+			volParams->pkcs5,
+			wipePass == 0 ? NULL : (char *) cryptoInfo->master_keydata,
+			&cryptoInfo,
+			dataAreaSize,
+			0,
+			TC_VOLUME_DATA_OFFSET + dataAreaSize,	// Start of the encrypted area = the first byte of the backup heeader (encrypting from the end)
+			0,	// No data is encrypted yet
+			0,
+			volParams->headerFlags | TC_HEADER_FLAG_NONSYS_INPLACE_ENC,
+			wipeAlgorithm == TC_WIPE_NONE ? FALSE : (wipePass < PRAND_DISK_WIPE_PASSES - 1));
+
+		if (nStatus != 0)
+			goto closing_seq;
+
+		offset.QuadPart = TC_VOLUME_DATA_OFFSET + dataAreaSize;
+
+		if (!SetFilePointerEx (dev, offset, NULL, FILE_BEGIN))
+		{
+			nStatus = ERR_OS_ERROR;
+			goto closing_seq;
+		}
+
+		// Write the backup header to the partition
+		if (_lwrite ((HFILE) dev, header, TC_VOLUME_HEADER_EFFECTIVE_SIZE) == HFILE_ERROR)
+		{
+			nStatus = ERR_OS_ERROR;
+			goto closing_seq;
+		}
+
+		// Fill the reserved sectors of the backup header area with random data
+		nStatus = WriteRandomDataToReservedHeaderAreas (dev, cryptoInfo, dataAreaSize, FALSE, TRUE);
+
+		if (nStatus != ERR_SUCCESS)
+			goto closing_seq;
 	}
-
-	// Write the backup header to the partition
-	if (_lwrite ((HFILE) dev, header, TC_VOLUME_HEADER_EFFECTIVE_SIZE) == HFILE_ERROR)
-	{
-		nStatus = ERR_OS_ERROR;
-		goto closing_seq;
-	}
-
-	// Fill the reserved sectors of the backup header area with random data
-	nStatus = WriteRandomDataToReservedHeaderAreas (dev, cryptoInfo, dataAreaSize, FALSE, TRUE);
-
-	if (nStatus != ERR_SUCCESS)
-		goto closing_seq;
-
 
 
 	/* Now we will try to decrypt the backup header to verify it has been correctly written. */
@@ -802,7 +804,7 @@ inplace_enc_read:
 
 			DWORD dwTmpErr = GetLastError ();
 
-			if (dwTmpErr == ERROR_CRC || dwTmpErr == ERROR_IO_DEVICE)	
+			if (IsDiskReadError (dwTmpErr) && !bVolTransformThreadCancel)
 			{
 				// Physical defect or data corruption
 
@@ -964,41 +966,43 @@ inplace_enc_read:
 
 		SetNonSysInplaceEncUIStatus (NONSYS_INPLACE_ENC_STATUS_FINALIZING);
 
-		nStatus = CreateVolumeHeaderInMemory (FALSE,
-			header,
-			headerCryptoInfo->ea,
-			headerCryptoInfo->mode,
-			password,
-			masterCryptoInfo->pkcs5,
-			(char *) masterCryptoInfo->master_keydata,
-			&tmpCryptoInfo,
-			masterCryptoInfo->VolumeSize.Value,
-			0,
-			masterCryptoInfo->EncryptedAreaStart.Value,
-			masterCryptoInfo->EncryptedAreaLength.Value,
-			masterCryptoInfo->RequiredProgramVersion,
-			masterCryptoInfo->HeaderFlags | TC_HEADER_FLAG_NONSYS_INPLACE_ENC,
-			FALSE);
-
-		if (nStatus != ERR_SUCCESS)
-			goto closing_seq;
-
-
-		offset.QuadPart = TC_VOLUME_HEADER_OFFSET;
-
-		if (SetFilePointerEx (dev, offset, NULL, FILE_BEGIN) == 0
-			|| WriteFile (dev, header, TC_VOLUME_HEADER_EFFECTIVE_SIZE, &n, NULL) == 0)
+		for (int wipePass = 0; wipePass < (wipeAlgorithm == TC_WIPE_NONE ? 1 : PRAND_DISK_WIPE_PASSES); wipePass++)
 		{
-			nStatus = ERR_OS_ERROR;
-			goto closing_seq;
+			nStatus = CreateVolumeHeaderInMemory (FALSE,
+				header,
+				headerCryptoInfo->ea,
+				headerCryptoInfo->mode,
+				password,
+				masterCryptoInfo->pkcs5,
+				(char *) masterCryptoInfo->master_keydata,
+				&tmpCryptoInfo,
+				masterCryptoInfo->VolumeSize.Value,
+				0,
+				masterCryptoInfo->EncryptedAreaStart.Value,
+				masterCryptoInfo->EncryptedAreaLength.Value,
+				masterCryptoInfo->RequiredProgramVersion,
+				masterCryptoInfo->HeaderFlags | TC_HEADER_FLAG_NONSYS_INPLACE_ENC,
+				wipeAlgorithm == TC_WIPE_NONE ? FALSE : (wipePass < PRAND_DISK_WIPE_PASSES - 1));
+
+			if (nStatus != ERR_SUCCESS)
+				goto closing_seq;
+
+
+			offset.QuadPart = TC_VOLUME_HEADER_OFFSET;
+
+			if (SetFilePointerEx (dev, offset, NULL, FILE_BEGIN) == 0
+				|| WriteFile (dev, header, TC_VOLUME_HEADER_EFFECTIVE_SIZE, &n, NULL) == 0)
+			{
+				nStatus = ERR_OS_ERROR;
+				goto closing_seq;
+			}
+
+			// Fill the reserved sectors of the header area with random data
+			nStatus = WriteRandomDataToReservedHeaderAreas (dev, headerCryptoInfo, masterCryptoInfo->VolumeSize.Value, TRUE, FALSE);
+
+			if (nStatus != ERR_SUCCESS)
+				goto closing_seq;
 		}
-
-		// Fill the reserved sectors of the header area with random data
-		nStatus = WriteRandomDataToReservedHeaderAreas (dev, headerCryptoInfo, masterCryptoInfo->VolumeSize.Value, TRUE, FALSE);
-
-		if (nStatus != ERR_SUCCESS)
-			goto closing_seq;
-
 
 		// Update the configuration files
 
@@ -1401,15 +1405,7 @@ BOOL SaveNonSysInPlaceEncSettings (int delta, WipeAlgorithmId newWipeAlgorithm)
 
 	if (count < 1)
 	{
-		if (FileExists (GetConfigPath (TC_APPD_FILENAME_NONSYS_INPLACE_ENC)))
-			remove (GetConfigPath (TC_APPD_FILENAME_NONSYS_INPLACE_ENC));
-
-		if (FileExists (GetConfigPath (TC_APPD_FILENAME_NONSYS_INPLACE_ENC_WIPE)))
-			remove (GetConfigPath (TC_APPD_FILENAME_NONSYS_INPLACE_ENC_WIPE));
-
-		if (!IsNonInstallMode () && SystemEncryptionStatus == SYSENC_STATUS_NONE)
-			ManageStartupSeqWiz (TRUE, "");
-
+		RemoveNonSysInPlaceEncNotifications();
 		return TRUE;
 	}
 	else
@@ -1659,7 +1655,7 @@ static BOOL MoveClustersBeforeThresholdInDir (HANDLE volumeHandle, const wstring
 									break;
 							}
 
-							if (retry > 200)
+							if (retry > 600)
 								return FALSE;
 
 							// There are possible race conditions as we work on a live filesystem

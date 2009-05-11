@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -316,20 +316,25 @@ namespace TrueCrypt
 		Preferences.DefaultMountOptions.Protection = MountReadOnlyCheckBox->IsChecked() ? VolumeProtection::ReadOnly : VolumeProtection::None;
 		Preferences.DefaultMountOptions.FilesystemOptions = FilesystemOptionsTextCtrl->GetValue();
 		Preferences.DefaultKeyfiles = *DefaultKeyfilesPanel->GetKeyfiles();
+
+		bool securityTokenModuleChanged = (Preferences.SecurityTokenModule != wstring (Pkcs11ModulePathTextCtrl->GetValue()));
 		Preferences.SecurityTokenModule = wstring (Pkcs11ModulePathTextCtrl->GetValue());
 
 		Gui->SetPreferences (Preferences);
 
 		try
 		{
-			if (Preferences.SecurityTokenModule.IsEmpty())
+			if (securityTokenModuleChanged)
 			{
-				if (SecurityToken::IsInitialized())
-					SecurityToken::CloseLibrary ();
-			}
-			else
-			{
-				Gui->InitSecurityTokenLibrary(); 
+				if (Preferences.SecurityTokenModule.IsEmpty())
+				{
+					if (SecurityToken::IsInitialized())
+						SecurityToken::CloseLibrary ();
+				}
+				else
+				{
+					Gui->InitSecurityTokenLibrary(); 
+				}
 			}
 		}
 		catch (exception &e)
@@ -393,6 +398,7 @@ namespace TrueCrypt
 
 	void PreferencesDialog::OnRemoveHotkeyButtonClick (wxCommandEvent& event)
 	{
+#ifdef TC_WINDOWS
 		foreach (long item, Gui->GetListCtrlSelectedItems (HotkeyListCtrl))
 		{
 			Hotkey *hotkey = reinterpret_cast <Hotkey *> (HotkeyListCtrl->GetItemData (item));
@@ -406,6 +412,7 @@ namespace TrueCrypt
 
 			UpdateHotkeyButtons();
 		}
+#endif
 	}
 
 	void PreferencesDialog::OnSelectPkcs11ModuleButtonClick (wxCommandEvent& event)

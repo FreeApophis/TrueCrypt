@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -26,6 +26,7 @@ namespace TrueCrypt
 
 #ifdef TC_MACOSX
 		ProgressGauge->SetMinSize (wxSize (-1, 12)); // OS X apparently supports only up to 12px thick progress bars
+		KeySamplesUpperSizer->Remove (KeySamplesUpperInnerSizer);
 #else
 		ProgressGauge->SetMinSize (wxSize (-1, Gui->GetCharHeight (this) * 2));
 #endif

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -14,6 +14,11 @@
 
 namespace TrueCrypt
 {
+	SystemException::SystemException ()
+		: ErrorCode (errno)
+	{
+	}
+
 	SystemException::SystemException (const string &message)
 		: Exception (message), ErrorCode (errno)
 	{
@@ -50,7 +55,7 @@ namespace TrueCrypt
 
 	wstring SystemException::SystemText () const
 	{
-		return StringConverter::ToWide (strerror (ErrorCode));
+		return StringConverter::ToWide (strerror ((int) ErrorCode));
 	}
 
 #define TC_EXCEPTION(TYPE) TC_SERIALIZER_FACTORY_ADD(TYPE)

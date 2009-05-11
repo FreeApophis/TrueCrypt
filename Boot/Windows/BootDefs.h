@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -34,16 +34,20 @@
 
 #endif
 
-// Windows Vista boot loader uses memory up to 8000:FFFF, disregarding the BIOS memory map and the amount
-// of available memory at 40:0013. Therefore, the code has to be loaded at or above 9000:0000.
-
 // Modifying this value can introduce incompatibility with previous versions
-#define TC__BOOT_LOADER_SEGMENT TC_HEX (9000)
-#define TC__COM_EXECUTABLE_OFFSET TC_HEX (100)
+#define TC__BOOT_LOADER_SEGMENT			TC_HEX (9000)	// Memory reserved in the segment 8000 is always destroyed by Vista with no SP
 
-#define TC__BOOT_LOADER_LOWMEM_SEGMENT TC_HEX (2000)
-#define TC__BOOT_LOADER_BUFFER_SEGMENT TC_HEX (5000)
-#define TC__BOOT_LOADER_ALT_SEGMENT TC_HEX (7000)
+#if TC__BOOT_MEMORY_REQUIRED <= 32
+#	define TC__BOOT_LOADER_SEGMENT_LOW	(TC__BOOT_LOADER_SEGMENT - 32 * 1024 / 16)	
+#else
+#	define TC__BOOT_LOADER_SEGMENT_LOW	(TC__BOOT_LOADER_SEGMENT - 64 * 1024 / 16)	
+#endif
+
+#define TC__COM_EXECUTABLE_OFFSET		TC_HEX (100)
+
+#define TC__BOOT_LOADER_LOWMEM_SEGMENT	TC_HEX (2000)
+#define TC__BOOT_LOADER_BUFFER_SEGMENT	TC_HEX (4000)
+#define TC__BOOT_LOADER_ALT_SEGMENT		TC_HEX (6000)
 
 #define TC__BOOT_LOADER_STACK_TOP (TC_BOOT_MEMORY_REQUIRED * TC_UNSIGNED (1024) - 4)
 
@@ -59,7 +63,7 @@
 #define TC__BOOT_SECTOR_USER_MESSAGE_MAX_LENGTH 24
 #define TC__BOOT_SECTOR_USER_MESSAGE_OFFSET (TC__BOOT_SECTOR_VERSION_OFFSET - TC__BOOT_SECTOR_USER_MESSAGE_MAX_LENGTH)
 
-#define TC__BOOT_SECTOR_OUTER_VOLUME_BAK_HEADER_CRC_SIZE 2
+#define TC__BOOT_SECTOR_OUTER_VOLUME_BAK_HEADER_CRC_SIZE 4
 #define TC__BOOT_SECTOR_OUTER_VOLUME_BAK_HEADER_CRC_OFFSET (TC__BOOT_SECTOR_USER_MESSAGE_OFFSET - TC__BOOT_SECTOR_OUTER_VOLUME_BAK_HEADER_CRC_SIZE)
 
 #define TC__BOOT_LOADER_DECOMPRESSOR_START_SECTOR 2
@@ -102,6 +106,7 @@
 
 TC_BOOT_MEMORY_REQUIRED = TC__BOOT_MEMORY_REQUIRED
 TC_BOOT_LOADER_SEGMENT = TC__BOOT_LOADER_SEGMENT
+TC_BOOT_LOADER_SEGMENT_LOW = TC__BOOT_LOADER_SEGMENT_LOW
 TC_COM_EXECUTABLE_OFFSET = TC__COM_EXECUTABLE_OFFSET
 TC_BOOT_LOADER_LOWMEM_SEGMENT = TC__BOOT_LOADER_LOWMEM_SEGMENT
 TC_BOOT_LOADER_BUFFER_SEGMENT = TC__BOOT_LOADER_BUFFER_SEGMENT

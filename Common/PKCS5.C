@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
@@ -336,10 +336,10 @@ void hmac_ripemd160 (char *key, int keylen, char *input, int len, char *digest)
         RMD160_CTX      tctx;
 
         RMD160Init(&tctx);
-        RMD160Update(&tctx, key, keylen);
+        RMD160Update(&tctx, (const unsigned char *) key, keylen);
         RMD160Final(tk, &tctx);
 
-        key = tk;
+        key = (char *) tk;
         keylen = RIPEMD160_DIGESTSIZE;
 
 		burn (&tctx, sizeof(tctx));	// Prevent leaks
@@ -370,15 +370,15 @@ void hmac_ripemd160 (char *key, int keylen, char *input, int len, char *digest)
 
     RMD160Init(&context);           /* init context for 1st pass */
     RMD160Update(&context, k_ipad, RIPEMD160_BLOCKSIZE);  /* start with inner pad */
-    RMD160Update(&context, input, len); /* then text of datagram */
-    RMD160Final(digest, &context);         /* finish up 1st pass */
+    RMD160Update(&context, (const unsigned char *) input, len); /* then text of datagram */
+    RMD160Final((unsigned char *) digest, &context);         /* finish up 1st pass */
 
     /* perform outer RIPEMD-160 */
     RMD160Init(&context);           /* init context for 2nd pass */
     RMD160Update(&context, k_opad, RIPEMD160_BLOCKSIZE);  /* start with outer pad */
     /* results of 1st hash */
-    RMD160Update(&context, digest, RIPEMD160_DIGESTSIZE);
-    RMD160Final(digest, &context);         /* finish up 2nd pass */
+    RMD160Update(&context, (const unsigned char *) digest, RIPEMD160_DIGESTSIZE);
+    RMD160Final((unsigned char *) digest, &context);         /* finish up 2nd pass */
 
 	/* Prevent possible leaks. */
     burn (k_ipad, sizeof(k_ipad));

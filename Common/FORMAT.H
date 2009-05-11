@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
@@ -59,7 +59,7 @@ BOOL FlushFormatWriteBuffer (void *dev, char *write_buf, int *write_buf_cnt, __i
 static BOOL StartFormatWriteThread ();
 static void StopFormatWriteThread ();
 
-#define WRITE_BUF_SIZE	65536
+#define WRITE_BUF_SIZE	(256 * 1024)	// Write block size greater than 256 KB causes a performance drop on XP/Vista
 
 #define FILESYS_NONE	0
 #define FILESYS_FAT		1

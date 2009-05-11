@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -63,6 +63,7 @@ namespace TrueCrypt
 	{
 		Core->VolumeMountedEvent.Disconnect (this);
 		Core->VolumeDismountedEvent.Disconnect (this);
+		Gui->OpenVolumeSystemRequestEvent.Disconnect (this);
 		Gui->PreferencesUpdatedEvent.Disconnect (this);
 
 		VolumeHistory::DisconnectComboBox (VolumePathComboBox);
@@ -97,7 +98,7 @@ namespace TrueCrypt
 			size_t newItemCount = 0;
 			foreach_ref (const VolumeInfo &volume, volumes)
 			{
-				newFavorites.push_back (shared_ptr <FavoriteVolume> (new FavoriteVolume (volume.Path, volume.MountPoint, volume.SlotNumber)));
+				newFavorites.push_back (shared_ptr <FavoriteVolume> (new FavoriteVolume (volume.Path, volume.MountPoint, volume.SlotNumber, volume.Protection == VolumeProtection::ReadOnly, volume.SystemEncryption)));
 				++newItemCount;
 			}
 
@@ -121,11 +122,13 @@ namespace TrueCrypt
 
 		shared_ptr <VolumePath> volumePath = GetSelectedVolumePath();
 
+#ifdef TC_WINDOWS
 		if (Core->IsVolumeMounted (*volumePath))
 		{
 			Gui->ShowInfo (LangString [mode == ChangePasswordDialog::Mode::ChangePkcs5Prf ? "MOUNTED_NO_PKCS5_PRF_CHANGE" : "MOUNTED_NOPWCHANGE"]);
 			return;
 		}
+#endif
 
 		ChangePasswordDialog dialog (this, volumePath, mode);
 		dialog.ShowModal();
@@ -148,6 +151,9 @@ namespace TrueCrypt
 					L"runas",
 					L"cmd.exe", args.c_str(), nullptr, SW_SHOW);
 #else
+#	ifdef TC_MACOSX
+				Gui->ShowInfo (_("Disk Utility will be launched after you press 'OK'.\n\nPlease select your volume in the Disk Utility window and press 'Verify Disk' or 'Repair Disk' button on the 'First Aid' page."));
+#	endif
 				Core->CheckFilesystem (selectedVolume, repair);
 				UpdateVolumeList();
 #endif
@@ -298,6 +304,7 @@ namespace TrueCrypt
 	{
 		Core->VolumeMountedEvent.Connect (EventConnector <MainFrame> (this, &MainFrame::OnVolumeMounted));
 		Core->VolumeDismountedEvent.Connect (EventConnector <MainFrame> (this, &MainFrame::OnVolumeDismounted));
+		Gui->OpenVolumeSystemRequestEvent.Connect (EventConnector <MainFrame> (this, &MainFrame::OnOpenVolumeSystemRequestEvent));
 		Gui->PreferencesUpdatedEvent.Connect (EventConnector <MainFrame> (this, &MainFrame::OnPreferencesUpdated));
 
 		// Drag & drop
@@ -575,11 +582,18 @@ namespace TrueCrypt
 			Gui->ShowError (e);
 		}
 	}
-	
+
 	void MainFrame::MountAllFavorites ()
 	{
-		MountOptions mountOptions (GetPreferences().DefaultMountOptions);
-		Gui->MountAllFavoriteVolumes (mountOptions);
+		try
+		{
+			MountOptions mountOptions (GetPreferences().DefaultMountOptions);
+			Gui->MountAllFavoriteVolumes (mountOptions);
+		}
+		catch (exception &e)
+		{
+			Gui->ShowError (e);
+		}
 	}
 
 	void MainFrame::MountVolume ()
@@ -818,8 +832,21 @@ namespace TrueCrypt
 #ifdef TC_WINDOWS
 		switch (event.GetId())
 		{
-		case Hotkey::Id::DismountAll:
+		case Hotkey::Id::CloseAllSecurityTokenSessions:
+			try
 			{
+				SecurityToken::CloseAllSessions();
+				Gui->ShowInfo ("ALL_TOKEN_SESSIONS_CLOSED");
+			}
+			catch (exception &e) { Gui->ShowError (e); }
+			break;
+
+		case Hotkey::Id::DismountAll:
+		case Hotkey::Id::DismountAllWipeCache:
+			{
+				if (event.GetId() == Hotkey::Id::DismountAllWipeCache)
+					WipeCache();
+
 				size_t mountedCount = Core->GetMountedVolumes().size();
 				Gui->DismountAllVolumes();
 				size_t newMountedCount = Core->GetMountedVolumes().size();
@@ -873,7 +900,7 @@ namespace TrueCrypt
 
 		case Hotkey::Id::WipeCache:
 			WipeCache();
-			Gui->ShowInfo ("WIPE_CACHE");
+			Gui->ShowInfo ("PASSWORD_CACHE_WIPED");
 			break;
 
 		default:
@@ -946,11 +973,10 @@ namespace TrueCrypt
 			popup.AppendSeparator();
 			Gui->AppendToMenu (popup, _("Add to Favorites..."), this, wxCommandEventHandler (MainFrame::OnAddToFavoritesMenuItemSelected));
 
-#if defined (TC_WINDOWS) || defined (TC_LINUX)
 			popup.AppendSeparator();
 			Gui->AppendToMenu (popup, LangString["IDPM_CHECK_FILESYS"], this, wxCommandEventHandler (MainFrame::OnCheckFilesystemMenuItemSelected));
 			Gui->AppendToMenu (popup, LangString["IDPM_REPAIR_FILESYS"], this, wxCommandEventHandler (MainFrame::OnRepairFilesystemMenuItemSelected));
-#endif
+
 			popup.AppendSeparator();
 			Gui->AppendToMenu (popup, LangString["IDPM_PROPERTIES"], this, wxCommandEventHandler (MainFrame::OnVolumePropertiesButtonClick));
 
@@ -1253,7 +1279,7 @@ namespace TrueCrypt
 	void MainFrame::OnWipeCacheButtonClick (wxCommandEvent& event)
 	{
 		WipeCache();
-		Gui->ShowInfo ("WIPE_CACHE");
+		Gui->ShowInfo ("PASSWORD_CACHE_WIPED");
 	}
 	
 	void MainFrame::OpenSelectedVolume () const

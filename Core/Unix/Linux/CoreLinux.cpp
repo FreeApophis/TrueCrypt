@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -84,7 +84,7 @@ namespace TrueCrypt
 			}
 		}
 
-		throw NoLoopbackDeviceAvailable (SRC_POS);
+		throw LoopDeviceSetupFailed (SRC_POS, wstring (filePath));
 	}
 
 	void CoreLinux::DetachLoopDevice (const DevicePath &devicePath) const
@@ -123,7 +123,26 @@ namespace TrueCrypt
 			dmsetupArgs.push_back ("remove");
 			dmsetupArgs.push_back (StringConverter::Split (devPath, "/").back());
 
-			Process::Execute ("dmsetup", dmsetupArgs);
+			for (int t = 0; true; t++)
+			{
+				try
+				{
+					Process::Execute ("dmsetup", dmsetupArgs);
+					break;
+				}
+				catch (...)
+				{
+					if (t > 20)
+						throw;
+
+					Thread::Sleep (100);
+				}
+			}
+
+			for (int t = 0; FilesystemPath (devPath).IsBlockDevice() && t < 20; t++)
+			{
+				Thread::Sleep (100);
+			}
 
 			devPath = string (mountedVolume->VirtualDevice) + "_" + StringConverter::ToSingle (devCount++);
 		}
@@ -235,17 +254,23 @@ namespace TrueCrypt
 
 	void CoreLinux::MountFilesystem (const DevicePath &devicePath, const DirectoryPath &mountPoint, const string &filesystemType, bool readOnly, const string &systemMountOptions) const
 	{
+		bool fsMounted = false;
+
 		try
 		{
-			stringstream userMountOptions;
-			userMountOptions << "uid=" << GetRealUserId() << ",gid=" << GetRealGroupId() << ",umask=077" << (!systemMountOptions.empty() ? "," : "");
-			
-			CoreUnix::MountFilesystem (devicePath, mountPoint, filesystemType, readOnly, userMountOptions.str() + systemMountOptions);
+			if (!FilesystemSupportsUnixPermissions (devicePath))
+			{
+				stringstream userMountOptions;
+				userMountOptions << "uid=" << GetRealUserId() << ",gid=" << GetRealGroupId() << ",umask=077" << (!systemMountOptions.empty() ? "," : "");
+
+				CoreUnix::MountFilesystem (devicePath, mountPoint, filesystemType, readOnly, userMountOptions.str() + systemMountOptions);
+				fsMounted = true;
+			}
 		}
-		catch (...)
-		{
+		catch (...) { }
+
+		if (!fsMounted)
 			CoreUnix::MountFilesystem (devicePath, mountPoint, filesystemType, readOnly, systemMountOptions);
-		}
 	}
 
 	void CoreLinux::MountVolumeNative (shared_ptr <Volume> volume, MountOptions &options, const DirectoryPath &auxMountPoint) const
@@ -376,6 +401,20 @@ namespace TrueCrypt
 				nativeDevCreated = true;
 				++nativeDevCount;
 			}
+
+			// Test whether the device mapper is able to read and decrypt the last sector
+			SecureBuffer lastSectorBuf (volume->GetSectorSize());
+			uint64 lastSectorOffset = volume->GetSize() - volume->GetSectorSize();
+
+			File nativeDev;
+			nativeDev.Open (nativeDevPath);
+			nativeDev.ReadAt (lastSectorBuf, lastSectorOffset);
+
+			SecureBuffer lastSectorBuf2 (volume->GetSectorSize());
+			volume->ReadSectors (lastSectorBuf2, lastSectorOffset);
+
+			if (memcmp (lastSectorBuf.Ptr(), lastSectorBuf2.Ptr(), volume->GetSectorSize()) != 0)
+				throw KernelCryptoServiceTestFailed (SRC_POS);
 
 			// Mount filesystem
 			if (!options.NoFilesystem && options.MountPoint && !options.MountPoint->IsEmpty())

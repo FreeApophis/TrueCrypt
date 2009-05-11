@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -11,16 +11,6 @@
 
 namespace TrueCrypt
 {
-	// ChangePasswordResponse
-	void ChangePasswordResponse::Deserialize (shared_ptr <Stream> stream)
-	{
-	}
-
-	void ChangePasswordResponse::Serialize (shared_ptr <Stream> stream) const
-	{
-		Serializable::Serialize (stream);
-	}
-
 	// CheckFilesystemResponse
 	void CheckFilesystemResponse::Deserialize (shared_ptr <Stream> stream)
 	{
@@ -104,7 +94,6 @@ namespace TrueCrypt
 		Serializable::Serialize (stream);
 	}
 
-	TC_SERIALIZER_FACTORY_ADD_CLASS (ChangePasswordResponse);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (CheckFilesystemResponse);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (DismountFilesystemResponse);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (DismountVolumeResponse);

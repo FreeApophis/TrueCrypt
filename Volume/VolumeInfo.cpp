@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -38,7 +38,10 @@ namespace TrueCrypt
 		sr.Deserialize ("SerialInstanceNumber", SerialInstanceNumber);
 		sr.Deserialize ("Size", Size);
 		sr.Deserialize ("SlotNumber", SlotNumber);
-		
+
+		if (ProgramVersion >= 0x620)
+			sr.Deserialize ("SystemEncryption", SystemEncryption);
+
 		if (ProgramVersion >= 0x600)
 			sr.Deserialize ("TopWriteOffset", TopWriteOffset);
 
@@ -79,6 +82,7 @@ namespace TrueCrypt
 		sr.Serialize ("SerialInstanceNumber", SerialInstanceNumber);
 		sr.Serialize ("Size", Size);
 		sr.Serialize ("SlotNumber", SlotNumber);
+		sr.Serialize ("SystemEncryption", SystemEncryption);
 		sr.Serialize ("TopWriteOffset", TopWriteOffset);
 		sr.Serialize ("TotalDataRead", TotalDataRead);
 		sr.Serialize ("TotalDataWritten", TotalDataWritten);
@@ -103,6 +107,7 @@ namespace TrueCrypt
 		Pkcs5PrfName = volume.GetPkcs5Kdf()->GetName();
 		Protection = volume.GetProtectionType();
 		Size = volume.GetSize();
+		SystemEncryption = volume.IsInSystemEncryptionScope();
 		Type = volume.GetType();
 		TopWriteOffset = volume.GetTopWriteOffset();
 		TotalDataRead = volume.GetTotalDataRead();

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -30,83 +30,6 @@ namespace TrueCrypt
 		sr.Serialize ("ElevateUserPrivileges", ElevateUserPrivileges);
 		sr.Serialize ("FastElevation", FastElevation);
 	}
-	
-	// ChangePasswordRequest
-	void ChangePasswordRequest::Deserialize (shared_ptr <Stream> stream)
-	{
-		Serializer sr (stream);
-		CoreServiceRequest::Deserialize (stream);
-
-		Keyfiles = Keyfile::DeserializeList (stream, "Keyfiles");
-		NewKeyfiles = Keyfile::DeserializeList (stream, "NewKeyfiles");
-
-		if (!sr.DeserializeBool ("NewPasswordNull"))
-			NewPassword = Serializable::DeserializeNew <VolumePassword> (stream);
-		else
-			NewPassword.reset();
-
-		if (!sr.DeserializeBool ("NewPkcs5KdfNull"))
-			NewPkcs5Kdf = Pkcs5Kdf::GetAlgorithm (sr.DeserializeWString ("NewPkcs5Kdf"));
-		else
-			NewPkcs5Kdf.reset();
-
-		if (!sr.DeserializeBool ("PasswordNull"))
-			Password = Serializable::DeserializeNew <VolumePassword> (stream);
-		else
-			Password.reset();
-
-		if (!sr.DeserializeBool ("PathNull"))
-			Path.reset (new VolumePath (sr.DeserializeWString ("Path")));
-		else
-			Path.reset();
-
-		sr.Deserialize ("PreserveTimestamps", PreserveTimestamps);
-	}
-
-	bool ChangePasswordRequest::RequiresElevation () const
-	{
-		if (Core->HasAdminPrivileges())
-			return false;
-		try
-		{
-			File file;
-			file.Open (*Path);
-			return false;
-		}
-		catch (SystemException &e)
-		{
-			if (e.GetErrorCode() == EACCES || e.GetErrorCode() == EPERM)
-				return true;
-			throw;
-		}
-	}
-
-	void ChangePasswordRequest::Serialize (shared_ptr <Stream> stream) const
-	{
-		CoreServiceRequest::Serialize (stream);
-		Serializer sr (stream);
-
-		Keyfile::SerializeList (stream, "Keyfiles", Keyfiles);
-		Keyfile::SerializeList (stream, "NewKeyfiles", NewKeyfiles);
-
-		sr.Serialize ("NewPasswordNull", NewPassword == nullptr);
-		if (NewPassword)
-			NewPassword->Serialize (stream);
-
-		sr.Serialize ("NewPkcs5KdfNull", NewPkcs5Kdf == nullptr);
-		if (NewPkcs5Kdf)
-			sr.Serialize ("NewPkcs5Kdf", NewPkcs5Kdf->GetName());
-
-		sr.Serialize ("PasswordNull", Password == nullptr);
-		if (Password)
-			Password->Serialize (stream);
-
-		sr.Serialize ("PathNull", Path == nullptr);
-		if (Path)
-			sr.Serialize ("Path", wstring (*Path));
-
-		sr.Serialize ("PreserveTimestamps", PreserveTimestamps);
-	}
 
 	// CheckFilesystemRequest
 	void CheckFilesystemRequest::Deserialize (shared_ptr <Stream> stream)
@@ -119,6 +42,9 @@ namespace TrueCrypt
 
 	bool CheckFilesystemRequest::RequiresElevation () const
 	{
+#ifdef TC_MACOSX
+		return false;
+#endif
 		return !Core->HasAdminPrivileges();
 	}
 
@@ -165,7 +91,20 @@ namespace TrueCrypt
 	bool DismountVolumeRequest::RequiresElevation () const
 	{
 #ifdef TC_MACOSX
-		return MountedVolumeInfo->Path.IsDevice();
+		if (MountedVolumeInfo->Path.IsDevice())
+		{
+			try
+			{
+				File file;
+				file.Open (MountedVolumeInfo->Path, File::OpenReadWrite);
+			}
+			catch (...)
+			{
+				return true;
+			}
+		}
+
+		return false;
 #endif
 		return !Core->HasAdminPrivileges();
 	}
@@ -242,7 +181,20 @@ namespace TrueCrypt
 	bool MountVolumeRequest::RequiresElevation () const
 	{
 #ifdef TC_MACOSX
-		return Options->Path->IsDevice();
+		if (Options->Path->IsDevice())
+		{
+			try
+			{
+				File file;
+				file.Open (*Options->Path, File::OpenReadWrite);
+			}
+			catch (...)
+			{
+				return true;
+			}
+		}
+
+		return false;
 #endif
 		return !Core->HasAdminPrivileges();
 	}
@@ -285,7 +237,6 @@ namespace TrueCrypt
 
 
 	TC_SERIALIZER_FACTORY_ADD_CLASS (CoreServiceRequest);
-	TC_SERIALIZER_FACTORY_ADD_CLASS (ChangePasswordRequest);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (CheckFilesystemRequest);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (DismountFilesystemRequest);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (DismountVolumeRequest);

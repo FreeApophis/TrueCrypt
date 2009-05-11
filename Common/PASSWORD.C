@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
@@ -300,6 +300,9 @@ int ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, i
 
 	RandSetHashFunction (cryptoInfo->pkcs5);
 
+	NormalCursor();
+	UserEnrichRandomPool (hwndDlg);
+	WaitCursor();
 
 	/* Re-encrypt the volume header */ 
 	backupHeader = FALSE;
@@ -356,6 +359,18 @@ int ChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, i
 				goto error;
 			}
 
+			if (bDevice
+				&& !cryptoInfo->LegacyVolume
+				&& !cryptoInfo->hiddenVolume
+				&& cryptoInfo->HeaderVersion == 4
+				&& (cryptoInfo->HeaderFlags & TC_HEADER_FLAG_NONSYS_INPLACE_ENC) != 0
+				&& (cryptoInfo->HeaderFlags & ~TC_HEADER_FLAG_NONSYS_INPLACE_ENC) == 0)
+			{
+				nStatus = WriteRandomDataToReservedHeaderAreas (dev, cryptoInfo, cryptoInfo->VolumeSize.Value, !backupHeader, backupHeader);
+				if (nStatus != ERR_SUCCESS)
+					goto error;
+			}
+
 			FlushFileBuffers (dev);
 		}
 
@@ -390,8 +405,8 @@ error:
 	if (nDosLinkCreated == 0)
 		RemoveFakeDosName (szDiskFile, szDosDevice);
 
+	RandStop (FALSE);
 	NormalCursor ();
-	Randfree ();
 
 	SetLastError (dwError);
 

@@ -4,13 +4,15 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
 #ifndef TC_ENDIAN_H
 #define TC_ENDIAN_H
+
+#include "Common/Tcdefs.h"
 
 #if defined(__cplusplus)
 extern "C"
@@ -32,6 +34,15 @@ extern "C"
 #		include <machine/endian.h>
 #	elif defined (TC_BSD)
 #		include <sys/endian.h>
+#	elif defined (TC_SOLARIS)
+#		include <sys/types.h>
+#		define LITTLE_ENDIAN 1234
+#		define BIG_ENDIAN 4321
+#		ifdef _BIG_ENDIAN
+#			define BYTE_ORDER BIG_ENDIAN
+#		else
+#			define BYTE_ORDER LITTLE_ENDIAN
+#		endif
 #	else
 #		include <endian.h>
 #	endif
@@ -125,7 +136,7 @@ extern "C"
 unsigned __int16 MirrorBytes16 (unsigned __int16 x);
 unsigned __int32 MirrorBytes32 (unsigned __int32 x);
 #ifndef TC_NO_COMPILER_INT64
-unsigned __int64 MirrorBytes64 (unsigned __int64 x);
+uint64 MirrorBytes64 (uint64 x);
 #endif 
 void LongReverse ( unsigned __int32 *buffer , unsigned byteCount );
 

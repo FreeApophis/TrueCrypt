@@ -1,5 +1,5 @@
 ::
-:: Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+:: Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 ::
 :: Governed by the TrueCrypt License 2.6 the full text of which is contained
 :: in the file License.txt included in TrueCrypt binary and source code
@@ -15,6 +15,11 @@ set TC_ARG_TYPE=%~1
 shift
 set TC_ARG_ARCH=%~1
 shift
+
+
+:: Windows Driver Kit build number
+
+set TC_WINDDK_BUILD=6001.18002
 
 
 :: Check for spaces in the current directory path
@@ -36,9 +41,7 @@ set TC_LINKER_FLAGS=-nologo
 set NO_SAFESEH=1
 
 
-:: Windows DDK root
-
-set TC_WINDDK_BUILD=6001.18001
+:: Windows Driver Kit root
 
 set TC_WINDDK_ROOT=%SYSTEMDRIVE%\WinDDK\%TC_WINDDK_BUILD%
 if exist "%TC_WINDDK_ROOT%\bin\setenv.bat" goto ddk_found

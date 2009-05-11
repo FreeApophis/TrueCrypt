@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -98,7 +98,25 @@ namespace TrueCrypt
 			else if (DialogMode != Mode::RemoveAllKeyfiles)
 				newKeyfiles = CurrentPasswordPanel->GetKeyfiles();
 
+			Gui->UserEnrichRandomPool (this, NewPasswordPanel->GetPkcs5Kdf() ? NewPasswordPanel->GetPkcs5Kdf()->GetHash() : shared_ptr <Hash>());
+
 			{
+#ifdef TC_UNIX
+				// Temporarily take ownership of a device if the user is not an administrator
+				UserId origDeviceOwner ((uid_t) -1);
+
+				if (!Core->HasAdminPrivileges() && Path->IsDevice())
+				{
+					origDeviceOwner = FilesystemPath (wstring (*Path)).GetOwner();
+					Core->SetFileOwner (*Path, UserId (getuid()));
+				}
+
+				finally_do_arg2 (FilesystemPath, *Path, UserId, origDeviceOwner,
+				{
+					if (finally_arg2.SystemId != (uid_t) -1)
+						Core->SetFileOwner (finally_arg, finally_arg2);
+				});
+#endif
 				wxBusyCursor busy;
 				Core->ChangePassword (Path,	Gui->GetPreferences().DefaultMountOptions.PreserveTimestamps,
 					CurrentPasswordPanel->GetPassword(), CurrentPasswordPanel->GetKeyfiles(),

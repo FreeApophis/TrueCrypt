@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -63,7 +63,7 @@ namespace TrueCrypt
 		Map["UNKNOWN_OPTION"] = _("Unknown option");
 		Map["VOLUME_LOCATION"] = _("Volume Location");
 		Map["YES"] = _("Yes");
-		Map["VOLUME_HOST_IN_USE"] = _("WARNING: The host file/device \"{0}\" is already in use!\n\nIgnoring this can cause undesired results including system instability. All applications that might be using the host file/device should be closed before mounting the volume.\n\nContinue with mounting?");
+		Map["VOLUME_HOST_IN_USE"] = _("WARNING: The host file/device \"{0}\" is already in use!\n\nIgnoring this can cause undesired results including system instability. All applications that might be using the host file/device should be closed before mounting the volume.\n\nContinue mounting?");
 		Map["VIRTUAL_DEVICE"] = _("Virtual Device");
 		Map["CONFIRM_BACKGROUND_TASK_DISABLED"] = _("WARNING: If the TrueCrypt Background Task is disabled, the following functions, depending on the platform, will be disabled whenever you exit TrueCrypt:\n\n1) Auto-dismount (e.g., upon log off, time-out, etc.)\n2) Notifications (e.g., when damage to hidden volume is prevented)\n3) Tray icon\n\nNote: You may shut down the Background Task anytime by right-clicking the TrueCrypt tray icon and selecting 'Exit'.\n\nAre you sure you want to disable the TrueCrypt Background Task?");
 		Map["CONFIRM_EXIT"] = _("WARNING: If TrueCrypt exits now, the following functions, depending on the platform, will be disabled:\n\n1) Auto-dismount (e.g., upon log off, time-out, etc.)\n2) Notifications (e.g., when damage to hidden volume is prevented)\n3) Tray icon\n\nNote: If you do not wish TrueCrypt to continue running in background after you close its window, disable the Background Task in the Preferences.\n\nAre you sure you want TrueCrypt to exit?");

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -10,10 +10,13 @@
 #ifdef TC_UNIX
 #include <signal.h>
 #include <termios.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #endif
 
 #include "Common/SecurityToken.h"
+#include "Core/RandomNumberGenerator.h"
 #include "Application.h"
 #include "TextUserInterface.h"
 
@@ -26,14 +29,25 @@ namespace TrueCrypt
 		signal (SIGINT, OnSignal);
 		signal (SIGQUIT, OnSignal);
 		signal (SIGTERM, OnSignal);
-#endif
 
-		FInputStream.reset (new wxFFileInputStream (stdin));
-		TextInputStream.reset (new wxTextInputStream (*FInputStream));
+		struct stat statBuf;
+		if (fstat (0, &statBuf) != -1)
+#endif
+		{
+			FInputStream.reset (new wxFFileInputStream (stdin));
+			TextInputStream.reset (new wxTextInputStream (*FInputStream));
+		}
 	}
 
 	TextUserInterface::~TextUserInterface ()
 	{
+		try
+		{
+			if (RandomNumberGenerator::IsRunning())
+				RandomNumberGenerator::Stop();
+		}
+		catch (...) { }
+
 #ifdef TC_UNIX
 		signal (SIGHUP, SIG_DFL);
 		signal (SIGINT, SIG_DFL);
@@ -85,8 +99,8 @@ namespace TrueCrypt
 		{
 			ShowString (verPhase ? wxString (_("Re-enter password: ")) : msg);
 
-			const wxString &passwordStr = TextInputStream->ReadLine();
-			CheckInputStream();
+			wxString passwordStr;
+			ReadInputStreamLine (passwordStr);
 
 			size_t length = passwordStr.size();
 
@@ -94,8 +108,6 @@ namespace TrueCrypt
 
 			if (length < 1)
 			{
-				throw_sys_if (ferror (stdin));
-
 				password->Set (passwordBuf, 0);
 				return password;
 			}
@@ -167,12 +179,12 @@ namespace TrueCrypt
 		return password;
 	}
 	
-	size_t TextUserInterface::AskSelection (size_t optionCount, size_t defaultOption) const
+	ssize_t TextUserInterface::AskSelection (ssize_t optionCount, ssize_t defaultOption) const
 	{
 		while (true)
 		{
 			wstring selectionStr = AskString (defaultOption == -1 ? wxString (_("Select: ")) : wxString (wstring (StringFormatter (_("Select [{0}]: "), (uint32) defaultOption))));
-			size_t selection;
+			ssize_t selection;
 
 			if (selectionStr.empty() && defaultOption != -1)
 				return defaultOption;
@@ -194,11 +206,7 @@ namespace TrueCrypt
 	wstring TextUserInterface::AskString (const wxString &message) const
 	{
 		ShowString (message);
-
-		wstring str (TextInputStream->ReadLine());
-		CheckInputStream();
-
-		return str;
+		return wstring (ReadInputStreamLine());
 	}
 	
 	bool TextUserInterface::AskYesNo (const wxString &message, bool defaultYes, bool warning) const
@@ -229,24 +237,9 @@ namespace TrueCrypt
 		if (!volumePath)
 			throw UserAbort (SRC_POS);
 
+#ifdef TC_WINDOWS
 		if (Core->IsVolumeMounted (*volumePath))
 			throw_err (LangString["DISMOUNT_FIRST"]);
-
-#ifdef TC_UNIX
-		// Temporarily take ownership of a device if the user is not an administrator
-		UserId origDeviceOwner ((uid_t) -1);
-
-		if (!Core->HasAdminPrivileges() && volumePath->IsDevice())
-		{
-			origDeviceOwner = FilesystemPath (wstring (*volumePath)).GetOwner();
-			Core->SetFileOwner (*volumePath, UserId (getuid()));
-		}
-
-		finally_do_arg2 (FilesystemPath, *volumePath, UserId, origDeviceOwner,
-		{
-			if (finally_arg2.SystemId != (uid_t) -1)
-				Core->SetFileOwner (finally_arg, finally_arg2);
-		});
 #endif
 
 		ShowInfo ("EXTERNAL_VOL_HEADER_BAK_FIRST_INFO");
@@ -336,7 +329,7 @@ namespace TrueCrypt
 		backupFile.Open (filePath, File::CreateWrite);
 
 		RandomNumberGenerator::Start();
-		finally_do ({ RandomNumberGenerator::Stop(); });
+		UserEnrichRandomPool();
 
 		// Re-encrypt volume header
 		SecureBuffer newHeaderBuffer (normalVolume->GetLayout()->GetHeaderSize());
@@ -375,6 +368,9 @@ namespace TrueCrypt
 
 			volumePath = AskVolumePath ();
 		}
+
+		if (volumePath->IsEmpty())
+			throw UserAbort (SRC_POS);
 
 		bool passwordInteractive = !password.get();
 		bool keyfilesInteractive = !keyfiles.get();
@@ -446,21 +442,20 @@ namespace TrueCrypt
 				newKeyfiles = AskKeyfiles (_("Enter new keyfile"));
 		}
 
+		UserEnrichRandomPool();
+
 		Core->ChangePassword (volume, newPassword, newKeyfiles,
 			newHash ? Pkcs5Kdf::GetAlgorithm (*newHash) : shared_ptr <Pkcs5Kdf>());
 
 		ShowInfo ("PASSWORD_CHANGED");
 	}
-	
-	void TextUserInterface::CheckInputStream ()
-	{
-		if (feof (stdin))
-			throw UserAbort (SRC_POS);
-	}
 
 	void TextUserInterface::CreateKeyfile (shared_ptr <FilePath> keyfilePath) const
 	{
 		FilePath path;
+
+		RandomNumberGenerator::Start();
+		UserEnrichRandomPool();
 
 		if (keyfilePath)
 		{
@@ -478,7 +473,7 @@ namespace TrueCrypt
 		ShowInfo ("KEYFILE_CREATED");
 	}
 
-	void TextUserInterface::CreateVolume (shared_ptr <VolumeCreationOptions> options, const FilesystemPath &randomSourcePath) const
+	void TextUserInterface::CreateVolume (shared_ptr <VolumeCreationOptions> options) const
 	{
 		// Volume type
 		if (options->Type == VolumeType::Unknown)
@@ -728,39 +723,7 @@ namespace TrueCrypt
 
 		// Random data
 		RandomNumberGenerator::Start();
-		finally_do ({ RandomNumberGenerator::Stop(); });
-
-		if (!randomSourcePath.IsEmpty())
-		{
-			Buffer buffer (RandomNumberGenerator::PoolSize);
-			File randSourceFile;
-			
-			randSourceFile.Open (randomSourcePath, File::OpenRead);
-
-			for (size_t i = 0; i < buffer.Size(); ++i)
-			{
-				if (randSourceFile.Read (buffer.GetRange (i, 1)) < 1)
-					break;
-			}
-
-			RandomNumberGenerator::AddToPool (buffer);
-		}
-		else if (!Preferences.NonInteractive)
-		{
-			int randCharsRequired = RandomNumberGenerator::PoolSize / 2;
-			ShowInfo (StringFormatter (_("\nPlease type at least {0} randomly chosen characters and then press Enter:"), randCharsRequired));
-
-			while (randCharsRequired > 0)
-			{
-				wstring randStr = AskString();
-				RandomNumberGenerator::AddToPool (ConstBufferPtr ((byte *) randStr.c_str(), randStr.size()));
-
-				randCharsRequired -= randStr.size();
-
-				if (randCharsRequired > 0)
-					ShowInfo (StringFormatter (_("Characters remaining: {0}"), randCharsRequired));
-			}
-		}
+		UserEnrichRandomPool();
 
 		ShowString (L"\n");
 		wxLongLong startTime = wxGetLocalTimeMillis();
@@ -834,15 +797,14 @@ namespace TrueCrypt
 			AdminPasswordRequestHandler (TextUserInterface *userInterface) : UI (userInterface) { }
 			virtual void operator() (string &passwordStr)
 			{
-				UI->ShowString (_("Enter system administrator password: "));
+				UI->ShowString (_("Enter your user password or administrator password: "));
 
 				TextUserInterface::SetTerminalEcho (false);
 				finally_do ({ TextUserInterface::SetTerminalEcho (true); });
 				
-				wstring wPassword (UI->TextInputStream->ReadLine());
+				wstring wPassword (UI->ReadInputStreamLine());
 				finally_do_arg (wstring *, &wPassword, { StringConverter::Erase (*finally_arg); });
 
-				CheckInputStream();
 				UI->ShowString (L"\n");
 
 				StringConverter::ToSingle (wPassword, passwordStr);
@@ -898,6 +860,8 @@ namespace TrueCrypt
 
 				SecurityToken::CreateKeyfile (slotId, keyfileData, string (FilePath (keyfilePath).ToBaseName()));
 			}
+			else
+				throw InsufficientData (SRC_POS, FilePath (keyfilePath));
 		}
 	}
 
@@ -920,10 +884,9 @@ namespace TrueCrypt
 				TextUserInterface::SetTerminalEcho (false);
 				finally_do ({ TextUserInterface::SetTerminalEcho (true); });
 				
-				wstring wPassword (UI->TextInputStream->ReadLine());
+				wstring wPassword (UI->ReadInputStreamLine());
 				finally_do_arg (wstring *, &wPassword, { StringConverter::Erase (*finally_arg); });
 
-				CheckInputStream();
 				UI->ShowString (L"\n");
 
 				StringConverter::ToSingle (wPassword, passwordStr);
@@ -1052,7 +1015,7 @@ namespace TrueCrypt
 			// Hidden volume protection
 			if (options.Protection == VolumeProtection::None
 				&& !CmdLine->ArgNoHiddenVolumeProtection
-				&& AskYesNo (_("Protect hidden volume?")))
+				&& AskYesNo (_("Protect hidden volume (if any)?")))
 				options.Protection = VolumeProtection::HiddenVolumeReadOnly;
 
 			if (options.Protection == VolumeProtection::HiddenVolumeReadOnly)
@@ -1096,6 +1059,8 @@ namespace TrueCrypt
 					ShowInfo (e);
 					options.Password.reset();
 				}
+
+				ShowString (L"\n");
 			}
 			catch (PasswordException &e)
 			{
@@ -1165,6 +1130,24 @@ namespace TrueCrypt
 #endif
 	}
 
+	void TextUserInterface::ReadInputStreamLine (wxString &line) const
+	{
+		if (!TextInputStream.get() || feof (stdin) || ferror (stdin))
+			throw UserAbort (SRC_POS);
+
+		line = TextInputStream->ReadLine();
+
+		if (ferror (stdin) || (line.empty() && feof (stdin)))
+			throw UserAbort (SRC_POS);
+	}
+
+	wxString TextUserInterface::ReadInputStreamLine () const
+	{
+		wxString line;
+		ReadInputStreamLine (line);
+		return line;
+	}
+
 	void TextUserInterface::RestoreVolumeHeaders (shared_ptr <VolumePath> volumePath) const
 	{
 		if (!volumePath)
@@ -1173,24 +1156,9 @@ namespace TrueCrypt
 		if (!volumePath)
 			throw UserAbort (SRC_POS);
 
+#ifdef TC_WINDOWS
 		if (Core->IsVolumeMounted (*volumePath))
 			throw_err (LangString["DISMOUNT_FIRST"]);
-
-#ifdef TC_UNIX
-		// Temporarily take ownership of a device if the user is not an administrator
-		UserId origDeviceOwner ((uid_t) -1);
-
-		if (!Core->HasAdminPrivileges() && volumePath->IsDevice())
-		{
-			origDeviceOwner = FilesystemPath (wstring (*volumePath)).GetOwner();
-			Core->SetFileOwner (*volumePath, UserId (getuid()));
-		}
-
-		finally_do_arg2 (FilesystemPath, *volumePath, UserId, origDeviceOwner,
-		{
-			if (finally_arg2.SystemId != (uid_t) -1)
-				Core->SetFileOwner (finally_arg, finally_arg2);
-		});
 #endif
 
 		// Ask whether to restore internal or external backup
@@ -1255,7 +1223,7 @@ namespace TrueCrypt
 			}
 
 			RandomNumberGenerator::Start();
-			finally_do ({ RandomNumberGenerator::Stop(); });
+			UserEnrichRandomPool();
 
 			// Re-encrypt volume header
 			SecureBuffer newHeaderBuffer (volume->GetLayout()->GetHeaderSize());
@@ -1360,7 +1328,7 @@ namespace TrueCrypt
 			volumeFile.Open (*volumePath, File::OpenReadWrite, File::ShareNone, File::PreserveTimestamps);
 			
 			RandomNumberGenerator::Start();
-			finally_do ({ RandomNumberGenerator::Stop(); });
+			UserEnrichRandomPool();
 
 			// Re-encrypt volume header
 			SecureBuffer newHeaderBuffer (decryptedLayout->GetHeaderSize());
@@ -1413,6 +1381,56 @@ namespace TrueCrypt
 			}
 		}
 #endif
+	}
+	
+	void TextUserInterface::UserEnrichRandomPool () const
+	{
+		RandomNumberGenerator::Start();
+
+		if (RandomNumberGenerator::IsEnrichedByUser())
+			return;
+
+		if (CmdLine->ArgHash)
+			RandomNumberGenerator::SetHash (CmdLine->ArgHash);
+
+		if (!CmdLine->ArgRandomSourcePath.IsEmpty())
+		{
+			SecureBuffer buffer (RandomNumberGenerator::PoolSize);
+			File randSourceFile;
+
+			randSourceFile.Open (CmdLine->ArgRandomSourcePath, File::OpenRead);
+
+			for (size_t i = 0; i < buffer.Size(); ++i)
+			{
+				if (randSourceFile.Read (buffer.GetRange (i, 1)) < 1)
+					break;
+			}
+
+			RandomNumberGenerator::AddToPool (buffer);
+			RandomNumberGenerator::SetEnrichedByUserStatus (true);
+		}
+		else if (!Preferences.NonInteractive)
+		{
+			int randCharsRequired = RandomNumberGenerator::PoolSize / 2;
+			ShowInfo (StringFormatter (_("\nPlease type at least {0} randomly chosen characters and then press Enter:"), randCharsRequired));
+
+			SetTerminalEcho (false);
+			finally_do ({ TextUserInterface::SetTerminalEcho (true); });
+
+			while (randCharsRequired > 0)
+			{
+				wstring randStr = AskString();
+				RandomNumberGenerator::AddToPool (ConstBufferPtr ((byte *) randStr.c_str(), randStr.size() * sizeof (wchar_t)));
+
+				randCharsRequired -= randStr.size();
+
+				if (randCharsRequired > 0)
+					ShowInfo (StringFormatter (_("Characters remaining: {0}"), randCharsRequired));
+			}
+
+			ShowString (L"\n");
+			RandomNumberGenerator::SetEnrichedByUserStatus (true);
+		}
 	}
 
 	wxMessageOutput *DefaultMessageOutput;

@@ -1,6 +1,8 @@
 #ifndef TC_HEADER_Crypto_Ripemd160
 #define TC_HEADER_Crypto_Ripemd160
 
+#include "Common/Tcdefs.h"
+
 #if defined(__cplusplus)
 extern "C"
 {
@@ -12,7 +14,7 @@ typedef struct RMD160Context
 {
 	unsigned __int32 state[5];
 #ifndef TC_NO_COMPILER_INT64
-	unsigned __int64 count;
+	uint64 count;
 #else
 	unsigned __int32 count;
 #endif

@@ -538,14 +538,6 @@
 				Name="Common"
 				>
 				<File
-					RelativePath="..\Boot\Windows\Rescue\BootLoader.com.gz"
-					>
-				</File>
-				<File
-					RelativePath="..\Boot\Windows\Rescue_Twofish\BootLoader.com.gz"
-					>
-				</File>
-				<File
 					RelativePath="..\Boot\Windows\Release_Serpent\BootLoader.com.gz"
 					>
 				</File>
@@ -567,6 +559,14 @@
 				</File>
 				<File
 					RelativePath="..\Boot\Windows\Rescue_AES\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Rescue\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Rescue_Twofish\BootLoader.com.gz"
 					>
 				</File>
 				<File

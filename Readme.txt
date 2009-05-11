@@ -1,4 +1,4 @@
-This archive contains the source code of TrueCrypt 6.1a.
+This archive contains the source code of TrueCrypt 6.2.
 
 
 Important
@@ -23,10 +23,12 @@ II. Linux and Mac OS X
 	Instructions for Building TrueCrypt for Linux and Mac OS X
 	Requirements for Running TrueCrypt on Linux
 	Requirements for Running TrueCrypt on Mac OS X
+	
+III. OpenSolaris and FreeBSD
 
-III. Third-Party Developers (Contributors)
+IV. Third-Party Developers (Contributors)
 
-IV. Further Information
+V. Further Information
 
 
 
@@ -38,7 +40,7 @@ Requirements for Building TrueCrypt for Windows:
 
 - Microsoft Visual C++ 2008 SP1 (Professional Edition or compatible)
 - Microsoft Visual C++ 1.52 (available from MSDN Subscriber Downloads)
-- Microsoft Windows Driver Kit for Windows Server 2008 (build 6001.18001)
+- Microsoft Windows Driver Kit for Windows Server 2008 (build 6001.18002)
 - RSA Security Inc. PKCS #11 Cryptographic Token Interface (Cryptoki) 2.20
   header files (available at ftp://ftp.rsasecurity.com/pub/pkcs/pkcs-11/v2-20)
 - NASM 0.99 assembler
@@ -47,35 +49,35 @@ Requirements for Building TrueCrypt for Windows:
 
 IMPORTANT:
 
-The 64-bit editions of Windows Vista and in some cases (e.g. playback of HD DVD
-content) also the 32-bit editions of Windows Vista do not allow the TrueCrypt
-driver to run without an appropriate digital signature. Therefore, all .sys
-files in official TrueCrypt binary packages are digitally signed with the
-digital certificate of the TrueCrypt Foundation, which was issued by a
-certification authority. At the end of each official .exe and .sys file,
-there are embedded digital signatures and all related certificates (i.e. all
-certificates in the relevant certification chain, such as the certification
-authority certificates, CA-MS cross-certificate, and the TrueCrypt Foundation
-certificate). Keep this in mind if you compile TrueCrypt and compare your
-binaries with the official binaries. If your binaries are unsigned, the sizes
-of the official binaries will usually be approximately 10 KB greater than sizes
-of your binaries (if you use a different version of compiler or if you install
-a different or no service pack for Visual Studio, there may be further
-differences).
+The 64-bit editions of Windows Vista and later versions of Windows, and in
+some cases (e.g. playback of HD DVD content) also the 32-bit editions, do not
+allow the TrueCrypt driver to run without an appropriate digital signature.
+Therefore, all .sys files in official TrueCrypt binary packages are digitally
+signed with the digital certificate of the TrueCrypt Foundation, which was
+issued by a certification authority. At the end of each official .exe and
+.sys file, there are embedded digital signatures and all related certificates
+(i.e. all certificates in the relevant certification chain, such as the
+certification authority certificates, CA-MS cross-certificate, and the
+TrueCrypt Foundation certificate). Keep this in mind if you compile TrueCrypt
+and compare your binaries with the official binaries. If your binaries are
+unsigned, the sizes of the official binaries will usually be approximately 
+10 KB greater than sizes of your binaries (if you use a different version of
+compiler or if you install a different or no service pack for Visual Studio,
+there may be further differences).
 
 
 Instructions for Building TrueCrypt for Windows:
 ------------------------------------------------
 
-1) Create an environment variable called 'MSVC16_ROOT' pointing to the
-   installation directory of MS Visual C++ 1.52.
+1) Create an environment variable 'MSVC16_ROOT' pointing to the installation
+   directory of MS Visual C++ 1.52.
 
 2) If you have installed the Windows Driver Development Kit in another
-   directory than '%SYSTEMDRIVE%\WinDDK', create an environment variable called
+   directory than '%SYSTEMDRIVE%\WinDDK', create an environment variable
    'WINDDK_ROOT' pointing to the DDK installation directory.
 
 3) Copy the PKCS #11 header files to a standard include path or create an
-   environment variable called 'PKCS11_INC' pointing to the directory where
+   environment variable 'PKCS11_INC' pointing to the directory where
    the PKCS #11 header files are installed.
 
 4) Open the 'TrueCrypt.sln' solution in Microsoft Visual Studio 2008.
@@ -143,13 +145,12 @@ library, use the 'NOGUI' parameter:
    $ make NOGUI=1 WXSTATIC=1
 
 
-
 Requirements for Running TrueCrypt on Linux:
 --------------------------------------------
 
-- Kernel including FUSE, Device mapper, and encryption modules
+- Kernel including FUSE, device mapper, and encryption modules
 - FUSE library (available at http://fuse.sourceforge.net)
-- Device mapper tools (available at http://sources.redhat.com/dm)
+- device mapper tools (available at http://sources.redhat.com/dm)
 
 
 Requirements for Running TrueCrypt on Mac OS X:
@@ -160,8 +161,16 @@ Requirements for Running TrueCrypt on Mac OS X:
 
 
 
-III. Third-Party Developers (Contributors)
-==========================================
+III. OpenSolaris and FreeBSD
+============================
+
+Support status for OpenSolaris: http://www.truecrypt.org/misc/opensolaris
+Support status for FreeBSD: http://www.truecrypt.org/misc/freebsd
+
+
+
+IV. Third-Party Developers (Contributors)
+=========================================
 
 If you intend to implement a feature, please contact us first to make sure:
 
@@ -171,11 +180,11 @@ If you intend to implement a feature, please contact us first to make sure:
 3) Whether we need help of third-party developers with implementing the feature.
 
 Information on how to contact us can be found at:
-http://www.truecrypt.org/contact.php
+http://www.truecrypt.org/contact
 
 
 
-IV. Further Information
-=======================
+V. Further Information
+======================
 
 http://www.truecrypt.org

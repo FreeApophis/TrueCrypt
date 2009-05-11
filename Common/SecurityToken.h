@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -83,7 +83,7 @@ namespace TrueCrypt
 
 	struct Pkcs11Exception : public Exception
 	{
-		Pkcs11Exception (CK_RV errorCode = -1)
+		Pkcs11Exception (CK_RV errorCode = (CK_RV) -1)
 			: ErrorCode (errorCode),
 			SubjectErrorCodeValid (false)
 		{

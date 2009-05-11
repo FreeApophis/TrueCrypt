@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -12,6 +12,7 @@
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <stdio.h>
 #include <unistd.h>
 #include "Platform/FileStream.h"
 #include "Driver/Fuse/FuseService.h"
@@ -45,10 +46,13 @@ namespace TrueCrypt
 		args.push_back ("-e");
 
 		string xargs = "fsck ";
+
+#ifdef TC_LINUX
 		if (!repair)
 			xargs += "-n ";
 		else
 			xargs += "-r ";
+#endif
 
 		xargs += string (mountedVolume->VirtualDevice) + "; echo '[Done]'; read W";
 		args.push_back (xargs);
@@ -167,6 +171,7 @@ namespace TrueCrypt
 						|| fs.Type == "umsdos"
 						|| fs.Type == "dos"
 						|| fs.Type == "dosfs"
+						|| fs.Type == "pcfs"
 						)
 					{
 						return false;
@@ -179,6 +184,23 @@ namespace TrueCrypt
 		}
 
 		return true;	// Prevent errors if the filesystem cannot be identified
+	}
+
+	bool CoreUnix::FilesystemSupportsUnixPermissions (const DevicePath &devicePath) const
+	{
+		File device;
+		device.Open (devicePath);
+
+		Buffer bootSector (device.GetDeviceSectorSize());
+		device.SeekAt (0);
+		device.ReadCompleteBuffer (bootSector);
+
+		byte *b = bootSector.Ptr(); 
+
+		return memcmp (b + 3,  "NTFS", 4) != 0
+			&& memcmp (b + 54, "FAT", 3) != 0
+			&& memcmp (b + 82, "FAT32", 5) != 0
+			&& memcmp (b + 3,  "EXFAT", 5) != 0;
 	}
 
 	string CoreUnix::GetDefaultMountPointPrefix () const
@@ -316,7 +338,11 @@ namespace TrueCrypt
 
 		if (!filesystemType.empty())
 		{
+#ifdef TC_SOLARIS
+			args.push_back ("-F");
+#else
 			args.push_back ("-t");
+#endif
 			args.push_back (filesystemType);
 		}
 

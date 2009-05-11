@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -22,7 +22,9 @@ namespace TrueCrypt
 
 #define TC_HOTKEY(ID,LANG) hotkeys.push_back (shared_ptr <Hotkey> (new Hotkey (Id::##ID, L###ID, LangString[LANG])))
 
+		TC_HOTKEY (CloseAllSecurityTokenSessions, "IDM_CLOSE_ALL_TOKEN_SESSIONS");
 		TC_HOTKEY (DismountAll, "HK_DISMOUNT_ALL");
+		TC_HOTKEY (DismountAllWipeCache, "HK_DISMOUNT_ALL_AND_WIPE");
 		TC_HOTKEY (ForceDismountAllWipeCache, "HK_FORCE_DISMOUNT_ALL_AND_WIPE");
 		TC_HOTKEY (ForceDismountAllWipeCacheExit, "HK_FORCE_DISMOUNT_ALL_AND_WIPE_AND_EXIT");
 		TC_HOTKEY (MountAllDevices, "HK_AUTOMOUNT_DEVICES");

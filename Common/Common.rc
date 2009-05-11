@@ -35,7 +35,7 @@ BEGIN
     EDITTEXT        IDC_ABOUT_CREDITS,7,111,277,45,ES_MULTILINE | WS_VSCROLL | NOT WS_TABSTOP
     DEFPUSHBUTTON   "OK",IDOK,233,178,50,14
     LTEXT           "",IDC_HOMEPAGE,18,87,117,9,SS_NOTIFY
-    LTEXT           "Copyright © 2003-2008 TrueCrypt Foundation",IDC_STATIC,18,71,207,8
+    LTEXT           "Copyright © 2003-2009 TrueCrypt Foundation",IDC_STATIC,18,71,207,8
     CONTROL         517,IDC_ABOUT_BKG,"Static",SS_BITMAP,0,0,12,11,WS_EX_STATICEDGE
     LTEXT           "",IDT_ABOUT_VERSION,18,61,161,8
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,167,291,1,WS_EX_STATICEDGE
@@ -271,6 +271,21 @@ BEGIN
     GROUPBOX        "",IDC_STATIC,5,2,228,51
 END
 
+IDD_RANDOM_POOL_ENRICHMENT DIALOGEX 0, 0, 467, 287
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "TrueCrypt - Random Pool Enrichment"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "&Continue",IDC_CONTINUE,198,266,71,14
+    COMBOBOX        IDC_PRF_ID,135,36,168,90,CBS_DROPDOWNLIST | WS_TABSTOP
+    LTEXT           "IMPORTANT: Move your mouse as randomly as possible within this window. The longer you move it, the better. This significantly increases security. When done, click 'Continue'.",IDT_RANDOM_POOL_ENRICHMENT_NOTE,24,5,419,20
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,28,466,1,WS_EX_STATICEDGE
+    RTEXT           "Mixing PRF:",IDT_PRF,10,38,119,10,SS_CENTERIMAGE
+    GROUPBOX        "Current pool content",IDT_POOL_CONTENTS,2,53,464,207
+    CONTROL         "",IDC_POOL_CONTENTS,"Static",SS_LEFTNOWORDWRAP | WS_GROUP,11,66,445,185,WS_EX_TRANSPARENT
+    CONTROL         "Display pool content",IDC_DISPLAY_POOL_CONTENTS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,332,38,122,10
+END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -386,6 +401,14 @@ BEGIN
         RIGHTMARGIN, 232
         TOPMARGIN, 7
         BOTTOMMARGIN, 75
+    END
+
+    IDD_RANDOM_POOL_ENRICHMENT, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 460
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 280
     END
 END
 #endif    // APSTUDIO_INVOKED

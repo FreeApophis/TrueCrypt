@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
@@ -15,13 +15,12 @@
 #define TC_APP_NAME						"TrueCrypt"
 
 // Version displayed to user 
-#define VERSION_STRING					"6.1a"
+#define VERSION_STRING					"6.2"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x061a
+#define VERSION_NUM						0x0620
 
-// Sector size of encrypted filesystem, which may differ from sector size 
-// of host filesystem/device (this is fully supported since v4.3). 
+// Sector size of encrypted filesystem, which may differ from sector size of host filesystem/device
 #define SECTOR_SIZE                     512
 
 // "Second generation standard" sector size
@@ -36,6 +35,8 @@
 /* GUI/driver errors */
 
 #define WIDE(x) (LPWSTR)L##x
+
+#ifdef _MSC_VER
 
 typedef __int8 int8;
 typedef __int16 int16;
@@ -52,6 +53,45 @@ typedef __int64 int64;
 typedef unsigned __int64 uint64;
 #endif
 
+#else // !_MSC_VER
+
+#include <inttypes.h>
+#include <limits.h>
+
+typedef int8_t int8;
+typedef int16_t int16;
+typedef int32_t int32;
+typedef int64_t int64;
+typedef uint8_t byte;
+typedef uint16_t uint16;
+typedef uint32_t uint32;
+typedef uint64_t uint64;
+
+#if UCHAR_MAX != 0xffU
+#error UCHAR_MAX != 0xff
+#endif
+#define __int8 char
+
+#if USHRT_MAX != 0xffffU
+#error USHRT_MAX != 0xffff
+#endif
+#define __int16 short
+
+#if UINT_MAX != 0xffffffffU
+#error UINT_MAX != 0xffffffff
+#endif
+#define __int32 int
+
+typedef uint64 TC_LARGEST_COMPILER_UINT;
+
+#define BOOL int
+#ifndef FALSE
+#define FALSE 0
+#define TRUE 1
+#endif
+
+#endif // !_MSC_VER
+
 #define TC_INT_TYPES_DEFINED
 
 // Integer types required by Cryptolib
@@ -59,7 +99,7 @@ typedef unsigned __int8 uint_8t;
 typedef unsigned __int16 uint_16t;
 typedef unsigned __int32 uint_32t;
 #ifndef TC_NO_COMPILER_INT64
-typedef unsigned __int64 uint_64t;
+typedef uint64 uint_64t;
 #endif
 
 typedef union 
@@ -70,7 +110,7 @@ typedef union
 		unsigned __int32 HighPart;
 	};
 #ifndef TC_NO_COMPILER_INT64
-	unsigned __int64 Value;
+	uint64 Value;
 #endif
 
 } UINT64_STRUCT;
@@ -199,7 +239,7 @@ typedef unsigned __int32 LRESULT;
 #		else
 #			define Dump(...) DbgPrintEx (DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, __VA_ARGS__)
 #		endif
-#			define DumpMem(...) DumpMemory (__VA_ARGS__)
+#		define DumpMem(...) DumpMemory (__VA_ARGS__)
 #	else
 #		define Dump(...) ((void) 0)
 #		define DumpMem(...) ((void) 0)
@@ -236,7 +276,7 @@ typedef unsigned __int32 LRESULT;
 
 // The size of the memory area to wipe is in bytes amd it must be a multiple of 8.
 #ifndef TC_NO_COMPILER_INT64
-#	define FAST_ERASE64(mem,size) do { volatile unsigned __int64 *burnm = (volatile unsigned __int64 *)(mem); int burnc = size >> 3; while (burnc--) *burnm++ = 0; } while (0)
+#	define FAST_ERASE64(mem,size) do { volatile uint64 *burnm = (volatile uint64 *)(mem); int burnc = size >> 3; while (burnc--) *burnm++ = 0; } while (0)
 #else
 #	define FAST_ERASE64(mem,size) do { volatile unsigned __int32 *burnm = (volatile unsigned __int32 *)(mem); int burnc = size >> 2; while (burnc--) *burnm++ = 0; } while (0)
 #endif
@@ -257,8 +297,8 @@ typedef unsigned __int32 LRESULT;
 
 #define MAX_URL_LENGTH	2084 /* Internet Explorer limit. Includes the terminating null character. */
 
-#define TC_APPLINK "http://www.truecrypt.org/applink.php?version=" VERSION_STRING
-#define TC_APPLINK_SECURE "https://www.truecrypt.org/applink.php?version=" VERSION_STRING
+#define TC_APPLINK "http://www.truecrypt.org/applink?version=" VERSION_STRING
+#define TC_APPLINK_SECURE "https://www.truecrypt.org/applink?version=" VERSION_STRING
 
 enum
 {

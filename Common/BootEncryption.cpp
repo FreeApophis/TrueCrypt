@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
 Governed by the TrueCrypt License 2.6 the full text of which is contained
 in the file License.txt included in TrueCrypt binary and source code
@@ -496,7 +496,7 @@ namespace TrueCrypt
 		// Windows versions preceding Vista can be installed on FAT filesystem which does not
 		// support long filenames during boot. Convert the driver path to short form if required.
 		string driverPath;
-		if (startOnBoot && nCurrentOS != WIN_VISTA_OR_LATER)
+		if (startOnBoot && !IsOSAtLeast (WIN_VISTA))
 		{
 			char pathBuf[MAX_PATH];
 			char filesystem[128];
@@ -594,6 +594,33 @@ namespace TrueCrypt
 				part.MountPoint += (char) (driveNumber + 'A');
 				part.MountPoint += ":";
 			}
+
+			// Volume ID
+			wchar_t volumePath[TC_MAX_PATH];
+			if (ResolveSymbolicLink ((wchar_t *) ws.str().c_str(), volumePath))
+			{
+				wchar_t volumeName[TC_MAX_PATH];
+				HANDLE fh = FindFirstVolumeW (volumeName, array_capacity (volumeName));
+				if (fh != INVALID_HANDLE_VALUE)
+				{
+					do
+					{
+						wstring volumeNameStr = volumeName;
+						wchar_t devicePath[TC_MAX_PATH];
+
+						if (QueryDosDeviceW (volumeNameStr.substr (4, volumeNameStr.size() - 1 - 4).c_str(), devicePath, array_capacity (devicePath)) != 0
+							&& wcscmp (volumePath, devicePath) == 0)
+						{
+							part.VolumeNameId = volumeName;
+							break;
+						}
+
+					} while (FindNextVolumeW (fh, volumeName, array_capacity (volumeName)));
+
+					FindVolumeClose (fh);
+				}
+			}
+
 			partList.push_back (part);
 		}
 
@@ -646,6 +673,7 @@ namespace TrueCrypt
 		try 
 		{
 			OPEN_TEST_STRUCT openTestStruct;
+			memset (&openTestStruct, 0, sizeof (openTestStruct));
 			DWORD dwResult;
 
 			strcpy ((char *) &openTestStruct.wszFileName[0], devicePath);
@@ -655,8 +683,8 @@ namespace TrueCrypt
 
 			return (DeviceIoControl (hDriver, TC_IOCTL_OPEN_TEST,
 				   &openTestStruct, sizeof (OPEN_TEST_STRUCT),
-				   NULL, 0,
-				   &dwResult, NULL) == TRUE);
+				   &openTestStruct, sizeof (OPEN_TEST_STRUCT),
+				   &dwResult, NULL) && openTestStruct.TCBootLoaderDetected);
 		}
 		catch (...)
 		{
@@ -751,6 +779,11 @@ namespace TrueCrypt
 			{
 				if (!part.MountPoint.empty()
 					&& (_access ((part.MountPoint + "\\bootmgr").c_str(), 0) == 0 || _access ((part.MountPoint + "\\ntldr").c_str(), 0) == 0))
+				{
+					config.SystemLoaderPresent = true;
+				}
+				else if (!part.VolumeNameId.empty()
+					&& (_waccess ((part.VolumeNameId + L"\\bootmgr").c_str(), 0) == 0 || _waccess ((part.VolumeNameId + L"\\ntldr").c_str(), 0) == 0))
 				{
 					config.SystemLoaderPresent = true;
 				}
@@ -894,7 +927,7 @@ namespace TrueCrypt
 
 		*(uint16 *) (buffer + TC_BOOT_SECTOR_VERSION_OFFSET) = BE16 (VERSION_NUM);
 
-		if (nCurrentOS == WIN_VISTA_OR_LATER)
+		if (IsOSAtLeast (WIN_VISTA))
 			buffer[TC_BOOT_SECTOR_CONFIG_OFFSET] |= TC_BOOT_CFG_FLAG_WINDOWS_VISTA_OR_LATER;
 
 		// Checksum of the backup header of the outer volume for the hidden system
@@ -906,7 +939,7 @@ namespace TrueCrypt
 			device.SeekAt (HiddenOSCandidatePartition.Info.StartingOffset.QuadPart + HiddenOSCandidatePartition.Info.PartitionLength.QuadPart - TC_VOLUME_HEADER_GROUP_SIZE + TC_VOLUME_HEADER_EFFECTIVE_SIZE);
 			device.Read (headerSector, sizeof (headerSector));
 
-			*(uint16 *) (buffer + TC_BOOT_SECTOR_OUTER_VOLUME_BAK_HEADER_CRC_OFFSET) = (uint16) GetCrc32 (headerSector, sizeof (headerSector));
+			*(uint32 *) (buffer + TC_BOOT_SECTOR_OUTER_VOLUME_BAK_HEADER_CRC_OFFSET) = GetCrc32 (headerSector, sizeof (headerSector));
 		}
 
 		// Decompressor
@@ -943,7 +976,7 @@ namespace TrueCrypt
 	}
 
 
-	void BootEncryption::ReadBootSectorConfig (byte *config, size_t bufLength, byte *userConfig, string *customUserMessage)
+	void BootEncryption::ReadBootSectorConfig (byte *config, size_t bufLength, byte *userConfig, string *customUserMessage, uint16 *bootLoaderVersion)
 	{
 		if (config && bufLength < TC_BOOT_CFG_FLAG_AREA_SIZE)
 			throw ParameterIncorrect (SRC_POS);
@@ -965,6 +998,9 @@ namespace TrueCrypt
 				request.CustomUserMessage[TC_BOOT_SECTOR_USER_MESSAGE_MAX_LENGTH] = 0;
 				*customUserMessage = request.CustomUserMessage;
 			}
+
+			if (bootLoaderVersion)
+				*bootLoaderVersion = request.BootLoaderVersion;
 		}
 		catch (...)
 		{
@@ -976,6 +1012,9 @@ namespace TrueCrypt
 			
 			if (customUserMessage)
 				customUserMessage->clear();
+
+			if (bootLoaderVersion)
+				*bootLoaderVersion = 0;
 		}
 	}
 
@@ -1009,6 +1048,12 @@ namespace TrueCrypt
 
 		device.SeekAt (0);
 		device.Read (mbr, sizeof (mbr));
+
+		if (!BufferContainsString (mbr, sizeof (mbr), TC_APP_NAME)
+			|| BE16 (*(uint16 *) (mbr + TC_BOOT_SECTOR_VERSION_OFFSET)) > VERSION_NUM)
+		{
+			return;
+		}
 
 		mbr[TC_BOOT_SECTOR_USER_CONFIG_OFFSET] = userConfig;
 
@@ -1075,6 +1120,8 @@ namespace TrueCrypt
 		
 		if (Randinit() != ERR_SUCCESS)
 			throw ParameterIncorrect (SRC_POS);
+
+		UserEnrichRandomPool (ParentWindow);
 
 		if (!RandgetBytes (request.WipeKey, sizeof (request.WipeKey), TRUE))
 			throw ParameterIncorrect (SRC_POS);
@@ -1174,7 +1221,7 @@ namespace TrueCrypt
 		device.SeekAt (0);
 		device.Read (mbr, sizeof (mbr));
 
-		if (preserveUserConfig)
+		if (preserveUserConfig && BufferContainsString (mbr, sizeof (mbr), TC_APP_NAME))
 		{
 			uint16 version = BE16 (*(uint16 *) (mbr + TC_BOOT_SECTOR_VERSION_OFFSET));
 			if (version != 0)
@@ -1389,7 +1436,9 @@ namespace TrueCrypt
 	{
 		PCRYPTO_INFO cryptoInfo = NULL;
 
-		throw_sys_if (Randinit () != 0);
+		if (!IsRandomNumberGeneratorStarted())
+			throw ParameterIncorrect (SRC_POS);
+
 		throw_sys_if (CreateVolumeHeaderInMemory (TRUE, (char *) VolumeHeader, ea, mode, password, pkcs5, NULL, &cryptoInfo,
 			volumeSize, 0, encryptedAreaStart, 0, TC_SYSENC_KEYSCOPE_MIN_REQ_PROG_VERSION, TC_HEADER_FLAG_ENCRYPTED_SYSTEM, FALSE) != 0);
 
@@ -1572,6 +1621,9 @@ namespace TrueCrypt
 	{
 		if (nCurrentOS == WIN_2000)
 			throw ErrorException ("SYS_ENCRYPTION_UNSUPPORTED_ON_CURRENT_OS");
+ 
+		if (CurrentOSMajor == 6 && CurrentOSMinor == 0 && CurrentOSServicePack < 1)
+			throw ErrorException ("SYS_ENCRYPTION_UNSUPPORTED_ON_VISTA_SP0");
 
 		if (IsNonInstallMode())
 			throw ErrorException ("FEATURE_REQUIRES_INSTALLATION");
@@ -1630,11 +1682,7 @@ namespace TrueCrypt
 		char windowsDrive = toupper (GetWindowsDirectory()[0]);
 
 		// Paging files
-		if (IsPagingFileActive (TRUE))
-		{
-			throw ErrorException (wstring (GetString ("PAGING_FILE_NOT_ON_SYS_PARTITION")) 
-				+ GetString ("LEAKS_OUTSIDE_SYSPART_UNIVERSAL_EXPLANATION"));
-		}
+		bool pagingFilesOk = !IsPagingFileActive (TRUE);
 
 		char pagingFileRegData[65536];
 		DWORD pagingFileRegDataSize = sizeof (pagingFileRegData);
@@ -1646,10 +1694,27 @@ namespace TrueCrypt
 			{
 				if (memcmp (pagingFileRegData + i, ":\\", 2) == 0 && toupper (pagingFileRegData[i - 1]) != windowsDrive)
 				{
-					throw ErrorException (wstring (GetString ("PAGING_FILE_NOT_ON_SYS_PARTITION")) 
-						+ GetString ("LEAKS_OUTSIDE_SYSPART_UNIVERSAL_EXPLANATION"));
+					pagingFilesOk = false;
+					break;
 				}
 			}
+		}
+
+		if (!pagingFilesOk)
+		{
+			if (AskWarnYesNoString ((wchar_t *) (wstring (GetString ("PAGING_FILE_NOT_ON_SYS_PARTITION")) 
+				+ GetString ("LEAKS_OUTSIDE_SYSPART_UNIVERSAL_EXPLANATION")
+				+ L"\n\n\n"
+				+ GetString ("RESTRICT_PAGING_FILES_TO_SYS_PARTITION")
+				).c_str()) == IDYES)
+			{
+				RestrictPagingFilesToSystemPartition();
+				RestartComputer();
+				AbortProcessSilent();
+			}
+
+			throw ErrorException (wstring (GetString ("PAGING_FILE_NOT_ON_SYS_PARTITION")) 
+				+ GetString ("LEAKS_OUTSIDE_SYSPART_UNIVERSAL_EXPLANATION"));
 		}
 
 		// User profile
@@ -1762,9 +1827,17 @@ namespace TrueCrypt
 
 		// Change the PKCS-5 PRF if requested by user
 		if (pkcs5 != 0)
+		{
 			cryptoInfo->pkcs5 = pkcs5;
+			RandSetHashFunction (pkcs5);
+		}
 
 		throw_sys_if (Randinit () != 0);
+		finally_do ({ RandStop (FALSE); });
+
+		NormalCursor();
+		UserEnrichRandomPool (ParentWindow);
+		WaitCursor();
 
 		/* The header will be re-encrypted PRAND_DISK_WIPE_PASSES times to prevent adversaries from using 
 		techniques such as magnetic force microscopy or magnetic force scanning tunnelling microscopy
@@ -1952,7 +2025,6 @@ namespace TrueCrypt
 		if (!rescueIsoImagePath.empty())
 			CreateRescueIsoImage (true, rescueIsoImagePath);
 	}
-	
 
 	bool BootEncryption::IsPagingFileActive (BOOL checkNonWindowsPartitionsOnly)
 	{
@@ -1962,6 +2034,14 @@ namespace TrueCrypt
 		return ::IsPagingFileActive (checkNonWindowsPartitionsOnly) ? true : false;
 	}
 
+	void BootEncryption::RestrictPagingFilesToSystemPartition ()
+	{
+		char pagingFiles[128];
+		strncpy (pagingFiles, "X:\\pagefile.sys 0 0", sizeof (pagingFiles));
+		pagingFiles[0] = GetWindowsDirectory()[0];
+
+		throw_sys_if (!WriteLocalMachineRegistryMultiString ("System\\CurrentControlSet\\Control\\Session Manager\\Memory Management", "PagingFiles", pagingFiles, strlen (pagingFiles) + 2));
+	}
 
 	void BootEncryption::WriteLocalMachineRegistryDwordValue (char *keyPath, char *valueName, DWORD value)
 	{
@@ -1975,7 +2055,7 @@ namespace TrueCrypt
 	}
 
 
-	void BootEncryption::StartDecryption ()
+	void BootEncryption::StartDecryption (BOOL discardUnreadableEncryptedSectors)
 	{
 		BootEncryptionStatus encStatus = GetStatus();
 
@@ -1986,6 +2066,7 @@ namespace TrueCrypt
 		ZeroMemory (&request, sizeof (request));
 		
 		request.SetupMode = SetupDecryption;
+		request.DiscardUnreadableEncryptedSectors = discardUnreadableEncryptedSectors;
 
 		CallDriver (TC_IOCTL_BOOT_ENCRYPTION_SETUP, &request, sizeof (request), NULL, 0);
 	}

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -16,11 +16,18 @@
 namespace TrueCrypt
 {
 	VolumeHeader::VolumeHeader (uint32 size)
-		: HeaderSize (size), EncryptedHeaderDataSize (size - EncryptedHeaderDataOffset)
 	{
+		Init();
+		HeaderSize = size;
+		EncryptedHeaderDataSize = size - EncryptedHeaderDataOffset;
 	}
 
 	VolumeHeader::~VolumeHeader ()
+	{
+		Init();
+	}
+
+	void VolumeHeader::Init ()
 	{
 		VolumeKeyAreaCrc32 = 0;
 		VolumeCreationTime = 0;
@@ -129,6 +136,9 @@ namespace TrueCrypt
 
 		if (HeaderVersion < MinAllowedHeaderVersion)
 			return false;
+
+		if (HeaderVersion > CurrentHeaderVersion)
+			throw HigherVersionRequired (SRC_POS);
 
 		if (HeaderVersion >= 4
 			&& Crc32::ProcessBuffer (header.GetRange (0, TC_HEADER_OFFSET_HEADER_CRC - TC_HEADER_OFFSET_MAGIC))

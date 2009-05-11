@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -20,6 +20,7 @@ namespace TrueCrypt
 {
 	Volume::Volume ()
 		: HiddenVolumeProtectionTriggered (false),
+		SystemEncryption (false),
 		VolumeDataSize (0),
 		TopWriteOffset (0),
 		TotalDataRead (0),
@@ -103,6 +104,7 @@ namespace TrueCrypt
 
 		Protection = protection;
 		VolumeFile = volumeFile;
+		SystemEncryption = partitionInSystemEncryptionScope;
 
 		try
 		{

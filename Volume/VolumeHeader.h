@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -76,6 +76,7 @@ namespace TrueCrypt
 		bool Deserialize (const ConstBufferPtr &header, shared_ptr <EncryptionAlgorithm> &ea, shared_ptr <EncryptionMode> &mode);
 		template <typename T> T DeserializeEntry (const ConstBufferPtr &header, size_t &offset) const;
 		template <typename T> T DeserializeEntryAt (const ConstBufferPtr &header, const size_t &offset) const;
+		void Init ();
 		void Serialize (const BufferPtr &header) const;
 		template <typename T> void SerializeEntry (const T &entry, const BufferPtr &header, size_t &offset) const;
 

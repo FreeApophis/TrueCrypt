@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -18,6 +18,7 @@
 #include "StringConverter.h"
 #include "SyncEvent.h"
 #include "Thread.h"
+#include "Common/Tcdefs.h"
 
 namespace TrueCrypt
 {
@@ -236,7 +237,7 @@ namespace TrueCrypt
 		if (sizeof (byte)   != 1 || sizeof (int8)  != 1 || sizeof (__int8)  != 1) throw TestFailed (SRC_POS);
 		if (sizeof (uint16) != 2 || sizeof (int16) != 2 || sizeof (__int16) != 2) throw TestFailed (SRC_POS);
 		if (sizeof (uint32) != 4 || sizeof (int32) != 4 || sizeof (__int32) != 4) throw TestFailed (SRC_POS);
-		if (sizeof (uint64) != 8 || sizeof (int64) != 8 || sizeof (__int64) != 8) throw TestFailed (SRC_POS);
+		if (sizeof (uint64) != 8 || sizeof (int64) != 8) throw TestFailed (SRC_POS);
 
 		// Exception handling
 		TestFlag = false;

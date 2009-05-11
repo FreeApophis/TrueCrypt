@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
@@ -701,7 +701,7 @@ void Xor64 (unsigned __int64 *a, unsigned __int64 *b)
 }
 
 
-void EncryptBufferLRW128 (unsigned __int8 *buffer, unsigned __int64 length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo)
+void EncryptBufferLRW128 (byte *buffer, uint64 length, uint64 blockIndex, PCRYPTO_INFO cryptoInfo)
 {
 	/* Deprecated/legacy */
 
@@ -756,7 +756,7 @@ void EncryptBufferLRW128 (unsigned __int8 *buffer, unsigned __int64 length, unsi
 }
 
 
-void EncryptBufferLRW64 (unsigned __int8 *buffer, unsigned __int64 length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo)
+void EncryptBufferLRW64 (byte *buffer, uint64 length, uint64 blockIndex, PCRYPTO_INFO cryptoInfo)
 {
 	/* Deprecated/legacy */
 
@@ -793,7 +793,7 @@ void EncryptBufferLRW64 (unsigned __int8 *buffer, unsigned __int64 length, unsig
 }
 
 
-void DecryptBufferLRW128 (unsigned __int8 *buffer, unsigned __int64 length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo)
+void DecryptBufferLRW128 (byte *buffer, uint64 length, uint64 blockIndex, PCRYPTO_INFO cryptoInfo)
 {
 	/* Deprecated/legacy */
 
@@ -850,7 +850,7 @@ void DecryptBufferLRW128 (unsigned __int8 *buffer, unsigned __int64 length, unsi
 
 
 
-void DecryptBufferLRW64 (unsigned __int8 *buffer, unsigned __int64 length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo)
+void DecryptBufferLRW64 (byte *buffer, uint64 length, uint64 blockIndex, PCRYPTO_INFO cryptoInfo)
 {
 	/* Deprecated/legacy */
 
@@ -1226,7 +1226,7 @@ void EncryptBuffer (unsigned __int8 *buf, TC_LARGEST_COMPILER_UINT len, PCRYPTO_
 #ifndef TC_NO_COMPILER_INT64
 // Converts a data unit number to the index of the first LRW block in the data unit.
 // Note that the maximum supported volume size is 8589934592 GB  (i.e., 2^63 bytes).
-unsigned __int64 DataUnit2LRWIndex (unsigned __int64 dataUnit, int blockSize, PCRYPTO_INFO ci)
+uint64 DataUnit2LRWIndex (uint64 dataUnit, int blockSize, PCRYPTO_INFO ci)
 {
 	/* Deprecated/legacy */
 

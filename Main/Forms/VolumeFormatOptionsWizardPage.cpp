@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -31,7 +31,7 @@ namespace TrueCrypt
 		FilesystemTypeChoice->Append (L"Linux Ext3",		(void *) VolumeCreationOptions::FilesystemType::Ext3);
 #elif defined (TC_MACOSX)
 		FilesystemTypeChoice->Append (L"Mac OS Extended",	(void *) VolumeCreationOptions::FilesystemType::MacOsExt);
-#elif defined (TC_FREEBSD)
+#elif defined (TC_FREEBSD) || defined (TC_SOLARIS)
 		FilesystemTypeChoice->Append (L"UFS",				(void *) VolumeCreationOptions::FilesystemType::UFS);
 #endif
 
@@ -45,7 +45,7 @@ namespace TrueCrypt
 
 	VolumeCreationOptions::FilesystemType::Enum VolumeFormatOptionsWizardPage::GetFilesystemType () const
 	{
-		return (VolumeCreationOptions::FilesystemType::Enum) (unsigned long long) (Gui->GetSelectedData <void> (FilesystemTypeChoice));
+		return (VolumeCreationOptions::FilesystemType::Enum) reinterpret_cast <unsigned long long> (Gui->GetSelectedData <void> (FilesystemTypeChoice));
 	}
 
 	void VolumeFormatOptionsWizardPage::OnFilesystemTypeSelected (wxCommandEvent& event)

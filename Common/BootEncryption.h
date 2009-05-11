@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -75,6 +75,7 @@ namespace TrueCrypt
 		string MountPoint;
 		int Number;
 		BOOL IsGPT;
+		wstring VolumeNameId;
 	};
 
 	typedef list <Partition> PartitionList;
@@ -157,15 +158,16 @@ namespace TrueCrypt
 		void PrepareHiddenOSCreation (int ea, int mode, int pkcs5);
 		void PrepareInstallation (bool systemPartitionOnly, Password &password, int ea, int mode, int pkcs5, const string &rescueIsoImagePath);
 		void ProbeRealSystemDriveSize ();
-		void ReadBootSectorConfig (byte *config, size_t bufLength, byte *userConfig = nullptr, string *customUserMessage = nullptr);
+		void ReadBootSectorConfig (byte *config, size_t bufLength, byte *userConfig = nullptr, string *customUserMessage = nullptr, uint16 *bootLoaderVersion = nullptr);
 		void RegisterBootDriver (bool hiddenSystem);
 		void RegisterFilterDriver (bool registerDriver, bool volumeClass);
 		void RenameDeprecatedSystemLoaderBackup ();
 		bool RestartComputer (void);
 		void InitialSecurityChecksForHiddenOS ();
+		void RestrictPagingFilesToSystemPartition ();
 		void SetDriverServiceStartType (DWORD startType);
 		void SetHiddenOSCreationPhase (unsigned int newPhase);
-		void StartDecryption ();
+		void StartDecryption (BOOL discardUnreadableEncryptedSectors);
 		void StartDecoyOSWipe (WipeAlgorithmId wipeAlgorithm);
 		void StartEncryption (WipeAlgorithmId wipeAlgorithm, bool zeroUnreadableSectors);
 		bool SystemDriveContainsPartitionType (byte type);

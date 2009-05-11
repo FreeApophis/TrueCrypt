@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+# Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 #
 # Governed by the TrueCrypt License 2.6 the full text of which is contained
 # in the file License.txt included in TrueCrypt binary and source code
@@ -7,11 +7,12 @@
 #
 
 #------ Command line arguments ------
-# DEBUG:		Disable optimizations and enable debug checks
+# DEBUG:		Disable optimizations and enable debugging checks
 # DEBUGGER:		Enable debugging information for use by debuggers
 # NOGUI:		Disable graphical user interface (build console-only application)
 # NOSTRIP:		Do not strip release binary
 # NOTEST:		Do not test release binary
+# RESOURCEDIR:	Run-time resource directory
 # VERBOSE:		Enable verbose messages
 # WXSTATIC:		Use static wxWidgets library
 
@@ -27,32 +28,17 @@ export APPNAME := truecrypt
 export BASE_DIR := $(CURDIR)
 export BUILD_INC := $(BASE_DIR)/Build/Include
 
-export TC_BUILD_CONFIG := Release
-
-ifeq "$(origin DEBUG)" "command line"
-ifneq "$(DEBUG)" "0"
-TC_BUILD_CONFIG := Debug
-endif
-endif
-
 export AR ?= ar
 export CC ?= gcc
 export CXX ?= g++
 export RANLIB ?= ranlib
 
-export CFLAGS := -W
-export CXXFLAGS := -Wall -Wno-sign-compare -Wno-unused-parameter 
-
+export CFLAGS := -Wall
+export CXXFLAGS := -Wall -Wno-sign-compare -Wno-unused-parameter
 C_CXX_FLAGS := -MMD -I$(BASE_DIR) -I$(BASE_DIR)/Crypto
 
-ifdef PKCS11_INC
-C_CXX_FLAGS += -I$(PKCS11_INC)
-endif
-
-C_CXX_FLAGS += -DBOOL=int -DFALSE=0 -DTRUE=1
-C_CXX_FLAGS += -D__int8=char -D__int16=short -D__int32=int '-D__int64=long long'  # Tested in PlatformTest
-
 export LFLAGS :=
+
 export PKG_CONFIG_PATH ?= /usr/local/lib/pkgconfig
 
 export WX_CONFIG ?= wx-config
@@ -62,19 +48,36 @@ export WXCONFIG_CFLAGS :=
 export WXCONFIG_CXXFLAGS :=
 WX_ROOT ?= ..
 
-ifeq "$(origin WXSTATIC)" "command line"
-WX_CONFIG = $(WX_BUILD_DIR)/wx-config
-WX_CONFIG_ARGS += --static
-endif
 
-ifneq "$(origin VERBOSE)" "command line"
-MAKEFLAGS += -s
+export TC_BUILD_CONFIG := Release
+
+ifeq "$(origin DEBUG)" "command line"
+ifneq "$(DEBUG)" "0"
+TC_BUILD_CONFIG := Debug
+endif
 endif
 
 ifeq "$(origin NOGUI)" "command line"
 export TC_NO_GUI := 1
 C_CXX_FLAGS += -DTC_NO_GUI
 WX_CONFIGURE_FLAGS += --disable-gui
+endif
+
+ifdef PKCS11_INC
+C_CXX_FLAGS += -I$(PKCS11_INC)
+endif
+
+ifeq "$(origin RESOURCEDIR)" "command line"
+C_CXX_FLAGS += -DTC_RESOURCE_DIR="$(RESOURCEDIR)"
+endif
+
+ifneq "$(origin VERBOSE)" "command line"
+MAKEFLAGS += -s
+endif
+
+ifeq "$(origin WXSTATIC)" "command line"
+WX_CONFIG = $(WX_BUILD_DIR)/wx-config
+WX_CONFIG_ARGS += --static
 endif
 
 
@@ -110,7 +113,8 @@ endif
 
 #------ Platform configuration ------
 
-export PLATFORM
+export PLATFORM := "Unknown"
+export PLATFORM_UNSUPPORTED := 0
 
 
 #------ Linux configuration ------
@@ -175,16 +179,29 @@ endif
 ifeq "$(shell uname -s)" "FreeBSD"
 
 PLATFORM := FreeBSD
+PLATFORM_UNSUPPORTED := 1
 C_CXX_FLAGS += -DTC_UNIX -DTC_BSD -DTC_FREEBSD
+
+endif
+
+
+#------ Solaris configuration ------
+
+ifeq "$(shell uname -s)" "SunOS"
+
+PLATFORM := Solaris
+PLATFORM_UNSUPPORTED := 1
+C_CXX_FLAGS += -DTC_UNIX -DTC_SOLARIS
+WX_CONFIGURE_FLAGS += --with-gtk
 
 endif
 
 
 #------ Common configuration ------
 
-CFLAGS := $(C_CXX_FLAGS) $(CFLAGS) $(EXTRA_CFLAGS)
-CXXFLAGS := $(C_CXX_FLAGS) $(CXXFLAGS) $(EXTRA_CXXFLAGS)
-LFLAGS := $(LFLAGS) $(EXTRA_LFLAGS)
+CFLAGS := $(C_CXX_FLAGS) $(CFLAGS) $(TC_EXTRA_CFLAGS)
+CXXFLAGS := $(C_CXX_FLAGS) $(CXXFLAGS) $(TC_EXTRA_CXXFLAGS)
+LFLAGS := $(LFLAGS) $(TC_EXTRA_LFLAGS)
 
 WX_CONFIGURE_FLAGS += --enable-unicode -disable-shared --disable-dependency-tracking --disable-compat26 --enable-exceptions --enable-std_string --enable-dataobj --enable-mimetype \
 	--disable-protocol --disable-protocols --disable-url --disable-ipc --disable-sockets --disable-fs_inet --disable-ole --disable-docview --disable-clipboard \
@@ -210,6 +227,8 @@ PROJ_DIRS := Platform Volume Driver/Fuse Core Main
 .PHONY: all clean wxbuild
 
 all clean:
+	@if pwd | grep -q ' '; then echo 'Error: source code is stored in a path containing spaces' >&2; exit 1; fi
+
 	@for DIR in $(PROJ_DIRS); do \
 		PROJ=$$(echo $$DIR | cut -d/ -f1); \
 		$(MAKE) -C $$DIR -f $$PROJ.make NAME=$$PROJ $(MAKECMDGOALS) || exit $?; \
@@ -228,7 +247,7 @@ endif
 wxbuild:
 
 ifneq "$(shell test -f $(WX_ROOT)/configure || test -f $(WX_BUILD_DIR)/../configure && echo 1)" "1"
-	@echo WX_ROOT must point to wxWidgets source code directory
+	@echo 'Error: WX_ROOT must point to wxWidgets source code directory' >&2
 	@exit 1
 endif
 

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2007-2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2007-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -219,7 +219,7 @@ extern "C" int UacChangePwd (char *lpszVolume, Password *oldPassword, Password *
 	if (ComGetInstance (hwndDlg, &tc))
 	{
 		WaitCursor ();
-		r = tc->ChangePassword (CComBSTR (lpszVolume), oldPassword, newPassword, 0, (LONG_PTR) hwndDlg);
+		r = tc->ChangePassword (CComBSTR (lpszVolume), oldPassword, newPassword, pkcs5, (LONG_PTR) hwndDlg);
 		NormalCursor ();
 	}
 	else

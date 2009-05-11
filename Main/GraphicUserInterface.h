@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -32,7 +32,7 @@ namespace TrueCrypt
 		virtual void ChangePassword (shared_ptr <VolumePath> volumePath = shared_ptr <VolumePath>(), shared_ptr <VolumePassword> password = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> keyfiles = shared_ptr <KeyfileList>(), shared_ptr <VolumePassword> newPassword = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> newKeyfiles = shared_ptr <KeyfileList>(), shared_ptr <Hash> newHash = shared_ptr <Hash>()) const { ThrowTextModeRequired(); }
 		wxHyperlinkCtrl *CreateHyperlink (wxWindow *parent, const wxString &linkUrl, const wxString &linkText) const;
 		virtual void CreateKeyfile (shared_ptr <FilePath> keyfilePath = shared_ptr <FilePath>()) const;
-		virtual void CreateVolume (shared_ptr <VolumeCreationOptions> options, const FilesystemPath &randomSourcePath = FilesystemPath()) const { ThrowTextModeRequired(); }
+		virtual void CreateVolume (shared_ptr <VolumeCreationOptions> options) const { ThrowTextModeRequired(); }
 		virtual void ClearListCtrlSelection (wxListCtrl *listCtrl) const;
 		virtual void DeleteSecurityTokenKeyfiles () const { ThrowTextModeRequired(); }
 		virtual void DoShowError (const wxString &message) const;
@@ -85,7 +85,12 @@ namespace TrueCrypt
 		virtual void ShowWarningTopMost (char *langStringId) const { ShowWarningTopMost (LangString[langStringId]); }
 		virtual void ShowWarningTopMost (const wxString &message) const;
 		virtual bool UpdateListCtrlItem (wxListCtrl *listCtrl, long itemIndex, const vector <wstring> &itemFields) const;
+		virtual void UserEnrichRandomPool (wxWindow *parent, shared_ptr <Hash> hash = shared_ptr <Hash>()) const;
 		virtual void Yield () const;
+
+#ifdef TC_MACOSX
+		virtual void MacOpenFile (const wxString &fileName);
+#endif
 
 		template <class T>
 		T *GetSelectedData (wxControlWithItems *control) const
@@ -96,6 +101,8 @@ namespace TrueCrypt
 
 			return reinterpret_cast <T *> (control->GetClientData (sel));
 		}
+
+		Event OpenVolumeSystemRequestEvent;
 
 	protected:
 		virtual void OnEndSession (wxCloseEvent& event) { OnLogOff(); }
@@ -119,6 +126,14 @@ namespace TrueCrypt
 		GraphicUserInterface (const GraphicUserInterface &);
 		GraphicUserInterface &operator= (const GraphicUserInterface &);
 	};
+
+
+	struct OpenVolumeSystemRequestEventArgs : public EventArgs
+	{
+		OpenVolumeSystemRequestEventArgs (const wxString &volumePath) : mVolumePath (volumePath) { }
+		wxString mVolumePath;
+	};
+
 
 	class FreezeScope
 	{

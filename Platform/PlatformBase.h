@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -16,6 +16,10 @@
 #include <sstream>
 #include <string>
 #include <vector>
+
+#ifndef _MSC_VER
+#include <inttypes.h>
+#endif
 
 using namespace std;
 
@@ -37,7 +41,6 @@ namespace TrueCrypt
 	typedef unsigned __int64 uint64;
 #	endif
 #else
-#	include <inttypes.h>
 	typedef int8_t int8;
 	typedef int16_t int16;
 	typedef int32_t int32;

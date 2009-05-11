@@ -15,5 +15,6 @@ SOURCES = \
 	Driver.rc
 
 TARGETLIBS = \
+	$(SDK_LIB_PATH)/uuid.lib \
 	../Common/obj$(BUILD_ALT_DIR)/*/Common.lib \
 	../Crypto/obj$(BUILD_ALT_DIR)/*/Crypto.lib

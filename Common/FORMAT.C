@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
@@ -171,7 +171,7 @@ begin_format:
 				bFailedRequiredDASD = TRUE;
 			}
 		}
-		else if (nCurrentOS == WIN_VISTA_OR_LATER && driveLetter == -1)
+		else if (IsOSAtLeast (WIN_VISTA) && driveLetter == -1)
 		{
 			// Windows Vista doesn't allow overwriting sectors belonging to an unformatted partition 
 			// to which no drive letter has been assigned under the system. This problem can be worked
@@ -627,12 +627,14 @@ error:
 	}
 
 fv_end:
+	dwError = GetLastError();
 
 	if (dosDev[0])
 		RemoveFakeDosName (volParams->volumePath, dosDev);
 
 	crypto_close (cryptoInfo);
 
+	SetLastError (dwError);
 	return nStatus;
 }
 
@@ -640,7 +642,7 @@ fv_end:
 int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, PCRYPTO_INFO cryptoInfo, BOOL quickFormat)
 {
 	int write_buf_cnt = 0;
-	char sector[SECTOR_SIZE], write_buf[WRITE_BUF_SIZE];
+	char sector[SECTOR_SIZE], *write_buf;
 	unsigned __int64 nSecNo = startSector;
 	int retVal = 0;
 	DWORD err;
@@ -657,6 +659,10 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, P
 	{
 		return ERR_OS_ERROR;
 	}
+
+	write_buf = (char *)TCalloc (WRITE_BUF_SIZE);
+	if (!write_buf)
+		return ERR_OUTOFMEMORY;
 
 	VirtualLock (temporaryKey, sizeof (temporaryKey));
 	VirtualLock (originalK2, sizeof (originalK2));
@@ -737,6 +743,8 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, P
 	burn (originalK2, sizeof(originalK2));
 	VirtualUnlock (temporaryKey, sizeof (temporaryKey));
 	VirtualUnlock (originalK2, sizeof (originalK2));
+	TCfree (write_buf);
+
 	return 0;
 
 fail:
@@ -746,6 +754,7 @@ fail:
 	burn (originalK2, sizeof(originalK2));
 	VirtualUnlock (temporaryKey, sizeof (temporaryKey));
 	VirtualUnlock (originalK2, sizeof (originalK2));
+	TCfree (write_buf);
 
 	SetLastError (err);
 	return (retVal ? retVal : ERR_OS_ERROR);
@@ -952,6 +961,7 @@ BOOL FlushFormatWriteBuffer (void *dev, char *write_buf, int *write_buf_cnt, __i
 		
 		if (WriteRequestResult != ERROR_SUCCESS)
 		{
+			SetEvent (WriteBufferEmptyEvent);
 			SetLastError (WriteRequestResult);
 			return FALSE;
 		}

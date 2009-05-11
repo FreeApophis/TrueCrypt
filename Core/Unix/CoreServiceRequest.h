@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -25,24 +25,6 @@ namespace TrueCrypt
 		FilePath ApplicationExecutablePath;
 		bool ElevateUserPrivileges;
 		bool FastElevation;
-	};
-
-	struct ChangePasswordRequest : CoreServiceRequest
-	{
-		ChangePasswordRequest () { }
-		ChangePasswordRequest (shared_ptr <VolumePath> volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, shared_ptr <VolumePassword> newPassword, shared_ptr <KeyfileList> newKeyfiles, shared_ptr <Pkcs5Kdf> newPkcs5Kdf)
-			: Keyfiles (keyfiles), NewKeyfiles (newKeyfiles), NewPassword (newPassword), NewPkcs5Kdf (newPkcs5Kdf), Password (password), Path (volumePath), PreserveTimestamps (preserveTimestamps) { }
-		TC_SERIALIZABLE (ChangePasswordRequest);
-
-		virtual bool RequiresElevation () const;
-
-		shared_ptr <KeyfileList> Keyfiles;
-		shared_ptr <KeyfileList> NewKeyfiles;
-		shared_ptr <VolumePassword> NewPassword;
-		shared_ptr <Pkcs5Kdf> NewPkcs5Kdf;
-		shared_ptr <VolumePassword> Password;
-		shared_ptr <VolumePath> Path;
-		bool PreserveTimestamps;
 	};
 
 	struct CheckFilesystemRequest : CoreServiceRequest

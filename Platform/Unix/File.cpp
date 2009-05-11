@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -10,18 +10,27 @@
 #define _FILE_OFFSET_BITS	64
 
 #include <errno.h>
-#ifdef TC_LINUX
-#include <sys/mount.h>
-#endif
-#ifdef TC_BSD
-#include <sys/disk.h>
-#endif
-#include <sys/file.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <utime.h>
+
+#ifdef TC_LINUX
+#include <sys/mount.h>
+#endif
+
+#ifdef TC_BSD
+#include <sys/disk.h>
+#endif
+
+#ifdef TC_SOLARIS
+#include <stropts.h>
+#include <sys/dkio.h>
+#endif
+
+#include <sys/file.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
 #include "Platform/File.h"
 #include "Platform/TextReader.h"
 
@@ -97,6 +106,16 @@ namespace TrueCrypt
 			uint32 blockSize;
 			throw_sys_sub_if (ioctl (FileHandle, DKIOCGETBLOCKSIZE, &blockSize) == -1, wstring (Path));
 			return blockSize;
+
+#elif defined (TC_FREEBSD)
+			u_int sectorSize;
+			throw_sys_sub_if (ioctl (FileHandle, DIOCGSECTORSIZE, &sectorSize) == -1, wstring (Path));
+			return (uint32) sectorSize;
+
+#elif defined (TC_SOLARIS)
+			struct dk_minfo mediaInfo;
+			throw_sys_sub_if (ioctl (FileHandle, DKIOCGMEDIAINFO, &mediaInfo) == -1, wstring (Path));
+			return mediaInfo.dki_lbsize;
 #endif
 		}
 
@@ -122,6 +141,12 @@ namespace TrueCrypt
 		uint64 offset;
 		throw_sys_sub_if (ioctl (FileHandle, DKIOCGETBASE, &offset) == -1, wstring (Path));
 		return offset;
+
+#elif defined (TC_SOLARIS)
+
+		struct extpart_info partInfo;
+		throw_sys_sub_if (ioctl (FileHandle, DKIOCEXTPARTINFO, &partInfo) == -1, wstring (Path));
+		return partInfo.p_start * GetDeviceSectorSize();
 
 #else
 		throw NotImplemented (SRC_POS);
@@ -204,22 +229,33 @@ namespace TrueCrypt
 
 		try
 		{
+			struct flock fl;
+			memset (&fl, 0, sizeof (fl));
+			fl.l_whence = SEEK_SET;
+			fl.l_start = 0;
+			fl.l_len = 0;
+
 			switch (shareMode)
 			{
 			case ShareNone:
-				if (flock (FileHandle, LOCK_EX | LOCK_NB) == -1)
-					throw_sys_sub_if (errno == EAGAIN, wstring (path));
+				fl.l_type = F_WRLCK;
+				if (fcntl (FileHandle, F_SETLK, &fl) == -1)
+					throw_sys_sub_if (errno == EAGAIN || errno == EACCES, wstring (path));
 				break;
 
 			case ShareRead:
-				if (flock (FileHandle, LOCK_SH | LOCK_NB) == -1)
-					throw_sys_sub_if (errno == EAGAIN, wstring (path));
+				fl.l_type = F_RDLCK;
+				if (fcntl (FileHandle, F_SETLK, &fl) == -1)
+					throw_sys_sub_if (errno == EAGAIN || errno == EACCES, wstring (path));
 				break;
 
 			case ShareReadWrite:
-				if (flock (FileHandle, (mode == OpenRead ? LOCK_SH : LOCK_EX) | LOCK_NB) == -1)
-					throw_sys_sub_if (errno == EAGAIN, wstring (path));
-				flock (FileHandle, LOCK_UN | LOCK_NB);
+				fl.l_type = (mode == OpenRead ? F_RDLCK : F_WRLCK);
+				if (fcntl (FileHandle, F_GETLK, &fl) != -1 && fl.l_type != F_UNLCK)
+				{
+					errno = EAGAIN;
+					throw SystemException (SRC_POS, wstring (path));
+				}
 				break;
 			
 			case ShareReadWriteIgnoreLock:

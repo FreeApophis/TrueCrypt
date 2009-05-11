@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
@@ -218,6 +218,8 @@ typedef struct CRYPTO_INFO_t
 	BOOL hiddenVolume;						// Indicates whether the volume is mounted/mountable as hidden volume
 
 #ifndef TC_WINDOWS_BOOT
+	uint16 HeaderVersion;
+
 	GfCtx gf_ctx; 
 
 	unsigned __int8 master_keydata[MASTER_KEYDATA_SIZE];	/* This holds the volume header area containing concatenated master key(s) and secondary key(s) (XTS mode). For LRW (deprecated/legacy), it contains the tweak key before the master key(s). For CBC (deprecated/legacy), it contains the IV seed before the master key(s). */
@@ -226,17 +228,17 @@ typedef struct CRYPTO_INFO_t
 	int noIterations;
 	int pkcs5;
 
-	unsigned __int64 volume_creation_time;	// Legacy
-	unsigned __int64 header_creation_time;	// Legacy
+	uint64 volume_creation_time;	// Legacy
+	uint64 header_creation_time;	// Legacy
 
 	BOOL bProtectHiddenVolume;			// Indicates whether the volume contains a hidden volume to be protected against overwriting
 	BOOL bHiddenVolProtectionAction;		// TRUE if a write operation has been denied by the driver in order to prevent the hidden volume from being overwritten (set to FALSE upon volume mount).
 	
-	unsigned __int64 volDataAreaOffset;		// Absolute position, in bytes, of the first data sector of the volume.
+	uint64 volDataAreaOffset;		// Absolute position, in bytes, of the first data sector of the volume.
 
-	unsigned __int64 hiddenVolumeSize;		// Size of the hidden volume excluding the header (in bytes). Set to 0 for standard volumes.
-	unsigned __int64 hiddenVolumeOffset;	// Absolute position, in bytes, of the first hidden volume data sector within the host volume (provided that there is a hidden volume within). This must be set for all hidden volumes; in case of a normal volume, this variable is only used when protecting a hidden volume within it.
-	unsigned __int64 hiddenVolumeProtectedSize;
+	uint64 hiddenVolumeSize;		// Size of the hidden volume excluding the header (in bytes). Set to 0 for standard volumes.
+	uint64 hiddenVolumeOffset;	// Absolute position, in bytes, of the first hidden volume data sector within the host volume (provided that there is a hidden volume within). This must be set for all hidden volumes; in case of a normal volume, this variable is only used when protecting a hidden volume within it.
+	uint64 hiddenVolumeProtectedSize;
 
 	BOOL bPartitionInInactiveSysEncScope;	// If TRUE, the volume is a partition located on an encrypted system drive and mounted without pre-boot authentication.
 
@@ -304,11 +306,11 @@ void DecryptDataUnitsCurrentThread (unsigned __int8 *buf, const UINT64_STRUCT *s
 void EncryptBuffer (unsigned __int8 *buf, TC_LARGEST_COMPILER_UINT len, PCRYPTO_INFO cryptoInfo);
 void DecryptBuffer (unsigned __int8 *buf, TC_LARGEST_COMPILER_UINT len, PCRYPTO_INFO cryptoInfo);
 #ifndef TC_NO_COMPILER_INT64
-void EncryptBufferLRW128 (unsigned __int8 *buffer, unsigned __int64 length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo);
-void DecryptBufferLRW128 (unsigned __int8 *buffer, unsigned __int64 length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo);
-void EncryptBufferLRW64 (unsigned __int8 *buffer, unsigned __int64 length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo);
-void DecryptBufferLRW64 (unsigned __int8 *buffer, unsigned __int64 length, unsigned __int64 blockIndex, PCRYPTO_INFO cryptoInfo);
-unsigned __int64 DataUnit2LRWIndex (unsigned __int64 dataUnit, int blockSize, PCRYPTO_INFO ci);
+void EncryptBufferLRW128 (byte *buffer, uint64 length, uint64 blockIndex, PCRYPTO_INFO cryptoInfo);
+void DecryptBufferLRW128 (byte *buffer, uint64 length, uint64 blockIndex, PCRYPTO_INFO cryptoInfo);
+void EncryptBufferLRW64 (byte *buffer, uint64 length, uint64 blockIndex, PCRYPTO_INFO cryptoInfo);
+void DecryptBufferLRW64 (byte *buffer, uint64 length, uint64 blockIndex, PCRYPTO_INFO cryptoInfo);
+uint64 DataUnit2LRWIndex (uint64 dataUnit, int blockSize, PCRYPTO_INFO ci);
 #endif	// #ifndef TC_NO_COMPILER_INT64
 
 #ifdef __cplusplus

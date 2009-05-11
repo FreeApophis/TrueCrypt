@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -9,6 +9,7 @@
 #include "Platform/FilesystemPath.h"
 #include "Platform/SystemException.h"
 #include "Platform/StringConverter.h"
+#include <stdio.h>
 #include <sys/stat.h>
 
 namespace TrueCrypt
@@ -71,6 +72,18 @@ namespace TrueCrypt
 
 		string pathStr = StringConverter::StripTrailingNumber (StringConverter::ToSingle (Path));
 		path = pathStr.substr (0, pathStr.size() - 1);
+
+#elif defined (TC_FREEBSD)
+
+		string pathStr = StringConverter::ToSingle (Path);
+		size_t p = pathStr.rfind ("s");
+		if (p == string::npos)
+			throw PartitionDeviceRequired (SRC_POS);
+		path = pathStr.substr (0, p);
+
+#elif defined (TC_SOLARIS)
+
+		path = StringConverter::StripTrailingNumber (StringConverter::ToSingle (Path)) + "0";
 
 #else
 		throw NotImplemented (SRC_POS);

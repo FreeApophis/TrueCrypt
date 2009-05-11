@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
@@ -52,6 +52,7 @@ typedef struct EXTENSION
 
 	CRYPTO_INFO *cryptoInfo;	/* Cryptographic and other information for this device */
 
+	__int64	HostLength;
 	__int64 DiskLength;			/* The length of the disk referred to by this device */  
 	__int64 NumberOfCylinders;		/* Partition info */
 	ULONG TracksPerCylinder;	/* Partition info */
@@ -98,6 +99,7 @@ extern PDRIVER_OBJECT TCDriverObject;
 extern BOOL DriverShuttingDown;
 extern ULONG OsMajorVersion;
 extern ULONG OsMinorVersion;
+extern BOOL VolumeClassFilterRegistered;
 extern BOOL CacheBootPassword;
 
 /* Helper macro returning x seconds in units of 100 nanoseconds */
@@ -159,7 +161,10 @@ NTSTATUS WriteRegistryConfigFlags (uint32 flags);
 BOOL ValidateIOBufferSize (PIRP irp, size_t requiredBufferSize, ValidateIOBufferSizeType type);
 NTSTATUS GetDeviceSectorSize (PDEVICE_OBJECT deviceObject, ULONG *bytesPerSector);
 NTSTATUS ZeroUnreadableSectors (PDEVICE_OBJECT deviceObject, LARGE_INTEGER startOffset, ULONG size, uint64 *zeroedSectorCount);
+NTSTATUS ReadDeviceSkipUnreadableSectors (PDEVICE_OBJECT deviceObject, byte *buffer, LARGE_INTEGER startOffset, ULONG size, uint64 *badSectorCount);
 BOOL IsVolumeAccessibleByCurrentUser (PEXTENSION volumeDeviceExtension);
+void GetElapsedTimeInit (LARGE_INTEGER *lastPerfCounter);
+int64 GetElapsedTime (LARGE_INTEGER *lastPerfCounter);
 
 #define TC_BUG_CHECK(status) KeBugCheckEx (SECURITY_SYSTEM, __LINE__, status, 0, 'TC')
 

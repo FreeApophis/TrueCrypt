@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -27,6 +27,7 @@ static BOOL DeviceFilterActive = FALSE;
 
 BOOL BootArgsValid = FALSE;
 BootArguments BootArgs;
+static uint16 BootLoaderSegment;
 
 static BOOL BootDriveFound = FALSE;
 static DriveFilterExtension *BootDriveFilterExtension = NULL;
@@ -60,51 +61,61 @@ NTSTATUS LoadBootArguments ()
 	NTSTATUS status = STATUS_UNSUCCESSFUL;
 	PHYSICAL_ADDRESS bootArgsAddr;
 	byte *mappedBootArgs;
+	uint16 bootLoaderSegment;
 
-	bootArgsAddr.QuadPart = (TC_BOOT_LOADER_SEGMENT << 4) + TC_BOOT_LOADER_ARGS_OFFSET;
-	mappedBootArgs = MmMapIoSpace (bootArgsAddr, sizeof (BootArguments), MmCached);
-	if (!mappedBootArgs)
-		return STATUS_INSUFFICIENT_RESOURCES;
-
-	DumpMem (mappedBootArgs, sizeof (BootArguments));
-
-	if (TC_IS_BOOT_ARGUMENTS_SIGNATURE (mappedBootArgs))
+	for (bootLoaderSegment = TC_BOOT_LOADER_SEGMENT;
+		bootLoaderSegment >= TC_BOOT_LOADER_SEGMENT - 64 * 1024 / 16 && status != STATUS_SUCCESS;
+		bootLoaderSegment -= 32 * 1024 / 16)
 	{
-		BootArguments *bootArguments = (BootArguments *) mappedBootArgs;
-		Dump ("BootArguments at 0x%x\n", bootArgsAddr.LowPart);
+		bootArgsAddr.QuadPart = (bootLoaderSegment << 4) + TC_BOOT_LOADER_ARGS_OFFSET;
+		Dump ("Checking BootArguments at 0x%x\n", bootArgsAddr.LowPart);
 
-		if (bootArguments->BootLoaderVersion == VERSION_NUM
-			&& bootArguments->BootArgumentsCrc32 != GetCrc32 ((byte *) bootArguments, (int) ((byte *) &bootArguments->BootArgumentsCrc32 - (byte *) bootArguments)))
+		mappedBootArgs = MmMapIoSpace (bootArgsAddr, sizeof (BootArguments), MmCached);
+		if (!mappedBootArgs)
+			return STATUS_INSUFFICIENT_RESOURCES;
+
+		if (TC_IS_BOOT_ARGUMENTS_SIGNATURE (mappedBootArgs))
 		{
-			Dump ("BootArguments CRC incorrect\n");
-			TC_BUG_CHECK (STATUS_CRC_ERROR);
+			BootArguments *bootArguments = (BootArguments *) mappedBootArgs;
+			Dump ("BootArguments found at 0x%x\n", bootArgsAddr.LowPart);
+
+			DumpMem (mappedBootArgs, sizeof (BootArguments));
+
+			if (bootArguments->BootLoaderVersion == VERSION_NUM
+				&& bootArguments->BootArgumentsCrc32 != GetCrc32 ((byte *) bootArguments, (int) ((byte *) &bootArguments->BootArgumentsCrc32 - (byte *) bootArguments)))
+			{
+				Dump ("BootArguments CRC incorrect\n");
+				TC_BUG_CHECK (STATUS_CRC_ERROR);
+			}
+
+			BootLoaderSegment = bootLoaderSegment;
+
+			BootArgs = *bootArguments;
+			BootArgsValid = TRUE;
+			memset (bootArguments, 0, sizeof (*bootArguments));
+
+			if (BootArgs.BootLoaderVersion < 0x600)
+			{
+				BootArgs.HiddenSystemPartitionStart = 0;
+				BootArgs.DecoySystemPartitionStart = 0;
+			}
+
+			Dump ("BootLoaderVersion = %x\n", (int) BootArgs.BootLoaderVersion);
+			Dump ("HeaderSaltCrc32 = %x\n", (int) BootArgs.HeaderSaltCrc32);
+			Dump ("CryptoInfoOffset = %x\n", (int) BootArgs.CryptoInfoOffset);
+			Dump ("CryptoInfoLength = %d\n", (int) BootArgs.CryptoInfoLength);
+			Dump ("HiddenSystemPartitionStart = %I64u\n", BootArgs.HiddenSystemPartitionStart);
+			Dump ("DecoySystemPartitionStart = %I64u\n", BootArgs.DecoySystemPartitionStart);
+			Dump ("BootArgumentsCrc32 = %x\n", BootArgs.BootArgumentsCrc32);
+
+			if (CacheBootPassword && BootArgs.BootPassword.Length > 0)
+				AddPasswordToCache (&BootArgs.BootPassword);
+
+			status = STATUS_SUCCESS;
 		}
 
-		BootArgs = *bootArguments;
-		BootArgsValid = TRUE;
-		memset (bootArguments, 0, sizeof (*bootArguments));
-
-		if (BootArgs.BootLoaderVersion < 0x600)
-		{
-			BootArgs.HiddenSystemPartitionStart = 0;
-			BootArgs.DecoySystemPartitionStart = 0;
-		}
-
-		Dump ("BootLoaderVersion = %x\n", (int) BootArgs.BootLoaderVersion);
-		Dump ("HeaderSaltCrc32 = %x\n", (int) BootArgs.HeaderSaltCrc32);
-		Dump ("CryptoInfoOffset = %x\n", (int) BootArgs.CryptoInfoOffset);
-		Dump ("CryptoInfoLength = %d\n", (int) BootArgs.CryptoInfoLength);
-		Dump ("HiddenSystemPartitionStart = %I64u\n", BootArgs.HiddenSystemPartitionStart);
-		Dump ("DecoySystemPartitionStart = %I64u\n", BootArgs.DecoySystemPartitionStart);
-		Dump ("BootArgumentsCrc32 = %x\n", BootArgs.BootArgumentsCrc32);
-
-		if (CacheBootPassword && BootArgs.BootPassword.Length > 0)
-			AddPasswordToCache (&BootArgs.BootPassword);
-
-		status = STATUS_SUCCESS;
+		MmUnmapIoSpace (mappedBootArgs, sizeof (BootArguments));
 	}
-
-	MmUnmapIoSpace (mappedBootArgs, sizeof (BootArguments));
 
 	return status;
 }
@@ -155,15 +166,6 @@ NTSTATUS DriveFilterAddDevice (PDRIVER_OBJECT driverObject, PDEVICE_OBJECT pdo)
 	Extension->Queue.EncryptedAreaStart = -1;
 	Extension->Queue.EncryptedAreaEnd = -1;
 
-	if (!BootDriveFound)
-	{
-		status = EncryptedIoQueueStart (&Extension->Queue);
-		if (!NT_SUCCESS (status))
-			goto err;
-
-		Extension->QueueStarted = TRUE;
-	}
-
 	filterDeviceObject->Flags |= Extension->LowerDeviceObject->Flags & (DO_DIRECT_IO | DO_BUFFERED_IO | DO_POWER_PAGABLE);
 	filterDeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
 
@@ -189,6 +191,9 @@ static void DismountDrive (DriveFilterExtension *Extension)
 {
 	Dump ("Dismounting drive\n");
 	ASSERT (Extension->DriveMounted);
+	
+	if (EncryptedIoQueueIsRunning (&Extension->Queue))
+		EncryptedIoQueueStop (&Extension->Queue);
 
 	crypto_close (Extension->Queue.CryptoInfo);
 	Extension->Queue.CryptoInfo = NULL;
@@ -297,7 +302,7 @@ static NTSTATUS MountDrive (DriveFilterExtension *Extension, Password *password,
 			PHYSICAL_ADDRESS cryptoInfoAddress;
 			byte *mappedCryptoInfo;
 			
-			cryptoInfoAddress.QuadPart = (TC_BOOT_LOADER_SEGMENT << 4) + BootArgs.CryptoInfoOffset;
+			cryptoInfoAddress.QuadPart = (BootLoaderSegment << 4) + BootArgs.CryptoInfoOffset;
 			mappedCryptoInfo = MmMapIoSpace (cryptoInfoAddress, BootArgs.CryptoInfoLength, MmCached);
 			
 			if (mappedCryptoInfo)
@@ -320,7 +325,14 @@ static NTSTATUS MountDrive (DriveFilterExtension *Extension, Password *password,
 		{
 			Dump ("Failed to get drive length - error %x\n", status);
 			BootDriveLength.QuadPart = 0;
+			Extension->Queue.MaxReadAheadOffset.QuadPart = _I64_MAX;
 		}
+		else
+			Extension->Queue.MaxReadAheadOffset = BootDriveLength;
+		
+		status = EncryptedIoQueueStart (&Extension->Queue);
+		if (!NT_SUCCESS (status))
+			TC_BUG_CHECK (status);
 
 		if (!HibernationDriverFilterActive)
 			StartHibernationDriverFilter();
@@ -442,14 +454,15 @@ static NTSTATUS OnDeviceUsageNotificationCompleted (PDEVICE_OBJECT filterDeviceO
 static BOOL IsVolumeDevice (PDEVICE_OBJECT deviceObject)
 {
 	VOLUME_NUMBER volNumber;
-	VOLUME_DISK_EXTENTS extents[16];
+	VOLUME_DISK_EXTENTS extents[2];
+	NTSTATUS extentStatus = SendDeviceIoControlRequest (deviceObject, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, NULL, 0, extents, sizeof (extents));
 
 	return NT_SUCCESS (SendDeviceIoControlRequest (deviceObject, IOCTL_VOLUME_SUPPORTS_ONLINE_OFFLINE, NULL, 0,  NULL, 0))
 		|| NT_SUCCESS (SendDeviceIoControlRequest (deviceObject, IOCTL_VOLUME_IS_OFFLINE, NULL, 0,  NULL, 0))
 		|| NT_SUCCESS (SendDeviceIoControlRequest (deviceObject, IOCTL_VOLUME_IS_IO_CAPABLE, NULL, 0,  NULL, 0))
 		|| NT_SUCCESS (SendDeviceIoControlRequest (deviceObject, IOCTL_VOLUME_IS_PARTITION, NULL, 0,  NULL, 0))
 		|| NT_SUCCESS (SendDeviceIoControlRequest (deviceObject, IOCTL_VOLUME_QUERY_VOLUME_NUMBER, NULL, 0, &volNumber, sizeof (volNumber)))
-		|| NT_SUCCESS (SendDeviceIoControlRequest (deviceObject, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, NULL, 0, extents, sizeof (extents)));
+		|| NT_SUCCESS (extentStatus) || extentStatus == STATUS_BUFFER_OVERFLOW || extentStatus == STATUS_BUFFER_TOO_SMALL;
 }
 
 
@@ -457,12 +470,13 @@ static void CheckDeviceTypeAndMount (DriveFilterExtension *filterExtension)
 {
 	if (BootArgsValid)
 	{
-		if (BootArgs.HiddenSystemPartitionStart != 0 && IsVolumeDevice (filterExtension->LowerDeviceObject))
+		// Windows sometimes merges a removable drive PDO and its volume PDO to a single PDO having no volume interface (GUID_DEVINTERFACE_VOLUME).
+		// Therefore, we need to test whether the device supports volume IOCTLs.
+		if (VolumeClassFilterRegistered
+			&& BootArgs.HiddenSystemPartitionStart != 0
+			&& IsVolumeDevice (filterExtension->LowerDeviceObject))
 		{
-			Dump ("Drive filter attached to a volume pdo=%p", filterExtension->Pdo);
-
-			if (filterExtension->QueueStarted && EncryptedIoQueueIsRunning (&filterExtension->Queue))
-				EncryptedIoQueueStop (&filterExtension->Queue);
+			Dump ("Drive and volume merged pdo=%p", filterExtension->Pdo);
 
 			filterExtension->IsVolumeFilterDevice = TRUE;
 			filterExtension->IsDriveFilterDevice = FALSE;
@@ -566,9 +580,6 @@ static NTSTATUS DispatchPnp (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilterE
 
 		IoDetachDevice (Extension->LowerDeviceObject);
 
-		if (Extension->QueueStarted && EncryptedIoQueueIsRunning (&Extension->Queue))
-			EncryptedIoQueueStop (&Extension->Queue);
-
 		if (Extension->DriveMounted)
 			DismountDrive (Extension);
 
@@ -616,11 +627,7 @@ static NTSTATUS DispatchPower (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilte
 		&& irpSp->MinorFunction == IRP_MN_SET_POWER
 		&& irpSp->Parameters.Power.Type == DevicePowerState)
 	{
-		if (Extension->QueueStarted && EncryptedIoQueueIsRunning (&Extension->Queue))
-			EncryptedIoQueueStop (&Extension->Queue);
-
-		if (Extension->DriveMounted)
-			DismountDrive (Extension);
+		DismountDrive (Extension);
 	}
 #endif // 0
 
@@ -649,7 +656,7 @@ NTSTATUS DriveFilterDispatchIrp (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 	{
 	case IRP_MJ_READ:
 	case IRP_MJ_WRITE:
-		if (BootDriveFound && !Extension->BootDrive)
+		if (!Extension->BootDrive)
 		{
 			return PassIrp (Extension->LowerDeviceObject, Irp);
 		}
@@ -1216,7 +1223,6 @@ static VOID SetupThreadProc (PVOID threadArg)
 			if (SetupRequest.ZeroUnreadableSectors && SetupRequest.SetupMode == SetupEncryption)
 			{
 				// Zero unreadable sectors
-
 				uint64 zeroedSectorCount;
 
 				status = ZeroUnreadableSectors (BootDriveFilterExtension->LowerDeviceObject, offset, setupBlockSize, &zeroedSectorCount);
@@ -1227,8 +1233,19 @@ static VOID SetupThreadProc (PVOID threadArg)
 				}
 
 				// Retry read
-
 				status = TCReadDevice (BootDriveFilterExtension->LowerDeviceObject, buffer, offset, setupBlockSize);
+				if (!NT_SUCCESS (status))
+				{
+					SetupResult = status;
+					goto err;
+				}
+			}
+			else if (SetupRequest.DiscardUnreadableEncryptedSectors && SetupRequest.SetupMode == SetupDecryption)
+			{
+				// Discard unreadable encrypted sectors
+				uint64 badSectorCount;
+
+				status = ReadDeviceSkipUnreadableSectors (BootDriveFilterExtension->LowerDeviceObject, buffer, offset, setupBlockSize, &badSectorCount);
 				if (!NT_SUCCESS (status))
 				{
 					SetupResult = status;

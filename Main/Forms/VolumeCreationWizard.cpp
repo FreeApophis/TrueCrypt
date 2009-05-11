@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -69,7 +69,6 @@ namespace TrueCrypt
 
 	VolumeCreationWizard::~VolumeCreationWizard ()
 	{
-		RandomNumberGenerator::Stop();
 	}
 
 	WizardPage *VolumeCreationWizard::GetPage (WizardStep step)
@@ -437,7 +436,7 @@ namespace TrueCrypt
 					mountOptions.NoKernelCrypto = Gui->GetPreferences().DefaultMountOptions.NoKernelCrypto;
 
 					shared_ptr <VolumeInfo> volume = Core->MountVolume (mountOptions);
-					finally_do_arg (shared_ptr <VolumeInfo>, volume, { Core->DismountVolume (finally_arg); });
+					finally_do_arg (shared_ptr <VolumeInfo>, volume, { Core->DismountVolume (finally_arg, true); });
 
 					Thread::Sleep (2000);	// Try to prevent race conditions caused by OS
 
@@ -450,10 +449,18 @@ namespace TrueCrypt
 					if (virtualDeviceStr.find ("/dev/rdisk") != 0)
 						virtualDevice = "/dev/r" + virtualDeviceStr.substr (5);
 #endif
-					if (!Core->HasAdminPrivileges())
+					try
 					{
-						origDeviceOwner = virtualDevice.GetOwner();
-						Core->SetFileOwner (virtualDevice, UserId (getuid()));
+						File file;
+						file.Open (virtualDevice, File::OpenReadWrite);
+					}
+					catch (...)
+					{
+						if (!Core->HasAdminPrivileges())
+						{
+							origDeviceOwner = virtualDevice.GetOwner();
+							Core->SetFileOwner (virtualDevice, UserId (getuid()));
+						}
 					}
 
 					finally_do_arg2 (FilesystemPath, virtualDevice, UserId, origDeviceOwner,
@@ -464,6 +471,10 @@ namespace TrueCrypt
 
 					// Create filesystem
 					list <string> args;
+
+					if (SelectedFilesystemType == VolumeCreationOptions::FilesystemType::MacOsExt && VolumeSize >= 10 * BYTES_PER_MB)
+						args.push_back ("-J");
+
 					args.push_back (string (virtualDevice));
 
 					Process::Execute (fsFormatter, args);

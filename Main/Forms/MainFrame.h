@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -106,6 +106,7 @@ namespace TrueCrypt
 		void OnNoHistoryCheckBoxClick (wxCommandEvent& event);
 		void OnOnlineHelpMenuItemSelected (wxCommandEvent& event) { Gui->OpenOnlineHelp (this); }
 		void OnOpenVolumeMenuItemSelected (wxCommandEvent& event) { OpenSelectedVolume(); }
+		void OnOpenVolumeSystemRequestEvent (EventArgs &args) { SetVolumePath (wstring (dynamic_cast <OpenVolumeSystemRequestEventArgs &> (args).mVolumePath)); }
 		void OnOrganizeFavoritesMenuItemSelected (wxCommandEvent& event);
 		void OnPreferencesMenuItemSelected (wxCommandEvent& event);
 		void OnPreferencesUpdated (EventArgs &args);

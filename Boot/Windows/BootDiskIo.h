@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -96,6 +96,7 @@ void ChsToLba (const DriveGeometry &geometry, const ChsAddress &chs, uint64 &lba
 bool GetActiveAndFollowingPartition (byte drive);
 BiosResult GetDriveGeometry (byte drive, DriveGeometry &geometry, bool silent = false);
 BiosResult GetDrivePartitions (byte drive, Partition *partitionArray, size_t partitionArrayCapacity, size_t &partitionCount, bool activeOnly = false, Partition *findPartitionFollowingThis = nullptr, bool silent = false);
+bool IsLbaSupported (byte drive);
 void LbaToChs (const DriveGeometry &geometry, const uint64 &lba, ChsAddress &chs);
 void Print (const ChsAddress &chs);
 void PrintDiskError (BiosResult error, bool write, byte drive, const uint64 *sector, const ChsAddress *chs = nullptr);

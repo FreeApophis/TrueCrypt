@@ -1984,6 +1984,109 @@ PreferencesDialogBase::~PreferencesDialogBase()
 	StdButtonsOK->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( PreferencesDialogBase::OnOKButtonClick ), NULL, this );
 }
 
+RandomPoolEnrichmentDialogBase::RandomPoolEnrichmentDialogBase( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxDialog( parent, id, title, pos, size, style )
+{
+	this->SetSizeHints( wxDefaultSize, wxDefaultSize );
+	
+	MainSizer = new wxBoxSizer( wxVERTICAL );
+	
+	wxBoxSizer* bSizer144;
+	bSizer144 = new wxBoxSizer( wxVERTICAL );
+	
+	wxBoxSizer* bSizer145;
+	bSizer145 = new wxBoxSizer( wxHORIZONTAL );
+	
+	
+	bSizer145->Add( 0, 0, 1, wxEXPAND, 5 );
+	
+	wxStaticText* m_staticText49;
+	m_staticText49 = new wxStaticText( this, wxID_ANY, _("Mixing PRF:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText49->Wrap( -1 );
+	bSizer145->Add( m_staticText49, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	wxArrayString HashChoiceChoices;
+	HashChoice = new wxChoice( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, HashChoiceChoices, 0 );
+	HashChoice->SetSelection( 0 );
+	bSizer145->Add( HashChoice, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	
+	bSizer145->Add( 0, 0, 1, wxEXPAND, 5 );
+	
+	bSizer144->Add( bSizer145, 0, wxEXPAND, 5 );
+	
+	wxStaticBoxSizer* sbSizer43;
+	sbSizer43 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, wxEmptyString ), wxVERTICAL );
+	
+	wxBoxSizer* bSizer147;
+	bSizer147 = new wxBoxSizer( wxHORIZONTAL );
+	
+	wxStaticText* m_staticText52;
+	m_staticText52 = new wxStaticText( this, wxID_ANY, _("Random Pool:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText52->Wrap( -1 );
+	bSizer147->Add( m_staticText52, 0, wxTOP|wxBOTTOM|wxLEFT|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	RandomPoolStaticText = new wxStaticText( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	RandomPoolStaticText->Wrap( -1 );
+	RandomPoolStaticText->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), 70, 90, 90, false, wxT("Courier New") ) );
+	
+	bSizer147->Add( RandomPoolStaticText, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	ShowRandomPoolCheckBox = new wxCheckBox( this, wxID_ANY, _("Show"), wxDefaultPosition, wxDefaultSize, 0 );
+	ShowRandomPoolCheckBox->SetValue(true);
+	
+	bSizer147->Add( ShowRandomPoolCheckBox, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	sbSizer43->Add( bSizer147, 0, wxEXPAND|wxTOP, 5 );
+	
+	
+	sbSizer43->Add( 0, 0, 1, wxEXPAND, 5 );
+	
+	MouseStaticText = new wxStaticText( this, wxID_ANY, _("IMPORTANT: Move your mouse as randomly as possible within this window. The longer you move it, the better. This significantly increases security. When done, click 'Continue'."), wxDefaultPosition, wxDefaultSize, 0 );
+	MouseStaticText->Wrap( -1 );
+	sbSizer43->Add( MouseStaticText, 0, wxALL|wxALIGN_CENTER_HORIZONTAL, 5 );
+	
+	
+	sbSizer43->Add( 0, 0, 1, wxEXPAND, 5 );
+	
+	bSizer144->Add( sbSizer43, 1, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
+	
+	wxBoxSizer* bSizer146;
+	bSizer146 = new wxBoxSizer( wxHORIZONTAL );
+	
+	
+	bSizer146->Add( 0, 0, 1, wxEXPAND, 5 );
+	
+	ContinueButton = new wxButton( this, wxID_OK, _("&Continue"), wxDefaultPosition, wxDefaultSize, 0 );
+	ContinueButton->SetDefault(); 
+	bSizer146->Add( ContinueButton, 0, wxALL, 5 );
+	
+	
+	bSizer146->Add( 0, 0, 1, wxEXPAND, 5 );
+	
+	bSizer144->Add( bSizer146, 0, wxEXPAND, 5 );
+	
+	MainSizer->Add( bSizer144, 1, wxEXPAND|wxALL, 5 );
+	
+	this->SetSizer( MainSizer );
+	this->Layout();
+	MainSizer->Fit( this );
+	
+	this->Centre( wxBOTH );
+	
+	// Connect Events
+	this->Connect( wxEVT_MOTION, wxMouseEventHandler( RandomPoolEnrichmentDialogBase::OnMouseMotion ) );
+	HashChoice->Connect( wxEVT_COMMAND_CHOICE_SELECTED, wxCommandEventHandler( RandomPoolEnrichmentDialogBase::OnHashSelected ), NULL, this );
+	ShowRandomPoolCheckBox->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( RandomPoolEnrichmentDialogBase::OnShowRandomPoolCheckBoxClicked ), NULL, this );
+}
+
+RandomPoolEnrichmentDialogBase::~RandomPoolEnrichmentDialogBase()
+{
+	// Disconnect Events
+	this->Disconnect( wxEVT_MOTION, wxMouseEventHandler( RandomPoolEnrichmentDialogBase::OnMouseMotion ) );
+	HashChoice->Disconnect( wxEVT_COMMAND_CHOICE_SELECTED, wxCommandEventHandler( RandomPoolEnrichmentDialogBase::OnHashSelected ), NULL, this );
+	ShowRandomPoolCheckBox->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( RandomPoolEnrichmentDialogBase::OnShowRandomPoolCheckBoxClicked ), NULL, this );
+}
+
 SecurityTokenKeyfilesDialogBase::SecurityTokenKeyfilesDialogBase( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxDialog( parent, id, title, pos, size, style )
 {
 	this->SetSizeHints( wxSize( -1,-1 ), wxDefaultSize );
@@ -2113,7 +2216,7 @@ EncryptionOptionsWizardPageBase::EncryptionOptionsWizardPageBase( wxWindow* pare
 	bSizer96->Add( EncryptionAlgorithmChoice, 1, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	TestButton = new wxButton( this, wxID_ANY, _("&Test"), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer96->Add( TestButton, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	bSizer96->Add( TestButton, 0, wxALL|wxALIGN_CENTER_VERTICAL|wxEXPAND, 5 );
 	
 	sbSizer29->Add( bSizer96, 0, wxEXPAND, 5 );
 	
@@ -2481,6 +2584,14 @@ VolumeCreationProgressWizardPageBase::VolumeCreationProgressWizardPageBase( wxWi
 	wxStaticBoxSizer* sbSizer31;
 	sbSizer31 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, wxEmptyString ), wxVERTICAL );
 	
+	KeySamplesUpperSizer = new wxBoxSizer( wxVERTICAL );
+	
+	KeySamplesUpperInnerSizer = new wxBoxSizer( wxVERTICAL );
+	
+	KeySamplesUpperSizer->Add( KeySamplesUpperInnerSizer, 1, wxEXPAND|wxTOP, 3 );
+	
+	sbSizer31->Add( KeySamplesUpperSizer, 1, wxEXPAND, 30 );
+	
 	wxFlexGridSizer* fgSizer5;
 	fgSizer5 = new wxFlexGridSizer( 3, 2, 0, 0 );
 	fgSizer5->SetFlexibleDirection( wxBOTH );
@@ -2498,12 +2609,12 @@ VolumeCreationProgressWizardPageBase::VolumeCreationProgressWizardPageBase( wxWi
 	RandomPoolSampleStaticText->Wrap( -1 );
 	RandomPoolSampleStaticText->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), 70, 90, 90, false, wxT("Courier New") ) );
 	
-	bSizer126->Add( RandomPoolSampleStaticText, 0, wxALIGN_BOTTOM|wxEXPAND|wxTOP|wxRIGHT, 5 );
+	bSizer126->Add( RandomPoolSampleStaticText, 0, wxEXPAND|wxTOP|wxRIGHT|wxALIGN_BOTTOM, 7 );
 	
 	DisplayKeysCheckBox = new wxCheckBox( this, wxID_ANY, _("Show"), wxDefaultPosition, wxDefaultSize, 0 );
 	DisplayKeysCheckBox->SetValue(true);
 	
-	bSizer126->Add( DisplayKeysCheckBox, 0, wxEXPAND|wxLEFT, 5 );
+	bSizer126->Add( DisplayKeysCheckBox, 0, wxEXPAND|wxRIGHT, 5 );
 	
 	fgSizer5->Add( bSizer126, 1, wxEXPAND|wxALIGN_BOTTOM, 5 );
 	
@@ -2516,7 +2627,7 @@ VolumeCreationProgressWizardPageBase::VolumeCreationProgressWizardPageBase( wxWi
 	HeaderKeySampleStaticText->Wrap( -1 );
 	HeaderKeySampleStaticText->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), 70, 90, 90, false, wxT("Courier New") ) );
 	
-	fgSizer5->Add( HeaderKeySampleStaticText, 0, wxBOTTOM|wxRIGHT|wxALIGN_BOTTOM|wxEXPAND, 5 );
+	fgSizer5->Add( HeaderKeySampleStaticText, 0, wxALIGN_BOTTOM|wxEXPAND|wxTOP|wxRIGHT, 2 );
 	
 	wxStaticText* m_staticText29;
 	m_staticText29 = new wxStaticText( this, wxID_ANY, _("Master Key:"), wxDefaultPosition, wxDefaultSize, 0 );
@@ -2527,7 +2638,7 @@ VolumeCreationProgressWizardPageBase::VolumeCreationProgressWizardPageBase( wxWi
 	MasterKeySampleStaticText->Wrap( -1 );
 	MasterKeySampleStaticText->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), 70, 90, 90, false, wxT("Courier New") ) );
 	
-	fgSizer5->Add( MasterKeySampleStaticText, 0, wxEXPAND|wxBOTTOM|wxRIGHT|wxALIGN_BOTTOM, 5 );
+	fgSizer5->Add( MasterKeySampleStaticText, 0, wxEXPAND|wxALIGN_BOTTOM|wxTOP|wxRIGHT, 2 );
 	
 	sbSizer31->Add( fgSizer5, 0, wxEXPAND, 5 );
 	

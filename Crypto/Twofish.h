@@ -1,6 +1,8 @@
 #ifndef TWOFISH_H
 #define TWOFISH_H
 
+#include "Common/Tcdefs.h"
+
 #if defined(__cplusplus)
 extern "C"
 {

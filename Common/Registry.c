@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2004-2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2004-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -44,6 +44,24 @@ BOOL ReadLocalMachineRegistryMultiString (char *subKey, char *name, char *value,
 
 	RegCloseKey (hkey);
 	return type == REG_MULTI_SZ;
+}
+
+BOOL ReadLocalMachineRegistryString (char *subKey, char *name, char *str, DWORD *size)
+{
+	HKEY hkey = 0;
+	DWORD type;
+
+	if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, subKey, 0, KEY_READ, &hkey) != ERROR_SUCCESS)
+		return FALSE;
+
+	if (RegQueryValueEx (hkey, name, NULL, &type, (BYTE *) str, size) != ERROR_SUCCESS)
+	{
+		RegCloseKey (hkey);
+		return FALSE;
+	}
+
+	RegCloseKey (hkey);
+	return type == REG_SZ;
 }
 
 int ReadRegistryInt (char *subKey, char *name, int defaultValue)
@@ -146,6 +164,30 @@ BOOL WriteLocalMachineRegistryMultiString (char *subKey, char *name, char *multi
 	}
 
 	if ((status = RegSetValueEx (hkey, name, 0, REG_MULTI_SZ, (BYTE *) multiString, size)) != ERROR_SUCCESS)
+	{
+		RegCloseKey (hkey);
+		SetLastError (status);
+		return FALSE;
+	}
+
+	RegCloseKey (hkey);
+	return TRUE;
+}
+
+BOOL WriteLocalMachineRegistryString (char *subKey, char *name, char *str, DWORD size)
+{
+	HKEY hkey = 0;
+	DWORD disp;
+	LONG status;
+
+	if ((status = RegCreateKeyEx (HKEY_LOCAL_MACHINE, subKey,
+		0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hkey, &disp)) != ERROR_SUCCESS)
+	{
+		SetLastError (status);
+		return FALSE;
+	}
+
+	if ((status = RegSetValueEx (hkey, name, 0, REG_SZ, (BYTE *) str, size)) != ERROR_SUCCESS)
 	{
 		RegCloseKey (hkey);
 		SetLastError (status);

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -20,15 +20,17 @@ namespace TrueCrypt
 		return L"Mac OS X";
 #elif defined (TC_FREEBSD)
 		return L"FreeBSD";
+#elif defined (TC_SOLARIS)
+		return L"Solaris";
 #else
-		throw NotImplemented (SRC_POS);
+#	error GetPlatformName() undefined
 #endif
 
 	}
 
 	vector <int> SystemInfo::GetVersion ()
 	{
-		utsname unameData;
+		struct utsname unameData;
 		throw_sys_if (uname (&unameData) == -1);
 
 		vector <string> versionStrings = StringConverter::Split (unameData.release, ".");

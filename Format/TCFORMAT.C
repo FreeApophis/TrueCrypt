@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
@@ -184,6 +184,7 @@ char szDiskFile[TC_MAX_PATH+1];	/* Fully qualified name derived from szFileName 
 char szRescueDiskISO[TC_MAX_PATH+1];	/* The filename and path to the Rescue Disk ISO file to be burned (for boot encryption) */
 BOOL bDeviceWipeInProgress = FALSE;
 volatile BOOL bTryToCorrectReadErrors = FALSE;
+volatile BOOL DiscardUnreadableEncryptedSectors = FALSE;
 
 volatile BOOL bVolTransformThreadCancel = FALSE;	/* TRUE if the user cancels/pauses volume encryption/format */
 volatile BOOL bVolTransformThreadRunning = FALSE;	/* Is the volume encryption/format thread running */
@@ -335,7 +336,7 @@ static void localcleanup (void)
 
 	WipePasswordsAndKeyfiles ();
 
-	Randfree ();
+	RandStop (TRUE);
 
 	burn (HeaderKeyGUIView, sizeof(HeaderKeyGUIView));
 	burn (MasterKeyGUIView, sizeof(MasterKeyGUIView));
@@ -741,32 +742,6 @@ static BOOL SysDriveOrPartitionFullyEncrypted (BOOL bSilent)
 		&& locBootEncStatus.ConfiguredEncryptedAreaEnd == locBootEncStatus.EncryptedAreaEnd);
 }
 
-// Adds or removes the wizard to/from the system startup sequence
-void ManageStartupSeqWiz (BOOL bRemove, const char *arg)
-{
-	char regk [64];
-
-	// Split the string in order to prevent some antivirus packages from falsely reporting  
-	// TrueCrypt Format.exe to contain a possible Trojan horse because of this string (heuristic scan).
-	sprintf (regk, "%s%s", "Software\\Microsoft\\Windows\\Curren", "tVersion\\Run");
-
-	if (!bRemove)
-	{
-		char exe[MAX_PATH * 2] = { '"' };
-		GetModuleFileName (NULL, exe + 1, sizeof (exe) - 1);
-
-		if (strlen (arg) > 0)
-		{
-			strcat (exe, "\" ");
-			strcat (exe, arg);
-		}
-
-		WriteRegistryString (regk, "TrueCrypt Format", exe);
-	}
-	else
-		DeleteRegistryValue (regk, "TrueCrypt Format");
-}
-
 // This functions is to be used when the wizard mode needs to be changed to WIZARD_MODE_SYS_DEVICE.
 // If the function fails to switch the mode, it returns FALSE (otherwise TRUE).
 BOOL SwitchWizardToSysEncMode (void)
@@ -907,7 +882,7 @@ BOOL SwitchWizardToSysEncMode (void)
 				{
 					if (bWholeSysDrive && !BootEncObj->SystemPartitionCoversWholeDrive())
 					{
-						if (nCurrentOS != WIN_VISTA_OR_LATER)
+						if (!IsOSAtLeast (WIN_VISTA))
 						{
 							if (BootEncObj->SystemDriveContainsExtendedPartition())
 							{
@@ -1135,7 +1110,7 @@ static BOOL ForceRemoveSysEnc (void)
 			if (locBootEncStatus.DriveMounted)
 			{
 				// Remove the header
-				BootEncObj->StartDecryption ();			
+				BootEncObj->StartDecryption (DiscardUnreadableEncryptedSectors);			
 				locBootEncStatus = BootEncObj->GetStatus();
 
 				while (locBootEncStatus.SetupInProgress)
@@ -1441,7 +1416,6 @@ static void Init2RadButtonPageYesNo (int answer)
 static void UpdateSysEncProgressBar (void)
 {
 	BootEncryptionStatus locBootEncStatus;
-	static BOOL lastTransformWaitingForIdle = FALSE;
 
 	try
 	{
@@ -1475,25 +1449,6 @@ static void UpdateSysEncProgressBar (void)
 			wcscat (tmpStr, L" ");
 
 			SetWindowTextW (GetDlgItem (hCurPage, IDC_WRITESPEED), tmpStr);
-
-			// Remainining time 
-
-			if (locBootEncStatus.TransformWaitingForIdle)
-			{
-				// The estimate cannot be computed correctly when speed is zero
-				SetWindowTextW (GetDlgItem (hCurPage, IDC_TIMEREMAIN), GetString ("NOT_APPLICABLE_OR_NOT_AVAILABLE"));
-			}
-
-			if (locBootEncStatus.TransformWaitingForIdle != lastTransformWaitingForIdle)
-			{
-				if (lastTransformWaitingForIdle)
-				{
-					// Estimate of remaining time and other values may have been heavily distorted as the speed
-					// was zero. Therefore, we're going to reinitialize the progress bar and all related variables.
-					InitSysEncProgressBar ();
-				}
-				lastTransformWaitingForIdle = locBootEncStatus.TransformWaitingForIdle;
-			}
 		}
 	}
 }
@@ -1684,7 +1639,7 @@ static void SysEncResume (void)
 			case SYSENC_STATUS_DECRYPTING:
 
 				if (locBootEncStatus.DriveMounted)	// If the drive is not encrypted we will just deinstall
-					BootEncObj->StartDecryption ();	
+					BootEncObj->StartDecryption (DiscardUnreadableEncryptedSectors);	
 
 				break;
 			}
@@ -4600,8 +4555,6 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				// Decoy system partition wipe
 
 				SetWindowTextW (GetDlgItem (hwndDlg, IDC_BOX_HELP), GetString ("DEVICE_WIPE_PAGE_INFO_HIDDEN_OS"));
-				ShowWindow(GetDlgItem(hwndDlg, IDC_TIMEREMAIN), SW_HIDE);
-				ShowWindow(GetDlgItem(hwndDlg, IDT_LEFT), SW_HIDE);
 			}
 			else
 			{
@@ -5541,7 +5494,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						{
 							if (!bTryToCorrectReadErrors
 								&& SystemEncryptionStatus == SYSENC_STATUS_ENCRYPTING
-								&& (e.ErrorCode == ERROR_CRC || e.ErrorCode == ERROR_IO_DEVICE))
+								&& (IsDiskReadError (e.ErrorCode)))
 							{
 								bTryToCorrectReadErrors = (AskWarnYesNo ("ENABLE_BAD_SECTOR_ZEROING") == IDYES);
 
@@ -5551,10 +5504,20 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 									return 1;
 								}
 							}
-							else
+							else if (!DiscardUnreadableEncryptedSectors
+								&& SystemEncryptionStatus == SYSENC_STATUS_DECRYPTING
+								&& (IsDiskReadError (e.ErrorCode)))
 							{
-								e.Show (hwndDlg);
+								DiscardUnreadableEncryptedSectors = (AskWarnYesNo ("DISCARD_UNREADABLE_ENCRYPTED_SECTORS") == IDYES);
+
+								if (DiscardUnreadableEncryptedSectors)
+								{
+									SysEncResume();
+									return 1;
+								}
 							}
+
+							e.Show (hwndDlg);
 						}
 						catch (Exception &e)
 						{
@@ -6126,7 +6089,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				{
 					if (bWholeSysDrive && !BootEncObj->SystemPartitionCoversWholeDrive())
 					{
-						if (nCurrentOS != WIN_VISTA_OR_LATER)
+						if (!IsOSAtLeast (WIN_VISTA))
 						{
 							if (BootEncObj->SystemDriveContainsExtendedPartition())
 							{
@@ -6266,6 +6229,12 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 			else if (nCurPageNo == SYSENC_MULTI_BOOT_OUTCOME_PAGE)
 			{
+				SYSTEMTIME sysTime;
+				GetLocalTime (&sysTime);
+
+				if (sysTime.wYear <= 2010)
+					Warning ("MULTI_BOOT_VISTA_SP1");
+
 				if (bHiddenOS)
 				{
 					if (!ChangeWizardMode (WIZARD_MODE_NONSYS_DEVICE))
@@ -6911,8 +6880,6 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 							NormalCursor ();
 #ifndef _DEBUG
 							return 1;
-#else
-							MessageBoxW (MainDlg, L"DEBUG INFO:\nPrevious error ignored (Debug build) -- allowed to continue.", lpszTitle, MB_ICONINFORMATION | MB_SETFOREGROUND | MB_TOPMOST);
 #endif
 						}
 					}
@@ -8252,7 +8219,7 @@ static void AfterSysEncProgressWMInitTasks (HWND hwndDlg)
 static void AfterWMInitTasks (HWND hwndDlg)
 {
 	// Note that if bDirectSysEncModeCommand is not SYSENC_COMMAND_NONE, we already have the mutex.
-	
+
 	// SYSENC_COMMAND_DECRYPT has the highest priority because it also performs uninstallation (restores the
 	// original contents of the first drive cylinder, etc.) so it must be attempted regardless of the phase
 	// or content of configuration files.
@@ -8722,7 +8689,7 @@ static void AfterWMInitTasks (HWND hwndDlg)
 			if (NonSysInplaceEncInProgressElsewhere ())
 				AbortProcessSilent ();
 
-			if (AskWarnYesNo ("NONSYS_INPLACE_ENC_RESUME_PROMPT") == IDYES)
+			if (AskNonSysInPlaceEncryptionResume() == IDYES)
 				SwitchWizardToNonSysInplaceEncResumeMode();
 			else
 				AbortProcessSilent ();
@@ -8731,7 +8698,7 @@ static void AfterWMInitTasks (HWND hwndDlg)
 		}
 		else if (bInPlaceEncNonSysPending
 			&& !NonSysInplaceEncInProgressElsewhere ()
-			&& AskWarnYesNo ("NONSYS_INPLACE_ENC_RESUME_PROMPT") == IDYES)
+			&& AskNonSysInPlaceEncryptionResume() == IDYES)
 		{
 			SwitchWizardToNonSysInplaceEncResumeMode();
 			return;

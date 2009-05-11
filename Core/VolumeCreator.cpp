@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -65,7 +65,7 @@ namespace TrueCrypt
 
 				struct WriteSectorCallback : public FatFormatter::WriteSectorCallback
 				{
-					WriteSectorCallback (VolumeCreator *creator) : Creator (creator), OutputBuffer (256 * 1024), OutputBufferWritePos (0) { }
+					WriteSectorCallback (VolumeCreator *creator) : Creator (creator), OutputBuffer (File::GetOptimalWriteSize()), OutputBufferWritePos (0) { }
 
 					virtual bool operator() (const BufferPtr &sector)
 					{
@@ -109,7 +109,7 @@ namespace TrueCrypt
 				// Empty sectors are encrypted with different key to randomize plaintext
 				Core->RandomizeEncryptionAlgorithmKey (Options->EA);
 
-				SecureBuffer outputBuffer (256 * 1024);
+				SecureBuffer outputBuffer (File::GetOptimalWriteSize());
 				uint64 dataFragmentLength = outputBuffer.Size();
 
 				while (!AbortRequested && WriteOffset < endOffset)
@@ -177,7 +177,6 @@ namespace TrueCrypt
 	void VolumeCreator::CreateVolume (shared_ptr <VolumeCreationOptions> options)
 	{
 		EncryptionTest::TestAll();
-		RandomNumberGenerator::Start();
 
 		{
 #ifdef TC_UNIX

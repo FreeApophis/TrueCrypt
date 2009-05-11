@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -22,7 +22,6 @@ namespace TrueCrypt
 	public:
 		static void ProcessElevatedRequests ();
 		static void ProcessRequests (int inputFD = -1, int outputFD = -1);
-		static void RequestChangePassword (shared_ptr <VolumePath> volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, shared_ptr <VolumePassword> newPassword, shared_ptr <KeyfileList> newKeyfiles, shared_ptr <Pkcs5Kdf> newPkcs5Kdf = shared_ptr <Pkcs5Kdf> ());
 		static void RequestCheckFilesystem (shared_ptr <VolumeInfo> mountedVolume, bool repair);
 		static void RequestDismountFilesystem (const DirectoryPath &mountPoint, bool force);
 		static shared_ptr <VolumeInfo> RequestDismountVolume (shared_ptr <VolumeInfo> mountedVolume, bool ignoreOpenFiles = false, bool syncVolumeInfo = false);

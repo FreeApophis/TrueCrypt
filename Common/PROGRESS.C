@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
@@ -66,8 +66,8 @@ BOOL UpdateProgressBarProc (__int64 nSecNo)
 	int time = GetTickCount ();
 	int elapsed = (time - startTime) / 1000;
 
-	unsigned __int64 bytesDone = (bProgressBarReverse ? ((totalSectors - nSecNo + 1) * SECTOR_SIZE) : ((nSecNo + 1) * SECTOR_SIZE));
-	unsigned __int64 bytesPerSec = (bProgressBarReverse ? (resumedPointBytesDone - nSecNo * SECTOR_SIZE + 1) : (bytesDone - resumedPointBytesDone + 1)) / (elapsed + 1);
+	uint64 bytesDone = (bProgressBarReverse ? ((totalSectors - nSecNo) * SECTOR_SIZE) : ((nSecNo) * SECTOR_SIZE));
+	uint64 bytesPerSec = (bProgressBarReverse ? (resumedPointBytesDone - nSecNo * SECTOR_SIZE) : (bytesDone - resumedPointBytesDone)) / (elapsed + 1);
 
 	if (bPercentMode)
 	{
@@ -104,16 +104,18 @@ BOOL UpdateProgressBarProc (__int64 nSecNo)
 
 	if (nSecNo < totalSectors)
 	{
-		__int32 sec = (__int32)((bProgressBarReverse ? nSecNo : (totalSectors - nSecNo)) / ((bytesPerSec == 0 ? 0.00001 : bytesPerSec) / SECTOR_SIZE));
+		int64 sec = (int64) ((bProgressBarReverse ? nSecNo : (totalSectors - nSecNo)) / ((bytesPerSec == 0 ? 0.001 : bytesPerSec) / SECTOR_SIZE));
 
-		if (sec >= 60 * 60 * 24 * 2)
-			swprintf (text, L"%d %s ", sec / (60 * 24 * 60), days);
+		if (bytesPerSec == 0 || sec > 60 * 60 * 24 * 999)
+			swprintf (text, L"%s ", GetString ("NOT_APPLICABLE_OR_NOT_AVAILABLE"));
+		else if (sec >= 60 * 60 * 24 * 2)
+			swprintf (text, L"%I64d %s ", sec / (60 * 24 * 60), days);
 		else if (sec >= 120 * 60)
-			swprintf (text, L"%d %s ", sec / (60 * 60), hours);
+			swprintf (text, L"%I64d %s ", sec / (60 * 60), hours);
 		else if (sec >= 120)
-			swprintf (text, L"%d %s ", sec / 60, minutes);
+			swprintf (text, L"%I64d %s ", sec / 60, minutes);
 		else
-			swprintf (text, L"%d %s ", sec, seconds);
+			swprintf (text, L"%I64d %s ", sec, seconds);
 
 		SetWindowTextW (GetDlgItem (hCurPage, IDC_TIMEREMAIN), text);
 	}

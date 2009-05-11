@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -91,6 +91,7 @@ namespace TrueCrypt
 			Pool[i] = ~Pool[i];
 		}
 
+		AddSystemDataToPool (true);
 		HashMixPool();
 
 		// XOR the current pool content into the output buffer to prevent pool state leaks
@@ -101,6 +102,12 @@ namespace TrueCrypt
 			if (ReadOffset >= PoolSize)
 				ReadOffset = 0;
 		}
+	}
+
+	shared_ptr <Hash> RandomNumberGenerator::GetHash ()
+	{
+		ScopeLock lock (AccessMutex);
+		return PoolHash;
 	}
 
 	void RandomNumberGenerator::HashMixPool ()
@@ -131,23 +138,23 @@ namespace TrueCrypt
 	void RandomNumberGenerator::Start ()
 	{
 		ScopeLock lock (AccessMutex);
-		ReferenceCount.Increment();
 
-		if (!Pool.IsAllocated())
+		if (IsRunning())
+			return;
+
+		BytesAddedSincePoolHashMix = 0;
+		ReadOffset = 0;
+		WriteOffset = 0;
+		Running = true;
+		EnrichedByUser = false;
+
+		Pool.Allocate (PoolSize);
+		Test();
+
+		if (!PoolHash)
 		{
-			BytesAddedSincePoolHashMix = 0;
-			ReadOffset = 0;
-			WriteOffset = 0;
-			Running = true;
-
-			Pool.Allocate (PoolSize);
-			Test();
-
-			if (!PoolHash)
-			{
-				// First hash algorithm is the default one
-				PoolHash = Hash::GetAvailableAlgorithms().front();
-			}
+			// First hash algorithm is the default one
+			PoolHash = Hash::GetAvailableAlgorithms().front();
 		}
 
 		AddSystemDataToPool (true);
@@ -157,15 +164,13 @@ namespace TrueCrypt
 	{		
 		ScopeLock lock (AccessMutex);
 
-		if (ReferenceCount.Decrement() < 1)
-		{
-			if (Pool.IsAllocated())
-				Pool.Free ();
+		if (Pool.IsAllocated())
+			Pool.Free ();
 
-			PoolHash.reset();
+		PoolHash.reset();
 
-			Running = false;
-		}
+		EnrichedByUser = false;
+		Running = false;
 	}
 
 	void RandomNumberGenerator::Test ()
@@ -196,10 +201,10 @@ namespace TrueCrypt
 
 	Mutex RandomNumberGenerator::AccessMutex;
 	size_t RandomNumberGenerator::BytesAddedSincePoolHashMix;
+	bool RandomNumberGenerator::EnrichedByUser;
 	SecureBuffer RandomNumberGenerator::Pool;
 	shared_ptr <Hash> RandomNumberGenerator::PoolHash;
 	size_t RandomNumberGenerator::ReadOffset;
-	SharedVal <int> RandomNumberGenerator::ReferenceCount (0);
 	bool RandomNumberGenerator::Running = false;
 	size_t RandomNumberGenerator::WriteOffset;
 }

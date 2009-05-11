@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -24,6 +24,7 @@
 #include "Forms/KeyfileGeneratorDialog.h"
 #include "Forms/MainFrame.h"
 #include "Forms/MountOptionsDialog.h"
+#include "Forms/RandomPoolEnrichmentDialog.h"
 #include "Forms/SecurityTokenKeyfilesDialog.h"
 
 namespace TrueCrypt
@@ -47,6 +48,13 @@ namespace TrueCrypt
 
 	GraphicUserInterface::~GraphicUserInterface ()
 	{
+		try
+		{
+			if (RandomNumberGenerator::IsRunning())
+				RandomNumberGenerator::Stop();
+		}
+		catch (...) { }
+
 		FatalErrorHandler::Deregister();
 
 #ifdef TC_UNIX
@@ -104,11 +112,13 @@ namespace TrueCrypt
 		if (volumePath->IsEmpty())
 			throw UserAbort (SRC_POS);
 
+#ifdef TC_WINDOWS
 		if (Core->IsVolumeMounted (*volumePath))
 		{
 			ShowInfo ("DISMOUNT_FIRST");
 			return;
 		}
+#endif
 
 #ifdef TC_UNIX
 		// Temporarily take ownership of a device if the user is not an administrator
@@ -238,7 +248,7 @@ namespace TrueCrypt
 		backupFile.Open (*files.front(), File::CreateWrite);
 
 		RandomNumberGenerator::Start();
-		finally_do ({ RandomNumberGenerator::Stop(); });
+		UserEnrichRandomPool (nullptr);
 
 		{
 			wxBusyCursor busy;
@@ -382,7 +392,7 @@ namespace TrueCrypt
 		{
 			virtual void operator() (string &passwordStr)
 			{
-				wxPasswordEntryDialog dialog (Gui->GetActiveWindow(), LangString["ENTER_PASSWORD"] + L":", _("Administrator privileges required"));
+				wxPasswordEntryDialog dialog (Gui->GetActiveWindow(), _("Enter your user password or administrator password:"), _("Administrator privileges required"));
 
 				if (dialog.ShowModal() != wxID_OK)
 					throw UserAbort (SRC_POS);
@@ -571,6 +581,14 @@ namespace TrueCrypt
 		dialog.ShowModal();
 	}
 
+#ifdef TC_MACOSX
+	void GraphicUserInterface::MacOpenFile (const wxString &fileName)
+	{
+		OpenVolumeSystemRequestEventArgs eventArgs (fileName);
+		OpenVolumeSystemRequestEvent.Raise (eventArgs);
+	}
+#endif
+
 	void GraphicUserInterface::MoveListCtrlItem (wxListCtrl *listCtrl, long itemIndex, long newItemIndex) const
 	{
 		if (itemIndex == newItemIndex || newItemIndex < 0
@@ -652,6 +670,12 @@ namespace TrueCrypt
 					return UserInterface::MountVolume (options);
 				}
 				catch (PasswordException&) { }
+			}
+
+			if ((options.Password && !options.Password->IsEmpty())
+				|| (options.Keyfiles && !options.Keyfiles->empty()))
+			{
+				return UserInterface::MountVolume (options);
 			}
 
 			VolumePassword password;
@@ -934,20 +958,6 @@ namespace TrueCrypt
 				if (wxExecute (fileType->GetOpenCommand (document.GetFullPath())) != 0)
 					return;
 #else
-				foreach (const string &pdfViewer, StringConverter::Split ("evince kpdf xpdf"))
-				{
-					try
-					{
-						list <string> args;
-						args.push_back (StringConverter::ToSingle (wstring (document.GetFullPath())));
-
-						Process::Execute (pdfViewer, args, 2000);
-						return;
-					}
-					catch (TimeOut&) { return; }
-					catch (...) { }
-				}
-
 				if (wxExecute (fileType->GetOpenCommand (L"\"" + document.GetFullPath() + L"\"")) != 0)
 					return;
 #endif
@@ -1025,12 +1035,16 @@ namespace TrueCrypt
 		{
 			wxString docPath = wstring (Application::GetExecutableDirectory());
 
-#ifdef TC_WINDOWS
+#ifdef TC_RESOURCE_DIR
+			docPath = StringConverter::ToWide (string (TC_TO_STRING (TC_RESOURCE_DIR)) + "/doc/TrueCrypt User Guide.pdf");
+#elif defined (TC_WINDOWS)
 			docPath += L"\\TrueCrypt User Guide.pdf";
 #elif defined (TC_MACOSX)
 			docPath += L"/../Resources/TrueCrypt User Guide.pdf";
 #elif defined (TC_UNIX)
 			docPath = L"/usr/share/truecrypt/doc/TrueCrypt User Guide.pdf";
+#else
+#	error TC_RESOURCE_DIR undefined
 #endif
 
 			wxFileName docFile = docPath;
@@ -1062,11 +1076,13 @@ namespace TrueCrypt
 		if (volumePath->IsEmpty())
 			throw UserAbort (SRC_POS);
 
+#ifdef TC_WINDOWS
 		if (Core->IsVolumeMounted (*volumePath))
 		{
 			ShowInfo ("DISMOUNT_FIRST");
 			return;
 		}
+#endif
 
 #ifdef TC_UNIX
 		// Temporarily take ownership of a device if the user is not an administrator
@@ -1157,7 +1173,7 @@ namespace TrueCrypt
 			}
 
 			RandomNumberGenerator::Start();
-			finally_do ({ RandomNumberGenerator::Stop(); });
+			UserEnrichRandomPool (nullptr);
 
 			// Re-encrypt volume header
 			SecureBuffer newHeaderBuffer (volume->GetLayout()->GetHeaderSize());
@@ -1265,7 +1281,7 @@ namespace TrueCrypt
 			volumeFile.Open (*volumePath, File::OpenReadWrite, File::ShareNone, File::PreserveTimestamps);
 			
 			RandomNumberGenerator::Start();
-			finally_do ({ RandomNumberGenerator::Stop(); });
+			UserEnrichRandomPool (nullptr);
 
 			// Re-encrypt volume header
 			SecureBuffer newHeaderBuffer (decryptedLayout->GetHeaderSize());
@@ -1602,6 +1618,20 @@ namespace TrueCrypt
 			}
 		}
 		return changed;
+	}
+
+	void GraphicUserInterface::UserEnrichRandomPool (wxWindow *parent, shared_ptr <Hash> hash) const
+	{
+		RandomNumberGenerator::Start();
+		
+		if (hash)
+			RandomNumberGenerator::SetHash (hash);
+
+		if (!RandomNumberGenerator::IsEnrichedByUser())
+		{
+			RandomPoolEnrichmentDialog dialog (parent);
+			RandomNumberGenerator::SetEnrichedByUserStatus (dialog.ShowModal() == wxID_OK);
+		}
 	}
 
 	void GraphicUserInterface::Yield () const

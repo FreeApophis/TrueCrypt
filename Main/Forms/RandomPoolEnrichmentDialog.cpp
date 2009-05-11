@@ -9,11 +9,11 @@
 #include "System.h"
 #include "Main/GraphicUserInterface.h"
 #include "Volume/Hash.h"
-#include "KeyfileGeneratorDialog.h"
+#include "RandomPoolEnrichmentDialog.h"
 
 namespace TrueCrypt
 {
-	KeyfileGeneratorDialog::KeyfileGeneratorDialog (wxWindow* parent) : KeyfileGeneratorDialogBase (parent) 
+	RandomPoolEnrichmentDialog::RandomPoolEnrichmentDialog (wxWindow* parent) : RandomPoolEnrichmentDialogBase (parent) 
 	{
 		RandomNumberGenerator::Start();
 		
@@ -21,11 +21,13 @@ namespace TrueCrypt
 		foreach (shared_ptr <Hash> hash, Hashes)
 		{
 			if (!hash->IsDeprecated())
+			{
 				HashChoice->Append (hash->GetName(), hash.get());
-		}
 
-		HashChoice->Select (0);
-		RandomNumberGenerator::SetHash (Gui->GetSelectedData <Hash> (HashChoice)->GetNew());
+				if (typeid (*hash) == typeid (*RandomNumberGenerator::GetHash()))
+					HashChoice->Select (HashChoice->GetCount() - 1);
+			}
+		}
 
 		ShowBytes (RandomPoolStaticText, RandomNumberGenerator::PeekPool().GetRange (0, 24));
 		MouseStaticText->Wrap (Gui->GetCharWidth (MouseStaticText) * 70);
@@ -37,45 +39,19 @@ namespace TrueCrypt
 		Center();
 
 		foreach (wxWindow *c, this->GetChildren())
-			c->Connect (wxEVT_MOTION, wxMouseEventHandler (KeyfileGeneratorDialog::OnMouseMotion), nullptr, this);
+			c->Connect (wxEVT_MOTION, wxMouseEventHandler (RandomPoolEnrichmentDialog::OnMouseMotion), nullptr, this);
 	}
 
-	KeyfileGeneratorDialog::~KeyfileGeneratorDialog ()
+	RandomPoolEnrichmentDialog::~RandomPoolEnrichmentDialog ()
 	{
 	}
 
-	void KeyfileGeneratorDialog::OnGenerateButtonClick (wxCommandEvent& event)
-	{
-		try
-		{
-			FilePathList files = Gui->SelectFiles (Gui->GetActiveWindow(), wxEmptyString, true);
-
-			if (files.empty())
-				return;
-
-			SecureBuffer keyfileBuffer (VolumePassword::MaxSize);
-			RandomNumberGenerator::GetData (keyfileBuffer);
-
-			{
-				File keyfile;
-				keyfile.Open (*files.front(), File::CreateWrite);
-				keyfile.Write (keyfileBuffer);
-			}
-
-			Gui->ShowInfo ("KEYFILE_CREATED");
-		}
-		catch (exception &e)
-		{
-			Gui->ShowError (e);
-		}
-	}
-
-	void KeyfileGeneratorDialog::OnHashSelected (wxCommandEvent& event)
+	void RandomPoolEnrichmentDialog::OnHashSelected (wxCommandEvent& event)
 	{
 		RandomNumberGenerator::SetHash (Gui->GetSelectedData <Hash> (HashChoice)->GetNew());
 	}
 
-	void KeyfileGeneratorDialog::OnMouseMotion (wxMouseEvent& event)
+	void RandomPoolEnrichmentDialog::OnMouseMotion (wxMouseEvent& event)
 	{
 		event.Skip();
 
@@ -89,14 +65,14 @@ namespace TrueCrypt
 		if (ShowRandomPoolCheckBox->IsChecked())
 			ShowBytes (RandomPoolStaticText, RandomNumberGenerator::PeekPool().GetRange (0, 24));
 	}
-	
-	void KeyfileGeneratorDialog::OnShowRandomPoolCheckBoxClicked (wxCommandEvent& event)
+
+	void RandomPoolEnrichmentDialog::OnShowRandomPoolCheckBoxClicked (wxCommandEvent& event)
 	{
 		if (!event.IsChecked())
 			RandomPoolStaticText->SetLabel (L"");
 	}
 
-	void KeyfileGeneratorDialog::ShowBytes (wxStaticText *textCtrl, const ConstBufferPtr &buffer, bool appendDots)
+	void RandomPoolEnrichmentDialog::ShowBytes (wxStaticText *textCtrl, const ConstBufferPtr &buffer)
 	{
 		wxString str;
 
@@ -105,8 +81,7 @@ namespace TrueCrypt
 			str += wxString::Format (L"%02X", buffer[i]);
 		}
 
-		if (appendDots)
-			str += L"..";
+		str += L"..";
 
 		textCtrl->SetLabel (str.c_str());
 

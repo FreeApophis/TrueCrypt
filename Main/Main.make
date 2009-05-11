@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+# Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 #
 # Governed by the TrueCrypt License 2.6 the full text of which is contained
 # in the file License.txt included in TrueCrypt binary and source code
@@ -22,7 +22,6 @@ OBJS += Resources.o
 ifndef TC_NO_GUI
 OBJS += FatalErrorHandler.o
 OBJS += GraphicUserInterface.o
-OBJS += Hotkey.o
 OBJS += VolumeHistory.o
 OBJS += Forms/AboutDialog.o
 OBJS += Forms/ChangePasswordDialog.o
@@ -41,6 +40,7 @@ OBJS += Forms/MountOptionsDialog.o
 OBJS += Forms/NewSecurityTokenKeyfileDialog.o
 OBJS += Forms/PreferencesDialog.o
 OBJS += Forms/ProgressWizardPage.o
+OBJS += Forms/RandomPoolEnrichmentDialog.o
 OBJS += Forms/SecurityTokenKeyfilesDialog.o
 OBJS += Forms/SelectDirectoryWizardPage.o
 OBJS += Forms/VolumePasswordPanel.o
@@ -61,11 +61,13 @@ endif
 RESOURCES :=
 RESOURCES += ../License.txt.h
 RESOURCES += ../Common/Language.xml.h
+ifndef TC_NO_GUI
 RESOURCES += ../Common/Textual_logo_96dpi.bmp.h
 RESOURCES += ../Format/TrueCrypt_Wizard.bmp.h
 RESOURCES += ../Mount/Drive_icon_96dpi.bmp.h
 RESOURCES += ../Mount/Drive_icon_mask_96dpi.bmp.h
 RESOURCES += ../Mount/Logo_96dpi.bmp.h
+endif
 
 CXXFLAGS += -I$(BASE_DIR)/Main
 
@@ -110,7 +112,11 @@ ifndef NOSTRIP
 endif
 
 ifndef NOTEST
-	./$(APPNAME) --text --test >/dev/null
+	./$(APPNAME) --text --test >/dev/null || exit 1
+endif
+
+ifeq "$(PLATFORM_UNSUPPORTED)" "1"
+	@echo; echo "WARNING: This platform may be unsupported. To avoid possible serious problems, please read the chapter pertaining to $(PLATFORM) in Readme.txt."; echo
 endif
 endif
 
@@ -129,6 +135,7 @@ endif
 	echo -n APPLTRUE >$(APPNAME).app/Contents/PkgInfo
 	sed -e 's/_VERSION_/$(patsubst %a,%.1,$(patsubst %b,%.2,$(TC_VERSION)))/' ../Build/Resources/MacOSX/Info.plist.xml >$(APPNAME).app/Contents/Info.plist
 endif
+
 
 $(OBJS): $(PCH)
 

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -20,9 +20,20 @@ namespace TrueCrypt
 	struct FavoriteVolume
 	{
 	public:
-		FavoriteVolume () { }
-		FavoriteVolume (const VolumePath &path, const DirectoryPath &mountPoint, VolumeSlotNumber slotNumber)
-			: MountPoint (mountPoint), Path (path), SlotNumber (slotNumber) { }
+		FavoriteVolume ()
+			: ReadOnly (false),
+			System (false)
+		{
+		}
+
+		FavoriteVolume (const VolumePath &path, const DirectoryPath &mountPoint, VolumeSlotNumber slotNumber, bool readOnly, bool system)
+			: MountPoint (mountPoint),
+			Path (path),
+			ReadOnly (readOnly),
+			SlotNumber (slotNumber),
+			System (system)
+		{
+		}
 
 		static FavoriteVolumeList LoadList ();
 		static void SaveList (const FavoriteVolumeList &favorites);
@@ -30,8 +41,10 @@ namespace TrueCrypt
 
 		DirectoryPath MountPoint;
 		VolumePath Path;
+		bool ReadOnly;
 		VolumeSlotNumber SlotNumber;
-		
+		bool System;
+
 	protected:
 		static wxString GetFileName () { return L"Favorite Volumes.xml"; }
 	};

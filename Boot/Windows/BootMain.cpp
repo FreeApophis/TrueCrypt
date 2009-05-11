@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -30,13 +30,17 @@ static void InitScreen ()
 {
 	ClearScreen();
 
-	Print (
+	const char *title =
 #ifndef TC_WINDOWS_BOOT_RESCUE_DISK_MODE
 		" TrueCrypt Boot Loader "
 #else
 		" TrueCrypt Rescue Disk "
 #endif
-		VERSION_STRING "             Copyright (C) 2008 TrueCrypt Foundation\r\n");
+		VERSION_STRING;
+
+	Print (title);
+	PrintRepeatedChar (' ', title[26] ? 8 : 9);
+	Print ("Copyright (C) 2008-2009 TrueCrypt Foundation\r\n");
 
 	PrintRepeatedChar ('\xDC', TC_BIOS_MAX_CHARS_PER_LINE);
 
@@ -213,13 +217,16 @@ static void ExecuteBootSector (byte drive, byte *sectorBuffer)
 	__asm
 	{
 		cli
-		mov dl, drive
+		mov dl, drive	// Boot drive
+		mov dh, 0
 		xor ax, ax
+		mov si, ax
 		mov ds, ax
 		mov es, ax
 		mov ss, ax
-		mov sp, 0xffff
+		mov sp, 0x7c00
 		sti
+
 		jmp cs:addr
 	}
 }
@@ -297,16 +304,7 @@ static bool CheckMemoryRequirements ()
 		}
 
 		Print (memFree);
-
-		Print ("\r\nThis is not a bug in TrueCrypt.\r\n"
-			   "- Disable unneeded components (RAID, AHCI) in BIOS setup menu\r\n"
-			   "  (invoked by pressing Del or F2 after turning on your computer)\r\n");
-#ifndef TC_WINDOWS_BOOT_AES
-		Print ("- Use the AES encryption algorithm to reduce memory requirements\r\n");
-#endif
-#ifdef TC_WINDOWS_BOOT_RESCUE_DISK_MODE
-		Print ("- Boot from HDD\r\n");
-#endif
+		PrintEndl();
 		Print (TC_BOOT_STR_UPGRADE_BIOS);
 
 		return false;
@@ -468,6 +466,7 @@ static void BootMenu ()
 					// NTFS/FAT partitions must have the boot indicator set to be considered bootable.
 					if (!partition.Active
 						&& (*(uint32 *) (SectorBuffer + 3) == 0x5346544e  // 'NTFS'
+							|| *(uint32 *) (SectorBuffer + 3) == 0x41465845	&& SectorBuffer[7] == 'T' // 'exFAT'
 							|| *(uint16 *) (SectorBuffer + 54) == 0x4146 && SectorBuffer[56] == 'T' // 'FAT'
 							|| *(uint16 *) (SectorBuffer + 82) == 0x4146 && SectorBuffer[84] == 'T'))
 					{
@@ -565,8 +564,11 @@ static bool CopyActivePartitionToHiddenVolume (byte drive, byte &exitKey)
 	AcquireSectorBuffer();
 
 	if (ReadSectors (SectorBuffer, PartitionFollowingActive.Drive, PartitionFollowingActive.EndSector - (TC_VOLUME_HEADER_GROUP_SIZE / TC_LB_SIZE - 2), 1) != BiosResultSuccess
-		|| (uint16) GetCrc32 (SectorBuffer, sizeof (SectorBuffer)) != OuterVolumeBackupHeaderCrc)
+		|| GetCrc32 (SectorBuffer, sizeof (SectorBuffer)) != OuterVolumeBackupHeaderCrc)
 	{
+		if (!IsLbaSupported (PartitionFollowingActive.Drive))
+			Print ("BIOS: LBA N/A\r\n");
+
 		PrintError ("Your BIOS does not support large drives");
 		Print (TC_BOOT_STR_UPGRADE_BIOS);
 

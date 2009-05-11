@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -35,7 +35,7 @@ namespace TrueCrypt
 		return p;
 	}
 
-	FilePathList Directory::GetFilePaths (const DirectoryPath &path)
+	FilePathList Directory::GetFilePaths (const DirectoryPath &path, bool regularFilesOnly)
 	{
 		DIR *dir = opendir (string (path).c_str());
 		throw_sys_sub_if (!dir, wstring (path));
@@ -50,7 +50,7 @@ namespace TrueCrypt
 		{
 			shared_ptr <FilePath> filePath (new FilePath (string (AppendSeparator (path)) + string (dirEntry->d_name)));
 			
-			if (filePath->IsFile())
+			if (!regularFilesOnly || filePath->IsFile())
 				files.push_back (filePath);
 
 			errno = 0;

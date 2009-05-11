@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -16,6 +16,10 @@
 #include "Main/Application.h"
 #include "Main/Main.h"
 #include "Main/UserInterface.h"
+
+#if defined (TC_MACOSX) && !defined (TC_NO_GUI)
+#include <ApplicationServices/ApplicationServices.h>
+#endif
 
 using namespace TrueCrypt;
 
@@ -74,9 +78,24 @@ int main (int argc, char **argv)
 
 		// Initialize application
 		if (forceTextUI || (argc > 1 && (strcmp (argv[1], "-t") == 0 || strcmp (argv[1], "--text") == 0)))
+		{
 			Application::Initialize (UserInterfaceType::Text);
+		}
 		else
+		{
+#if defined (TC_MACOSX) && !defined (TC_NO_GUI)
+			if (argc > 1 && !(argc == 2 && strstr (argv[1], "-psn_") == argv[1]))
+			{
+				ProcessSerialNumber p;
+				if (GetCurrentProcess (&p) == noErr)
+				{
+					TransformProcessType (&p, kProcessTransformToForegroundApplication);
+					SetFrontProcess (&p);
+				}
+			}
+#endif
 			Application::Initialize (UserInterfaceType::Graphic);
+		}
 
 		Application::SetExitCode (1);
 

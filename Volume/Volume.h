@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -88,6 +88,7 @@ namespace TrueCrypt
 		VolumeType::Enum GetType () const { return Type; }
 		uint64 GetVolumeCreationTime () const { return Header->GetVolumeCreationTime(); }
 		bool IsHiddenVolumeProtectionTriggered () const { return HiddenVolumeProtectionTriggered; }
+		bool IsInSystemEncryptionScope () const { return SystemEncryption; }
 		void Open (const VolumePath &volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection = VolumeProtection::None, shared_ptr <VolumePassword> protectionPassword = shared_ptr <VolumePassword> (), shared_ptr <KeyfileList> protectionKeyfiles = shared_ptr <KeyfileList> (), bool sharedAccessAllowed = false, VolumeType::Enum volumeType = VolumeType::Unknown, bool useBackupHeaders = false, bool partitionInSystemEncryptionScope = false);
 		void Open (shared_ptr <File> volumeFile, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection = VolumeProtection::None, shared_ptr <VolumePassword> protectionPassword = shared_ptr <VolumePassword> (), shared_ptr <KeyfileList> protectionKeyfiles = shared_ptr <KeyfileList> (), VolumeType::Enum volumeType = VolumeType::Unknown, bool useBackupHeaders = false, bool partitionInSystemEncryptionScope = false);
 		void ReadSectors (const BufferPtr &buffer, uint64 byteOffset);
@@ -106,6 +107,7 @@ namespace TrueCrypt
 		uint64 ProtectedRangeEnd;
 		VolumeProtection::Enum Protection;
 		size_t SectorSize;
+		bool SystemEncryption;
 		VolumeType::Enum Type;
 		shared_ptr <File> VolumeFile;
 		uint64 VolumeHostSize;

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -86,8 +86,8 @@ namespace TrueCrypt
 	protected:
 		void ValidateState () const;
 
-		static const size_t OptimalReadSize = 65536; // Specifies the most efficient size of a single read operation
-		static const size_t OptimalWriteSize = 65536; // Specifies the most efficient size of a single write operation
+		static const size_t OptimalReadSize = 256 * 1024;
+		static const size_t OptimalWriteSize = 256 * 1024;
 
 		bool FileIsOpen;
 		FileOpenFlags mFileOpenFlags;

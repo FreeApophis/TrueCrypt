@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
@@ -164,6 +164,8 @@ static void localcleanup (void)
 		delete BootEncObj;
 		BootEncObj = NULL;
 	}
+
+	RandStop (TRUE);
 }
 
 void RefreshMainDlg (HWND hwndDlg)
@@ -398,7 +400,7 @@ void LoadSettings (HWND hwndDlg)
 	bCloseBkgTaskWhenNoVolumes =	ConfigReadInt ("CloseBackgroundTaskOnNoVolumes", FALSE);
 
 	bDismountOnLogOff =				ConfigReadInt ("DismountOnLogOff", TRUE);
-	bDismountOnPowerSaving =		ConfigReadInt ("DismountOnPowerSaving", TRUE);
+	bDismountOnPowerSaving =		ConfigReadInt ("DismountOnPowerSaving", FALSE);
 	bDismountOnScreenSaver =		ConfigReadInt ("DismountOnScreenSaver", FALSE);
 	bForceAutoDismount =			ConfigReadInt ("ForceAutoDismount", TRUE);
 	MaxVolumeIdleTime =				ConfigReadInt ("MaxVolumeIdleTime", -60);
@@ -439,6 +441,8 @@ void LoadSettings (HWND hwndDlg)
 	Hotkeys [HK_DISMOUNT_ALL].vKeyCode								= ConfigReadInt ("HotkeyCodeDismountAll", 0);
 	Hotkeys [HK_WIPE_CACHE].vKeyModifiers							= ConfigReadInt ("HotkeyModWipeCache", 0);
 	Hotkeys [HK_WIPE_CACHE].vKeyCode								= ConfigReadInt ("HotkeyCodeWipeCache", 0);
+	Hotkeys [HK_DISMOUNT_ALL_AND_WIPE].vKeyModifiers				= ConfigReadInt ("HotkeyModDismountAllWipe", 0);
+	Hotkeys [HK_DISMOUNT_ALL_AND_WIPE].vKeyCode						= ConfigReadInt ("HotkeyCodeDismountAllWipe", 0);
 	Hotkeys [HK_FORCE_DISMOUNT_ALL_AND_WIPE].vKeyModifiers			= ConfigReadInt ("HotkeyModForceDismountAllWipe", 0);
 	Hotkeys [HK_FORCE_DISMOUNT_ALL_AND_WIPE].vKeyCode				= ConfigReadInt ("HotkeyCodeForceDismountAllWipe", 0);
 	Hotkeys [HK_FORCE_DISMOUNT_ALL_AND_WIPE_AND_EXIT].vKeyModifiers	= ConfigReadInt ("HotkeyModForceDismountAllWipeExit", 0);
@@ -447,6 +451,8 @@ void LoadSettings (HWND hwndDlg)
 	Hotkeys [HK_MOUNT_FAVORITE_VOLUMES].vKeyCode					= ConfigReadInt ("HotkeyCodeMountFavoriteVolumes", 0);
 	Hotkeys [HK_SHOW_HIDE_MAIN_WINDOW].vKeyModifiers				= ConfigReadInt ("HotkeyModShowHideMainWindow", 0);
 	Hotkeys [HK_SHOW_HIDE_MAIN_WINDOW].vKeyCode						= ConfigReadInt ("HotkeyCodeShowHideMainWindow", 0);
+	Hotkeys [HK_CLOSE_SECURITY_TOKEN_SESSIONS].vKeyModifiers		= ConfigReadInt ("HotkeyModCloseSecurityTokenSessions", 0);
+	Hotkeys [HK_CLOSE_SECURITY_TOKEN_SESSIONS].vKeyCode				= ConfigReadInt ("HotkeyCodeCloseSecurityTokenSessions", 0);
 
 	// History
 	if (bHistoryCmdLine != TRUE)
@@ -514,6 +520,8 @@ void SaveSettings (HWND hwndDlg)
 	ConfigWriteInt ("HotkeyCodeDismountAll",					Hotkeys[HK_DISMOUNT_ALL].vKeyCode);
 	ConfigWriteInt ("HotkeyModWipeCache",						Hotkeys[HK_WIPE_CACHE].vKeyModifiers);
 	ConfigWriteInt ("HotkeyCodeWipeCache",						Hotkeys[HK_WIPE_CACHE].vKeyCode);
+	ConfigWriteInt ("HotkeyModDismountAllWipe",					Hotkeys[HK_DISMOUNT_ALL_AND_WIPE].vKeyModifiers);
+	ConfigWriteInt ("HotkeyCodeDismountAllWipe",				Hotkeys[HK_DISMOUNT_ALL_AND_WIPE].vKeyCode);
 	ConfigWriteInt ("HotkeyModForceDismountAllWipe",			Hotkeys[HK_FORCE_DISMOUNT_ALL_AND_WIPE].vKeyModifiers);
 	ConfigWriteInt ("HotkeyCodeForceDismountAllWipe",			Hotkeys[HK_FORCE_DISMOUNT_ALL_AND_WIPE].vKeyCode);
 	ConfigWriteInt ("HotkeyModForceDismountAllWipeExit",		Hotkeys[HK_FORCE_DISMOUNT_ALL_AND_WIPE_AND_EXIT].vKeyModifiers);
@@ -522,6 +530,8 @@ void SaveSettings (HWND hwndDlg)
 	ConfigWriteInt ("HotkeyCodeMountFavoriteVolumes",			Hotkeys[HK_MOUNT_FAVORITE_VOLUMES].vKeyCode);
 	ConfigWriteInt ("HotkeyModShowHideMainWindow",				Hotkeys[HK_SHOW_HIDE_MAIN_WINDOW].vKeyModifiers);
 	ConfigWriteInt ("HotkeyCodeShowHideMainWindow",				Hotkeys[HK_SHOW_HIDE_MAIN_WINDOW].vKeyCode);
+	ConfigWriteInt ("HotkeyModCloseSecurityTokenSessions",		Hotkeys[HK_CLOSE_SECURITY_TOKEN_SESSIONS].vKeyModifiers);
+	ConfigWriteInt ("HotkeyCodeCloseSecurityTokenSessions",		Hotkeys[HK_CLOSE_SECURITY_TOKEN_SESSIONS].vKeyCode);
 	ConfigWriteInt ("PlaySoundOnHotkeyMountDismount",			bPlaySoundOnHotkeyMountDismount);
 	ConfigWriteInt ("DisplayMsgBoxOnHotkeyDismount",			bDisplayMsgBoxOnHotkeyDismount);
 
@@ -2113,12 +2123,26 @@ static void PreferencesDlgEnableButtons (HWND hwndDlg)
 
 BOOL CALLBACK PreferencesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+	static BOOL PreferencesDialogActive = FALSE;
+	static HWND ActivePreferencesDialogWindow;
+
 	WORD lw = LOWORD (wParam);
 
 	switch (msg)
 	{
 	case WM_INITDIALOG:
 		{
+			if (PreferencesDialogActive)
+			{
+				ShowWindow (ActivePreferencesDialogWindow, SW_SHOW);
+				SetForegroundWindow (ActivePreferencesDialogWindow);
+				EndDialog (hwndDlg, IDCANCEL);
+				return 1;
+			}
+
+			ActivePreferencesDialogWindow = hwndDlg;
+			PreferencesDialogActive = TRUE;
+
 			LocalizeDialog (hwndDlg, "IDD_PREFERENCES_DLG");
 		
 			SendMessage (GetDlgItem (hwndDlg, IDC_PREF_OPEN_EXPLORER), BM_SETCHECK, 
@@ -2219,10 +2243,13 @@ BOOL CALLBACK PreferencesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM 
 					Warning ("WARN_PREF_AUTO_DISMOUNT");
 			}
 
+			if (p && lw == IDC_PREF_DISMOUNT_POWERSAVING)
+				Warning ("WARN_PREF_AUTO_DISMOUNT_ON_POWER");
 		}
 
 		if (lw == IDCANCEL)
 		{
+			PreferencesDialogActive = FALSE;
 			EndDialog (hwndDlg, lw);
 			return 1;
 		}
@@ -2255,6 +2282,7 @@ BOOL CALLBACK PreferencesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM 
 			SaveSettings (hwndDlg);
 			NormalCursor ();
 
+			PreferencesDialogActive = FALSE;
 			EndDialog (hwndDlg, lw);
 			return 1;
 		}
@@ -2349,6 +2377,27 @@ BOOL CALLBACK MountOptionsDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM
 
 		}
 		return 0;
+
+	case WM_CONTEXTMENU:
+		{
+			RECT buttonRect;
+			GetWindowRect (GetDlgItem (hwndDlg, IDC_KEYFILES_HIDVOL_PROT), &buttonRect);
+
+			if (IsButtonChecked (GetDlgItem (hwndDlg, IDC_PROTECT_HIDDEN_VOL))
+				&& LOWORD (lParam) >= buttonRect.left && LOWORD (lParam) <= buttonRect.right
+				&& HIWORD (lParam) >= buttonRect.top && HIWORD (lParam) <= buttonRect.bottom)
+			{
+				// The "Keyfiles" button has been right-clicked
+
+				POINT popupPos;
+				popupPos.x = buttonRect.left + 2;
+				popupPos.y = buttonRect.top + 2;
+
+				if (KeyfilesPopupMenu (hwndDlg, popupPos, &hidVolProtKeyFilesParam))
+					SetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE_HIDVOL_PROT, hidVolProtKeyFilesParam.EnableKeyFiles);
+			}
+		}
+		break;
 
 	case WM_COMMAND:
 
@@ -2855,6 +2904,7 @@ BOOL CALLBACK VolumePropertiesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LP
 BOOL CALLBACK TravelerDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	WORD lw = LOWORD (wParam);
+	static BOOL bAutoRunWarningDisplayed = FALSE;
 
 	switch (msg)
 	{
@@ -2908,6 +2958,13 @@ BOOL CALLBACK TravelerDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 			EnableWindow (GetDlgItem (hwndDlg, IDT_TRAVELER_MOUNT), enabled);
 			EnableWindow (GetDlgItem (hwndDlg, IDT_MOUNT_LETTER), enabled);
 			EnableWindow (GetDlgItem (hwndDlg, IDT_MOUNT_SETTINGS), enabled);
+
+			if (!bAutoRunWarningDisplayed
+				&& (lw == IDC_AUTORUN_MOUNT || lw == IDC_AUTORUN_START))
+			{
+				bAutoRunWarningDisplayed = TRUE;
+				Warning ("AUTORUN_MAY_NOT_ALWAYS_WORK");
+			}
 
 			return 1;
 		}
@@ -3582,6 +3639,9 @@ static BOOL MountAllDevices (HWND hwndDlg, BOOL bPasswordPrompt)
 					break;
 
 				if (device.Floppy)
+					break;
+
+				if (device.HasUnencryptedFilesystem && !mountOptions.UseBackupHeader && !bHeaderBakRetry)
 					continue;
 
 				if (!mounted)
@@ -4232,7 +4292,7 @@ static BOOL SelectPartition (HWND hwndDlg)
 	return FALSE;
 }
 
-static void WipeCache (HWND hwndDlg)
+static void WipeCache (HWND hwndDlg, BOOL silent)
 {
 	DWORD dwResult;
 	BOOL bResult;
@@ -4247,7 +4307,8 @@ static void WipeCache (HWND hwndDlg)
 	{
 		EnableDisableButtons (hwndDlg);
 
-		Info ("WIPE_CACHE");
+		if (!silent)
+			Info ("PASSWORD_CACHE_WIPED");
 	}
 }
 
@@ -4516,14 +4577,14 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				try
 				{
 					if (BootEncObj->GetInstalledBootLoaderVersion() > VERSION_NUM)
-						Info ("UPDATE_TC_IN_HIDDEN_OS_TOO");
+						Warning ("UPDATE_TC_IN_HIDDEN_OS_TOO");
 				}
 				catch (...) { }
 			}
 
 			// Wipe cache
 			if (bWipe)
-				WipeCache (hwndDlg);
+				WipeCache (hwndDlg, Silent);
 
 			// Automount
 			if (bAuto || (Quit && szFileName[0] != 0))
@@ -4780,7 +4841,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 				if (bInPlaceEncNonSysPending && !NonSysInplaceEncInProgressElsewhere())
 				{
-					if (AskWarnYesNo ("NONSYS_INPLACE_ENC_RESUME_PROMPT") == IDYES)
+					if (AskNonSysInPlaceEncryptionResume() == IDYES)
 						ResumeInterruptedNonSysInplaceEncProcess ();
 				}
 			}
@@ -4919,9 +4980,9 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				MainWindowHidden = FALSE;
 				ShowWindow (hwndDlg, SW_SHOW);
 				ShowWindow (hwndDlg, SW_RESTORE);
-				break;
+				return 1;
 
-			case WM_RBUTTONDOWN:
+			case WM_RBUTTONUP:
 				{
 					POINT pos;
 					HMENU popup = CreatePopupMenu ();
@@ -5025,9 +5086,11 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					PostMessage(hwndDlg, WM_NULL, 0, 0);
 					DestroyMenu (popup);
 				}
+				return 1;
 			}
-			return 1;
 		}
+
+		return 0;
 
 	case TC_APPMSG_CLOSE_BKG_TASK:
 		if (TaskBarIconMutex != NULL)
@@ -5081,7 +5144,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 									UnmountVolume (hwndDlg, m, TRUE);
 									if (bWipeCacheOnAutoDismount || bWipeCacheOnExit)
 									{
-										WipeCache (NULL);
+										WipeCache (NULL, TRUE);
 										SecurityToken::CloseAllSessions();
 									}
 								}
@@ -5108,12 +5171,12 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					{
 						OPEN_TEST_STRUCT ots;
 
-						if (!OpenDevice (volp, &ots))
+						if (!OpenDevice (volp, &ots, FALSE))
 						{
 							UnmountVolume (hwndDlg, m, TRUE);
 							if (bWipeCacheOnAutoDismount || bWipeCacheOnExit)
 							{
-								WipeCache (NULL);
+								WipeCache (NULL, TRUE);
 								SecurityToken::CloseAllSessions();
 							}
 						}
@@ -5574,7 +5637,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 		if (lw == IDC_WIPE_CACHE || lw == IDM_WIPE_CACHE)
 		{
-			WipeCache (hwndDlg);
+			WipeCache (hwndDlg, FALSE);
 			return 1;
 		}
 
@@ -6464,6 +6527,15 @@ BOOL MountFavoriteVolumes ()
 		XmlGetNodeText (xml, volume, sizeof (volume));
 		drive = toupper (mountPoint[0]) - 'A';
 
+		char boolVal[2];
+		XmlGetAttributeText (xml, "readonly", boolVal, sizeof (boolVal));
+		if (boolVal[0])
+			mountOptions.ReadOnly = (boolVal[0] == '1' ? TRUE : FALSE);
+
+		XmlGetAttributeText (xml, "removable", boolVal, sizeof (boolVal));
+		if (boolVal[0])
+			mountOptions.Removable = (boolVal[0] == '1' ? TRUE : FALSE);
+
 		if ((LastKnownMountList.ulMountedDrives & (1 << drive)) == 0)
 		{
 			if (!Mount (MainDlg, drive, volume))
@@ -6510,7 +6582,21 @@ void SaveFavoriteVolumes ()
 				sprintf_s (t, sizeof (t), "%ls", &LastKnownMountList.wszVolume[i][(LastKnownMountList.wszVolume[i][1] == L'?') ? 4 : 0]);
 				XmlQuoteText (t, tq, sizeof (tq));
 
-				fprintf (f, "\n\t\t<volume mountpoint=\"%c:\\\">%s</volume>", i + 'A', tq);
+				VOLUME_PROPERTIES_STRUCT prop;
+				DWORD bytesReturned;
+
+				memset (&prop, 0, sizeof(prop));
+				prop.driveNo = i;
+
+				if (!DeviceIoControl (hDriver, TC_IOCTL_GET_VOLUME_PROPERTIES, &prop, sizeof (prop), &prop, sizeof (prop), &bytesReturned, NULL))
+				{
+					handleWin32Error (NULL);
+					continue;
+				}
+
+				fprintf (f, "\n\t\t<volume mountpoint=\"%c:\\\" readonly=\"%d\" removable=\"%d\">%s</volume>", i + 'A',
+					(int) prop.readOnly, (int) prop.removable, tq);
+
 				cnt++;
 			}
 		}
@@ -6610,10 +6696,15 @@ static void HandleHotKey (HWND hwndDlg, WPARAM wParam)
 		break;
 
 	case HK_DISMOUNT_ALL:
+	case HK_DISMOUNT_ALL_AND_WIPE:
+
+		if (wParam == HK_DISMOUNT_ALL_AND_WIPE)
+			WipeCache (hwndDlg, TRUE);
+
 		if (DismountAll (hwndDlg, FALSE, TRUE, UNMOUNT_MAX_AUTO_RETRIES, UNMOUNT_AUTO_RETRY_DELAY) && bDisplayMsgBoxOnHotkeyDismount)
-			InfoTopMost ("MOUNTED_VOLUMES_DISMOUNTED");
+			InfoTopMost (wParam == HK_DISMOUNT_ALL_AND_WIPE ? "VOLUMES_DISMOUNTED_CACHE_WIPED" : "MOUNTED_VOLUMES_DISMOUNTED");
 		else if (bDisplayMsgBoxOnHotkeyDismount)
-			InfoTopMost ("DISMOUNT_ALL_ATTEMPT_COMPLETED");
+			InfoTopMost (wParam == HK_DISMOUNT_ALL_AND_WIPE ? "PASSWORD_CACHE_WIPED" : "DISMOUNT_ALL_ATTEMPT_COMPLETED");
 
 		if (!bDisplayMsgBoxOnHotkeyDismount && bPlaySoundOnHotkeyMountDismount)
 			MessageBeep(-1);
@@ -6621,7 +6712,7 @@ static void HandleHotKey (HWND hwndDlg, WPARAM wParam)
 		break;
 
 	case HK_WIPE_CACHE:
-		WipeCache (hwndDlg);
+		WipeCache (hwndDlg, FALSE);
 		break;
 
 	case HK_FORCE_DISMOUNT_ALL_AND_WIPE:
@@ -6662,6 +6753,18 @@ static void HandleHotKey (HWND hwndDlg, WPARAM wParam)
 
 	case HK_SHOW_HIDE_MAIN_WINDOW:
 		ChangeMainWindowVisibility ();
+		break;
+
+	case HK_CLOSE_SECURITY_TOKEN_SESSIONS:
+		try
+		{
+			SecurityToken::CloseAllSessions();
+			InfoTopMost ("ALL_TOKEN_SESSIONS_CLOSED");
+		}
+		catch (Exception &e)
+		{
+			e.Show (hwndDlg);
+		}
 		break;
 	}
 }
@@ -6818,6 +6921,10 @@ noHidden:
 		goto error;
 	}
 
+	NormalCursor();
+	UserEnrichRandomPool (hwndDlg);
+	WaitCursor();
+
 	// Temporary keys
 	if (!RandgetBytes (temporaryKey, EAGetKeySize (volume.CryptoInfo->ea), TRUE)
 		|| !RandgetBytes (volume.CryptoInfo->k2, sizeof (volume.CryptoInfo->k2), FALSE))
@@ -6886,6 +6993,7 @@ error:
 	burn (originalK2, sizeof (originalK2));
 	
 	RestoreDefaultKeyFilesParam();
+	RandStop (FALSE);
 	NormalCursor();
 
 	return nStatus;
@@ -7297,7 +7405,9 @@ error:
 
 	burn (&VolumePassword, sizeof (VolumePassword));
 	RestoreDefaultKeyFilesParam();
+	RandStop (FALSE);
 	NormalCursor();
+
 	return nStatus;
 }
 
@@ -7501,8 +7611,13 @@ static BOOL CALLBACK BootLoaderPreferencesDlgProc (HWND hwndDlg, UINT msg, WPARA
 				byte userConfig;
 				string customUserMessage;
 				DriverConfiguration driverConfig;
+				uint16 bootLoaderVersion;
 
-				BootEncObj->ReadBootSectorConfig (nullptr, 0, &userConfig, &customUserMessage);
+				BootEncObj->ReadBootSectorConfig (nullptr, 0, &userConfig, &customUserMessage, &bootLoaderVersion);
+
+				if (bootLoaderVersion != VERSION_NUM)
+					Warning ("BOOT_LOADER_VERSION_INCORRECT_PREFERENCES");
+
 				ReadDriverConfiguration (&driverConfig);
 
 				SendMessage (GetDlgItem (hwndDlg, IDC_CUSTOM_BOOT_LOADER_MESSAGE), EM_LIMITTEXT, TC_BOOT_SECTOR_USER_MESSAGE_MAX_LENGTH, 0);

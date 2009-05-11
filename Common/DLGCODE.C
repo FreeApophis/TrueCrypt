@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
@@ -12,6 +12,7 @@
 #include "Tcdefs.h"
 
 #include <windowsx.h>
+#include <dbghelp.h>
 #include <dbt.h>
 #include <fcntl.h>
 #include <io.h>
@@ -34,6 +35,7 @@
 #include "Dlgcode.h"
 #include "EncryptionThreadPool.h"
 #include "Endian.h"
+#include "Format/Inplace.h"
 #include "Language.h"
 #include "Keyfiles.h"
 #include "Mount/Mount.h"
@@ -95,7 +97,7 @@ BOOL bHistory = FALSE;
 // 0 - Unknown/undetermined/success, 1: Detection is or was in progress (but did not complete e.g. due to system crash).
 int HiddenSectorDetectionStatus = 0;	
 
-int nCurrentOS = 0;
+OSVersionEnum nCurrentOS = WIN_UNKNOWN;
 int CurrentOSMajor = 0;
 int CurrentOSMinor = 0;
 int CurrentOSServicePack = 0;
@@ -416,6 +418,34 @@ char *err_strdup (char *lpszText)
 	return z;
 }
 
+
+BOOL IsDiskReadError (DWORD error)
+{
+	return (error == ERROR_CRC
+		|| error == ERROR_IO_DEVICE
+		|| error == ERROR_BAD_CLUSTERS
+		|| error == ERROR_SECTOR_NOT_FOUND
+		|| error == ERROR_READ_FAULT
+		|| error == ERROR_SEM_TIMEOUT);	// I/O operation timeout may be reported as ERROR_SEM_TIMEOUT
+}
+
+
+BOOL IsDiskWriteError (DWORD error)
+{
+	return (error == ERROR_IO_DEVICE
+		|| error == ERROR_BAD_CLUSTERS
+		|| error == ERROR_SECTOR_NOT_FOUND
+		|| error == ERROR_WRITE_FAULT
+		|| error == ERROR_SEM_TIMEOUT);	// I/O operation timeout may be reported as ERROR_SEM_TIMEOUT
+}
+
+
+BOOL IsDiskError (DWORD error)
+{
+	return IsDiskReadError (error) || IsDiskWriteError (error);
+}
+
+
 DWORD handleWin32Error (HWND hwndDlg)
 {
 	PWSTR lpMsgBuf;
@@ -446,11 +476,8 @@ DWORD handleWin32Error (HWND hwndDlg)
 	LocalFree (lpMsgBuf);
 
 	// User-friendly hardware error explanation
-	if (dwError == ERROR_CRC || dwError == ERROR_IO_DEVICE || dwError == ERROR_BAD_CLUSTERS
-		|| dwError == ERROR_SEM_TIMEOUT)	// Semaphore timeout is sometimes reported instead of an I/O error
-	{
+	if (IsDiskError (dwError))
 		Error ("ERR_HARDWARE_ERROR");
-	}
 
 	// Device not ready
 	if (dwError == ERROR_NOT_READY)
@@ -833,13 +860,13 @@ BOOL CALLBACK AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 			"Paulo Barreto, Brian Gladman, Wei Dai, Peter Gutmann, and many others.\r\n\r\n"
 
 			"Portions of this software:\r\n"
-			"Copyright \xA9 2003-2008 TrueCrypt Foundation. All Rights Reserved.\r\n"
+			"Copyright \xA9 2003-2009 TrueCrypt Foundation. All Rights Reserved.\r\n"
 			"Copyright \xA9 1998-2000 Paul Le Roux. All Rights Reserved.\r\n"
 			"Copyright \xA9 1998-2008 Brian Gladman. All Rights Reserved.\r\n"
 			"Copyright \xA9 2002-2004 Mark Adler. All Rights Reserved.\r\n\r\n"
 
 			"This software as a whole:\r\n"
-			"Copyright \xA9 2008 TrueCrypt Foundation. All rights reserved.\r\n\r\n"
+			"Copyright \xA9 2009 TrueCrypt Foundation. All rights reserved.\r\n\r\n"
 
 			"A TrueCrypt Foundation Release");
 
@@ -998,7 +1025,7 @@ InitDialog (HWND hwndDlg)
 	{
 		wcsncpy ((WCHAR *)metric.lfMessageFont.lfFaceName, font->FaceName, sizeof (metric.lfMessageFont.lfFaceName)/2);
 	}
-	else if (nCurrentOS == WIN_VISTA_OR_LATER)
+	else if (IsOSAtLeast (WIN_VISTA))
 	{
 		// Vista's new default font (size and spacing) breaks compatibility with Windows 2k/XP applications.
 		// Force use of Tahoma (as Microsoft does in many dialogs) until a native Vista look is implemented.
@@ -1477,11 +1504,20 @@ LRESULT CALLBACK CustomDlgProc (HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 }
 
 
-void ExceptionHandlerThread (void *ept)
+typedef struct
 {
-#define MAX_RET_ADDR_COUNT 8
-	EXCEPTION_POINTERS *ep = (EXCEPTION_POINTERS *) ept;
-	DWORD addr, retAddr[MAX_RET_ADDR_COUNT];
+	EXCEPTION_POINTERS *ExceptionPointers;
+	HANDLE ExceptionThread;
+
+} ExceptionHandlerThreadArgs;
+
+
+void ExceptionHandlerThread (void *threadArg)
+{
+	ExceptionHandlerThreadArgs *args = (ExceptionHandlerThreadArgs *) threadArg;
+
+	EXCEPTION_POINTERS *ep = args->ExceptionPointers;
+	DWORD addr;
 	DWORD exCode = ep->ExceptionRecord->ExceptionCode;
 	SYSTEM_INFO si;
 	wchar_t msg[8192];
@@ -1489,54 +1525,83 @@ void ExceptionHandlerThread (void *ept)
 	int crc = 0;
 	char url[MAX_URL_LENGTH];
 	char lpack[128];
-	int i;
+	stringstream callStack;
 
 	addr = (DWORD) ep->ExceptionRecord->ExceptionAddress;
-	ZeroMemory (retAddr, sizeof (retAddr));
 
 	switch (exCode)
 	{
-	case 0x80000003:
-	case 0x80000004:
-	case 0xc0000006:
-	case 0xc000001d:
-	case 0xc000001e:
-	case 0xc0000096:
+	case STATUS_IN_PAGE_ERROR:
 	case 0xeedfade:
 		// Exception not caused by TrueCrypt
 		MessageBoxW (0, GetString ("EXCEPTION_REPORT_EXT"),
 			GetString ("EXCEPTION_REPORT_TITLE"),
 			MB_ICONERROR | MB_OK | MB_SETFOREGROUND | MB_TOPMOST);
 		return;
+	}
 
-	default:
+	// Call stack
+	HMODULE dbgDll = LoadLibrary ("dbghelp.dll");
+	if (dbgDll)
+	{
+		typedef DWORD (__stdcall *SymGetOptions_t) ();
+		typedef DWORD (__stdcall *SymSetOptions_t) (DWORD SymOptions);
+		typedef BOOL (__stdcall *SymInitialize_t) (HANDLE hProcess, PCSTR UserSearchPath, BOOL fInvadeProcess);
+		typedef BOOL (__stdcall *StackWalk64_t) (DWORD MachineType, HANDLE hProcess, HANDLE hThread, LPSTACKFRAME64 StackFrame, PVOID ContextRecord, PREAD_PROCESS_MEMORY_ROUTINE64 ReadMemoryRoutine, PFUNCTION_TABLE_ACCESS_ROUTINE64 FunctionTableAccessRoutine, PGET_MODULE_BASE_ROUTINE64 GetModuleBaseRoutine, PTRANSLATE_ADDRESS_ROUTINE64 TranslateAddress);
+		typedef BOOL (__stdcall * SymFromAddr_t) (HANDLE hProcess, DWORD64 Address, PDWORD64 Displacement, PSYMBOL_INFO Symbol);
+
+		SymGetOptions_t DbgHelpSymGetOptions = (SymGetOptions_t) GetProcAddress (dbgDll, "SymGetOptions");
+		SymSetOptions_t DbgHelpSymSetOptions = (SymSetOptions_t) GetProcAddress (dbgDll, "SymSetOptions");
+		SymInitialize_t DbgHelpSymInitialize = (SymInitialize_t) GetProcAddress (dbgDll, "SymInitialize");
+		PFUNCTION_TABLE_ACCESS_ROUTINE64 DbgHelpSymFunctionTableAccess64 = (PFUNCTION_TABLE_ACCESS_ROUTINE64) GetProcAddress (dbgDll, "SymFunctionTableAccess64");
+		PGET_MODULE_BASE_ROUTINE64 DbgHelpSymGetModuleBase64 = (PGET_MODULE_BASE_ROUTINE64) GetProcAddress (dbgDll, "SymGetModuleBase64");
+		StackWalk64_t DbgHelpStackWalk64 = (StackWalk64_t) GetProcAddress (dbgDll, "StackWalk64");
+		SymFromAddr_t DbgHelpSymFromAddr = (SymFromAddr_t) GetProcAddress (dbgDll, "SymFromAddr");
+
+		if (DbgHelpSymGetOptions && DbgHelpSymSetOptions && DbgHelpSymInitialize && DbgHelpSymFunctionTableAccess64 && DbgHelpSymGetModuleBase64 && DbgHelpStackWalk64 && DbgHelpSymFromAddr)
 		{
-			// Call stack
-			PDWORD sp = (PDWORD) ep->ContextRecord->Esp, stackTop;
-			int i = 0, e = 0;
-			MEMORY_BASIC_INFORMATION mi;
+			DbgHelpSymSetOptions (DbgHelpSymGetOptions() | SYMOPT_DEFERRED_LOADS);
 
-			VirtualQuery (sp, &mi, sizeof (mi));
-			stackTop = (PDWORD)((char *)mi.BaseAddress + mi.RegionSize);
-
-			while (&sp[i] < stackTop && e < MAX_RET_ADDR_COUNT)
+			if (DbgHelpSymInitialize (GetCurrentProcess(), NULL, TRUE))
 			{
-				if (sp[i] > 0x400000 && sp[i] < 0x500000)
+				STACKFRAME64 frame;
+				memset (&frame, 0, sizeof (frame));
+
+				frame.AddrPC.Offset = ep->ContextRecord->Eip;
+				frame.AddrPC.Mode = AddrModeFlat;
+				frame.AddrStack.Offset = ep->ContextRecord->Esp;
+				frame.AddrStack.Mode = AddrModeFlat;
+				frame.AddrFrame.Offset = ep->ContextRecord->Ebp;
+				frame.AddrFrame.Mode = AddrModeFlat;
+
+				int frameNumber = 0;
+				while (frameNumber < 32 && DbgHelpStackWalk64 (IMAGE_FILE_MACHINE_I386, GetCurrentProcess(), args->ExceptionThread, &frame, ep->ContextRecord, NULL, DbgHelpSymFunctionTableAccess64, DbgHelpSymGetModuleBase64, NULL))
 				{
-					int ee = 0;
-
-					// Skip duplicates
-					while (ee < MAX_RET_ADDR_COUNT && retAddr[ee] != sp[i])
-						ee++;
-					if (ee != MAX_RET_ADDR_COUNT)
-					{
-						i++;
+					if (!frame.AddrPC.Offset)
 						continue;
-					}
 
-					retAddr[e++] = sp[i];
+					ULONG64 symbolBuffer[(sizeof (SYMBOL_INFO) + MAX_SYM_NAME * sizeof (TCHAR) + sizeof (ULONG64) - 1) / sizeof (ULONG64)];
+					memset (symbolBuffer, 0, sizeof (symbolBuffer));
+
+					PSYMBOL_INFO symbol = (PSYMBOL_INFO) symbolBuffer;
+					symbol->SizeOfStruct = sizeof (SYMBOL_INFO);
+					symbol->MaxNameLen = MAX_SYM_NAME;
+
+					callStack << "&st" << frameNumber++ << "=";
+
+					if (DbgHelpSymFromAddr (GetCurrentProcess(), frame.AddrPC.Offset, NULL, symbol) && symbol->NameLen > 0)
+					{
+						for (size_t i = 0; i < symbol->NameLen; ++i)
+						{
+							if (!isalnum (symbol->Name[i]))
+								symbol->Name[i] = '_';
+						}
+
+						callStack << symbol->Name;
+					}
+					else
+						callStack << "0x" << hex << frame.AddrPC.Offset << dec;
 				}
-				i++;
 			}
 		}
 	}
@@ -1570,8 +1635,9 @@ void ExceptionHandlerThread (void *ept)
 	else
 		lpack[0] = 0;
 
-	sprintf (url, TC_APPLINK_SECURE "&dest=err-report%s&os=Windows&osver=%d.%d.%d&arch=%s&cpus=%d&app=%s&cksum=%x&dlg=%s&err=%x&addr=%x"
+	sprintf (url, TC_APPLINK_SECURE "&dest=err-report%s&os=%s&osver=%d.%d.%d&arch=%s&cpus=%d&app=%s&cksum=%x&dlg=%s&err=%x&addr=%x"
 		, lpack
+		, GetWindowsEdition().c_str()
 		, CurrentOSMajor
 		, CurrentOSMinor
 		, CurrentOSServicePack
@@ -1591,13 +1657,12 @@ void ExceptionHandlerThread (void *ept)
 		, exCode
 		, addr);
 
-	for (i = 0; i < MAX_RET_ADDR_COUNT && retAddr[i]; i++)
-		sprintf (url + strlen(url), "&st%d=%x", i, retAddr[i]);
+	string urlStr = url + callStack.str();
 
-	swprintf (msg, GetString ("EXCEPTION_REPORT"), url);
+	_snwprintf (msg, array_capacity (msg), GetString ("EXCEPTION_REPORT"), urlStr.c_str());
 
 	if (IDYES == MessageBoxW (0, msg, GetString ("EXCEPTION_REPORT_TITLE"), MB_ICONERROR | MB_YESNO | MB_DEFBUTTON1))
-		ShellExecute (NULL, "open", (LPCTSTR) url, NULL, NULL, SW_SHOWNORMAL);
+		ShellExecute (NULL, "open", urlStr.c_str(), NULL, NULL, SW_SHOWNORMAL);
 	else
 		UnhandledExceptionFilter (ep);
 }
@@ -1606,7 +1671,12 @@ void ExceptionHandlerThread (void *ept)
 LONG __stdcall ExceptionHandler (EXCEPTION_POINTERS *ep)
 {
 	SetUnhandledExceptionFilter (NULL);
-	WaitForSingleObject ((HANDLE) _beginthread (ExceptionHandlerThread, 0, (void *)ep), INFINITE);
+
+	ExceptionHandlerThreadArgs args;
+	args.ExceptionPointers = ep;
+	args.ExceptionThread = GetCurrentThread();
+
+	WaitForSingleObject ((HANDLE) _beginthread (ExceptionHandlerThread, 0, &args), INFINITE);
 
 	return EXCEPTION_EXECUTE_HANDLER;
 }
@@ -1847,6 +1917,19 @@ int LoadNonSysInPlaceEncSettings (WipeAlgorithmId *wipeAlgorithm)
 }
 
 
+void RemoveNonSysInPlaceEncNotifications (void)
+{
+	if (FileExists (GetConfigPath (TC_APPD_FILENAME_NONSYS_INPLACE_ENC)))
+		remove (GetConfigPath (TC_APPD_FILENAME_NONSYS_INPLACE_ENC));
+
+	if (FileExists (GetConfigPath (TC_APPD_FILENAME_NONSYS_INPLACE_ENC_WIPE)))
+		remove (GetConfigPath (TC_APPD_FILENAME_NONSYS_INPLACE_ENC_WIPE));
+
+	if (!IsNonInstallMode () && SystemEncryptionStatus == SYSENC_STATUS_NONE)
+		ManageStartupSeqWiz (TRUE, "");
+}
+
+
 void SavePostInstallTasksSettings (int command)
 {
 	FILE *f = NULL;
@@ -1947,8 +2030,20 @@ void InitApp (HINSTANCE hInstance, char *lpszCommandLine)
 		else
 			nCurrentOS = WIN_XP64;
 	}
-	else if (os.dwPlatformId == VER_PLATFORM_WIN32_NT && CurrentOSMajor >= 6)
-		nCurrentOS = WIN_VISTA_OR_LATER;
+	else if (os.dwPlatformId == VER_PLATFORM_WIN32_NT && CurrentOSMajor == 6 && CurrentOSMinor == 0)
+	{
+		OSVERSIONINFOEX osEx;
+
+		osEx.dwOSVersionInfoSize = sizeof (OSVERSIONINFOEX);
+		GetVersionEx ((LPOSVERSIONINFOA) &osEx);
+
+		if (osEx.wProductType == VER_NT_SERVER || osEx.wProductType == VER_NT_DOMAIN_CONTROLLER)
+			nCurrentOS = WIN_SERVER_2008;
+		else
+			nCurrentOS = WIN_VISTA;
+	}
+	else if (os.dwPlatformId == VER_PLATFORM_WIN32_NT && CurrentOSMajor == 6 && CurrentOSMinor == 1)
+		nCurrentOS = WIN_7;
 	else if (os.dwPlatformId == VER_PLATFORM_WIN32_NT && CurrentOSMajor == 4)
 		nCurrentOS = WIN_NT4;
 	else if (os.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS && os.dwMajorVersion == 4 && os.dwMinorVersion == 0)
@@ -2075,7 +2170,10 @@ void InitApp (HINSTANCE hInstance, char *lpszCommandLine)
 
 	/* Get the attributes for the standard dialog class */
 	if ((GetClassInfo (hInst, WINDOWS_DIALOG_CLASS, &wc)) == 0)
+	{
+		handleWin32Error (NULL);
 		AbortProcess ("INIT_REGISTER");
+	}
 
 #ifndef SETUP
 	wc.hIcon = LoadIcon (hInstance, MAKEINTRESOURCE (IDI_TRUECRYPT_ICON));
@@ -2090,7 +2188,10 @@ void InitApp (HINSTANCE hInstance, char *lpszCommandLine)
 
 	hDlgClass = RegisterClass (&wc);
 	if (hDlgClass == 0)
+	{
+		handleWin32Error (NULL);
 		AbortProcess ("INIT_REGISTER");
+	}
 
 	wc.lpszClassName = TC_SPLASH_CLASS;
 	wc.lpfnWndProc = &SplashDlgProc;
@@ -2099,12 +2200,16 @@ void InitApp (HINSTANCE hInstance, char *lpszCommandLine)
 
 	hSplashClass = RegisterClass (&wc);
 	if (hSplashClass == 0)
+	{
+		handleWin32Error (NULL);
 		AbortProcess ("INIT_REGISTER");
+	}
 
 	// Required for RichEdit text fields to work
 	if (LoadLibrary("Riched20.dll") == NULL)
 	{
 		// This error is fatal e.g. because legal notices could not be displayed
+		handleWin32Error (NULL);
 		AbortProcess ("INIT_RICHEDIT");	
 	}
 
@@ -2155,7 +2260,7 @@ void InitHelpFileName (void)
 	}
 }
 
-BOOL OpenDevice (const char *lpszPath, OPEN_TEST_STRUCT *driver)
+BOOL OpenDevice (const char *lpszPath, OPEN_TEST_STRUCT *driver, BOOL detectFilesystem)
 {
 	DWORD dwResult;
 	BOOL bResult;
@@ -2164,10 +2269,11 @@ BOOL OpenDevice (const char *lpszPath, OPEN_TEST_STRUCT *driver)
 	ToUNICODE ((char *) &driver->wszFileName[0]);
 
 	driver->bDetectTCBootLoader = FALSE;
+	driver->DetectFilesystem = detectFilesystem;
 
 	bResult = DeviceIoControl (hDriver, TC_IOCTL_OPEN_TEST,
 				   driver, sizeof (OPEN_TEST_STRUCT),
-				   NULL, 0,
+				   driver, sizeof (OPEN_TEST_STRUCT),
 				   &dwResult, NULL);
 
 	if (bResult == FALSE)
@@ -3319,6 +3425,30 @@ BOOL BrowseDirectories (HWND hwndDlg, char *lpszTitle, char *dirName)
 }
 
 
+std::wstring GetWrongPasswordErrorMessage (HWND hwndDlg)
+{
+	WCHAR szTmp[8192];
+
+	swprintf (szTmp, GetString (KeyFilesEnable ? "PASSWORD_OR_KEYFILE_WRONG" : "PASSWORD_WRONG"));
+	if (CheckCapsLock (hwndDlg, TRUE))
+		wcscat (szTmp, GetString ("PASSWORD_WRONG_CAPSLOCK_ON"));
+
+#ifdef TCMOUNT
+	if (TCBootLoaderOnInactiveSysEncDrive ())
+	{
+		swprintf (szTmp, GetString (KeyFilesEnable ? "PASSWORD_OR_KEYFILE_OR_MODE_WRONG" : "PASSWORD_OR_MODE_WRONG"));
+
+		if (CheckCapsLock (hwndDlg, TRUE))
+			wcscat (szTmp, GetString ("PASSWORD_WRONG_CAPSLOCK_ON"));
+
+		wcscat (szTmp, GetString ("SYSENC_MOUNT_WITHOUT_PBA_NOTE"));
+	}
+#endif
+
+	return szTmp;
+}
+
+
 void handleError (HWND hwndDlg, int code)
 {
 	WCHAR szTmp[4096];
@@ -3335,23 +3465,7 @@ void handleError (HWND hwndDlg, int code)
 		break;
 
 	case ERR_PASSWORD_WRONG:
-		swprintf (szTmp, GetString (KeyFilesEnable ? "PASSWORD_OR_KEYFILE_WRONG" : "PASSWORD_WRONG"));
-		if (CheckCapsLock (hwndDlg, TRUE))
-			wcscat (szTmp, GetString ("PASSWORD_WRONG_CAPSLOCK_ON"));
-
-#ifdef TCMOUNT
-		if (TCBootLoaderOnInactiveSysEncDrive ())
-		{
-			swprintf (szTmp, GetString (KeyFilesEnable ? "PASSWORD_OR_KEYFILE_OR_MODE_WRONG" : "PASSWORD_OR_MODE_WRONG"));
-
-			if (CheckCapsLock (hwndDlg, TRUE))
-				wcscat (szTmp, GetString ("PASSWORD_WRONG_CAPSLOCK_ON"));
-
-			wcscat (szTmp, GetString ("SYSENC_MOUNT_WITHOUT_PBA_NOTE"));
-		}
-#endif
-
-		MessageBoxW (hwndDlg, szTmp, lpszTitle, MB_ICONWARNING);
+		MessageBoxW (hwndDlg, GetWrongPasswordErrorMessage (hwndDlg).c_str(), lpszTitle, MB_ICONWARNING);
 		break;
 
 	case ERR_DRIVE_NOT_FOUND:
@@ -4125,6 +4239,149 @@ BOOL CALLBACK BenchmarkDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lP
 }
 
 
+static BOOL CALLBACK RandomPoolEnrichementDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	WORD lw = LOWORD (wParam);
+	WORD hw = HIWORD (wParam);
+	static unsigned char randPool [RNG_POOL_SIZE];
+	static unsigned char lastRandPool [RNG_POOL_SIZE];
+	static char outputDispBuffer [RNG_POOL_SIZE * 3 + RANDPOOL_DISPLAY_ROWS + 2];
+	static BOOL bDisplayPoolContents = TRUE;
+	static BOOL bRandPoolDispAscii = FALSE;
+	int hash_algo = RandGetHashFunction();
+	int hid;
+
+	switch (msg)
+	{
+	case WM_INITDIALOG:
+		{
+			HWND hComboBox = GetDlgItem (hwndDlg, IDC_PRF_ID);
+
+			VirtualLock (randPool, sizeof(randPool));
+			VirtualLock (lastRandPool, sizeof(lastRandPool));
+			VirtualLock (outputDispBuffer, sizeof(outputDispBuffer));
+
+			LocalizeDialog (hwndDlg, "IDD_RANDOM_POOL_ENRICHMENT");
+
+			SendMessage (hComboBox, CB_RESETCONTENT, 0, 0);
+			for (hid = FIRST_PRF_ID; hid <= LAST_PRF_ID; hid++)
+			{
+				if (!HashIsDeprecated (hid))
+					AddComboPair (hComboBox, HashGetName(hid), hid);
+			}
+			SelectAlgo (hComboBox, &hash_algo);
+
+			SetCheckBox (hwndDlg, IDC_DISPLAY_POOL_CONTENTS, bDisplayPoolContents);
+
+			SetTimer (hwndDlg, 0xfd, RANDPOOL_DISPLAY_REFRESH_INTERVAL, NULL);
+			SendMessage (GetDlgItem (hwndDlg, IDC_POOL_CONTENTS), WM_SETFONT, (WPARAM) hFixedDigitFont, (LPARAM) TRUE);
+			return 1;
+		}
+
+	case WM_TIMER:
+		{
+			char tmp[4];
+			unsigned char tmpByte;
+			int col, row;
+
+			if (bDisplayPoolContents)
+			{
+				RandpeekBytes (randPool, sizeof (randPool));
+
+				if (memcmp (lastRandPool, randPool, sizeof(lastRandPool)) != 0)
+				{
+					outputDispBuffer[0] = 0;
+
+					for (row = 0; row < RANDPOOL_DISPLAY_ROWS; row++)
+					{
+						for (col = 0; col < RANDPOOL_DISPLAY_COLUMNS; col++)
+						{
+							tmpByte = randPool[row * RANDPOOL_DISPLAY_COLUMNS + col];
+
+							sprintf (tmp, bRandPoolDispAscii ? ((tmpByte >= 32 && tmpByte < 255 && tmpByte != '&') ? " %c " : " . ") : "%02X ", tmpByte);
+							strcat (outputDispBuffer, tmp);
+						}
+						strcat (outputDispBuffer, "\n");
+					}
+					SetWindowText (GetDlgItem (hwndDlg, IDC_POOL_CONTENTS), outputDispBuffer);
+
+					memcpy (lastRandPool, randPool, sizeof(lastRandPool));
+				}
+			}
+			return 1;
+		}
+
+	case WM_COMMAND:
+		if (lw == IDC_CONTINUE)
+			lw = IDOK;
+
+		if (lw == IDOK || lw == IDCLOSE || lw == IDCANCEL)
+		{
+			goto exit;
+		}
+
+		if (lw == IDC_PRF_ID && hw == CBN_SELCHANGE)
+		{
+			hid = (int) SendMessage (GetDlgItem (hwndDlg, IDC_PRF_ID), CB_GETCURSEL, 0, 0);
+			hash_algo = (int) SendMessage (GetDlgItem (hwndDlg, IDC_PRF_ID), CB_GETITEMDATA, hid, 0);
+			RandSetHashFunction (hash_algo);
+			return 1;
+		}
+
+		if (lw == IDC_DISPLAY_POOL_CONTENTS)
+		{
+			if (!(bDisplayPoolContents = GetCheckBox (hwndDlg, IDC_DISPLAY_POOL_CONTENTS)))
+			{
+				char tmp[RNG_POOL_SIZE+1];
+
+				memset (tmp, ' ', sizeof(tmp));
+				tmp [RNG_POOL_SIZE] = 0;
+				SetWindowText (GetDlgItem (hwndDlg, IDC_POOL_CONTENTS), tmp);
+			}
+
+			return 1;
+		}
+
+		return 0;
+
+	case WM_CLOSE:
+		{
+			char tmp[RNG_POOL_SIZE+1];
+exit:
+			KillTimer (hwndDlg, 0xfd);
+
+			burn (randPool, sizeof(randPool));
+			burn (lastRandPool, sizeof(lastRandPool));
+			burn (outputDispBuffer, sizeof(outputDispBuffer));
+
+			// Attempt to wipe the pool contents in the GUI text area
+			memset (tmp, 'X', RNG_POOL_SIZE);
+			tmp [RNG_POOL_SIZE] = 0;
+			SetWindowText (GetDlgItem (hwndDlg, IDC_POOL_CONTENTS), tmp);
+
+			if (msg == WM_COMMAND && lw == IDOK)
+				EndDialog (hwndDlg, IDOK);
+			else
+				EndDialog (hwndDlg, IDCLOSE);
+
+			return 1;
+		}
+	}
+	return 0;
+}
+
+
+void UserEnrichRandomPool (HWND hwndDlg)
+{
+	Randinit();
+
+	if (!IsRandomPoolEnrichedByUser())
+	{
+		INT_PTR result = DialogBoxParamW (hInst, MAKEINTRESOURCEW (IDD_RANDOM_POOL_ENRICHMENT), hwndDlg ? hwndDlg : MainDlg, (DLGPROC) RandomPoolEnrichementDlgProc, (LPARAM) 0);
+		SetRandomPoolEnrichedByUserStatus (result == IDOK);
+	}
+}
+
 
 /* Except in response to the WM_INITDIALOG message, the dialog box procedure
    should return nonzero if it processes the message, and zero if it does
@@ -4234,6 +4491,7 @@ KeyfileGeneratorDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 				tmp [RNG_POOL_SIZE] = 0;
 				SetWindowText (GetDlgItem (hwndDlg, IDC_POOL_CONTENTS), tmp);
 			}
+			return 1;
 		}
 
 		if (lw == IDC_GENERATE_AND_SAVE_KEYFILE)
@@ -4284,7 +4542,7 @@ exit:
 			KillTimer (hwndDlg, 0xfd);
 
 #ifndef VOLFORMAT			
-			Randfree ();
+			RandStop (FALSE);
 #endif
 			/* Cleanup */
 
@@ -5298,12 +5556,27 @@ retry:
 	if (CurrentOSMajor == 5 && CurrentOSMinor == 0)
 		mount.bMountManager = FALSE;
 
+	string path = volumePath;
+	if (path.find ("\\\\?\\") == 0)
+	{
+		// Remove \\?\ prefix
+		path = path.substr (4);
+		strcpy_s (volumePath, TC_MAX_PATH, path.c_str());
+	}
+	
+	if (path.find ("Volume{") == 0 && path.rfind ("}\\") == path.size() - 2)
+	{
+		// Resolve volume name
+		if (QueryDosDevice (path.substr (0, path.size() - 1).c_str(), volumePath, TC_MAX_PATH) == 0)
+			strcpy_s (volumePath, TC_MAX_PATH, path.c_str());
+	}
+
 	CreateFullVolumePath ((char *) mount.wszVolume, volumePath, &bDevice);
 
 	if (!bDevice)
 	{
 		// UNC path
-		if (volumePath[0] == '\\' && volumePath[1] == '\\')
+		if (path.find ("\\\\") == 0)
 		{
 			_snprintf ((char *)mount.wszVolume, MAX_PATH, "UNC%s", volumePath + 1);
 		}
@@ -5397,7 +5670,27 @@ retry:
 					goto retry;
 				}
 
-				handleError (hwndDlg, mount.nReturnCode);
+				if (bDevice && mount.bProtectHiddenVolume)
+				{
+					int driveNo;
+
+					if (sscanf (volumePath, "\\Device\\Harddisk%d\\Partition", &driveNo) == 1)
+					{
+						OPEN_TEST_STRUCT openTestStruct;
+						memset (&openTestStruct, 0, sizeof (openTestStruct));
+
+						openTestStruct.bDetectTCBootLoader = TRUE;
+						_snwprintf ((wchar_t *) openTestStruct.wszFileName, array_capacity (openTestStruct.wszFileName), L"\\Device\\Harddisk%d\\Partition0", driveNo);
+
+						DWORD dwResult;
+						if (DeviceIoControl (hDriver, TC_IOCTL_OPEN_TEST, &openTestStruct, sizeof (OPEN_TEST_STRUCT), &openTestStruct, sizeof (OPEN_TEST_STRUCT), &dwResult, NULL) && openTestStruct.TCBootLoaderDetected)
+							WarningDirect ((GetWrongPasswordErrorMessage (hwndDlg) + L"\n\n" + GetString ("HIDDEN_VOL_PROT_PASSWORD_US_KEYB_LAYOUT")).c_str());
+						else
+							handleError (hwndDlg, mount.nReturnCode);
+					}
+				}
+				else
+					handleError (hwndDlg, mount.nReturnCode);
 			}
 
 			return 0;
@@ -5450,6 +5743,24 @@ retry:
 		wsprintfW (msg, GetString ("MOUNTED_DEVICE_FORCED_READ_ONLY"), mountPoint);
 
 		WarningDirect (msg);
+	}
+
+	if (mount.VolumeMountedReadOnlyAfterDeviceWriteProtected
+		&& !Silent
+		&& strstr (volumePath, "\\Device\\Harddisk") == volumePath)
+	{
+		wchar_t msg[1024];
+		wchar_t mountPoint[] = { L'A' + driveNo, L':', 0 };
+		wsprintfW (msg, GetString ("MOUNTED_DEVICE_FORCED_READ_ONLY_WRITE_PROTECTION"), mountPoint);
+
+		WarningDirect (msg);
+
+		if (CurrentOSMajor >= 6
+			&& strstr (volumePath, "\\Device\\HarddiskVolume") != volumePath
+			&& AskNoYes ("ASK_REMOVE_DEVICE_WRITE_PROTECTION") == IDYES)
+		{
+			RemoveDeviceWriteProtection (hwndDlg, volumePath);
+		}
 	}
 
 	ResetWrongPwdRetryCount ();
@@ -5580,7 +5891,7 @@ BOOL IsUacSupported ()
 	HKEY hkey;
 	DWORD value = 1, size = sizeof (DWORD);
 
-	if (nCurrentOS != WIN_VISTA_OR_LATER)
+	if (!IsOSAtLeast (WIN_VISTA))
 		return FALSE;
 
 	if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", 0, KEY_READ, &hkey) == ERROR_SUCCESS)
@@ -6249,6 +6560,42 @@ void ManageStartupSeq (void)
 }
 
 
+// Adds or removes the TrueCrypt Volume Creation Wizard to/from the system startup sequence
+void ManageStartupSeqWiz (BOOL bRemove, const char *arg)
+{
+	char regk [64];
+
+	// Split this string in order to prevent some low-quality antivirus software from falsely reporting  
+	// our .exe files to contain a possible Trojan horse because of this string (heuristic scan).
+	sprintf (regk, "%s%s", "Software\\Microsoft\\Windows\\Curren", "tVersion\\Run");
+
+	if (!bRemove)
+	{
+		char exe[MAX_PATH * 2] = { '"' };
+		GetModuleFileName (NULL, exe + 1, sizeof (exe) - 1);
+
+#ifndef VOLFORMAT
+			{
+				char *tmp = NULL;
+
+				if (tmp = strrchr (exe, '\\'))
+					strcpy (++tmp, "TrueCrypt Format.exe");
+			}
+#endif
+
+		if (strlen (arg) > 0)
+		{
+			strcat (exe, "\" ");
+			strcat (exe, arg);
+		}
+
+		WriteRegistryString (regk, "TrueCrypt Format", exe);
+	}
+	else
+		DeleteRegistryValue (regk, "TrueCrypt Format");
+}
+
+
 // Delete the last used Windows file selector path for TrueCrypt from the registry
 void CleanLastVisitedMRU (void)
 {
@@ -6263,12 +6610,12 @@ void CleanLastVisitedMRU (void)
 	GetModuleFileNameW (NULL, exeFilename, sizeof (exeFilename) / sizeof(exeFilename[0]));
 	strToMatch = wcsrchr (exeFilename, '\\') + 1;
 
-	sprintf (regPath, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ComDlg32\\LastVisited%sMRU", nCurrentOS == WIN_VISTA_OR_LATER ? "Pidl" : "");
+	sprintf (regPath, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ComDlg32\\LastVisited%sMRU", IsOSAtLeast (WIN_VISTA) ? "Pidl" : "");
 
-	for (id = (nCurrentOS == WIN_VISTA_OR_LATER ? 0 : 'a'); id <= (nCurrentOS == WIN_VISTA_OR_LATER ? 1000 : 'z'); id++)
+	for (id = (IsOSAtLeast (WIN_VISTA) ? 0 : 'a'); id <= (IsOSAtLeast (WIN_VISTA) ? 1000 : 'z'); id++)
 	{
 		*strTmp = 0;
-		sprintf (key, (nCurrentOS == WIN_VISTA_OR_LATER ? "%d" : "%c"), id);
+		sprintf (key, (IsOSAtLeast (WIN_VISTA) ? "%d" : "%c"), id);
 
 		if ((len = ReadRegistryBytes (regPath, key, (char *) strTmp, sizeof (strTmp))) > 0)
 		{
@@ -6284,7 +6631,7 @@ void CleanLastVisitedMRU (void)
 				DeleteRegistryValue (regPath, key);
 
 				// Remove ID from MRUList
-				if (nCurrentOS == WIN_VISTA_OR_LATER)
+				if (IsOSAtLeast (WIN_VISTA))
 				{
 					int *p = (int *)buf;
 					int *pout = (int *)bufout;
@@ -7044,6 +7391,38 @@ void DebugMsgBox (char *format, ...)
 }
 
 
+BOOL IsOSAtLeast (OSVersionEnum reqMinOS)
+{
+	return IsOSVersionAtLeast (reqMinOS, 0);
+}
+
+
+// Returns TRUE if the operating system is at least reqMinOS and service pack at least reqMinServicePack.
+// Example 1: IsOSVersionAtLeast (WIN_VISTA, 1) called under Windows 2008, returns TRUE.
+// Example 2: IsOSVersionAtLeast (WIN_XP, 3) called under Windows XP SP1, returns FALSE.
+// Example 3: IsOSVersionAtLeast (WIN_XP, 3) called under Windows Vista SP1, returns TRUE.
+BOOL IsOSVersionAtLeast (OSVersionEnum reqMinOS, int reqMinServicePack)
+{
+	int major, minor;
+
+	switch (reqMinOS)
+	{
+	case WIN_2000:			major = 5; minor = 0; break;
+	case WIN_XP:			major = 5; minor = 1; break;
+	case WIN_SERVER_2003:	major = 5; minor = 2; break;
+	case WIN_VISTA:			major = 6; minor = 0; break;
+	case WIN_7:				major = 6; minor = 1; break;
+
+	default:
+		TC_THROW_FATAL_EXCEPTION;
+		break;
+	}
+
+	return ((CurrentOSMajor << 16 | CurrentOSMinor << 8 | CurrentOSServicePack)
+		>= (major << 16 | minor << 8 | reqMinServicePack));
+}
+
+
 BOOL Is64BitOs ()
 {
     static BOOL isWow64 = FALSE;
@@ -7116,103 +7495,110 @@ BOOL RestartComputer (void)
 }
 
 
+std::string GetWindowsEdition ()
+{
+	string osname = "win";
+
+	OSVERSIONINFOEXA osVer;
+	osVer.dwOSVersionInfoSize = sizeof (OSVERSIONINFOEXA);
+	GetVersionExA ((LPOSVERSIONINFOA) &osVer);
+
+	BOOL home = (osVer.wSuiteMask & VER_SUITE_PERSONAL);
+	BOOL server = (osVer.wProductType == VER_NT_SERVER || osVer.wProductType == VER_NT_DOMAIN_CONTROLLER);
+
+	HKEY hkey;
+	char productName[300] = {0};
+	DWORD productNameSize = sizeof (productName);
+	if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", 0, KEY_QUERY_VALUE, &hkey) == ERROR_SUCCESS)
+	{
+		if (RegQueryValueEx (hkey, "ProductName", 0, 0, (LPBYTE) &productName, &productNameSize) != ERROR_SUCCESS || productNameSize < 1)
+			productName[0] = 0;
+
+		RegCloseKey (hkey);
+	}
+
+	switch (nCurrentOS)
+	{
+	case WIN_2000:
+		osname += "2000";
+		break;
+
+	case WIN_XP:
+	case WIN_XP64:
+		osname += "xp";
+		osname += home ? "-home" : "-pro";
+		break;
+
+	case WIN_SERVER_2003:
+		osname += "2003";
+		break;
+
+	case WIN_VISTA:
+		osname += "vista";
+		break;
+
+	case WIN_SERVER_2008:
+		osname += "2008";
+		break;
+
+	case WIN_7:
+		osname += "7";
+		break;
+
+	default:
+		stringstream s;
+		s << CurrentOSMajor << "." << CurrentOSMinor;
+		osname += s.str();
+		break;
+	}
+
+	if (server)
+		osname += "-server";
+
+	if (IsOSAtLeast (WIN_VISTA))
+	{	
+		if (home)
+			osname += "-home";
+		else if (strstr (productName, "Standard") != 0)
+			osname += "-standard";
+		else if (strstr (productName, "Professional") != 0)
+			osname += "-pro";
+		else if (strstr (productName, "Business") != 0)
+			osname += "-business";
+		else if (strstr (productName, "Enterprise") != 0)
+			osname += "-enterprise";
+		else if (strstr (productName, "Datacenter") != 0)
+			osname += "-datacenter";
+		else if (strstr (productName, "Ultimate") != 0)
+			osname += "-ultimate";
+	}
+
+	if (GetSystemMetrics (SM_STARTER))
+		osname += "-starter";
+	else if (strstr (productName, "Basic") != 0)
+		osname += "-basic";
+
+	if (Is64BitOs())
+		osname += "-x64";
+
+	if (CurrentOSServicePack > 0)
+	{
+		stringstream s;
+		s << "-sp" << CurrentOSServicePack;
+		osname += s.str();
+	}
+
+	return osname;
+}
+
+
 void Applink (char *dest, BOOL bSendOS, char *extraOutput)
 {
 	char url [MAX_URL_LENGTH];
-	char osname [200];
-
-	if (bSendOS)
-	{
-		/* The type and version of the operating system are (or will be, in future) used to redirect users to website 
-		pages that are appropriate in regards to the OS (such as an OS-specific version of the online documentation). */
-
-		OSVERSIONINFOEXA os;
-
-		os.dwOSVersionInfoSize = sizeof (OSVERSIONINFOEXA);
-
-		GetVersionExA ((LPOSVERSIONINFOA) &os);
-
-		strcpy (osname, "&os=");
-
-		switch (nCurrentOS)
-		{
-
-		case WIN_2000:
-			strcat (osname, "win2000");
-			break;
-
-		case WIN_XP:
-		case WIN_XP64:
-			strcat (osname, "winxp");
-			strcat (osname, (os.wSuiteMask & VER_SUITE_PERSONAL) ? "-home" : "-pro");
-			break;
-
-		case WIN_SERVER_2003:
-			strcat (osname, "win2003");
-			break;
-
-		case WIN_VISTA_OR_LATER:
-			if (CurrentOSMajor == 6 && CurrentOSMinor == 0)
-			{
-				if (os.wProductType != VER_NT_SERVER && os.wProductType != VER_NT_DOMAIN_CONTROLLER)
-				{
-					strcat (osname, "winvista");
-
-					if (os.wSuiteMask & VER_SUITE_PERSONAL)
-						strcat (osname, "-home");
-					else
-					{
-						HKEY hkey = 0;
-						char str[300] = {0};
-						DWORD size = sizeof (str);
-
-						ZeroMemory (str, sizeof (str));
-						if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
-							0, KEY_QUERY_VALUE, &hkey) == ERROR_SUCCESS
-							&& (RegQueryValueEx (hkey, "ProductName", 0, 0, (LPBYTE) &str, &size) == ERROR_SUCCESS))
-						{
-							if (strstr (str, "Enterprise") != 0)
-								strcat (osname, "-enterprise");
-							else if (strstr (str, "Business") != 0)
-								strcat (osname, "-business");
-							else if (strstr (str, "Ultimate") != 0)
-								strcat (osname, "-ultimate");
-						}
-						RegCloseKey (hkey);
-					}
-				}
-				else
-				{
-					strcat (osname, "win2008");
-				}
-			}
-			else
-			{
-				sprintf (osname + strlen (osname), "win%d.%d", CurrentOSMajor, CurrentOSMinor);
-			}
-
-			if (os.wProductType == VER_NT_SERVER || os.wProductType == VER_NT_DOMAIN_CONTROLLER)
-				strcat (osname, "-server");
-
-			break;
-
-		default:
-			sprintf (osname + strlen (osname), "win%d.%d", CurrentOSMajor, CurrentOSMinor);
-			break;
-		}
-
-		if (Is64BitOs())
-			strcat (osname, "-x64");
-
-		if (CurrentOSServicePack > 0)
-			sprintf (osname + strlen (osname), "-sp%d", CurrentOSServicePack);
-	}
-	else
-		osname[0] = 0;
 
 	ArrowWaitCursor ();
 
-	sprintf (url, TC_APPLINK "%s%s&dest=%s", osname, extraOutput, dest);
+	sprintf_s (url, sizeof (url), TC_APPLINK "%s%s&dest=%s", bSendOS ? ("&os=" + GetWindowsEdition()).c_str() : "", extraOutput, dest);
 	ShellExecute (NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
 
 	Sleep (200);
@@ -7252,7 +7638,7 @@ void CheckSystemAutoMount ()
 	if (RegQueryValueEx (hkey, "NoAutoMount", 0, 0, (LPBYTE) &value, &size) == ERROR_SUCCESS
 		&& value != 0)
 		Warning ("SYS_AUTOMOUNT_DISABLED");
-	else if (nCurrentOS == WIN_VISTA_OR_LATER)
+	else if (IsOSAtLeast (WIN_VISTA))
 		Warning ("SYS_ASSIGN_DRIVE_LETTER");
 
 	RegCloseKey (hkey);
@@ -7551,6 +7937,8 @@ int ReEncryptVolumeHeader (char *buffer, BOOL bBoot, CRYPTO_INFO *cryptoInfo, Pa
 	if (Randinit() != ERR_SUCCESS)
 		return ERR_PARAMETER_INCORRECT;
 
+	UserEnrichRandomPool (NULL);
+
 	int status = CreateVolumeHeaderInMemory (bBoot,
 		buffer,
 		cryptoInfo->ea,
@@ -7583,12 +7971,15 @@ BOOL IsPagingFileActive (BOOL checkNonWindowsPartitionsOnly)
 	char data[65536];
 	DWORD size = sizeof (data);
 	
+	if (IsPagingFileWildcardActive())
+		return TRUE;
+
 	if (ReadLocalMachineRegistryMultiString ("System\\CurrentControlSet\\Control\\Session Manager\\Memory Management", "PagingFiles", data, &size)
 		&& size > 12 && !checkNonWindowsPartitionsOnly)
 		return TRUE;
 
 	if (!IsAdmin())
-		TC_THROW_FATAL_EXCEPTION;
+		AbortProcess ("UAC_INIT_ERROR");
 
 	for (char drive = 'C'; drive <= 'Z'; ++drive)
 	{
@@ -7632,6 +8023,23 @@ BOOL IsPagingFileActive (BOOL checkNonWindowsPartitionsOnly)
 	}
 
 	return FALSE;
+}
+
+
+BOOL IsPagingFileWildcardActive ()
+{
+	char pagingFiles[65536];
+	DWORD size = sizeof (pagingFiles);
+	char *mmKey = "System\\CurrentControlSet\\Control\\Session Manager\\Memory Management";
+
+	if (!ReadLocalMachineRegistryString (mmKey, "PagingFiles", pagingFiles, &size))
+	{
+		size = sizeof (pagingFiles);
+		if (!ReadLocalMachineRegistryMultiString (mmKey, "PagingFiles", pagingFiles, &size))
+			size = 0;
+	}
+
+	return size > 0 && strstr (pagingFiles, "?:\\") == pagingFiles;
 }
 
 
@@ -8045,6 +8453,11 @@ BOOL CALLBACK SecurityTokenKeyfileDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam
 							burn (&keyfileDataVector.front(), keyfileSize);
 						}
 					}
+					else
+					{
+						SetLastError (ERROR_HANDLE_EOF);
+						handleWin32Error (hwndDlg);
+					}
 
 					burn (keyfileData, keyfileSize);
 					TCfree (keyfileData);
@@ -8071,6 +8484,14 @@ BOOL CALLBACK SecurityTokenKeyfileDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam
 							vector <byte> keyfileData;
 
 							SecurityToken::GetKeyfileData (keyfile, keyfileData);
+
+							if (keyfileData.empty())
+							{
+								SetLastError (ERROR_HANDLE_EOF);
+								handleWin32Error (hwndDlg);
+								return 1;
+							}
+
 							finally_do_arg (vector <byte> *, &keyfileData, { burn (&finally_arg->front(), finally_arg->size()); });
 
 							if (!SaveBufferToFile ((char *) &keyfileData.front(), keyfilePath, keyfileData.size(), FALSE))
@@ -8135,6 +8556,9 @@ BOOL InitSecurityTokenLibrary ()
 		{
 			if (DialogBoxParamW (hInst, MAKEINTRESOURCEW (IDD_TOKEN_PASSWORD), MainDlg, (DLGPROC) SecurityTokenPasswordDlgProc, (LPARAM) &str) == IDCANCEL)
 				throw UserAbort (SRC_POS);
+
+			if (hCursor != NULL)
+				SetCursor (hCursor);
 		}
 	};
 
@@ -8176,7 +8600,7 @@ std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties, bool 
 			const char *devPath = devPathStr.c_str();
 
 			OPEN_TEST_STRUCT openTest;
-			if (!OpenDevice (devPath, &openTest))
+			if (!OpenDevice (devPath, &openTest, partNumber != 0))
 			{
 				if (partNumber == 0)
 					break;
@@ -8192,6 +8616,8 @@ std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties, bool 
 
 			if (GetPartitionInfo (devPath, &partInfo))
 				device.Size = partInfo.PartitionLength.QuadPart;
+
+			device.HasUnencryptedFilesystem = openTest.FilesystemDetected ? true : false;
 
 			if (!noDeviceProperties)
 			{
@@ -8266,7 +8692,7 @@ std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties, bool 
 			const char *devPath = devPathStr.c_str();
 
 			OPEN_TEST_STRUCT openTest;
-			if (!OpenDevice (devPath, &openTest))
+			if (!OpenDevice (devPath, &openTest, TRUE))
 				continue;
 
 			DISK_PARTITION_INFO_STRUCT info;
@@ -8278,6 +8704,7 @@ std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties, bool 
 				device.SystemNumber = devNumber;
 				device.Path = devPath;
 				device.Size = info.partInfo.PartitionLength.QuadPart;
+				device.HasUnencryptedFilesystem = openTest.FilesystemDetected ? true : false;
 
 				if (!noDeviceProperties)
 				{
@@ -8361,4 +8788,100 @@ void CheckFilesystem (int driveNo, BOOL fixErrors)
 	wsprintfW (param, fixErrors ? L"/C echo %s & chkdsk %hs /F /X & pause" : L"/C echo %s & chkdsk %hs & pause", msg, driveRoot);
 
 	ShellExecuteW (NULL, (!IsAdmin() && IsUacSupported()) ? L"runas" : L"open", L"cmd.exe", param, NULL, SW_SHOW);
+}
+
+
+BOOL BufferContainsString (const byte *buffer, size_t bufferSize, const char *str)
+{
+	size_t strLen = strlen (str);
+
+	if (bufferSize < strLen)
+		return FALSE;
+
+	bufferSize -= strLen;
+
+	for (size_t i = 0; i < bufferSize; ++i)
+	{
+		if (memcmp (buffer + i, str, strLen) == 0)
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
+
+#ifndef SETUP
+
+int AskNonSysInPlaceEncryptionResume ()
+{
+	if (AskWarnYesNo ("NONSYS_INPLACE_ENC_RESUME_PROMPT") == IDYES)
+		return IDYES;
+
+	char *multiChoiceStr[] = { 0, "ASK_NONSYS_INPLACE_ENC_NOTIFICATION_REMOVAL", "DO_NOT_PROMPT_ME", "KEEP_PROMPTING_ME", 0 };
+
+	switch (AskMultiChoice ((void **) multiChoiceStr, FALSE))
+	{
+	case 1:
+		RemoveNonSysInPlaceEncNotifications();
+		Warning ("NONSYS_INPLACE_ENC_NOTIFICATION_REMOVAL_NOTE");
+		break;
+
+	default:
+		// NOP
+		break;
+	}
+
+	return IDNO;
+}
+
+#endif // !SETUP
+
+
+BOOL RemoveDeviceWriteProtection (HWND hwndDlg, char *devicePath)
+{
+	int driveNumber;
+	int partitionNumber;
+
+	char temp[MAX_PATH*2];
+	char cmdBatch[MAX_PATH*2];
+	char diskpartScript[MAX_PATH*2];
+
+	if (sscanf (devicePath, "\\Device\\Harddisk%d\\Partition%d", &driveNumber, &partitionNumber) != 2)
+		return FALSE;
+
+	if (GetTempPath (sizeof (temp), temp) == 0)
+		return FALSE;
+
+	_snprintf (cmdBatch, sizeof (cmdBatch), "%s\\TrueCrypt_Write_Protection_Removal.cmd", temp);
+	_snprintf (diskpartScript, sizeof (diskpartScript), "%s\\TrueCrypt_Write_Protection_Removal.diskpart", temp);
+
+	FILE *f = fopen (cmdBatch, "w");
+	if (!f)
+	{
+		handleWin32Error (hwndDlg);
+		return FALSE;
+	}
+
+	fprintf (f, "@diskpart /s \"%s\"\n@pause\n@del \"%s\" \"%s\"", diskpartScript, diskpartScript, cmdBatch);
+	fclose (f);
+
+	f = fopen (diskpartScript, "w");
+	if (!f)
+	{
+		handleWin32Error (hwndDlg);
+		DeleteFile (cmdBatch);
+		return FALSE;
+	}
+
+	fprintf (f, "select disk %d\nattributes disk clear readonly\n", driveNumber);
+
+	if (partitionNumber != 0)
+		fprintf (f, "select partition %d\nattributes volume clear readonly\n", partitionNumber);
+
+	fprintf (f, "exit\n");
+	fclose (f);
+
+	ShellExecute (NULL, (!IsAdmin() && IsUacSupported()) ? "runas" : "open", cmdBatch, NULL, NULL, SW_SHOW);
+
+	return TRUE;
 }

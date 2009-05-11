@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
@@ -75,6 +75,7 @@ typedef struct
 	int nReturnCode;					/* Return code back from driver */
 	BOOL FilesystemDirty;
 	BOOL VolumeMountedReadOnlyAfterAccessDenied;
+	BOOL VolumeMountedReadOnlyAfterDeviceWriteProtected;
 
 	short wszVolume[TC_MAX_PATH];		/* Volume to be mounted */
 	Password VolumePassword;			/* User password */
@@ -124,6 +125,7 @@ typedef struct
 	int pkcs5Iterations;
 	BOOL hiddenVolume;
 	BOOL readOnly;
+	BOOL removable;
 #if 0
 	unsigned __int64 volumeCreationTime;	// Deprecated in v6.0
 	unsigned __int64 headerCreationTime;	// Deprecated in v6.0
@@ -168,6 +170,9 @@ typedef struct
 {
 	short wszFileName[TC_MAX_PATH];		// Volume to be "open tested"
 	BOOL bDetectTCBootLoader;			// Whether the driver is to determine if the first sector contains a portion of the TrueCrypt Boot Loader
+	BOOL TCBootLoaderDetected;
+	BOOL DetectFilesystem;
+	BOOL FilesystemDetected;
 } OPEN_TEST_STRUCT;
 
 
@@ -220,6 +225,7 @@ typedef struct
 	BootEncryptionSetupMode SetupMode;
 	WipeAlgorithmId WipeAlgorithm;
 	BOOL ZeroUnreadableSectors;
+	BOOL DiscardUnreadableEncryptedSectors;
 } BootEncryptionSetupRequest;
 
 

@@ -4,28 +4,24 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <fcntl.h>
 #include "Tcdefs.h"
 #include "Crc.h"
 #include "Random.h"
-#include "Apidrvr.h"
 
-unsigned __int8 buffer[RNG_POOL_SIZE];
-unsigned char *pRandPool = NULL;
+static unsigned __int8 buffer[RNG_POOL_SIZE];
+static unsigned char *pRandPool = NULL;
 static BOOL bRandDidInit = FALSE;
-int nRandIndex = 0, randPoolReadIndex = 0;
-int HashFunction = DEFAULT_HASH_ALGORITHM;
-BOOL bDidSlowPoll = FALSE;	/* We do the slow poll only once */
+static int nRandIndex = 0, randPoolReadIndex = 0;
+static int HashFunction = DEFAULT_HASH_ALGORITHM;
+static BOOL bDidSlowPoll = FALSE;
 BOOL volatile bFastPollEnabled = TRUE;	/* Used to reduce CPU load when performing benchmarks */
 BOOL volatile bRandmixEnabled = TRUE;	/* Used to reduce CPU load when performing benchmarks */
+static BOOL RandomPoolEnrichedByUser = FALSE;
 
 /* Macro to add a single byte to the pool */
 #define RandaddByte(x) {\
@@ -61,6 +57,7 @@ BOOL volatile bThreadTerminate = FALSE;	/* This variable is shared among thread'
 HANDLE hNetAPI32 = NULL;
 
 // CryptoAPI
+BOOL CryptoAPIAvailable = FALSE;
 HCRYPTPROV hCryptProv;
 
 
@@ -74,13 +71,18 @@ Randinit ()
 
 	bRandDidInit = TRUE;
 
-	pRandPool = (unsigned char *) TCalloc (RANDOMPOOL_ALLOCSIZE);
 	if (pRandPool == NULL)
-		goto error;
-	else
-		memset (pRandPool, 0, RANDOMPOOL_ALLOCSIZE);
+	{
+		pRandPool = (unsigned char *) TCalloc (RANDOMPOOL_ALLOCSIZE);
+		if (pRandPool == NULL)
+			goto error;
 
-	VirtualLock (pRandPool, RANDOMPOOL_ALLOCSIZE);
+		bDidSlowPoll = FALSE;
+		RandomPoolEnrichedByUser = FALSE;
+
+		memset (pRandPool, 0, RANDOMPOOL_ALLOCSIZE);
+		VirtualLock (pRandPool, RANDOMPOOL_ALLOCSIZE);
+	}
 
 	hKeyboard = SetWindowsHookEx (WH_KEYBOARD, (HOOKPROC)&KeyboardProc, NULL, GetCurrentThreadId ());
 	if (hKeyboard == 0) handleWin32Error (0);
@@ -94,9 +96,9 @@ Randinit ()
 
 	if (!CryptAcquireContext (&hCryptProv, NULL, NULL, PROV_RSA_FULL, 0)
 		&& !CryptAcquireContext (&hCryptProv, NULL, NULL, PROV_RSA_FULL, CRYPT_NEWKEYSET))
-	{
-		hCryptProv = 0;
-	}
+		CryptoAPIAvailable = FALSE;
+	else
+		CryptoAPIAvailable = TRUE;
 
 	if (_beginthread (ThreadSafeThreadFunction, 0, NULL) == -1)
 		goto error;
@@ -104,15 +106,17 @@ Randinit ()
 	return 0;
 
 error:
-	Randfree ();
+	RandStop (TRUE);
 	return 1;
 }
 
 /* Close everything down, including the thread which is closed down by
    setting a flag which eventually causes the thread function to exit */
-void
-Randfree ()
+void RandStop (BOOL freePool)
 {
+	if (!bRandDidInit && freePool && pRandPool)
+		goto freePool;
+
 	if (bRandDidInit == FALSE)
 		return;
 
@@ -145,10 +149,10 @@ Randfree ()
 		hNetAPI32 = NULL;
 	}
 
-	if (hCryptProv)
+	if (CryptoAPIAvailable)
 	{
 		CryptReleaseContext (hCryptProv, 0);
-		hCryptProv = 0;
+		CryptoAPIAvailable = FALSE;
 	}
 
 	hMouse = NULL;
@@ -158,25 +162,47 @@ Randfree ()
 
 	bRandDidInit = FALSE;
 
-	if (pRandPool != NULL)
+freePool:
+	if (freePool)
 	{
-		burn (pRandPool, RANDOMPOOL_ALLOCSIZE);
-		TCfree (pRandPool);
-		pRandPool = NULL;
-	}
+		bDidSlowPoll = FALSE;
+		RandomPoolEnrichedByUser = FALSE;
 
-	nRandIndex = 0;
+		if (pRandPool != NULL)
+		{
+			burn (pRandPool, RANDOMPOOL_ALLOCSIZE);
+			TCfree (pRandPool);
+			pRandPool = NULL;
+		}
+	}
 }
 
+BOOL IsRandomNumberGeneratorStarted ()
+{
+	return bRandDidInit;
+}
 
 void RandSetHashFunction (int hash_algo_id)
 {
+	if (HashIsDeprecated (hash_algo_id))
+		hash_algo_id = DEFAULT_HASH_ALGORITHM;
+
 	HashFunction = hash_algo_id;
 }
 
 int RandGetHashFunction (void)
 {
 	return HashFunction;
+}
+
+void SetRandomPoolEnrichedByUserStatus (BOOL enriched)
+{
+	RandomPoolEnrichedByUser = enriched;
+}
+
+BOOL IsRandomPoolEnrichedByUser ()
+{
+	return RandomPoolEnrichedByUser;
 }
 
 /* The random pool mixing function */
@@ -205,7 +231,7 @@ BOOL Randmix ()
 			break;
 
 		default:
-			return FALSE;
+			TC_THROW_FATAL_EXCEPTION;
 		}
 
 		if (RNG_POOL_SIZE % digestSize)
@@ -308,8 +334,8 @@ RandgetBytes (unsigned char *buf, int len, BOOL forceSlowPoll)
 	int i;
 	BOOL ret = TRUE;
 
-	if (HashFunction == 0)
-		return FALSE;
+	if (!bRandDidInit || HashFunction == 0)
+		TC_THROW_FATAL_EXCEPTION;
 
 	EnterCriticalSection (&critRandProt);
 
@@ -358,6 +384,10 @@ RandgetBytes (unsigned char *buf, int len, BOOL forceSlowPoll)
 	}
 
 	LeaveCriticalSection (&critRandProt);
+
+	if (!ret)
+		TC_THROW_FATAL_EXCEPTION;
+
 	return ret;
 }
 
@@ -515,7 +545,6 @@ NETAPIBUFFERFREE pNetApiBufferFree = NULL;
    performance data for the random pool */
 BOOL SlowPoll (void)
 {
-	int i;
 	static int isWorkstation = -1;
 	static int cbPerfData = 0x10000;
 	HANDLE hDevice;
@@ -624,11 +653,8 @@ BOOL SlowPoll (void)
 	}
 
 	// CryptoAPI
-	for (i = 0; i < 100; i++)
-	{
-		if (hCryptProv && CryptGenRandom(hCryptProv, sizeof (buffer), buffer)) 
-			RandaddBuf (buffer, sizeof (buffer));
-	}
+	if (CryptoAPIAvailable && CryptGenRandom (hCryptProv, sizeof (buffer), buffer)) 
+		RandaddBuf (buffer, sizeof (buffer));
 
 	burn(buffer, sizeof (buffer));
 	Randmix();
@@ -738,7 +764,7 @@ BOOL FastPoll (void)
 	}
 
 	// CryptoAPI
-	if (hCryptProv && CryptGenRandom(hCryptProv, sizeof (buffer), buffer)) 
+	if (CryptoAPIAvailable && CryptGenRandom (hCryptProv, sizeof (buffer), buffer)) 
 		RandaddBuf (buffer, sizeof (buffer));
 
 	/* Apply the pool mixing function */

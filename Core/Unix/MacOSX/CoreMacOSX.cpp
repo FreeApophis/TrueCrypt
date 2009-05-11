@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -87,6 +87,13 @@ namespace TrueCrypt
 		catch (...)	{ }
 
 		return mountedVolume;
+	}
+
+	void CoreMacOSX::CheckFilesystem (shared_ptr <VolumeInfo> mountedVolume, bool repair) const
+	{
+		list <string> args;
+		args.push_back ("/Applications/Utilities/Disk Utility.app");
+		Process::Execute ("open", args);
 	}
 
 	void CoreMacOSX::MountAuxVolumeImage (const DirectoryPath &auxMountPoint, const MountOptions &options) const

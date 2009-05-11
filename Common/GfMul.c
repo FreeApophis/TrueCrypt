@@ -68,7 +68,7 @@ extern "C"
 #endif
 
 typedef unsigned __int32 mode(32t);
-typedef unsigned __int64 mode(64t);
+typedef uint64 mode(64t);
 
 #define BRG_LITTLE_ENDIAN   1234 /* byte 0 is least significant (i386) */
 #define BRG_BIG_ENDIAN      4321 /* byte 0 is most significant (mc68k) */
@@ -97,7 +97,7 @@ typedef unsigned __int64 mode(64t);
 #endif
 
 #if !defined(bswap_32)
-#define bswap_32(x) (rotr32((x), 24) & 0x00ff00ff | rotr32((x), 8) & 0xff00ff00)
+#define bswap_32(x) ((rotr32((x), 24) & 0x00ff00ff) | (rotr32((x), 8) & 0xff00ff00))
 #endif
 
 #if (PLATFORM_BYTE_ORDER == BRG_LITTLE_ENDIAN)
@@ -750,7 +750,7 @@ void Gf64MulTab (unsigned char a[8], unsigned char p[8], GfCtx *ctx)
 
 /* Basic algorithms for testing of optimized algorithms */
 
-static void xor128 (unsigned __int64 *a, unsigned __int64 *b)
+static void xor128 (uint64 *a, uint64 *b)
 {
 	*a++ ^= *b++;
 	*a ^= *b;
@@ -777,7 +777,7 @@ static void GfMul128Basic (unsigned __int8 *a, unsigned __int8 *b, unsigned __in
 	for (i = 0; i < 128; i++)
 	{
 		if (IsBitSet128 (i, b))
-			xor128 ((unsigned __int64 *)p, (unsigned __int64 *)la);
+			xor128 ((uint64 *)p, (uint64 *)la);
 
 		if (la[0] & 0x80)
 		{
@@ -791,7 +791,7 @@ static void GfMul128Basic (unsigned __int8 *a, unsigned __int8 *b, unsigned __in
 	}
 }
 
-static void xor64 (unsigned __int64 *a, unsigned __int64 *b)
+static void xor64 (uint64 *a, uint64 *b)
 {
 	*a ^= *b;
 }
@@ -819,7 +819,7 @@ static void GfMul64Basic (unsigned __int8 *a, unsigned __int8 *b, unsigned __int
 	for (i = 0; i < 64; i++)
 	{
 		if (IsBitSet64 (i, b))
-			xor64 ((unsigned __int64 *)p, (unsigned __int64 *)la);
+			xor64 ((uint64 *)p, (uint64 *)la);
 
 		if (la[0] & 0x80)
 		{

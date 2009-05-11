@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
@@ -77,7 +77,7 @@ enum
 #endif
 
 #if (USER_DEFAULT_SCREEN_DPI != 96)
-#error Revision of GUI and graphics necessary, since everything assumes default screen DPI as 96 (note that 96 is the default on Windows 2000, XP, and Vista).
+#	error Revision of GUI and graphics necessary, since everything assumes default screen DPI as 96 (note that 96 is the default on Windows 2000, XP, and Vista).
 #endif
 
 enum
@@ -86,6 +86,26 @@ enum
 	TC_POST_INSTALL_CFG_TUTORIAL,
 	TC_POST_INSTALL_CFG_RELEASE_NOTES
 };
+
+typedef enum
+{
+	// IMPORTANT: If you add a new item here, update IsOSVersionAtLeast().
+
+	WIN_UNKNOWN = 0,
+	WIN_31,
+	WIN_95,
+	WIN_98,
+	WIN_ME,
+	WIN_NT3,
+	WIN_NT4,
+	WIN_2000,
+	WIN_XP,
+	WIN_XP64,
+	WIN_SERVER_2003,
+	WIN_VISTA,
+	WIN_SERVER_2008,
+	WIN_7
+} OSVersionEnum;
 
 extern char *LastDialogId;
 extern char *ConfigBuffer;
@@ -110,9 +130,10 @@ extern BOOL bMountDevicesOnLogon;
 extern BOOL bMountFavoritesOnLogon;
 extern int HiddenSectorDetectionStatus;
 extern wchar_t *lpszTitle;
-extern int nCurrentOS;
+extern OSVersionEnum nCurrentOS;
 extern int CurrentOSMajor;
 extern int CurrentOSMinor;
+extern int CurrentOSServicePack;
 extern BOOL RemoteSession;
 extern HANDLE hDriver;
 extern HINSTANCE hInst;
@@ -130,23 +151,6 @@ extern KeyFilesDlgParam		defaultKeyFilesParam;
 extern BOOL UacElevated;
 extern BOOL IgnoreWmDeviceChange;
 
-enum 
-{
-	WIN_UNKNOWN = 0,
-	WIN_31,
-	WIN_95,
-	WIN_98,
-	WIN_ME,
-	WIN_NT3,
-	WIN_NT4,
-	WIN_2000,
-	WIN_XP,
-	WIN_XP64,
-	WIN_SERVER_2003,
-	WIN_VISTA,
-	WIN_SERVER_2008,
-	WIN_VISTA_OR_LATER
-};
 
 enum tc_app_msg_ids
 {
@@ -242,6 +246,9 @@ void AbortProcessSilent ( void );
 void *err_malloc ( size_t size );
 char *err_strdup ( char *lpszText );
 DWORD handleWin32Error ( HWND hwndDlg );
+BOOL IsDiskReadError (DWORD error);
+BOOL IsDiskWriteError (DWORD error);
+BOOL IsDiskError (DWORD error);
 BOOL translateWin32Error ( wchar_t *lpszMsgBuf , int nWSizeOfBuf );
 BOOL CALLBACK AboutDlgProc ( HWND hwndDlg , UINT msg , WPARAM wParam , LPARAM lParam );
 BOOL IsButtonChecked ( HWND hButton );
@@ -285,12 +292,13 @@ void CloseAppSetupMutex (void);
 BOOL IsTrueCryptInstallerRunning (void);
 BOOL LoadSysEncSettings (HWND hwndDlg);
 int LoadNonSysInPlaceEncSettings (WipeAlgorithmId *wipeAlgorithm);
+void RemoveNonSysInPlaceEncNotifications (void);
 void SavePostInstallTasksSettings (int command);
 void DoPostInstallTasks (void);
 BOOL SysEncryptionOrDecryptionRequired (void);
 void InitApp ( HINSTANCE hInstance, char *lpszCommandLine );
 void InitHelpFileName (void);
-BOOL OpenDevice (const char *lpszPath, OPEN_TEST_STRUCT *driver);
+BOOL OpenDevice (const char *lpszPath, OPEN_TEST_STRUCT *driver, BOOL detectFilesystem);
 void NotifyDriverOfTravelerMode (void);
 int GetAvailableFixedDisks ( HWND hComboBox , char *lpszRootPath );
 int GetAvailableRemovables ( HWND hComboBox , char *lpszRootPath );
@@ -300,6 +308,7 @@ BOOL TextInfoDialogBox (int nID);
 BOOL CALLBACK TextInfoDialogBoxDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
 char * GetLegalNotices ();
 BOOL CALLBACK BenchmarkDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
+void UserEnrichRandomPool (HWND hwndDlg);
 BOOL CALLBACK KeyfileGeneratorDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
 BOOL CALLBACK MultiChoiceDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 int DriverAttach ( void );
@@ -350,6 +359,7 @@ BOOL DriverUnload ();
 LRESULT SetCheckBox (HWND hwndDlg, int dlgItem, BOOL state);
 BOOL GetCheckBox (HWND hwndDlg, int dlgItem);
 void ManageStartupSeq (void);
+void ManageStartupSeqWiz (BOOL bRemove, const char *arg);
 void CleanLastVisitedMRU (void);
 void ClearHistory (HWND hwndDlgItem);
 LRESULT ListItemAdd (HWND list, int index, char *string);
@@ -399,6 +409,8 @@ void RestoreDefaultKeyFilesParam (void);
 BOOL LoadDefaultKeyFilesParam (void);
 void Debug (char *format, ...);
 void DebugMsgBox (char *format, ...);
+BOOL IsOSAtLeast (OSVersionEnum reqMinOS);
+BOOL IsOSVersionAtLeast (OSVersionEnum reqMinOS, int reqMinServicePack);
 BOOL Is64BitOs ();
 BOOL IsHiddenOSRunning (void);
 BOOL RestartComputer (void);
@@ -431,6 +443,7 @@ int OpenVolume (OpenVolumeContext *context, const char *volumePath, Password *pa
 void CloseVolume (OpenVolumeContext *context);
 int ReEncryptVolumeHeader (char *buffer, BOOL bBoot, CRYPTO_INFO *cryptoInfo, Password *password, BOOL wipeMode);
 BOOL IsPagingFileActive (BOOL checkNonWindowsPartitionsOnly);
+BOOL IsPagingFileWildcardActive ();
 BOOL DisablePagingFile ();
 BOOL CALLBACK SecurityTokenPasswordDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
 BOOL CALLBACK SecurityTokenKeyfileDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -438,6 +451,9 @@ BOOL InitSecurityTokenLibrary ();
 BOOL FileHasReadOnlyAttribute (const char *path);
 BOOL IsFileOnReadOnlyFilesystem (const char *path);
 void CheckFilesystem (int driveNo, BOOL fixErrors);
+BOOL BufferContainsString (const byte *buffer, size_t bufferSize, const char *str);
+int AskNonSysInPlaceEncryptionResume ();
+BOOL RemoveDeviceWriteProtection (HWND hwndDlg, char *devicePath);
 
 #ifdef __cplusplus
 }
@@ -454,6 +470,7 @@ struct HostDevice
 		Floppy (false),
 		IsPartition (false),
 		IsVirtualPartition (false),
+		HasUnencryptedFilesystem (false),
 		Removable (false),
 		Size (0)
 	{
@@ -466,6 +483,7 @@ struct HostDevice
 	bool Floppy;
 	bool IsPartition;
 	bool IsVirtualPartition;
+	bool HasUnencryptedFilesystem;
 	std::string MountPoint;
 	std::wstring Name;
 	std::string Path;
@@ -482,6 +500,8 @@ std::string WideToSingleString (const std::wstring &wideString);
 std::string WideToUtf8String (const std::wstring &wideString);
 std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties = false, bool singleList = false, bool noFloppy = true);
 std::string ToUpperCase (const std::string &str);
+std::wstring GetWrongPasswordErrorMessage (HWND hwndDlg);
+std::string GetWindowsEdition ();
 
 #endif // __cplusplus
 

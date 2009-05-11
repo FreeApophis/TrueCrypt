@@ -1,5 +1,5 @@
 ;
-; Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+; Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 ;
 ; Governed by the TrueCrypt License 2.6 the full text of which is contained
 ; in the file License.txt included in TrueCrypt binary and source code
@@ -23,10 +23,14 @@ start:
 loader_name_msg:
 	db ' TrueCrypt Boot Loader', 13, 10, 0
 	
-main:	
+main:
+	cli	
 	xor ax, ax
 	mov ds, ax
-	
+	mov ss, ax
+	mov sp, 7C00h
+	sti
+
 	; Display boot loader name
 	test byte ptr [start + TC_BOOT_SECTOR_USER_CONFIG_OFFSET], TC_BOOT_USER_CFG_FLAG_SILENT_MODE
 	jnz skip_loader_name_msg
@@ -35,17 +39,23 @@ main:
 	call print
 skip_loader_name_msg:
 
+	; Determine boot loader segment
 	mov ax, TC_BOOT_LOADER_SEGMENT
-	mov es, ax			; Default boot loader segment
 
 	; Check available memory
 	cmp word ptr [ds:413h], TC_BOOT_LOADER_SEGMENT / 1024 * 16 + TC_BOOT_MEMORY_REQUIRED
 	jge memory_ok
 	
+	mov ax, TC_BOOT_LOADER_SEGMENT_LOW
+	
+	cmp word ptr [ds:413h], TC_BOOT_LOADER_SEGMENT_LOW / 1024 * 16 + TC_BOOT_MEMORY_REQUIRED
+	jge memory_ok
+	
 	; Insufficient memory
 	mov ax, TC_BOOT_LOADER_LOWMEM_SEGMENT
-	mov es, ax
+
 memory_ok:
+	mov es, ax
 
 	; Clear BSS section
 	xor al, al
@@ -110,8 +120,6 @@ loader_damaged:
 	call print
 	lea si, loader_name_msg
 	call print
-	lea si, beep_msg
-	call print
 	jmp $
 checksum_ok:
 
@@ -130,24 +138,25 @@ checksum_ok:
 	push TC_MAX_BOOT_LOADER_DECOMPRESSED_SIZE									; Output buffer size
 	push TC_BOOT_LOADER_DECOMPRESSOR_MEMORY_SIZE + TC_COM_EXECUTABLE_OFFSET		; Output buffer
 
-	mov word ptr [cs:decompressor_seg], es
-	db 9Ah				; call [decompressor_seg]:TC_COM_EXECUTABLE_OFFSET
-	dw TC_COM_EXECUTABLE_OFFSET
-decompressor_seg:
-	dw 0
+	push cs
+	push decompressor_ret
+	push es
+	push TC_COM_EXECUTABLE_OFFSET
+	retf
+decompressor_ret:
 
 	add sp, 6
 	pop dx
 	
 	; Restore boot sector segment
-	mov bx, cs
-	mov ds, bx
+	push cs
+	pop ds
 
 	; Check decompression result
 	test ax, ax
 	jz decompression_ok
 
-	lea si, decompression_err_msg
+	lea si, loader_damaged_msg
 	call print
 	jmp $
 decompression_ok:
@@ -218,10 +227,8 @@ checksum:
 
 backup_loader_used		db 0
 	
-beep_msg				db 7, 0
 disk_error_msg			db 'Disk error', 13, 10, 7, 0
-loader_damaged_msg		db 'Loader damaged! Use Rescue Disk: Repair Options > Restore', 0
-decompression_err_msg	db 'DC', 0
+loader_damaged_msg		db 7, 'Loader damaged! Use Rescue Disk: Repair Options > Restore', 0
 
 ORG 7C00h + 508
 	dw 0, 0AA55h		; Boot sector signature

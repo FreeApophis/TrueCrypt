@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -16,7 +16,7 @@ bool BootDriveGeometryValid = false;
 bool PreventNormalSystemBoot = false;
 bool PreventBootMenu = false;
 char CustomUserMessage[TC_BOOT_SECTOR_USER_MESSAGE_MAX_LENGTH + 1];
-uint16 OuterVolumeBackupHeaderCrc;
+uint32 OuterVolumeBackupHeaderCrc;
 
 bool BootStarted = false;
 
@@ -56,7 +56,7 @@ void ReadBootSectorUserConfiguration ()
 		DisableScreenOutput();
 	}
 	
-	OuterVolumeBackupHeaderCrc = *(uint16 *) (SectorBuffer + TC_BOOT_SECTOR_OUTER_VOLUME_BAK_HEADER_CRC_OFFSET);
+	OuterVolumeBackupHeaderCrc = *(uint32 *) (SectorBuffer + TC_BOOT_SECTOR_OUTER_VOLUME_BAK_HEADER_CRC_OFFSET);
 
 ret:
 	ReleaseSectorBuffer();

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -24,12 +24,22 @@ namespace TrueCrypt
 			foreach (XmlNode node, XmlParser (path).GetNodes (L"volume"))
 			{
 				VolumeSlotNumber slotNumber = 0;
-				wstring slotAttr = wstring (node.Attributes[L"slotnumber"]);
-				if (!slotAttr.empty())
-					slotNumber = StringConverter::ToUInt64 (slotAttr);
-				
+				wstring attr = wstring (node.Attributes[L"slotnumber"]);
+				if (!attr.empty())
+					slotNumber = StringConverter::ToUInt64 (attr);
+	
+				bool readOnly = false;
+				attr = wstring (node.Attributes[L"readonly"]);
+				if (!attr.empty())
+					readOnly = (StringConverter::ToUInt32 (attr) != 0 ? true : false);
+
+				bool system = false;
+				attr = wstring (node.Attributes[L"system"]);
+				if (!attr.empty())
+					system = (StringConverter::ToUInt32 (attr) != 0 ? true : false);
+
 				favorites.push_back (shared_ptr <FavoriteVolume> (
-					new FavoriteVolume ((wstring) node.InnerText, wstring (node.Attributes[L"mountpoint"]), slotNumber)));
+					new FavoriteVolume ((wstring) node.InnerText, wstring (node.Attributes[L"mountpoint"]), slotNumber, readOnly, system)));
 			}
 		}
 
@@ -54,6 +64,8 @@ namespace TrueCrypt
 				XmlNode node (L"volume", wstring (favorite.Path));
 				node.Attributes[L"mountpoint"] = wstring (favorite.MountPoint);
 				node.Attributes[L"slotnumber"] = StringConverter::FromNumber (favorite.SlotNumber);
+				node.Attributes[L"readonly"] = StringConverter::FromNumber (favorite.ReadOnly ? 1 : 0);
+				node.Attributes[L"system"] = StringConverter::FromNumber (favorite.System ? 1 : 0);
 
 				favoritesXml.InnerNodes.push_back (node);
 			}
@@ -75,6 +87,8 @@ namespace TrueCrypt
 			options.MountPoint.reset (new DirectoryPath (MountPoint));
 
 		options.Path.reset (new VolumePath (Path));
+		options.PartitionInSystemEncryptionScope = System;
+		options.Protection = (ReadOnly ? VolumeProtection::ReadOnly : VolumeProtection::None);
 		options.SlotNumber = SlotNumber;
 	}
 }

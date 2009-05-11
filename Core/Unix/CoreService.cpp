@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -119,18 +119,6 @@ namespace TrueCrypt
 						continue;
 					}
 
-					// ChangePasswordRequest
-					ChangePasswordRequest *changeRequest = dynamic_cast <ChangePasswordRequest*> (request.get());
-					if (changeRequest)
-					{
-						Core->ChangePassword (changeRequest->Path, changeRequest->PreserveTimestamps, 
-							changeRequest->Password, changeRequest->Keyfiles,
-							changeRequest->NewPassword, changeRequest->NewKeyfiles, changeRequest->NewPkcs5Kdf);
-
-						ChangePasswordResponse().Serialize (outputStream);
-						continue;
-					}
-
 					// CheckFilesystemRequest
 					CheckFilesystemRequest *checkRequest = dynamic_cast <CheckFilesystemRequest*> (request.get());
 					if (checkRequest)
@@ -224,12 +212,6 @@ namespace TrueCrypt
 #endif
 			throw;
 		}
-	}
-
-	void CoreService::RequestChangePassword (shared_ptr <VolumePath> volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, shared_ptr <VolumePassword> newPassword, shared_ptr <KeyfileList> newKeyfiles, shared_ptr <Pkcs5Kdf> newPkcs5Kdf)
-	{
-		ChangePasswordRequest request (volumePath, preserveTimestamps, password, keyfiles, newPassword, newKeyfiles, newPkcs5Kdf);
-		SendRequest <ChangePasswordResponse> (request);
 	}
 
 	void CoreService::RequestCheckFilesystem (shared_ptr <VolumeInfo> mountedVolume, bool repair)

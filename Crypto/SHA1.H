@@ -29,6 +29,7 @@
 #define _SHA1_H
 
 #include <limits.h>
+#include "Common/Tcdefs.h"
 
 #define SHA1_BLOCK_SIZE  64
 #define SHA1_DIGEST_SIZE 20

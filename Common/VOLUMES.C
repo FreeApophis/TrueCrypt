@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
@@ -45,14 +45,13 @@
 // 76		8		Reserved (set to zero)
 // 84		8		Reserved (set to zero)
 // 92		8		Size of hidden volume in bytes (0 = normal volume)
-// 100		8		Size of the volume in bytes (identical with field 92 for hidden volumes)
-// 108		8		Byte offset of the start of the master key scope
-// 116		8		Size of the encrypted area within the master key scope
+// 100		8		Size of the volume in bytes (identical with field 92 for hidden volumes, valid if field 70 >= 0x600 or flag bit 0 == 1)
+// 108		8		Byte offset of the start of the master key scope (valid if field 70 >= 0x600 or flag bit 0 == 1)
+// 116		8		Size of the encrypted area within the master key scope (valid if field 70 >= 0x600 or flag bit 0 == 1)
 // 124		4		Flags: bit 0 set = system encryption; bit 1 set = non-system in-place encryption, bits 2-31 are reserved
 // 128		124		Reserved (set to zero)
 // 252		4		CRC-32 checksum of the (decrypted) bytes 64-251
 // 256		256		Concatenated primary master key(s) and secondary master key(s) (XTS mode)
-// 512		65024	Reserved
 
 
 /* Deprecated/legacy volume header v3 structure (used by TrueCrypt 5.x): */
@@ -143,7 +142,7 @@ int ReadVolumeHeader (BOOL bBoot, char *encryptedHeader, Password *password, PCR
 	PCRYPTO_INFO cryptoInfo;
 	char dk[MASTER_KEYDATA_SIZE];
 	int enqPkcs5Prf, pkcs5_prf;
-	int headerVersion;
+	uint16 headerVersion;
 	int status = ERR_PARAMETER_INCORRECT;
 	int primaryKeyOffset;
 
@@ -384,6 +383,12 @@ KeyReady:	;
 				// Header version
 				headerVersion = GetHeaderField16 (header, TC_HEADER_OFFSET_VERSION);
 				
+				if (headerVersion > VOLUME_HEADER_VERSION)
+				{
+					status = ERR_NEW_VERSION_REQUIRED;
+					goto err;
+				}
+
 				// Check CRC of the header fields
 				if (!ReadVolumeHeaderRecoveryMode
 					&& headerVersion >= 4
@@ -407,6 +412,9 @@ KeyReady:	;
 					status = ERR_NEW_VERSION_REQUIRED;
 					goto err;
 				}
+
+				// Header version
+				cryptoInfo->HeaderVersion = headerVersion;
 
 				// Volume creation time (legacy)
 				cryptoInfo->volume_creation_time = GetHeaderField64 (header, TC_HEADER_OFFSET_VOLUME_CREATION_TIME).Value;
@@ -746,18 +754,8 @@ int CreateVolumeHeaderInMemory (BOOL bBoot, char *header, int ea, int mode, Pass
 	mputLong (p, 0x54525545);
 
 	// Header version
-	switch (mode)
-	{
-	case LRW:
-	case CBC:
-	case OUTER_CBC:
-	case INNER_CBC:
-		// Deprecated/legacy modes (used before TrueCrypt 5.0)
-		mputWord (p, 0x0002);
-		break;
-	default:
-		mputWord (p, VOLUME_HEADER_VERSION);
-	}
+	mputWord (p, VOLUME_HEADER_VERSION);
+	cryptoInfo->HeaderVersion = VOLUME_HEADER_VERSION;
 
 	// Required program version to handle this volume
 	switch (mode)
@@ -961,7 +959,7 @@ int WriteRandomDataToReservedHeaderAreas (HANDLE dev, CRYPTO_INFO *cryptoInfo, u
 	while (TRUE)
 	{
 		// Temporary keys
-		if (!RandgetBytes (temporaryKey, EAGetKeySize (cryptoInfo->ea), TRUE)
+		if (!RandgetBytes (temporaryKey, EAGetKeySize (cryptoInfo->ea), FALSE)
 			|| !RandgetBytes (cryptoInfo->k2, sizeof (cryptoInfo->k2), FALSE))
 		{
 			nStatus = ERR_PARAMETER_INCORRECT; 

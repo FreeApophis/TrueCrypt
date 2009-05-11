@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -29,7 +29,6 @@ typedef struct
 
 	uint32 VolumeHeaderSaltCrc32;
 	EncryptedIoQueue Queue;
-	BOOL QueueStarted;
 
 	BOOL BootDrive;
 	BOOL VolumeHeaderPresent;
@@ -70,7 +69,7 @@ void GetDecoySystemWipeStatus (PIRP irp, PIO_STACK_LOCATION irpSp);
 uint64 GetBootDriveLength ();
 NTSTATUS WriteBootDriveSector (PIRP irp, PIO_STACK_LOCATION irpSp);
 
-#define TC_ENCRYPTION_SETUP_IO_BLOCK_SIZE (1280 * 1024)
+#define TC_ENCRYPTION_SETUP_IO_BLOCK_SIZE (1536 * 1024)
 #define TC_ENCRYPTION_SETUP_HEADER_UPDATE_THRESHOLD (64 * 1024 * 1024)
 #define TC_HIBERNATION_WRITE_BUFFER_SIZE (128 * 1024)
 

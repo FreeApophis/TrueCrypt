@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -15,7 +15,7 @@
 #define finally_do(code) \
 struct TC_JOIN(Finally,__LINE__) \
 { \
-	TC_JOIN(~Finally,__LINE__) () { code } \
+	TC_JOIN(~Finally,__LINE__) () { try { code } catch (...) { } } \
 } \
 TC_UNUSED_VAR \
 TC_JOIN(finally,__LINE__)
@@ -25,7 +25,7 @@ TC_JOIN(finally,__LINE__)
 struct TC_JOIN(Finally,__LINE__) \
 { \
 	TC_JOIN(Finally,__LINE__) (argType a) : finally_arg (a) { } \
-	TC_JOIN(~Finally,__LINE__) () { code } \
+	TC_JOIN(~Finally,__LINE__) () { try { code } catch (...) { } } \
 	argType finally_arg; \
 } \
 TC_UNUSED_VAR \
@@ -35,7 +35,7 @@ TC_JOIN(finally,__LINE__) (arg)
 struct TC_JOIN(Finally,__LINE__) \
 { \
 	TC_JOIN(Finally,__LINE__) (argType a, argType2 a2) : finally_arg (a), finally_arg2 (a2) { } \
-	TC_JOIN(~Finally,__LINE__) () { code } \
+	TC_JOIN(~Finally,__LINE__) () { try { code } catch (...) { } } \
 	argType finally_arg; \
 	argType2 finally_arg2; \
 } \

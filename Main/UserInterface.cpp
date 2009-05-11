@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -13,6 +13,7 @@
 #include <wx/cmdline.h>
 #include "Platform/PlatformTest.h"
 #ifdef TC_UNIX
+#include <errno.h>
 #include "Platform/Unix/Process.h"
 #endif
 #include "Platform/SystemInfo.h"
@@ -334,6 +335,12 @@ namespace TrueCrypt
 
 					message << e->GetSubject();
 				}
+
+#ifdef TC_UNIX
+				if (sysEx && sysEx->GetErrorCode() == EIO)
+					message << L"\n\n" << LangString["ERR_HARDWARE_ERROR"];
+#endif
+
 #ifdef DEBUG
 				if (sysEx && sysEx->what())
 					message << L"\n\n" << StringConverter::ToWide (sysEx->what());
@@ -390,10 +397,7 @@ namespace TrueCrypt
 			wxString message = ExceptionTypeToString (typeid (ex));
 
 #ifndef TC_NO_GUI
-#ifdef __WXGTK__
-			if (Application::GetUserInterfaceType() != UserInterfaceType::Text)
-#endif
-			if (wxGetKeyState (WXK_CAPITAL))
+			if (Application::GetUserInterfaceType() == UserInterfaceType::Graphic && wxGetKeyState (WXK_CAPITAL))
 				message += wxString (L"\n\n") + LangString["CAPSLOCK_ON"];
 #endif
 			return message;
@@ -433,12 +437,13 @@ namespace TrueCrypt
 		EX2MSG (InsufficientData,					_("Not enough data available."));
 		EX2MSG (InvalidSecurityTokenKeyfilePath,	LangString["INVALID_TOKEN_KEYFILE_PATH"]);
 		EX2MSG (HigherVersionRequired,				LangString["NEW_VERSION_REQUIRED"]);
+		EX2MSG (KernelCryptoServiceTestFailed,		_("Kernel cryptographic service test failed. The cryptographic service of your kernel most likely does not support volumes larger than 2 TB.\n\n- Try upgrading your kernel.\n- Disable use of the kernel cryptographic services in the preferences."));
+		EX2MSG (LoopDeviceSetupFailed,				_("Failed to set up a loop device."));
 		EX2MSG (MissingArgument,					_("A required argument is missing."));
 		EX2MSG (MissingVolumeData,					_("Volume data missing."));
 		EX2MSG (MountPointRequired,					_("Mount point required."));
 		EX2MSG (MountPointUnavailable,				_("Mount point is already in use."));
 		EX2MSG (NoDriveLetterAvailable,				LangString["NO_FREE_DRIVES"]);
-		EX2MSG (NoLoopbackDeviceAvailable,			_("No loopback device available."));
 		EX2MSG (PasswordEmpty,						_("No password or keyfile specified."));
 		EX2MSG (PasswordIncorrect,					LangString["PASSWORD_WRONG"]);
 		EX2MSG (PasswordKeyfilesIncorrect,			LangString["PASSWORD_OR_KEYFILE_WRONG"]);
@@ -446,8 +451,8 @@ namespace TrueCrypt
 		EX2MSG (PasswordOrMountOptionsIncorrect,	LangString["PASSWORD_OR_KEYFILE_OR_MODE_WRONG"] + _("\n\nNote: If you are attempting to mount a partition located on an encrypted system drive without pre-boot authentication or to mount the encrypted system partition of an operating system that is not running, you can do so by selecting 'Options >' > 'Mount partition using system encryption'."));
 		EX2MSG (PasswordTooLong,					StringFormatter (_("Password is longer than {0} characters."), (int) VolumePassword::MaxSize));
 		EX2MSG (PartitionDeviceRequired,			_("Partition device required."));
-		EX2MSG (ProtectionPasswordIncorrect,		_("Incorrect keyfile(s) and/or password to the protected hidden volume or the hidden volume does not exist."));
-		EX2MSG (ProtectionPasswordKeyfilesIncorrect,	_("Incorrect password to the protected hidden volume or the hidden volume does not exist."));
+		EX2MSG (ProtectionPasswordIncorrect,		_("Incorrect password to the protected hidden volume or the hidden volume does not exist."));
+		EX2MSG (ProtectionPasswordKeyfilesIncorrect,_("Incorrect keyfile(s) and/or password to the protected hidden volume or the hidden volume does not exist."));
 		EX2MSG (RootDeviceUnavailable,				LangString["NODRIVER"]);
 		EX2MSG (SecurityTokenKeyfileAlreadyExists,	LangString["TOKEN_KEYFILE_ALREADY_EXISTS"]);
 		EX2MSG (SecurityTokenKeyfileNotFound,		LangString["TOKEN_KEYFILE_NOT_FOUND"]);
@@ -970,7 +975,7 @@ namespace TrueCrypt
 				if (cmdLine.ArgVolumePath)
 					options->Path = VolumePath (*cmdLine.ArgVolumePath);
 
-				CreateVolume (options, cmdLine.ArgRandomSourcePath);
+				CreateVolume (options);
 				return true;
 			}
 
@@ -1101,7 +1106,8 @@ namespace TrueCrypt
 					"\n"
 					"--hash=HASH\n"
 					" Use specified hash algorithm when creating a new volume or changing password\n"
-					" and/or keyfiles.\n"
+					" and/or keyfiles. This option also specifies the mixing PRF of the random\n"
+					" number generator.\n"
 					"\n"
 					"-k, --keyfiles=KEYFILE1,KEYFILE2,KEYFILE3,..\n"
 					" Use specified keyfiles when mounting a volume or when changing password\n"
@@ -1157,7 +1163,8 @@ namespace TrueCrypt
 					" outer volume.\n"
 					"\n"
 					"--random-source=FILE\n"
-					" Use FILE as a source of random data (e.g., when creating a volume).\n"
+					" Use FILE as a source of random data (e.g., when creating a volume) instead\n"
+					" of requiring the user to type random characters.\n"
 					"\n"
 					"--slot=SLOT\n"
 					" Use specified slot number when mounting, dismounting, or listing a volume.\n"
@@ -1205,10 +1212,15 @@ namespace TrueCrypt
 #ifndef TC_NO_GUI
 				if (Application::GetUserInterfaceType() == UserInterfaceType::Graphic)
 				{
-					wxDialog dialog (nullptr, wxID_ANY, _("TrueCrypt Command Line Help"), wxDefaultPosition, wxSize (600,400));
+					wxDialog dialog (nullptr, wxID_ANY, _("TrueCrypt Command Line Help"), wxDefaultPosition);
 
 					wxTextCtrl *textCtrl = new wxTextCtrl (&dialog, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE | wxTE_READONLY);
+					textCtrl->SetFont (wxFont (wxNORMAL_FONT->GetPointSize(), wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false, L"Courier"));
 					textCtrl->SetValue (helpText);
+
+					int fontWidth, fontHeight;
+					textCtrl->GetTextExtent (L"A", &fontWidth, &fontHeight);
+					dialog.SetSize (wxSize (fontWidth * 85, fontHeight * 29));
 
 					wxBoxSizer *sizer = new wxBoxSizer (wxVERTICAL);
 					sizer->Add (textCtrl, 1, wxALL | wxEXPAND, 5);

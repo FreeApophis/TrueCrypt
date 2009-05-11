@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -33,10 +33,11 @@ namespace TrueCrypt
 	TC_EXCEPTION (DriverError); \
 	TC_EXCEPTION (EncryptedSystemRequired); \
 	TC_EXCEPTION (HigherFuseVersionRequired); \
+	TC_EXCEPTION (KernelCryptoServiceTestFailed); \
+	TC_EXCEPTION (LoopDeviceSetupFailed); \
 	TC_EXCEPTION (MountPointRequired); \
 	TC_EXCEPTION (MountPointUnavailable); \
 	TC_EXCEPTION (NoDriveLetterAvailable); \
-	TC_EXCEPTION (NoLoopbackDeviceAvailable); \
 	TC_EXCEPTION (UnsupportedSectorSize); \
 	TC_EXCEPTION (VolumeAlreadyMounted); \
 	TC_EXCEPTION (VolumeSlotUnavailable);

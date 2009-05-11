@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
  by the TrueCrypt License 2.6 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
@@ -54,6 +54,8 @@ NTSTATUS DriverEntry (PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 	PKEY_VALUE_PARTIAL_INFORMATION startKeyValue;
 	int i;
 
+	Dump ("DriverEntry " TC_APP_NAME " " VERSION_STRING "\n");
+
 	TCDriverObject = DriverObject;
 	KeInitializeMutex (&driverMutex, 0);
 
@@ -93,38 +95,29 @@ NTSTATUS DriverEntry (PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 
 NTSTATUS DriverAddDevice (PDRIVER_OBJECT driverObject, PDEVICE_OBJECT pdo)
 {
-	BOOL volumeDevice = FALSE;
-	Dump ("DriverAddDevice type=%x\n", pdo->DeviceType);
+#ifdef DEBUG
+	char nameInfoBuffer[128];
+	POBJECT_NAME_INFORMATION nameInfo = (POBJECT_NAME_INFORMATION) nameInfoBuffer;
+	ULONG nameInfoSize;
+	Dump ("AddDevice pdo=%p type=%x name=%ws\n", pdo, pdo->DeviceType, NT_SUCCESS (ObQueryNameString (pdo, nameInfo, sizeof (nameInfoBuffer), &nameInfoSize)) ? nameInfo->Name.Buffer : L"?");
+#endif
 
-	if (!VolumeClassFilterRegistered && BootArgsValid && BootArgs.HiddenSystemPartitionStart == 0)
-		return DriveFilterAddDevice (driverObject, pdo);
-
-	if (pdo->Flags & DO_DEVICE_HAS_NAME)
+	if (VolumeClassFilterRegistered && BootArgsValid && BootArgs.HiddenSystemPartitionStart != 0)
 	{
-		char nameInfoBuffer[128];
-		POBJECT_NAME_INFORMATION nameInfo = (POBJECT_NAME_INFORMATION) nameInfoBuffer;
-		ULONG nameInfoSize;
-
-		if (NT_SUCCESS (ObQueryNameString (pdo, nameInfo, sizeof (nameInfoBuffer), &nameInfoSize)))
+		PWSTR interfaceLinks;
+		if (NT_SUCCESS (IoGetDeviceInterfaces (&GUID_DEVINTERFACE_VOLUME, pdo, DEVICE_INTERFACE_INCLUDE_NONACTIVE, &interfaceLinks)))
 		{
-			Dump ("Device name = %ws\n", nameInfo->Name.Buffer);
-
-			if (nameInfo->Name.Length >= 22 * sizeof (wchar_t)
-				&& memcmp (nameInfo->Name.Buffer, L"\\Device\\HarddiskVolume", 22 * sizeof (wchar_t)) == 0)
+			if (interfaceLinks[0] != UNICODE_NULL)
 			{
-				volumeDevice = TRUE;
+				Dump ("Volume pdo=%p interface=%ws\n", pdo, interfaceLinks);
+				ExFreePool (interfaceLinks);
+
+				return VolumeFilterAddDevice (driverObject, pdo);
 			}
 
-			if (nameInfo->Name.Length >= 14 * sizeof (wchar_t)
-				&& memcmp (nameInfo->Name.Buffer, L"\\Device\\Floppy", 14 * sizeof (wchar_t)) == 0)
-			{
-				volumeDevice = TRUE;
-			}
+			ExFreePool (interfaceLinks);
 		}
 	}
-
-	if (volumeDevice)
-		return VolumeFilterAddDevice (driverObject, pdo);
 
 	return DriveFilterAddDevice (driverObject, pdo);
 }
@@ -817,9 +810,8 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 			IO_STATUS_BLOCK IoStatus;
 			LARGE_INTEGER offset;
 			unsigned char readBuffer [SECTOR_SIZE];
-			NTSTATUS TCBootLoaderDetected = STATUS_NO_SUCH_DEVICE;	// STATUS_NO_SUCH_DEVICE is sent when the boot loader is not found (even if the device is found)
 
-			if (!ValidateIOBufferSize (Irp, sizeof (OPEN_TEST_STRUCT), ValidateInput))
+			if (!ValidateIOBufferSize (Irp, sizeof (OPEN_TEST_STRUCT), ValidateInputOutput))
 				break;
 
 			EnsureNullTerminatedString (opentest->wszFileName, sizeof (opentest->wszFileName));
@@ -834,7 +826,10 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 
 			if (NT_SUCCESS (ntStatus))
 			{
-				if (opentest->bDetectTCBootLoader)
+				opentest->TCBootLoaderDetected = FALSE;
+				opentest->FilesystemDetected = FALSE;
+
+				if (opentest->bDetectTCBootLoader || opentest->DetectFilesystem)
 				{
 					// Determine if the first sector contains a portion of the TrueCrypt Boot Loader
 
@@ -854,12 +849,29 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 					{
 						size_t i;
 
-						// Search for the string "TrueCrypt"
-						for (i = 0; i < sizeof (readBuffer) - strlen (TC_APP_NAME); ++i)
+						if (opentest->bDetectTCBootLoader)
 						{
-							if (memcmp (readBuffer + i, TC_APP_NAME, strlen (TC_APP_NAME)) == 0)
+							// Search for the string "TrueCrypt"
+							for (i = 0; i < sizeof (readBuffer) - strlen (TC_APP_NAME); ++i)
 							{
-								TCBootLoaderDetected = STATUS_SUCCESS;
+								if (memcmp (readBuffer + i, TC_APP_NAME, strlen (TC_APP_NAME)) == 0)
+								{
+									opentest->TCBootLoaderDetected = TRUE;
+									break;
+								}
+							}
+						}
+
+						if (opentest->DetectFilesystem)
+						{
+							switch (BE64 (*(uint64 *) readBuffer))
+							{
+							case 0xEB52904E54465320: // NTFS
+							case 0xEB3C904D53444F53: // FAT16
+							case 0xEB58904D53444F53: // FAT32
+							case 0xEB76904558464154: // exFAT
+
+								opentest->FilesystemDetected = TRUE;
 								break;
 							}
 						}
@@ -876,8 +888,8 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 #endif
 			}
 
-			Irp->IoStatus.Information = 0;
-			Irp->IoStatus.Status = opentest->bDetectTCBootLoader ? TCBootLoaderDetected : ntStatus;
+			Irp->IoStatus.Information = NT_SUCCESS (ntStatus) ? sizeof (OPEN_TEST_STRUCT) : 0;
+			Irp->IoStatus.Status = ntStatus;
 		}
 		break;
 
@@ -951,7 +963,7 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 							request->BootLoaderVersion = BE16 (*(uint16 *) (readBuffer + TC_BOOT_SECTOR_VERSION_OFFSET));
 							request->Configuration = readBuffer[TC_BOOT_SECTOR_CONFIG_OFFSET];
 
-							if (request->BootLoaderVersion != 0)
+							if (request->BootLoaderVersion != 0 && request->BootLoaderVersion <= VERSION_NUM)
 							{
 								request->UserConfiguration = readBuffer[TC_BOOT_SECTOR_USER_CONFIG_OFFSET];
 								memcpy (request->CustomUserMessage, readBuffer + TC_BOOT_SECTOR_USER_MESSAGE_OFFSET, TC_BOOT_SECTOR_USER_MESSAGE_MAX_LENGTH);
@@ -1105,6 +1117,7 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 #endif
 					prop->volumeHeaderFlags = ListExtension->cryptoInfo->HeaderFlags;
 					prop->readOnly = ListExtension->bReadOnly;
+					prop->removable = ListExtension->bRemovable;
 					prop->hiddenVolume = ListExtension->cryptoInfo->hiddenVolume;
 
 					if (ListExtension->cryptoInfo->bProtectHiddenVolume)
@@ -1541,7 +1554,7 @@ NTSTATUS TCStartVolumeThread (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension,
 
 	qos.Length = sizeof (qos);
 	qos.ContextTrackingMode = SECURITY_STATIC_TRACKING;
-	qos.EffectiveOnly = FALSE;
+	qos.EffectiveOnly = TRUE;
 	qos.ImpersonationLevel = SecurityImpersonation;
 
 	ntStatus = SeCreateClientSecurity (PsGetCurrentThread(), &qos, FALSE, &Extension->SecurityClientContext);
@@ -1696,6 +1709,7 @@ VOID VolumeThreadProc (PVOID Context)
 	Extension->Queue.CryptoInfo = Extension->cryptoInfo;
 	Extension->Queue.HostFileHandle = Extension->hDeviceFile;
 	Extension->Queue.VirtualDeviceLength = Extension->DiskLength;
+	Extension->Queue.MaxReadAheadOffset.QuadPart = Extension->HostLength;
 
 	if (Extension->SecurityClientContextValid)
 		Extension->Queue.SecurityClientContext = &Extension->SecurityClientContext;
@@ -3018,6 +3032,33 @@ err:
 }
 
 
+NTSTATUS ReadDeviceSkipUnreadableSectors (PDEVICE_OBJECT deviceObject, byte *buffer, LARGE_INTEGER startOffset, ULONG size, uint64 *badSectorCount)
+{
+	NTSTATUS status;
+	ULONG sectorSize;
+	ULONG sectorCount;
+
+	*badSectorCount = 0;
+
+	status = GetDeviceSectorSize (deviceObject, &sectorSize);
+	if (!NT_SUCCESS (status))
+		return status;
+
+	for (sectorCount = size / sectorSize; sectorCount > 0; --sectorCount, startOffset.QuadPart += sectorSize, buffer += sectorSize)
+	{
+		status = TCReadDevice (deviceObject, buffer, startOffset, sectorSize);
+		if (!NT_SUCCESS (status))
+		{
+			Dump ("Skipping bad sector at %I64d\n", startOffset.QuadPart);
+			memset (buffer, 0, sectorSize);
+			++(*badSectorCount);
+		}
+	}
+
+	return STATUS_SUCCESS;
+}
+
+
 BOOL IsVolumeAccessibleByCurrentUser (PEXTENSION volumeDeviceExtension)
 {
 	SECURITY_SUBJECT_CONTEXT subContext;
@@ -3048,4 +3089,23 @@ BOOL IsVolumeAccessibleByCurrentUser (PEXTENSION volumeDeviceExtension)
 ret:
 	SeReleaseSubjectContext (&subContext);
 	return result;
+}
+
+
+void GetElapsedTimeInit (LARGE_INTEGER *lastPerfCounter)
+{
+	*lastPerfCounter = KeQueryPerformanceCounter (NULL);
+}
+
+
+// Returns elapsed time in microseconds since last call
+int64 GetElapsedTime (LARGE_INTEGER *lastPerfCounter)
+{
+	LARGE_INTEGER freq;
+	LARGE_INTEGER counter = KeQueryPerformanceCounter (&freq);
+
+	int64 elapsed = (counter.QuadPart - lastPerfCounter->QuadPart) * 1000000LL / freq.QuadPart;
+	*lastPerfCounter = counter;
+
+	return elapsed;
 }

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
  Governed by the TrueCrypt License 2.6 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
@@ -143,9 +143,7 @@ static NTSTATUS DispatchControl (PDEVICE_OBJECT DeviceObject, PIRP Irp, VolumeFi
 			else if (Extension->Pdo != SystemVolumePdo)
 			{
 				// Volumes other than the system volume must be presented as read-only
-				Dump ("STATUS_MEDIA_WRITE_PROTECTED pdo=%p\n", Extension->Pdo);
 				++HiddenSysLeakProtectionCount;
-
 				return TCCompleteDiskIrp (Irp, STATUS_MEDIA_WRITE_PROTECTED, 0);
 			}
 
@@ -159,13 +157,10 @@ static NTSTATUS DispatchControl (PDEVICE_OBJECT DeviceObject, PIRP Irp, VolumeFi
 
 			// Probe the real state of the device as the user is mounting a TrueCrypt volume.
 
-			// First test if our TC_IOCTL_DISK_IS_WRITABLE works for the underlying device.
+			// Volume filter may be attached to a merged drive+volume PDO. First test if TC_IOCTL_DISK_IS_WRITABLE works for the underlying device.
 			status = SendDeviceIoControlRequest (Extension->LowerDeviceObject, TC_IOCTL_DISK_IS_WRITABLE, NULL, 0, NULL, 0);
 			if (NT_SUCCESS (status) || status == STATUS_MEDIA_WRITE_PROTECTED)
-			{
-				Dump ("Volume filter attached to a drive pdo=%p\n", Extension->Pdo);
 				return TCCompleteDiskIrp (Irp, status, 0);
-			}
 
 			status = SendDeviceIoControlRequest (Extension->LowerDeviceObject, IOCTL_DISK_IS_WRITABLE, NULL, 0, NULL, 0);
 			return TCCompleteDiskIrp (Irp, status, 0);
