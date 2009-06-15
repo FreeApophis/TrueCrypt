@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.6 the full text of which is contained in the
+ by the TrueCrypt License 2.7 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -15,10 +15,10 @@
 #define TC_APP_NAME						"TrueCrypt"
 
 // Version displayed to user 
-#define VERSION_STRING					"6.2"
+#define VERSION_STRING					"6.2a"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x0620
+#define VERSION_NUM						0x062a
 
 // Sector size of encrypted filesystem, which may differ from sector size of host filesystem/device
 #define SECTOR_SIZE                     512
@@ -297,6 +297,7 @@ typedef unsigned __int32 LRESULT;
 
 #define MAX_URL_LENGTH	2084 /* Internet Explorer limit. Includes the terminating null character. */
 
+#define TC_HOMEPAGE "http://www.truecrypt.org/"
 #define TC_APPLINK "http://www.truecrypt.org/applink?version=" VERSION_STRING
 #define TC_APPLINK_SECURE "https://www.truecrypt.org/applink?version=" VERSION_STRING
 

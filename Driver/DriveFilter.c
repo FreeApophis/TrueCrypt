@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.6 the full text of which is contained
+ Governed by the TrueCrypt License 2.7 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -187,12 +187,12 @@ err:
 }
 
 
-static void DismountDrive (DriveFilterExtension *Extension)
+static void DismountDrive (DriveFilterExtension *Extension, BOOL stopIoQueue)
 {
 	Dump ("Dismounting drive\n");
 	ASSERT (Extension->DriveMounted);
 	
-	if (EncryptedIoQueueIsRunning (&Extension->Queue))
+	if (stopIoQueue && EncryptedIoQueueIsRunning (&Extension->Queue))
 		EncryptedIoQueueStop (&Extension->Queue);
 
 	crypto_close (Extension->Queue.CryptoInfo);
@@ -581,7 +581,7 @@ static NTSTATUS DispatchPnp (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilterE
 		IoDetachDevice (Extension->LowerDeviceObject);
 
 		if (Extension->DriveMounted)
-			DismountDrive (Extension);
+			DismountDrive (Extension, TRUE);
 
 		if (Extension->BootDrive)
 		{
@@ -627,7 +627,7 @@ static NTSTATUS DispatchPower (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilte
 		&& irpSp->MinorFunction == IRP_MN_SET_POWER
 		&& irpSp->Parameters.Power.Type == DevicePowerState)
 	{
-		DismountDrive (Extension);
+		DismountDrive (Extension, TRUE);
 	}
 #endif // 0
 
@@ -1382,7 +1382,7 @@ err:
 
 	if (SetupRequest.SetupMode == SetupDecryption && Extension->ConfiguredEncryptedAreaEnd == -1 && Extension->DriveMounted)
 	{
-		DismountDrive (Extension);
+		DismountDrive (Extension, FALSE);
 	}
 
 ret:

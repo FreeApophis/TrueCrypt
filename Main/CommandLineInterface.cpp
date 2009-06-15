@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.6 the full text of which is contained
+ Governed by the TrueCrypt License 2.7 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -437,6 +437,10 @@ namespace TrueCrypt
 			if (param1IsMountPoint || parser.GetParamCount() >= 2)
 			{
 				wstring s (parser.GetParam (param1IsMountPoint ? 0 : 1));
+
+				if (s.empty())
+					ArgMountOptions.NoFilesystem = true;
+
 				wxFileName mountPoint (wstring (Directory::AppendSeparator (s)));
 				mountPoint.Normalize (wxPATH_NORM_ABSOLUTE | wxPATH_NORM_DOTS);
 				ArgMountPoint.reset (new DirectoryPath (wstring (mountPoint.GetPath())));

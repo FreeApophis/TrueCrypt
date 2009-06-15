@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.6 the full text of which is contained in the
+ by the TrueCrypt License 2.7 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -481,7 +481,7 @@ DWORD handleWin32Error (HWND hwndDlg)
 
 	// Device not ready
 	if (dwError == ERROR_NOT_READY)
-		CheckSystemAutoMount();
+		HandleDriveNotReadyError();
 
 	SetLastError (dwError);		// Preserve the original error code
 
@@ -1504,6 +1504,27 @@ LRESULT CALLBACK CustomDlgProc (HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 }
 
 
+static BOOL IsReturnAddress (DWORD64 address)
+{
+	static size_t codeEnd = 0;
+	byte *sp = (byte *) address;
+
+	if (codeEnd == 0)
+	{
+		MEMORY_BASIC_INFORMATION mi;
+		if (VirtualQuery ((LPCVOID) 0x401000, &mi, sizeof (mi)) >= sizeof (mi))
+			codeEnd = (size_t) mi.BaseAddress + mi.RegionSize;
+	}
+
+	if (address < 0x401000 + 8 || address > codeEnd)
+		return FALSE;
+
+	return sp[-5] == 0xe8									// call ADDR
+		|| (sp[-6] == 0xff && sp[-5] == 0x15)				// call [ADDR]
+		|| (sp[-2] == 0xff && (sp[-1] & 0xf0) == 0xd0);		// call REG
+}
+
+
 typedef struct
 {
 	EXCEPTION_POINTERS *ExceptionPointers;
@@ -1526,8 +1547,9 @@ void ExceptionHandlerThread (void *threadArg)
 	char url[MAX_URL_LENGTH];
 	char lpack[128];
 	stringstream callStack;
-
 	addr = (DWORD) ep->ExceptionRecord->ExceptionAddress;
+	PDWORD sp = (PDWORD) ep->ContextRecord->Esp;
+	int frameNumber = 0;
 
 	switch (exCode)
 	{
@@ -1560,7 +1582,7 @@ void ExceptionHandlerThread (void *threadArg)
 
 		if (DbgHelpSymGetOptions && DbgHelpSymSetOptions && DbgHelpSymInitialize && DbgHelpSymFunctionTableAccess64 && DbgHelpSymGetModuleBase64 && DbgHelpStackWalk64 && DbgHelpSymFromAddr)
 		{
-			DbgHelpSymSetOptions (DbgHelpSymGetOptions() | SYMOPT_DEFERRED_LOADS);
+			DbgHelpSymSetOptions (DbgHelpSymGetOptions() | SYMOPT_DEFERRED_LOADS | SYMOPT_ALLOW_ABSOLUTE_SYMBOLS | SYMOPT_NO_CPP);
 
 			if (DbgHelpSymInitialize (GetCurrentProcess(), NULL, TRUE))
 			{
@@ -1574,7 +1596,8 @@ void ExceptionHandlerThread (void *threadArg)
 				frame.AddrFrame.Offset = ep->ContextRecord->Ebp;
 				frame.AddrFrame.Mode = AddrModeFlat;
 
-				int frameNumber = 0;
+				string lastSymbol;
+
 				while (frameNumber < 32 && DbgHelpStackWalk64 (IMAGE_FILE_MACHINE_I386, GetCurrentProcess(), args->ExceptionThread, &frame, ep->ContextRecord, NULL, DbgHelpSymFunctionTableAccess64, DbgHelpSymGetModuleBase64, NULL))
 				{
 					if (!frame.AddrPC.Offset)
@@ -1587,8 +1610,6 @@ void ExceptionHandlerThread (void *threadArg)
 					symbol->SizeOfStruct = sizeof (SYMBOL_INFO);
 					symbol->MaxNameLen = MAX_SYM_NAME;
 
-					callStack << "&st" << frameNumber++ << "=";
-
 					if (DbgHelpSymFromAddr (GetCurrentProcess(), frame.AddrPC.Offset, NULL, symbol) && symbol->NameLen > 0)
 					{
 						for (size_t i = 0; i < symbol->NameLen; ++i)
@@ -1597,12 +1618,57 @@ void ExceptionHandlerThread (void *threadArg)
 								symbol->Name[i] = '_';
 						}
 
-						callStack << symbol->Name;
+						if (symbol->Name != lastSymbol)
+							callStack << "&st" << frameNumber++ << "=" << symbol->Name;
+
+						lastSymbol = symbol->Name;
 					}
-					else
-						callStack << "0x" << hex << frame.AddrPC.Offset << dec;
+					else if (frameNumber == 0 || IsReturnAddress (frame.AddrPC.Offset))
+					{
+						callStack << "&st" << frameNumber++ << "=0x" << hex << frame.AddrPC.Offset << dec;
+					}
 				}
 			}
+		}
+	}
+
+	// StackWalk64() may fail due to missing frame pointers
+	list <DWORD> retAddrs;
+	if (frameNumber == 0)
+		retAddrs.push_back (ep->ContextRecord->Eip);
+
+	retAddrs.push_back (0);
+
+	MEMORY_BASIC_INFORMATION mi;
+	VirtualQuery (sp, &mi, sizeof (mi));
+	PDWORD stackTop = (PDWORD)((byte *) mi.BaseAddress + mi.RegionSize);
+	int i = 0;
+
+	while (retAddrs.size() < 16 && &sp[i] < stackTop)
+	{
+		if (IsReturnAddress (sp[i]))
+		{
+			bool duplicate = false;
+			foreach (DWORD prevAddr, retAddrs)
+			{
+				if (sp[i] == prevAddr)
+				{
+					duplicate = true;
+					break;
+				}
+			}
+
+			if (!duplicate)
+				retAddrs.push_back (sp[i]);
+		}
+		i++;
+	}
+
+	if (retAddrs.size() > 1)
+	{
+		foreach (DWORD addr, retAddrs)
+		{
+			callStack << "&st" << frameNumber++ << "=0x" << hex << addr << dec;
 		}
 	}
 
@@ -2280,8 +2346,12 @@ BOOL OpenDevice (const char *lpszPath, OPEN_TEST_STRUCT *driver, BOOL detectFile
 	{
 		dwResult = GetLastError ();
 
-		if (dwResult == ERROR_SHARING_VIOLATION)
+		if (dwResult == ERROR_SHARING_VIOLATION || dwResult == ERROR_NOT_READY)
+		{
+			driver->TCBootLoaderDetected = FALSE;
+			driver->FilesystemDetected = FALSE;
 			return TRUE;
+		}
 		else
 			return FALSE;
 	}
@@ -7626,20 +7696,22 @@ char *RelativePath2Absolute (char *szFileName)
 }
 
 
-void CheckSystemAutoMount ()
+void HandleDriveNotReadyError ()
 {
 	HKEY hkey = 0;
 	DWORD value = 0, size = sizeof (DWORD);
 
-	if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, "SYSTEM\\ControlSet001\\Services\\MountMgr",
+	if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Services\\MountMgr",
 		0, KEY_READ, &hkey) != ERROR_SUCCESS)
 		return;
 
 	if (RegQueryValueEx (hkey, "NoAutoMount", 0, 0, (LPBYTE) &value, &size) == ERROR_SUCCESS
 		&& value != 0)
 		Warning ("SYS_AUTOMOUNT_DISABLED");
-	else if (IsOSAtLeast (WIN_VISTA))
+	else if (nCurrentOS == WIN_VISTA && CurrentOSServicePack < 1)
 		Warning ("SYS_ASSIGN_DRIVE_LETTER");
+	else
+		Error ("ERR_HARDWARE_ERROR");
 
 	RegCloseKey (hkey);
 }
@@ -8586,7 +8658,7 @@ BOOL InitSecurityTokenLibrary ()
 
 #endif // !SETUP
 
-std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties, bool singleList, bool noFloppy)
+std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties, bool singleList, bool noFloppy, bool detectUnencryptedFilesystems)
 {
 	vector <HostDevice> devices;
 
@@ -8600,7 +8672,7 @@ std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties, bool 
 			const char *devPath = devPathStr.c_str();
 
 			OPEN_TEST_STRUCT openTest;
-			if (!OpenDevice (devPath, &openTest, partNumber != 0))
+			if (!OpenDevice (devPath, &openTest, detectUnencryptedFilesystems && partNumber != 0))
 			{
 				if (partNumber == 0)
 					break;
@@ -8617,7 +8689,7 @@ std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties, bool 
 			if (GetPartitionInfo (devPath, &partInfo))
 				device.Size = partInfo.PartitionLength.QuadPart;
 
-			device.HasUnencryptedFilesystem = openTest.FilesystemDetected ? true : false;
+			device.HasUnencryptedFilesystem = (detectUnencryptedFilesystems && openTest.FilesystemDetected) ? true : false;
 
 			if (!noDeviceProperties)
 			{
@@ -8663,6 +8735,7 @@ std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties, bool 
 					dev0.MountPoint = device.MountPoint;
 					dev0.Name = device.Name;
 					dev0.Path = device.Path;
+					dev0.HasUnencryptedFilesystem = device.HasUnencryptedFilesystem;
 					break;
 				}
 
@@ -8692,7 +8765,7 @@ std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties, bool 
 			const char *devPath = devPathStr.c_str();
 
 			OPEN_TEST_STRUCT openTest;
-			if (!OpenDevice (devPath, &openTest, TRUE))
+			if (!OpenDevice (devPath, &openTest, detectUnencryptedFilesystems))
 				continue;
 
 			DISK_PARTITION_INFO_STRUCT info;
@@ -8704,7 +8777,7 @@ std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties, bool 
 				device.SystemNumber = devNumber;
 				device.Path = devPath;
 				device.Size = info.partInfo.PartitionLength.QuadPart;
-				device.HasUnencryptedFilesystem = openTest.FilesystemDetected ? true : false;
+				device.HasUnencryptedFilesystem = (detectUnencryptedFilesystems && openTest.FilesystemDetected) ? true : false;
 
 				if (!noDeviceProperties)
 				{
@@ -8783,6 +8856,9 @@ void CheckFilesystem (int driveNo, BOOL fixErrors)
 {
 	wchar_t msg[1024], param[1024];
 	char driveRoot[] = { 'A' + driveNo, ':', 0};
+
+	if (fixErrors && AskWarnYesNo ("FILESYS_REPAIR_CONFIRM_BACKUP") == IDNO)
+		return;
 
 	wsprintfW (msg, GetString (fixErrors ? "REPAIRING_FS" : "CHECKING_FS"), driveRoot);
 	wsprintfW (param, fixErrors ? L"/C echo %s & chkdsk %hs /F /X & pause" : L"/C echo %s & chkdsk %hs & pause", msg, driveRoot);
@@ -8884,4 +8960,36 @@ BOOL RemoveDeviceWriteProtection (HWND hwndDlg, char *devicePath)
 	ShellExecute (NULL, (!IsAdmin() && IsUacSupported()) ? "runas" : "open", cmdBatch, NULL, NULL, SW_SHOW);
 
 	return TRUE;
+}
+
+
+static LRESULT CALLBACK EnableElevatedCursorChangeWndProc (HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	return DefWindowProc (hWnd, message, wParam, lParam);
+}
+
+
+void EnableElevatedCursorChange (HWND parent)
+{
+	// Create a transparent window to work around a UAC issue preventing change of the cursor
+	if (UacElevated)
+	{
+		const char *className = "TrueCryptEnableElevatedCursorChange";
+		WNDCLASSEX winClass;
+		HWND hWnd;
+
+		memset (&winClass, 0, sizeof (winClass));
+		winClass.cbSize = sizeof (WNDCLASSEX); 
+		winClass.lpfnWndProc = (WNDPROC) EnableElevatedCursorChangeWndProc;
+		winClass.hInstance = hInst;
+		winClass.lpszClassName = className;
+		RegisterClassEx (&winClass);
+
+		hWnd = CreateWindowEx (WS_EX_TOOLWINDOW | WS_EX_LAYERED, className, "TrueCrypt UAC", 0, 0, 0, GetSystemMetrics (SM_CXSCREEN), GetSystemMetrics (SM_CYSCREEN), parent, NULL, hInst, NULL);
+		SetLayeredWindowAttributes (hWnd, 0, 1, LWA_ALPHA);
+		ShowWindow (hWnd, SW_SHOWNORMAL);
+
+		DestroyWindow (hWnd);
+		UnregisterClass (className, hInst);
+	}
 }

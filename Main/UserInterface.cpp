@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.6 the full text of which is contained
+ Governed by the TrueCrypt License 2.7 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -437,7 +437,7 @@ namespace TrueCrypt
 		EX2MSG (InsufficientData,					_("Not enough data available."));
 		EX2MSG (InvalidSecurityTokenKeyfilePath,	LangString["INVALID_TOKEN_KEYFILE_PATH"]);
 		EX2MSG (HigherVersionRequired,				LangString["NEW_VERSION_REQUIRED"]);
-		EX2MSG (KernelCryptoServiceTestFailed,		_("Kernel cryptographic service test failed. The cryptographic service of your kernel most likely does not support volumes larger than 2 TB.\n\n- Try upgrading your kernel.\n- Disable use of the kernel cryptographic services in the preferences."));
+		EX2MSG (KernelCryptoServiceTestFailed,		_("Kernel cryptographic service test failed. The cryptographic service of your kernel most likely does not support volumes larger than 2 TB.\n\nPossible solutions:\n- Try upgrading your kernel.\n- Disable use of the kernel cryptographic services (Settings > Preferences > System Integration) or use 'nokernelcrypto' mount option on the command line."));
 		EX2MSG (LoopDeviceSetupFailed,				_("Failed to set up a loop device."));
 		EX2MSG (MissingArgument,					_("A required argument is missing."));
 		EX2MSG (MissingVolumeData,					_("Volume data missing."));

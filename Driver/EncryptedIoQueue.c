@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.6 the full text of which is contained
+ Governed by the TrueCrypt License 2.7 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -58,8 +58,13 @@ static void *GetPoolBuffer (EncryptedIoQueue *queue, ULONG requestedSize)
 
 			if (!buffer || !buffer->NextBuffer)
 			{
+				EncryptedIoQueueBuffer *newBuffer;
+
+				if (requestedSizePresentInPool && !queue->StartPending)
+					break;
+
 				// Allocate a new buffer
-				EncryptedIoQueueBuffer *newBuffer = TCalloc (sizeof (EncryptedIoQueueBuffer));
+				newBuffer = TCalloc (sizeof (EncryptedIoQueueBuffer));
 				if (!newBuffer)
 				{
 					bufferAddress = NULL;
@@ -91,7 +96,7 @@ static void *GetPoolBuffer (EncryptedIoQueue *queue, ULONG requestedSize)
 		if (bufferAddress || !requestedSizePresentInPool || queue->StartPending)
 			break;
 
-		TCSleep (TC_ENC_IO_QUEUE_MEM_ALLOC_RETRY_DELAY);
+		KeWaitForSingleObject (&queue->PoolBufferFreeEvent, Executive, KernelMode, FALSE, NULL);
 	}
 
 	return bufferAddress;
@@ -115,6 +120,7 @@ static void ReleasePoolBuffer (EncryptedIoQueue *queue, void *address)
 	}
 
 	ReleaseBufferPoolMutex (queue);
+	KeSetEvent (&queue->PoolBufferFreeEvent, IO_DISK_INCREMENT, FALSE);
 }
 
 
@@ -926,6 +932,7 @@ NTSTATUS EncryptedIoQueueStart (EncryptedIoQueue *queue)
 
 	KeInitializeEvent (&queue->NoOutstandingIoEvent, SynchronizationEvent, FALSE);
 	KeInitializeEvent (&queue->RequestCompletedEvent, SynchronizationEvent, FALSE);
+	KeInitializeEvent (&queue->PoolBufferFreeEvent, SynchronizationEvent, FALSE);
 	KeInitializeEvent (&queue->QueueResumedEvent, SynchronizationEvent, FALSE);
 
 	queue->FragmentBufferA = TCalloc (TC_ENC_IO_QUEUE_MAX_FRAGMENT_SIZE);

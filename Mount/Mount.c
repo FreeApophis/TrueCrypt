@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.6 the full text of which is contained in the
+ by the TrueCrypt License 2.7 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -3621,7 +3621,7 @@ static BOOL MountAllDevices (HWND hwndDlg, BOOL bPasswordPrompt)
 		}
 
 		if (devices.empty())
-			devices = GetAvailableHostDevices (true);
+			devices = GetAvailableHostDevices (true, false, true, true);
 
 		foreach (const HostDevice &drive, devices)
 		{

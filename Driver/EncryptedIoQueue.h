@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.6 the full text of which is contained
+ Governed by the TrueCrypt License 2.7 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -18,11 +18,11 @@
 
 #define TC_ENC_IO_QUEUE_MAX_FRAGMENT_SIZE (256 * 1024)
 
-#define TC_ENC_IO_QUEUE_PREALLOCATED_ITEM_COUNT 16
-#define TC_ENC_IO_QUEUE_PREALLOCATED_IO_REQUEST_COUNT 256
+#define TC_ENC_IO_QUEUE_PREALLOCATED_ITEM_COUNT 8
+#define TC_ENC_IO_QUEUE_PREALLOCATED_IO_REQUEST_COUNT 16
 
 #define TC_ENC_IO_QUEUE_MEM_ALLOC_RETRY_DELAY 1
-#define TC_ENC_IO_QUEUE_MEM_ALLOC_TIMEOUT (20 * 1000)
+#define TC_ENC_IO_QUEUE_MEM_ALLOC_TIMEOUT 1000
 
 
 typedef struct EncryptedIoQueueBufferStruct
@@ -98,6 +98,7 @@ typedef struct
 	LONG IoThreadPendingRequestCount;
 
 	KEVENT RequestCompletedEvent;
+	KEVENT PoolBufferFreeEvent;
 
 	__int64 TotalBytesRead;
 	__int64 TotalBytesWritten;

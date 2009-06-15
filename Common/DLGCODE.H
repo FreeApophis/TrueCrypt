@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.6 the full text of which is contained in the
+ by the TrueCrypt License 2.7 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -416,7 +416,7 @@ BOOL IsHiddenOSRunning (void);
 BOOL RestartComputer (void);
 void Applink (char *dest, BOOL bSendOS, char *extraOutput);
 char *RelativePath2Absolute (char *szFileName);
-void CheckSystemAutoMount ();
+void HandleDriveNotReadyError ();
 BOOL CALLBACK CloseTCWindowsEnum( HWND hwnd, LPARAM lParam);
 BOOL CALLBACK FindTCWindowEnum (HWND hwnd, LPARAM lParam);
 BYTE *MapResource (char *resourceType, int resourceId, PDWORD size);
@@ -454,6 +454,7 @@ void CheckFilesystem (int driveNo, BOOL fixErrors);
 BOOL BufferContainsString (const byte *buffer, size_t bufferSize, const char *str);
 int AskNonSysInPlaceEncryptionResume ();
 BOOL RemoveDeviceWriteProtection (HWND hwndDlg, char *devicePath);
+void EnableElevatedCursorChange (HWND parent);
 
 #ifdef __cplusplus
 }
@@ -498,7 +499,7 @@ std::wstring SingleStringToWide (const std::string &singleString);
 std::wstring Utf8StringToWide (const std::string &utf8String);
 std::string WideToSingleString (const std::wstring &wideString);
 std::string WideToUtf8String (const std::wstring &wideString);
-std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties = false, bool singleList = false, bool noFloppy = true);
+std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties = false, bool singleList = false, bool noFloppy = true, bool detectUnencryptedFilesystems = false);
 std::string ToUpperCase (const std::string &str);
 std::wstring GetWrongPasswordErrorMessage (HWND hwndDlg);
 std::string GetWindowsEdition ();

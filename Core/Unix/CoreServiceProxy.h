@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.6 the full text of which is contained
+ Governed by the TrueCrypt License 2.7 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -60,11 +60,13 @@ namespace TrueCrypt
 		virtual shared_ptr <VolumeInfo> MountVolume (MountOptions &options)
 		{
 			shared_ptr <VolumeInfo> mountedVolume;
-			// Cache password
+
 			if (!VolumePasswordCache::IsEmpty()
 				&& (!options.Password || options.Password->IsEmpty())
 				&& (!options.Keyfiles || options.Keyfiles->empty()))
 			{
+				finally_do_arg (MountOptions*, &options, { if (finally_arg->Password) finally_arg->Password.reset(); });
+
 				PasswordIncorrect passwordException;
 				foreach (shared_ptr <VolumePassword> password, VolumePasswordCache::GetPasswords())
 				{

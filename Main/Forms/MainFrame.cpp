@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.6 the full text of which is contained
+ Governed by the TrueCrypt License 2.7 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -755,7 +755,14 @@ namespace TrueCrypt
 
 	void MainFrame::OnCreateVolumeButtonClick (wxCommandEvent& event)
 	{
-		(new VolumeCreationWizard (nullptr))->Show();
+		try
+		{
+			(new VolumeCreationWizard (nullptr))->Show();
+		}
+		catch (exception &e)
+		{
+			Gui->ShowError (e);
+		}
 	}
 
 	void MainFrame::OnDefaultKeyfilesMenuItemSelected (wxCommandEvent& event)
@@ -1061,7 +1068,14 @@ namespace TrueCrypt
 
 	void MainFrame::OnOrganizeFavoritesMenuItemSelected (wxCommandEvent& event)
 	{
-		OrganizeFavorites (FavoriteVolume::LoadList());
+		try
+		{
+			OrganizeFavorites (FavoriteVolume::LoadList());
+		}
+		catch (exception &e)
+		{
+			Gui->ShowError (e);
+		}
 	}
 
 	void MainFrame::OnPreferencesMenuItemSelected (wxCommandEvent& event)

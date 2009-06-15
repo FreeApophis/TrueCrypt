@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.6 the full text of which is contained
+ Governed by the TrueCrypt License 2.7 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -114,7 +114,7 @@ BiosResult ReadWriteSectors (bool write, uint16 bufferSegment, uint16 bufferOffs
 	sector |= byte (chs.Cylinder >> 2) & 0xc0;
 	byte function = write ? 0x03 : 0x02;
 
-	BiosResult result;
+	BiosResult result = BiosResultSuccess;
 	__asm
 	{
 		push es
@@ -129,7 +129,9 @@ BiosResult ReadWriteSectors (bool write, uint16 bufferSegment, uint16 bufferOffs
 		mov	al, sectorCount
 		mov	ah, function
 		int	0x13
+		jnc ok				// Ignore AH if CF=0 to prevent potential bugs in BIOSes
 		mov	result, ah
+	ok:
 		pop es
 	}
 
@@ -187,7 +189,7 @@ static BiosResult ReadWriteSectors (bool write, BiosLbaPacket &dapPacket, byte d
 
 	byte function = write ? 0x43 : 0x42;
 	
-	BiosResult result;
+	BiosResult result = BiosResultSuccess;
 	__asm
 	{
 		mov	bx, 0x55aa
@@ -196,7 +198,9 @@ static BiosResult ReadWriteSectors (bool write, BiosLbaPacket &dapPacket, byte d
 		mov	ah, function
 		xor al, al
 		int	0x13
+		jnc ok				// Ignore AH if CF=0 to prevent potential bugs in BIOSes
 		mov	result, ah
+	ok:
 	}
 
 	if (result == BiosResultEccCorrected)
