@@ -49,8 +49,9 @@
 				RuntimeLibrary="1"
 				BufferSecurityCheck="false"
 				UsePrecompiledHeader="0"
-				WarningLevel="3"
+				WarningLevel="4"
 				DebugInformationFormat="3"
+				DisableSpecificWarnings="4100;4127;4201"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -114,9 +115,10 @@
 				UsePrecompiledHeader="0"
 				AssemblerOutput="2"
 				AssemblerListingLocation="$(IntDir)/"
-				WarningLevel="3"
+				WarningLevel="4"
 				Detect64BitPortabilityProblems="false"
 				DebugInformationFormat="0"
+				DisableSpecificWarnings="4100;4127;4201"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -165,7 +167,7 @@
 					>
 					<Tool
 						Name="VCCustomBuildTool"
-						CommandLine="yasm.exe -Xvc -f win32 -g cv8 -o &quot;$(TargetDir)\$(InputName).obj&quot; &quot;$(InputPath)&quot;&#x0D;&#x0A;"
+						CommandLine="nasm.exe -Xvc -f win32 -Ox -g -o &quot;$(TargetDir)\$(InputName).obj&quot; &quot;$(InputPath)&quot;&#x0D;&#x0A;"
 						Outputs="$(TargetDir)\$(InputName).obj"
 					/>
 				</FileConfiguration>
@@ -174,7 +176,7 @@
 					>
 					<Tool
 						Name="VCCustomBuildTool"
-						CommandLine="yasm.exe -Xvc -f win32 -o &quot;$(TargetDir)\$(InputName).obj&quot; &quot;$(InputPath)&quot;&#x0D;&#x0A;"
+						CommandLine="nasm.exe -Xvc -f win32 -Ox -o &quot;$(TargetDir)\$(InputName).obj&quot; -l &quot;$(TargetDir)\$(InputName).lst&quot; &quot;$(InputPath)&quot;&#x0D;&#x0A;"
 						Outputs="$(TargetDir)\$(InputName).obj"
 					/>
 				</FileConfiguration>

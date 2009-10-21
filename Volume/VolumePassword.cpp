@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -134,7 +134,7 @@ namespace TrueCrypt
 		{
 			conv.c = password[i];
 			passwordBuf[i] = conv.b[lsbPos];
-			for (int j = 0; j < sizeof (wchar_t); ++j)
+			for (int j = 0; j < (int) sizeof (wchar_t); ++j)
 			{
 				if (j != lsbPos && conv.b[j] != 0)
 					unportable = true;

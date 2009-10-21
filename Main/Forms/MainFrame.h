@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -120,7 +120,6 @@ namespace TrueCrypt
 		void OnSelectFileAndMountMenuItemSelected (wxCommandEvent& event);
 		void OnSelectFileButtonClick (wxCommandEvent& event);
 		void OnTimer ();
-		void OnTravelerDiskWizardMenuItemSelected (wxCommandEvent& event);
 		void OnVersionHistoryMenuItemSelected (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"history"); }
 		void OnVolumePropertiesButtonClick (wxCommandEvent& event);
 		void OnVolumeToolsButtonClick (wxCommandEvent& event);

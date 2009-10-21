@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -140,7 +140,7 @@ namespace TrueCrypt
 		list <string> deserializedList;
 		uint64 listSize = Deserialize <uint64> ();
 
-		for (int i = 0; i < listSize; i++)
+		for (size_t i = 0; i < listSize; i++)
 			deserializedList.push_back (DeserializeString ());
 
 		return deserializedList;
@@ -162,7 +162,7 @@ namespace TrueCrypt
 		list <wstring> deserializedList;
 		uint64 listSize = Deserialize <uint64> ();
 
-		for (int i = 0; i < listSize; i++)
+		for (size_t i = 0; i < listSize; i++)
 			deserializedList.push_back (DeserializeWString ());
 
 		return deserializedList;

@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -91,9 +91,9 @@ namespace TrueCrypt
 			// type_info::name() leaks memory as of MS VC++ 8.0
 			string rawName (typeInfo.raw_name());
 
-			int cut1 = (rawName.find (".?A") != string::npos) ? 4 : string::npos;
-			int cut2 = rawName.find ("@");
-			int cut3 = rawName.find ("@@");
+			size_t cut1 = (rawName.find (".?A") != string::npos) ? 4 : string::npos;
+			size_t cut2 = rawName.find ("@");
+			size_t cut3 = rawName.find ("@@");
 
 			if (cut1 == string::npos || cut2 == string::npos || cut3 == string::npos)
 				return typeInfo.name();
@@ -218,13 +218,13 @@ namespace TrueCrypt
 			const wchar_t *src = wstr.c_str();
 
 			size_t size = wcsrtombs (nullptr, &src, 0, &mbState);
-			if (size == -1)
+			if (size == (size_t) -1)
 				throw StringConversionFailed (SRC_POS, wstr);
 
 			vector <char> buf (size + 1);
 			Memory::Zero (&mbState, sizeof (mbState));
 
-			if ((size = wcsrtombs (&buf[0], &src, buf.size(), &mbState)) == -1)
+			if ((size = wcsrtombs (&buf[0], &src, buf.size(), &mbState)) == (size_t) -1)
 				throw StringConversionFailed (SRC_POS, wstr);
 
 			str.clear();
@@ -303,13 +303,13 @@ namespace TrueCrypt
 			const char *src = str.c_str();
 
 			size_t size = mbsrtowcs (nullptr, &src, 0, &mbState);
-			if (size == -1)
+			if (size == (size_t) -1)
 				throw StringConversionFailed (SRC_POS);
 
 			vector <wchar_t> buf (size + 1);
 			Memory::Zero (&mbState, sizeof (mbState));
 
-			if ((size = mbsrtowcs (&buf[0], &src, buf.size(), &mbState)) == -1)
+			if ((size = mbsrtowcs (&buf[0], &src, buf.size(), &mbState)) == (size_t) -1)
 				throw StringConversionFailed (SRC_POS);
 
 			wstring s;

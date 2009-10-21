@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -12,6 +12,8 @@
 #include "Common/Password.h"
 #include "BootDefs.h"
 
+// The user will be advised to upgrade the rescue disk if upgrading from the following or any previous version
+#define TC_RESCUE_DISK_UPGRADE_NOTICE_MAX_VERSION 0x060a
 
 #define TC_BOOT_LOADER_AREA_SIZE (TC_BOOT_LOADER_AREA_SECTOR_COUNT * SECTOR_SIZE)
 
@@ -29,6 +31,8 @@
 
 #define TC_MBR_SECTOR 0
 #define TC_MAX_MBR_BOOT_CODE_SIZE 440
+
+#define TC_MAX_EXTRA_BOOT_PARTITION_SIZE (256UL * 1024UL * 1024UL)
 
 
 #pragma pack (1)
@@ -53,9 +57,14 @@ typedef struct
 	Password BootPassword;
 	uint64 HiddenSystemPartitionStart;
 	uint64 DecoySystemPartitionStart;
+	uint32 Flags;
+
 	uint32 BootArgumentsCrc32;
 
 } BootArguments;
+
+// Modifying these values can introduce incompatibility with previous versions
+#define TC_BOOT_ARGS_FLAG_EXTRA_BOOT_PARTITION				0x1
 
 #pragma pack ()
 

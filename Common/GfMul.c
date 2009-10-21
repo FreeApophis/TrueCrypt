@@ -762,7 +762,7 @@ static void shl128 (unsigned __int8 *a)
 	for (i = 15; i >= 0; i--)
 	{
 		xx = (a[i] & 0x80) >> 7;
-		a[i] = (a[i] << 1) | x;
+		a[i] = (char) ((a[i] << 1) | x);
 		x = xx;
 	}
 }
@@ -802,7 +802,7 @@ static void shl64 (unsigned __int8 *a)
 	for (i = 7; i >= 0; i--)
 	{
 		xx = (a[i] & 0x80) >> 7;
-		a[i] = (a[i] << 1) | x;
+		a[i] = (char) ((a[i] << 1) | x);
 		x = xx;
 	}
 }

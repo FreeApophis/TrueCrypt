@@ -1,82 +1,59 @@
 /*
- Copyright (c) 2005 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2005-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
 
 #include "../Common/Dictionary.h"
 #include <windows.h>
+#include <map>
+#include <string>
 
-static DictionaryEntry StringDictionary[4096];
-static int LastDictionaryEntry = -1;
-static int MaxDictionaryEntry = sizeof (StringDictionary) / sizeof (DictionaryEntry) - 1;
+using namespace std;
+
+static map <string, void *> StringKeyMap;
+static map <int, void *> IntKeyMap;
 
 static void *DataPool = NULL;
 static size_t DataPoolSize = 0;
 
-int AddDictionaryEntry (char *key, int intKey, void *value)
+
+void AddDictionaryEntry (char *key, int intKey, void *value)
 {
-	int i;
-	if (LastDictionaryEntry >= MaxDictionaryEntry) return -1;
+	if (key)
+		StringKeyMap[key] = value;
 
-	// Replace identical key if it exists
-	for (i = 0; i <= LastDictionaryEntry; i++)
-	{
-		if ((StringDictionary[i].Key != NULL
-			&& key != NULL
-			&& strcmp (StringDictionary[i].Key, key) == 0)
-			|| (key == NULL && StringDictionary[i].IntKey == intKey))
-		{
-			StringDictionary[i].Key = key;
-			StringDictionary[i].IntKey = intKey;
-			StringDictionary[i].Value = value;
-
-			return i;
-		}
-	}
-
-	LastDictionaryEntry++;
-
-	StringDictionary[LastDictionaryEntry].Key = key;
-	StringDictionary[LastDictionaryEntry].IntKey = intKey;
-	StringDictionary[LastDictionaryEntry].Value = value;
-
-	return LastDictionaryEntry;
+	if (intKey != 0)
+		IntKeyMap[intKey] = value;
 }
 
 
 void *GetDictionaryValue (const char *key)
 {
-	int i;
-	for (i = 0; i <= LastDictionaryEntry; i++)
-	{
-		if (StringDictionary[i].Key != NULL
-			&& strcmp (StringDictionary[i].Key, key) == 0)
-			return StringDictionary[i].Value;
-	}
+	map <string, void *>::const_iterator i = StringKeyMap.find (key);
+	
+	if (i == StringKeyMap.end())
+		return NULL;
 
-	return NULL;
+	return i->second;
 }
 
 
 void *GetDictionaryValueByInt (int intKey)
 {
-	int i;
-	for (i = 0; i <= LastDictionaryEntry; i++)
-	{
-		if (StringDictionary[i].IntKey == intKey)
-			return StringDictionary[i].Value;
-	}
+	map <int, void *>::const_iterator i = IntKeyMap.find (intKey);
 
-	return NULL;
+	if (i == IntKeyMap.end())
+		return NULL;
+
+	return i->second;
 }
 
 
 void *AddPoolData (void *data, size_t dataSize)
 {
-
 	if (DataPoolSize + dataSize > DATA_POOL_CAPACITY) return NULL;
 
 	if (DataPool == NULL)
@@ -86,11 +63,6 @@ void *AddPoolData (void *data, size_t dataSize)
 	}
 
 	memcpy ((BYTE *)DataPool + DataPoolSize, data, dataSize);
-
-	//if (wcschr((WCHAR *)((BYTE *)DataPool + DataPoolSize), '%') == 0)
-	//	_wcsupr ((WCHAR *)((BYTE *)DataPool + DataPoolSize));
-	//else
-	//	((WCHAR *)((BYTE *)DataPool + DataPoolSize))[0] = L'*';
 
 	// Ensure 32-bit alignment for next entries
 	dataSize = (dataSize + 3) & (~(size_t)3);
@@ -103,5 +75,6 @@ void *AddPoolData (void *data, size_t dataSize)
 void ClearDictionaryPool ()
 {
 	DataPoolSize = 0;
-	LastDictionaryEntry = -1;
+	StringKeyMap.clear();
+	IntKeyMap.clear();
 }

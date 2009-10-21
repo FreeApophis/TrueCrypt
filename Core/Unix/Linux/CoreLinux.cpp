@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -159,9 +159,10 @@ namespace TrueCrypt
 			vector <string> fields = StringConverter::Split (line);
 			
 			if (fields.size() != 4
-				|| fields[3].find ("loop") != string::npos	// skip loop devices
-				|| fields[3].find ("ram") != string::npos	// skip RAM devices
-				|| fields[2] == "1"							// skip extended partitions
+				|| fields[3].find ("loop") == 0	// skip loop devices
+				|| fields[3].find ("ram") == 0	// skip RAM devices
+				|| fields[3].find ("dm-") == 0	// skip device mapper devices
+				|| fields[2] == "1"				// skip extended partitions
 				)
 				continue;
 

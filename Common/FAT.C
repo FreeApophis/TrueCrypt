@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.7 the full text of which is contained in the
+ by the TrueCrypt License 2.8 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -91,7 +91,7 @@ GetFatParams (fatparams * ft)
 	}
 	else
 	{
-		ft->sectors = ft->num_sectors;
+		ft->sectors = (uint16) ft->num_sectors;
 		ft->total_sect = 0;
 	}
 }
@@ -135,7 +135,7 @@ PutBoot (fatparams * ft, unsigned char *boot)
 	}
 	else 
 	{ 
-		*(__int16 *)(boot + cnt) = LE16(ft->fat_length);	/* fat size */
+		*(__int16 *)(boot + cnt) = LE16((uint16) ft->fat_length);	/* fat size */
 		cnt += 2;
 	}
 
@@ -192,7 +192,7 @@ PutBoot (fatparams * ft, unsigned char *boot)
 
 
 /* FAT32 FSInfo */
-static PutFSInfo (unsigned char *sector, fatparams *ft)
+static void PutFSInfo (unsigned char *sector, fatparams *ft)
 {
 	memset (sector, 0, 512);
 	sector[3]=0x41; /* LeadSig */
@@ -207,10 +207,9 @@ static PutFSInfo (unsigned char *sector, fatparams *ft)
 	// Free cluster count
 	*(uint32 *)(sector + 488) = LE32 (ft->cluster_count - ft->size_root_dir / SECTOR_SIZE / ft->cluster_size);
 
-	sector[492+3]=0xff; /* Nxt_Free */
-	sector[492+2]=0xff;
-	sector[492+1]=0xff;
-	sector[492+0]=0xff;
+	// Next free cluster
+	*(uint32 *)(sector + 492) = LE32 (2);
+
 	sector[508+3]=0xaa; /* TrailSig */
 	sector[508+2]=0x55;
 	sector[508+1]=0x00;
@@ -241,7 +240,7 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INF
 
 	/* Write the data area */
 
-	write_buf = (char *)TCalloc (WRITE_BUF_SIZE);
+	write_buf = (char *)TCalloc (FormatWriteBufferSize);
 	if (!write_buf)
 		return ERR_OUTOFMEMORY;
 

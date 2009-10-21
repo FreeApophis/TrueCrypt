@@ -1,7 +1,7 @@
 #
-# Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+# Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 #
-# Governed by the TrueCrypt License 2.7 the full text of which is contained
+# Governed by the TrueCrypt License 2.8 the full text of which is contained
 # in the file License.txt included in TrueCrypt binary and source code
 # distribution packages.
 #
@@ -15,15 +15,15 @@ PROJ = BootLoader
 
 ENVPATH = $(PATH)
 
-CPP = $(MSVC16_ROOT)\bin\cl.exe
+CC = $(MSVC16_ROOT)\bin\cl.exe
 LD = $(MSVC16_ROOT)\bin\link.exe
 
-AFLAGS = /nologo /AT /omf
+AFLAGS = /nologo /omf
 
-CPPFLAGS = /nologo /W2 /Fc /I "$(MSVC16_ROOT)\Include" /I"..\..\.." /I"..\..\..\Common" /I"..\..\..\Crypto"
-CPPFLAGS = $(CPPFLAGS) /D __int8=char /D __int16=int /D __int32=long /D BOOL=__int32 /D FALSE=0 /D TRUE=1
-CPPFLAGS = $(CPPFLAGS) /D LITTLE_ENDIAN=1234 /D BYTE_ORDER=1234 /D TC_WINDOWS_BOOT /D TC_MINIMIZE_CODE_SIZE /D TC_NO_COMPILER_INT64
-CPPFLAGS = $(CPPFLAGS) /D malloc=malloc_NA
+CFLAGS = /nologo /W3 /Fc /I "$(MSVC16_ROOT)\Include" /I"..\..\.." /I"..\..\..\Common" /I"..\..\..\Crypto"
+CFLAGS = $(CFLAGS) /D __int8=char /D __int16=int /D __int32=long /D BOOL=char /D FALSE=0 /D TRUE=1
+CFLAGS = $(CFLAGS) /D LITTLE_ENDIAN=1234 /D BYTE_ORDER=1234 /D TC_WINDOWS_BOOT /D TC_MINIMIZE_CODE_SIZE /D TC_NO_COMPILER_INT64
+CFLAGS = $(CFLAGS) /D malloc=malloc_NA
 
 LFLAGS = /NOLOGO /ONERROR:NOEXE /NOI /BATCH
 
@@ -31,18 +31,18 @@ OBJDIR = Release
 
 !ifdef RESCUE_DISK
 OBJDIR = Rescue
-CPPFLAGS = $(CPPFLAGS) /D TC_WINDOWS_BOOT_RESCUE_DISK_MODE
+CFLAGS = $(CFLAGS) /D TC_WINDOWS_BOOT_RESCUE_DISK_MODE
 !endif
 
 !ifdef SINGLE_CIPHER
 OBJDIR = $(OBJDIR)_$(SINGLE_CIPHER)
-CPPFLAGS = $(CPPFLAGS) /D TC_WINDOWS_BOOT_SINGLE_CIPHER_MODE /D TC_WINDOWS_BOOT_$(SINGLE_CIPHER)
+CFLAGS = $(CFLAGS) /D TC_WINDOWS_BOOT_SINGLE_CIPHER_MODE /D TC_WINDOWS_BOOT_$(SINGLE_CIPHER)
 !endif
 
 OUTDIR = $(OBJDIR)
 TARGETEXT = com
 TARGETS = $(OUTDIR)\BootDefs.i $(OUTDIR)\BootSector.bin $(OUTDIR)\Decompressor.com
-CPPFLAGS = $(CPPFLAGS) /AT /Zl /f- /G3 /Oe /Os /Ob1 /OV0 /Gs /Gf /Gy /D NDEBUG
+CFLAGS = $(CFLAGS) /AT /Zl /f- /G3 /Oe /Os /Ob1 /OV0 /Gs /Gf /Gy /D NDEBUG
 LFLAGS = $(LFLAGS) /NOD /NOE /TINY
 OBJS = $(OUTDIR)\BootCrt.obj
 LIBS = slibce
@@ -109,48 +109,48 @@ clean:
 {..\..\Crypto}.asm{$(OUTDIR)}.obj:
 	cd $(OBJDIR)
 	echo $(<F)
-	nasm.exe -Xvc -f obj -O3 "$(SRCDIR)\$<" -o "$(<B).obj" -l "$(<B).lst"
+	nasm.exe -Xvc -f obj -Ox -o "$(<B).obj" -l "$(<B).lst" "$(SRCDIR)\$<"
 	cd ..
 
 {..\..\Crypto}.c{$(OUTDIR)}.obj:
 	cd $(OBJDIR)
 	set PATH=.
-	$(CPP) $(CPPFLAGS) /c "$(SRCDIR)\$<"
+	$(CC) $(CFLAGS) /c "$(SRCDIR)\$<"
 	set PATH=$(ENVPATH)
 	cd ..
 	
 {..\..\Common}.c{$(OUTDIR)}.obj:
 	cd $(OBJDIR)
 	set PATH=.
-	$(CPP) $(CPPFLAGS) /c "$(SRCDIR)\$<"
+	$(CC) $(CFLAGS) /c "$(SRCDIR)\$<"
 	set PATH=$(ENVPATH)
 	cd ..
 
 .c{$(OUTDIR)}.obj:
 	cd $(OBJDIR)
 	set PATH=.
-	$(CPP) $(CPPFLAGS) /c "$(SRCDIR)\$<"
+	$(CC) $(CFLAGS) /c "$(SRCDIR)\$<"
 	set PATH=$(ENVPATH)
 	cd ..
 			
 .cpp{$(OUTDIR)}.obj:
 	cd $(OBJDIR)
 	set PATH=.
-	$(CPP) $(CPPFLAGS) /c "$(SRCDIR)\$<"
+	$(CC) $(CFLAGS) /c "$(SRCDIR)\$<"
 	set PATH=$(ENVPATH)
 	cd ..
 
 $(OUTDIR)\BootDefs.i: BootDefs.h
 	cd $(OBJDIR)
 	set PATH=.
-	$(CPP) $(CPPFLAGS) /D TC_ASM_PREPROCESS /P /EP "$(SRCDIR)\BootDefs.h"
+	$(CC) $(CFLAGS) /D TC_ASM_PREPROCESS /P /EP "$(SRCDIR)\BootDefs.h"
 	set PATH=$(ENVPATH)
 	cd ..
 	
 $(OUTDIR)\BootSector.bin: $(OUTDIR)\BootSector.obj
 	cd $(OBJDIR)
 	$(LD) $(LFLAGS) BootSector.obj,BootSector.bin,,,, >NUL:
-	-dd.exe conv=notrunc bs=512 conv=notrunc if=BootSector.bin of=$(PROJ).flp 2>NUL:
+	-dd.exe conv=notrunc bs=512 if=BootSector.bin of=$(PROJ).flp 2>NUL:
 	cd ..
 
 $(OUTDIR)\Decompressor.com: $(OUTDIR)\BootCrt.obj $(OUTDIR)\Decompressor.obj

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -157,7 +157,7 @@ BOOL CheckRequirementsForNonSysInPlaceEnc (const char *devicePath, BOOL silent)
 	driveLetterNo = GetDiskDeviceDriveLetter (devPath);
 
 	if (driveLetterNo >= 0)
-		szRootPath[0] = driveLetterNo + 'A';
+		szRootPath[0] = (char) driveLetterNo + 'A';
 
 	if (FakeDosNameForDevice (devicePath, dosDev, devName, FALSE) != 0)
 	{
@@ -1684,7 +1684,7 @@ BOOL MoveClustersBeforeThreshold (HANDLE volumeHandle, PWSTR volumeDevicePath, i
 	}
 
 	wstring volumeRoot = L"X:";
-	volumeRoot[0] = L'A' + drive;
+	volumeRoot[0] = L'A' + (wchar_t) drive;
 
 	return MoveClustersBeforeThresholdInDir (volumeHandle, volumeRoot, clusterThreshold);
 }

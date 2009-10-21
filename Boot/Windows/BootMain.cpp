@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -36,11 +36,9 @@ static void InitScreen ()
 #else
 		" TrueCrypt Rescue Disk "
 #endif
-		VERSION_STRING;
+		VERSION_STRING "\r\n";
 
 	Print (title);
-	PrintRepeatedChar (' ', title[26] ? 8 : 9);
-	Print ("Copyright (C) 2008-2009 TrueCrypt Foundation\r\n");
 
 	PrintRepeatedChar ('\xDC', TC_BIOS_MAX_CHARS_PER_LINE);
 
@@ -290,7 +288,7 @@ static bool CheckMemoryRequirements ()
 	__asm mov codeSeg, cs
 	if (codeSeg == TC_BOOT_LOADER_LOWMEM_SEGMENT)
 	{
-		PrintError ("BIOS reserved too much memory: ", true, false);
+		PrintErrorNoEndl ("BIOS reserved too much memory: ");
 
 		uint16 memFree;
 		__asm
@@ -340,7 +338,8 @@ static bool MountVolume (byte drive, byte &exitKey, bool skipNormal, bool skipHi
 		if (++incorrectPasswordCount == 4)
 		{
 #ifdef TC_WINDOWS_BOOT_RESCUE_DISK_MODE
-			Print ("The key data may be damaged. Use 'Repair Options' > 'Restore key data'.\r\n\r\n");
+			Print ("If you are sure the password is correct, the key data may be damaged.\r\n"
+				   "If so, use 'Repair Options' > 'Restore key data'.\r\n\r\n");
 #else
 			Print ("If you are sure the password is correct, the key data may be damaged. Boot your\r\n"
 				   "TrueCrypt Rescue Disk and select 'Repair Options' > 'Restore key data'.\r\n\r\n");
@@ -352,9 +351,12 @@ static bool MountVolume (byte drive, byte &exitKey, bool skipNormal, bool skipHi
 	bootArguments->BootLoaderVersion = VERSION_NUM;
 	bootArguments->CryptoInfoOffset = (uint16) BootCryptoInfo;
 	bootArguments->CryptoInfoLength = sizeof (*BootCryptoInfo);
-	
+
 	if (BootCryptoInfo->hiddenVolume)
 		bootArguments->HiddenSystemPartitionStart = PartitionFollowingActive.StartSector << TC_LB_SIZE_BIT_SHIFT_DIVISOR;
+
+	if (ExtraBootPartitionPresent)
+		bootArguments->Flags |= TC_BOOT_ARGS_FLAG_EXTRA_BOOT_PARTITION;
 
 	TC_SET_BOOT_ARGUMENTS_SIGNATURE	(bootArguments->Signature);
 
@@ -384,13 +386,38 @@ static bool MountVolume (byte drive, byte &exitKey, bool skipNormal, bool skipHi
 }
 
 
+static bool GetSystemPartitions (byte drive)
+{
+	size_t partCount;
+
+	if (!GetActivePartition (drive))
+		return false;
+
+	// Find partition following the active one
+	GetDrivePartitions (drive, &PartitionFollowingActive, 1, partCount, false, &ActivePartition);
+
+	// If there is an extra boot partition, use the partitions following it.
+	// The real boot partition is determined in BootEncryptedDrive().
+	if (ActivePartition.SectorCount.HighPart == 0 && ActivePartition.SectorCount.LowPart <= TC_MAX_EXTRA_BOOT_PARTITION_SIZE / TC_LB_SIZE
+		&& PartitionFollowingActive.Drive != TC_INVALID_BIOS_DRIVE)
+	{
+		ExtraBootPartitionPresent = true;
+
+		ActivePartition = PartitionFollowingActive;
+		GetDrivePartitions (drive, &PartitionFollowingActive, 1, partCount, false, &ActivePartition);
+	}
+
+	return true;
+}
+
+
 static byte BootEncryptedDrive ()
 {
 	BootArguments *bootArguments = (BootArguments *) TC_BOOT_LOADER_ARGS_OFFSET;
 	byte exitKey;
 	BootCryptoInfo = NULL;
 
-	if (!GetActiveAndFollowingPartition (BootDrive))
+	if (!GetSystemPartitions (BootDrive))
 		goto err;
 
 	if (!MountVolume (BootDrive, exitKey, PreventNormalSystemBoot, false))
@@ -404,6 +431,9 @@ static byte BootEncryptedDrive ()
 		EncryptedVirtualPartition = ActivePartition;
 		bootArguments->DecoySystemPartitionStart = ActivePartition.StartSector << TC_LB_SIZE_BIT_SHIFT_DIVISOR;
 	}
+
+	if (ExtraBootPartitionPresent && !GetActivePartition (BootDrive))
+		goto err;
 
 	if (!InstallInterruptFilters())
 		goto err;
@@ -539,7 +569,7 @@ static void BootMenu ()
 
 #ifndef TC_WINDOWS_BOOT_RESCUE_DISK_MODE
 
-static bool CopyActivePartitionToHiddenVolume (byte drive, byte &exitKey)
+static bool CopySystemPartitionToHiddenVolume (byte drive, byte &exitKey)
 {
 	bool status = false;
 
@@ -554,7 +584,7 @@ static bool CopyActivePartitionToHiddenVolume (byte drive, byte &exitKey)
 	if (!CheckMemoryRequirements ())
 		goto err;
 
-	if (!GetActiveAndFollowingPartition (drive))
+	if (!GetSystemPartitions (drive))
 		goto err;
 
 	if (PartitionFollowingActive.Drive == TC_INVALID_BIOS_DRIVE)
@@ -566,10 +596,9 @@ static bool CopyActivePartitionToHiddenVolume (byte drive, byte &exitKey)
 	if (ReadSectors (SectorBuffer, PartitionFollowingActive.Drive, PartitionFollowingActive.EndSector - (TC_VOLUME_HEADER_GROUP_SIZE / TC_LB_SIZE - 2), 1) != BiosResultSuccess
 		|| GetCrc32 (SectorBuffer, sizeof (SectorBuffer)) != OuterVolumeBackupHeaderCrc)
 	{
-		if (!IsLbaSupported (PartitionFollowingActive.Drive))
-			Print ("BIOS: LBA N/A\r\n");
-
-		PrintError ("Your BIOS does not support large drives");
+		PrintErrorNoEndl ("Your BIOS does not support large drives");
+		Print (IsLbaSupported (PartitionFollowingActive.Drive) ? " due to a bug" : "\r\n- Enable LBA in BIOS");
+		PrintEndl();
 		Print (TC_BOOT_STR_UPGRADE_BIOS);
 
 		ReleaseSectorBuffer();
@@ -599,7 +628,7 @@ static bool CopyActivePartitionToHiddenVolume (byte drive, byte &exitKey)
 		}
 
 		if (sectorsRemaining.HighPart == 0 && sectorsRemaining.LowPart < fragmentSectorCount)
-			fragmentSectorCount = sectorsRemaining.LowPart;
+			fragmentSectorCount = (int) sectorsRemaining.LowPart;
 
 		if (ReadWriteSectors (false, TC_BOOT_LOADER_BUFFER_SEGMENT, 0, drive, ActivePartition.StartSector + sectorOffset, fragmentSectorCount, false) != BiosResultSuccess)
 		{
@@ -706,7 +735,7 @@ static void DecryptDrive (byte drive)
 			break;
 
 		if (sectorsRemaining.HighPart == 0 && sectorsRemaining.LowPart < fragmentSectorCount)
-			fragmentSectorCount = sectorsRemaining.LowPart;
+			fragmentSectorCount = (int) sectorsRemaining.LowPart;
 
 		sector = sector - fragmentSectorCount;
 
@@ -914,6 +943,9 @@ static void RepairMenu ()
 				{
 					while (true)
 					{
+						bool validHeaderPresent = false;
+						uint32 masterKeyScheduleCrc;
+
 						Password password;
 						byte exitKey = AskPassword (password);
 
@@ -928,9 +960,9 @@ static void RepairMenu ()
 						// Restore volume header only if the current one cannot be used
 						if (OpenVolume (TC_FIRST_BIOS_DRIVE, password, &cryptoInfo, nullptr, false, true))
 						{
-							Print ("Original header preserved.\r\n");
+							validHeaderPresent = true;
+							masterKeyScheduleCrc = GetCrc32 (cryptoInfo->ks, sizeof (cryptoInfo->ks));
 							crypto_close (cryptoInfo);
-							goto err;
 						}
 
 						AcquireSectorBuffer();
@@ -938,6 +970,17 @@ static void RepairMenu ()
 
 						if (ReadVolumeHeader (TRUE, (char *) SectorBuffer, &password, &cryptoInfo, nullptr) == 0)
 						{
+							if (validHeaderPresent)
+							{
+								if (masterKeyScheduleCrc == GetCrc32 (cryptoInfo->ks, sizeof (cryptoInfo->ks)))
+								{
+									Print ("Original header preserved.\r\n");
+									goto err;
+								}
+
+								Print ("WARNING: Drive 0 contains a valid header!\r\n");
+							}
+
 							crypto_close (cryptoInfo);
 							break;
 						}
@@ -1010,15 +1053,21 @@ void main ()
 		BootDrive = TC_FIRST_BIOS_DRIVE;
 
 	// Query boot drive geometry
-	if (GetDriveGeometry (BootDrive, BootDriveGeometry, true) != BiosResultSuccess)
+	if (GetDriveGeometry (BootDrive, BootDriveGeometry) != BiosResultSuccess)
 	{
 		BootDrive = TC_FIRST_BIOS_DRIVE;
-		if (GetDriveGeometry (BootDrive, BootDriveGeometry) == BiosResultSuccess)
-			BootDriveGeometryValid = TRUE;
+		if (GetDriveGeometry (BootDrive, BootDriveGeometry) != BiosResultSuccess)
+		{
+#ifdef TC_WINDOWS_BOOT_RESCUE_DISK_MODE
+			Print ("- Connect system drive to (SATA) port 1\r\n");
+#endif
+			GetKeyboardChar();
+		}
+		else
+			BootDriveGeometryValid = true;
 	}
 	else
-		BootDriveGeometryValid = TRUE;
-
+		BootDriveGeometryValid = true;
 
 #ifdef TC_WINDOWS_BOOT_RESCUE_DISK_MODE
 
@@ -1059,7 +1108,7 @@ void main ()
 
 			if (hiddenSystemCreationPhase == TC_HIDDEN_OS_CREATION_PHASE_CLONING)
 			{
-				if (CopyActivePartitionToHiddenVolume (BootDrive, exitKey))
+				if (CopySystemPartitionToHiddenVolume (BootDrive, exitKey))
 				{
 					BootSectorFlags = (BootSectorFlags & ~TC_BOOT_CFG_MASK_HIDDEN_OS_CREATION_PHASE) | TC_HIDDEN_OS_CREATION_PHASE_WIPING;
 					UpdateBootSectorConfiguration (BootLoaderDrive);

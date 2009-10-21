@@ -65,7 +65,6 @@ namespace TrueCrypt
 			wxMenuItem* AddToFavoritesMenuItem;
 			wxMenuItem* AddAllMountedToFavoritesMenuItem;
 			wxMenu* ToolsMenu;
-			wxMenuItem* TravelerDiskWizardMenuItem;
 			wxMenuItem* BackupVolumeHeadersMenuItem;
 			wxMenuItem* RestoreVolumeHeaderMenuItem;
 			wxMenuItem* WipeCachedPasswordsMenuItem;
@@ -117,7 +116,6 @@ namespace TrueCrypt
 			virtual void OnOrganizeFavoritesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnMountAllFavoritesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnEncryptionTestMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnTravelerDiskWizardMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnBackupVolumeHeadersMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnRestoreVolumeHeaderMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnWipeCacheButtonClick( wxCommandEvent& event ){ event.Skip(); }
@@ -817,34 +815,6 @@ namespace TrueCrypt
 		public:
 			SingleChoiceWizardPageBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL );
 			~SingleChoiceWizardPageBase();
-		
-	};
-	
-	///////////////////////////////////////////////////////////////////////////////
-	/// Class TravelerMountOptionsWizardPageBase
-	///////////////////////////////////////////////////////////////////////////////
-	class TravelerMountOptionsWizardPageBase : public WizardPage
-	{
-		private:
-		
-		protected:
-			wxTextCtrl* VolumePathTextCtrl;
-			wxButton* SelectVolumeButton;
-			wxChoice* MountPointChoice;
-			wxCheckBox* BackgroundTaskCheckBox;
-			wxCheckBox* OpenExplorerCheckBox;
-			wxCheckBox* MountReadOnlyCheckBox;
-			wxCheckBox* CachePasswordCheckBox;
-			wxStaticText* InfoStaticText;
-			
-			// Virtual event handlers, overide them in your derived class
-			virtual void OnVolumePathTextChanged( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnSelectVolumeButtonClick( wxCommandEvent& event ){ event.Skip(); }
-			
-		
-		public:
-			TravelerMountOptionsWizardPageBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL );
-			~TravelerMountOptionsWizardPageBase();
 		
 	};
 	

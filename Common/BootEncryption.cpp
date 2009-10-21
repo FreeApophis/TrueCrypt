@@ -1,7 +1,7 @@
 /*
 Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
-Governed by the TrueCrypt License 2.7 the full text of which is contained
+Governed by the TrueCrypt License 2.8 the full text of which is contained
 in the file License.txt included in TrueCrypt binary and source code
 distribution packages.
 */
@@ -70,6 +70,32 @@ namespace TrueCrypt
 			}
 		}
 
+		static void CopyFile (const string &sourceFile, const string &destinationFile)
+		{
+			Elevate();
+
+			DWORD result = ElevatedComInstance->CopyFile (CComBSTR (sourceFile.c_str()), CComBSTR (destinationFile.c_str()));
+
+			if (result != ERROR_SUCCESS)
+			{
+				SetLastError (result);
+				throw SystemException();
+			}
+		}
+
+		static void DeleteFile (const string &file)
+		{
+			Elevate();
+
+			DWORD result = ElevatedComInstance->DeleteFile (CComBSTR (file.c_str()));
+
+			if (result != ERROR_SUCCESS)
+			{
+				SetLastError (result);
+				throw SystemException();
+			}
+		}
+
 		static void ReadWriteFile (BOOL write, BOOL device, const string &filePath, byte *buffer, uint64 offset, uint32 size, DWORD *sizeDone)
 		{
 			Elevate();
@@ -121,6 +147,17 @@ namespace TrueCrypt
 			}
 		}
 
+		static void RegisterSystemFavoritesService (BOOL registerService)
+		{
+			Elevate();
+
+			DWORD result = ElevatedComInstance->RegisterSystemFavoritesService (registerService);
+			if (result != ERROR_SUCCESS)
+			{
+				SetLastError (result);
+				throw SystemException();
+			}
+		}
 
 		static void Release ()
 		{
@@ -278,7 +315,7 @@ namespace TrueCrypt
 		}
 		catch (SystemException &e)
 		{
-			if (!IsDevice || e.ErrorCode != ERROR_WRITE_PROTECT || !IsHiddenOSRunning())
+			if (!IsDevice || e.ErrorCode != ERROR_WRITE_PROTECT)
 				throw;
 
 			BootEncryption bootEnc (NULL);
@@ -392,6 +429,31 @@ namespace TrueCrypt
 			{
 				if (partition.Info.PartitionNumber != config.SystemPartition.Number)
 				{
+					// If there is an extra boot partition, the system partition must be located right behind it
+					if (IsOSAtLeast (WIN_7) && config.ExtraBootPartitionPresent)
+					{
+						int64 minOffsetFound = config.DrivePartition.Info.PartitionLength.QuadPart;
+						Partition bootPartition = partition;
+						Partition partitionBehindBoot;
+
+						foreach (const Partition &partition, config.Partitions)
+						{
+							if (partition.Info.StartingOffset.QuadPart > bootPartition.Info.StartingOffset.QuadPart
+								&& partition.Info.StartingOffset.QuadPart < minOffsetFound)
+							{
+								minOffsetFound = partition.Info.StartingOffset.QuadPart;
+								partitionBehindBoot = partition;
+							}
+						}
+
+						if (minOffsetFound != config.DrivePartition.Info.PartitionLength.QuadPart
+							&& partitionBehindBoot.Number == config.SystemPartition.Number)
+						{
+							activePartitionFound = true;
+							break;
+						}
+					}
+
 					throw ErrorException (wstring (GetString ("SYSTEM_PARTITION_NOT_ACTIVE"))
 						+ GetRemarksOnHiddenOS());
 				}
@@ -448,7 +510,7 @@ namespace TrueCrypt
 		else
 		{
 			// No active partition on the system drive
-			throw ErrorException ("WINDOWS_NOT_ON_BOOT_DRIVE_ERROR");
+			throw ErrorException ("SYSTEM_PARTITION_NOT_ACTIVE");
 		}
 
 		HiddenOSCandidatePartition = candidatePartition;
@@ -772,6 +834,8 @@ namespace TrueCrypt
 		for (int driveNumber = 0; driveNumber < 32; ++driveNumber)
 		{
 			bool windowsFound = false;
+			bool activePartitionFound = false;
+			config.ExtraBootPartitionPresent = false;
 			config.SystemLoaderPresent = false;
 
 			PartitionList partitions = GetDrivePartitions (driveNumber);
@@ -792,6 +856,14 @@ namespace TrueCrypt
 				{
 					config.SystemPartition = part;
 					windowsFound = true;
+				}
+
+				if (!activePartitionFound && part.Info.BootIndicator)
+				{
+					activePartitionFound = true;
+
+					if (part.Info.PartitionLength.QuadPart > 0 && part.Info.PartitionLength.QuadPart <= TC_MAX_EXTRA_BOOT_PARTITION_SIZE)
+						config.ExtraBootPartitionPresent = true;
 				}
 			}
 
@@ -835,6 +907,14 @@ namespace TrueCrypt
 	bool BootEncryption::SystemPartitionCoversWholeDrive ()
 	{
 		SystemDriveConfiguration config = GetSystemDriveConfiguration();
+
+		if (IsOSAtLeast (WIN_7)
+			&& config.Partitions.size() == 2
+			&& config.ExtraBootPartitionPresent
+			&& config.DrivePartition.Info.PartitionLength.QuadPart - config.SystemPartition.Info.PartitionLength.QuadPart < 164 * BYTES_PER_MB)
+		{
+			return true;
+		}
 
 		return config.Partitions.size() == 1
 			&& config.DrivePartition.Info.PartitionLength.QuadPart - config.SystemPartition.Info.PartitionLength.QuadPart < 64 * BYTES_PER_MB;
@@ -1617,6 +1697,71 @@ namespace TrueCrypt
 
 #ifndef SETUP
 
+	void BootEncryption::RegisterSystemFavoritesService (BOOL registerService)
+	{
+		if (!IsAdmin() && IsUacSupported())
+		{
+			Elevator::RegisterSystemFavoritesService (registerService);
+			return;
+		}
+
+		SC_HANDLE scm = OpenSCManager (NULL, NULL, SC_MANAGER_ALL_ACCESS);
+		throw_sys_if (!scm);
+
+		if (registerService)
+		{
+			char appPath[TC_MAX_PATH];
+			throw_sys_if (!GetModuleFileName (NULL, appPath, sizeof (appPath)));
+
+			SC_HANDLE service = CreateService (scm,
+				TC_SYSTEM_FAVORITES_SERVICE_NAME,
+				TC_APP_NAME " System Favorites",
+				SERVICE_ALL_ACCESS,
+				SERVICE_WIN32_OWN_PROCESS,
+				SERVICE_AUTO_START,
+				SERVICE_ERROR_NORMAL,
+				(string ("\"") + appPath + "\" " TC_SYSTEM_FAVORITES_SERVICE_CMDLINE_OPTION).c_str(),
+				TC_SYSTEM_FAVORITES_SERVICE_LOAD_ORDER_GROUP,
+				NULL,
+				NULL,
+				NULL,
+				NULL);
+
+			throw_sys_if (!service);
+
+			SERVICE_DESCRIPTION description;
+			description.lpDescription = "Mounts TrueCrypt system favorite volumes.";
+			ChangeServiceConfig2 (service, SERVICE_CONFIG_DESCRIPTION, &description);
+
+			CloseServiceHandle (service);
+
+			try
+			{
+				SetDriverConfigurationFlag (TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD_FOR_SYS_FAVORITES, true);
+			}
+			catch (...)
+			{
+				try
+				{
+					RegisterSystemFavoritesService (false);
+				}
+				catch (...) { }
+
+				throw;
+			}
+		}
+		else
+		{
+			SetDriverConfigurationFlag (TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD_FOR_SYS_FAVORITES, false);
+
+			SC_HANDLE service = OpenService (scm, TC_SYSTEM_FAVORITES_SERVICE_NAME, SERVICE_ALL_ACCESS);
+			throw_sys_if (!service);
+
+			throw_sys_if (!DeleteService (service));
+			CloseServiceHandle (service);
+		}
+	}
+
 	void BootEncryption::CheckRequirements ()
 	{
 		if (nCurrentOS == WIN_2000)
@@ -1644,13 +1789,10 @@ namespace TrueCrypt
 		if (geometry.BytesPerSector != SECTOR_SIZE)
 			throw ErrorException ("LARGE_SECTOR_UNSUPPORTED");
 
-		if (!config.SystemLoaderPresent)
-			throw ErrorException ("WINDOWS_NOT_ON_BOOT_DRIVE_ERROR");
-
+		bool activePartitionFound = false;
 		if (!config.SystemPartition.IsGPT)
 		{
 			// Determine whether there is an Active partition on the system drive
-			bool activePartitionFound = false;
 			foreach (const Partition &partition, config.Partitions)
 			{
 				if (partition.Info.BootIndicator)
@@ -1659,9 +1801,16 @@ namespace TrueCrypt
 					break;
 				}
 			}
+		}
 
-			if (!activePartitionFound)
-				throw ErrorException ("WINDOWS_NOT_ON_BOOT_DRIVE_ERROR");
+		if (!config.SystemLoaderPresent || !activePartitionFound)
+		{
+			static bool confirmed = false;
+
+			if (!confirmed && AskWarnNoYes ("WINDOWS_NOT_ON_BOOT_DRIVE_ERROR") == IDNO)
+				throw UserAbort (SRC_POS);
+
+			confirmed = true;
 		}
 	}
 
@@ -1679,7 +1828,7 @@ namespace TrueCrypt
 
 	void BootEncryption::InitialSecurityChecksForHiddenOS ()
 	{
-		char windowsDrive = toupper (GetWindowsDirectory()[0]);
+		char windowsDrive = (char) toupper (GetWindowsDirectory()[0]);
 
 		// Paging files
 		bool pagingFilesOk = !IsPagingFileActive (TRUE);
@@ -1764,6 +1913,12 @@ namespace TrueCrypt
 
 		try
 		{
+			RegisterSystemFavoritesService (false);
+		}
+		catch (...) { }
+
+		try
+		{
 			RestoreSystemLoader ();
 		}
 		catch (Exception &e)
@@ -1771,6 +1926,7 @@ namespace TrueCrypt
 			e.Show (ParentWindow);
 			throw ErrorException ("SYS_LOADER_RESTORE_FAILED");
 		}
+
 	}
 
 
@@ -2054,6 +2210,27 @@ namespace TrueCrypt
 		throw_sys_if (!WriteLocalMachineRegistryDword (keyPath, valueName, value));
 	}
 
+	uint32 BootEncryption::ReadDriverConfigurationFlags ()
+	{
+		DWORD configMap;
+
+		if (!ReadLocalMachineRegistryDword ("SYSTEM\\CurrentControlSet\\Services\\truecrypt", TC_DRIVER_CONFIG_REG_VALUE_NAME, &configMap))
+			configMap = 0;
+
+		return configMap;
+	}
+
+	void BootEncryption::SetDriverConfigurationFlag (uint32 flag, bool state)
+	{
+		DWORD configMap = ReadDriverConfigurationFlags();
+
+		if (state)
+			configMap |= flag;
+		else
+			configMap &= ~flag;
+
+		WriteLocalMachineRegistryDwordValue ("SYSTEM\\CurrentControlSet\\Services\\truecrypt", TC_DRIVER_CONFIG_REG_VALUE_NAME, configMap);
+	}
 
 	void BootEncryption::StartDecryption (BOOL discardUnreadableEncryptedSectors)
 	{
@@ -2071,7 +2248,6 @@ namespace TrueCrypt
 		CallDriver (TC_IOCTL_BOOT_ENCRYPTION_SETUP, &request, sizeof (request), NULL, 0);
 	}
 
-
 	void BootEncryption::StartEncryption (WipeAlgorithmId wipeAlgorithm, bool zeroUnreadableSectors)
 	{
 		BootEncryptionStatus encStatus = GetStatus();
@@ -2087,6 +2263,30 @@ namespace TrueCrypt
 		request.ZeroUnreadableSectors = zeroUnreadableSectors;
 
 		CallDriver (TC_IOCTL_BOOT_ENCRYPTION_SETUP, &request, sizeof (request), NULL, 0);
+	}
+
+	void BootEncryption::CopyFileAdmin (const string &sourceFile, const string &destinationFile)
+	{
+		if (!IsAdmin())
+		{
+			if (!IsUacSupported())
+			{
+				SetLastError (ERROR_ACCESS_DENIED);
+				throw SystemException();
+			}
+			else
+				Elevator::CopyFile (sourceFile, destinationFile);
+		}
+		else
+			throw_sys_if (!::CopyFile (sourceFile.c_str(), destinationFile.c_str(), FALSE));
+	}
+
+	void BootEncryption::DeleteFileAdmin (const string &file)
+	{
+		if (!IsAdmin() && IsUacSupported())
+			Elevator::DeleteFile (file);
+		else
+			throw_sys_if (!::DeleteFile (file.c_str()));
 	}
 
 #endif // !SETUP

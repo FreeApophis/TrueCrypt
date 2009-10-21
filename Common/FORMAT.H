@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.7 the full text of which is contained in the
+ by the TrueCrypt License 2.8 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -17,8 +17,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#ifdef _WIN32
 
 // FMIFS
 typedef BOOLEAN (__stdcall *PFMIFSCALLBACK)( int command, DWORD subCommand, PVOID parameter ); 
@@ -47,19 +45,16 @@ FORMAT_VOL_PARAMETERS;
 #define FMIFS_DONE		0xB
 #define FMIFS_HARDDISK	0xC
 
+extern int FormatWriteBufferSize;
+
 int TCFormatVolume (volatile FORMAT_VOL_PARAMETERS *volParams);
 BOOL FormatNtfs (int driveNo, int clusterSize);
-
-#endif
-
 uint64 GetVolumeDataAreaSize (BOOL hiddenVolume, uint64 volumeSize);
 int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void *dev, PCRYPTO_INFO cryptoInfo, BOOL quickFormat);
 BOOL WriteSector ( void *dev , char *sector , char *write_buf , int *write_buf_cnt , __int64 *nSecNo , PCRYPTO_INFO cryptoInfo );
 BOOL FlushFormatWriteBuffer (void *dev, char *write_buf, int *write_buf_cnt, __int64 *nSecNo, PCRYPTO_INFO cryptoInfo);
 static BOOL StartFormatWriteThread ();
 static void StopFormatWriteThread ();
-
-#define WRITE_BUF_SIZE	(64 * 1024)	// Write block size greater than 64 KB causes a performance drop when writing to files on XP/Vista (fixed in Windows 7)
 
 #define FILESYS_NONE	0
 #define FILESYS_FAT		1

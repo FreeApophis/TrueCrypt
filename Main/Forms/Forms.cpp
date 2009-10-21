@@ -119,9 +119,6 @@ MainFrameBase::MainFrameBase( wxWindow* parent, wxWindowID id, const wxString& t
 	VolumeCreationWizardMenuItem = new wxMenuItem( ToolsMenu, wxID_ANY, wxString( _("Volume Creation Wizard") ) , wxEmptyString, wxITEM_NORMAL );
 	ToolsMenu->Append( VolumeCreationWizardMenuItem );
 	
-	TravelerDiskWizardMenuItem = new wxMenuItem( ToolsMenu, wxID_ANY, wxString( _("Traveller Disk Wizard...") ) , wxEmptyString, wxITEM_NORMAL );
-	ToolsMenu->Append( TravelerDiskWizardMenuItem );
-	
 	ToolsMenu->AppendSeparator();
 	
 	BackupVolumeHeadersMenuItem = new wxMenuItem( ToolsMenu, wxID_ANY, wxString( _("Backup Volume Header...") ) , wxEmptyString, wxITEM_NORMAL );
@@ -426,7 +423,6 @@ MainFrameBase::MainFrameBase( wxWindow* parent, wxWindowID id, const wxString& t
 	this->Connect( MountAllFavoritesMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnMountAllFavoritesMenuItemSelected ) );
 	this->Connect( EncryptionTestMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnEncryptionTestMenuItemSelected ) );
 	this->Connect( VolumeCreationWizardMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnCreateVolumeButtonClick ) );
-	this->Connect( TravelerDiskWizardMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnTravelerDiskWizardMenuItemSelected ) );
 	this->Connect( BackupVolumeHeadersMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnBackupVolumeHeadersMenuItemSelected ) );
 	this->Connect( RestoreVolumeHeaderMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnRestoreVolumeHeaderMenuItemSelected ) );
 	this->Connect( WipeCachedPasswordsMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnWipeCacheButtonClick ) );
@@ -491,7 +487,6 @@ MainFrameBase::~MainFrameBase()
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnMountAllFavoritesMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnEncryptionTestMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnCreateVolumeButtonClick ) );
-	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnTravelerDiskWizardMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnBackupVolumeHeadersMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnRestoreVolumeHeaderMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnWipeCacheButtonClick ) );
@@ -2489,88 +2484,6 @@ SingleChoiceWizardPageBase::SingleChoiceWizardPageBase( wxWindow* parent, wxWind
 
 SingleChoiceWizardPageBase::~SingleChoiceWizardPageBase()
 {
-}
-
-TravelerMountOptionsWizardPageBase::TravelerMountOptionsWizardPageBase( wxWindow* parent, wxWindowID id, const wxPoint& pos, const wxSize& size, long style ) : WizardPage( parent, id, pos, size, style )
-{
-	wxBoxSizer* bSizer78;
-	bSizer78 = new wxBoxSizer( wxVERTICAL );
-	
-	wxBoxSizer* bSizer79;
-	bSizer79 = new wxBoxSizer( wxVERTICAL );
-	
-	wxStaticBoxSizer* sbSizer28;
-	sbSizer28 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, wxEmptyString ), wxVERTICAL );
-	
-	wxStaticText* m_staticText15;
-	m_staticText15 = new wxStaticText( this, wxID_ANY, _("TrueCrypt volume to mount:"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticText15->Wrap( -1 );
-	sbSizer28->Add( m_staticText15, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
-	
-	wxBoxSizer* bSizer80;
-	bSizer80 = new wxBoxSizer( wxHORIZONTAL );
-	
-	VolumePathTextCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer80->Add( VolumePathTextCtrl, 1, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
-	
-	SelectVolumeButton = new wxButton( this, wxID_ANY, _("Select..."), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer80->Add( SelectVolumeButton, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
-	
-	sbSizer28->Add( bSizer80, 0, wxEXPAND, 5 );
-	
-	wxBoxSizer* bSizer81;
-	bSizer81 = new wxBoxSizer( wxHORIZONTAL );
-	
-	wxStaticText* m_staticText16;
-	m_staticText16 = new wxStaticText( this, wxID_ANY, _("Mount volume as drive letter:"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticText16->Wrap( -1 );
-	bSizer81->Add( m_staticText16, 0, wxALIGN_CENTER_VERTICAL|wxTOP|wxBOTTOM|wxLEFT, 5 );
-	
-	wxArrayString MountPointChoiceChoices;
-	MountPointChoice = new wxChoice( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, MountPointChoiceChoices, 0 );
-	MountPointChoice->SetSelection( 0 );
-	bSizer81->Add( MountPointChoice, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
-	
-	sbSizer28->Add( bSizer81, 0, wxEXPAND, 5 );
-	
-	BackgroundTaskCheckBox = new wxCheckBox( this, wxID_ANY, _("Enable Background Task until volume is dismounted"), wxDefaultPosition, wxDefaultSize, 0 );
-	
-	sbSizer28->Add( BackgroundTaskCheckBox, 0, wxALL, 5 );
-	
-	OpenExplorerCheckBox = new wxCheckBox( this, wxID_ANY, _("Open &Explorer window for mounted volume"), wxDefaultPosition, wxDefaultSize, 0 );
-	
-	sbSizer28->Add( OpenExplorerCheckBox, 0, wxALL, 5 );
-	
-	MountReadOnlyCheckBox = new wxCheckBox( this, wxID_ANY, _("Mount volume as read-&only"), wxDefaultPosition, wxDefaultSize, 0 );
-	
-	sbSizer28->Add( MountReadOnlyCheckBox, 0, wxALL, 5 );
-	
-	CachePasswordCheckBox = new wxCheckBox( this, wxID_ANY, _("Cach&e passwords and keyfiles in memory"), wxDefaultPosition, wxDefaultSize, 0 );
-	
-	sbSizer28->Add( CachePasswordCheckBox, 0, wxALL, 5 );
-	
-	bSizer79->Add( sbSizer28, 0, wxEXPAND, 5 );
-	
-	InfoStaticText = new wxStaticText( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	InfoStaticText->Wrap( -1 );
-	bSizer79->Add( InfoStaticText, 0, wxALL|wxEXPAND, 5 );
-	
-	bSizer78->Add( bSizer79, 1, wxEXPAND, 5 );
-	
-	this->SetSizer( bSizer78 );
-	this->Layout();
-	bSizer78->Fit( this );
-	
-	// Connect Events
-	VolumePathTextCtrl->Connect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( TravelerMountOptionsWizardPageBase::OnVolumePathTextChanged ), NULL, this );
-	SelectVolumeButton->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( TravelerMountOptionsWizardPageBase::OnSelectVolumeButtonClick ), NULL, this );
-}
-
-TravelerMountOptionsWizardPageBase::~TravelerMountOptionsWizardPageBase()
-{
-	// Disconnect Events
-	VolumePathTextCtrl->Disconnect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( TravelerMountOptionsWizardPageBase::OnVolumePathTextChanged ), NULL, this );
-	SelectVolumeButton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( TravelerMountOptionsWizardPageBase::OnSelectVolumeButtonClick ), NULL, this );
 }
 
 VolumeCreationProgressWizardPageBase::VolumeCreationProgressWizardPageBase( wxWindow* parent, wxWindowID id, const wxPoint& pos, const wxSize& size, long style ) : WizardPage( parent, id, pos, size, style )

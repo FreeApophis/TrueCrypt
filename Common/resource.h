@@ -153,6 +153,7 @@
 #define IDT_TOKEN_PASSWORD_INFO         5108
 #define IDT_RANDOM_POOL_ENRICHMENT_NOTE 5109
 #define IDC_CONTINUE                    5110
+#define IDT_ABOUT_RELEASE               5111
 
 // Next default values for new objects
 // 
@@ -161,7 +162,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        541
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         5111
+#define _APS_NEXT_CONTROL_VALUE         5112
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 6,2,1,0
- PRODUCTVERSION 6,2,1,0
+ FILEVERSION 6,3,0,0
+ PRODUCTVERSION 6,3,0,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -46,12 +46,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Format"
-            VALUE "FileVersion", "6.2a"
-            VALUE "LegalCopyright", "TrueCrypt Foundation"
+            VALUE "FileVersion", "6.3"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt Format.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "6.2a"
+            VALUE "ProductVersion", "6.3"
         END
     END
     BLOCK "VarFileInfo"
@@ -249,7 +248,7 @@ BEGIN
     CONTROL         "Encrypt the Windows system partition",IDC_SYS_PARTITION,
                     "Button",BS_AUTORADIOBUTTON,0,7,212,10
     CONTROL         "Encrypt the whole drive",IDC_WHOLE_SYS_DRIVE,"Button",BS_AUTORADIOBUTTON,0,53,212,10
-    LTEXT           "Select this option to encrypt the partition where your Windows is installed and from which it boots.",IDT_SYS_PARTITION,16,20,205,32
+    LTEXT           "Select this option to encrypt the partition where the currently running Windows operating system is installed.",IDT_SYS_PARTITION,16,20,205,32
     LTEXT           "",IDT_WHOLE_SYS_DRIVE,16,66,205,79
 END
 

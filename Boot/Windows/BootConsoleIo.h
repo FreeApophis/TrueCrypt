@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -41,7 +41,8 @@ void ClearScreen ();
 void DisableScreenOutput ();
 void EnableScreenOutput ();
 bool EscKeyPressed ();
-byte GetKeyboardChar (byte *scanCode = nullptr);
+byte GetKeyboardChar ();
+byte GetKeyboardChar (byte *scanCode);
 byte GetShiftFlags ();
 int GetString (char *buffer, size_t bufferSize);
 void InitVideoMode ();
@@ -56,7 +57,8 @@ void PrintCharAtCursor (char c);
 void PrintEndl ();
 void PrintEndl (int cnt);
 void PrintRepeatedChar (char c, int n);
-void PrintError (const char *message, bool beep = true, bool newLine = true);
+void PrintError (const char *message);
+void PrintErrorNoEndl (const char *message);
 void PrintHex (byte b);
 void PrintHex (uint16 data);
 void PrintHex (uint32 data);

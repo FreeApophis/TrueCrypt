@@ -65,24 +65,24 @@ void RMD160Init (RMD160_CTX *ctx)
 * Update context to reflect the concatenation of another buffer full
 * of bytes.
 */
-void RMD160Update (RMD160_CTX *ctx, const unsigned char *input, unsigned __int32 len)
+void RMD160Update (RMD160_CTX *ctx, const unsigned char *input, unsigned __int32 lenArg)
 {
-	size_t have, need;
+#ifndef TC_WINDOWS_BOOT
+	uint64 len = lenArg, have, need;
+#else
+	uint16 len = (uint16) lenArg, have, need;
+#endif
 
 	/* Check how many bytes we already have and how many more we need. */
-	have = (size_t)((ctx->count >> 3) & (RIPEMD160_BLOCK_LENGTH - 1));
+	have = ((ctx->count >> 3) & (RIPEMD160_BLOCK_LENGTH - 1));
 	need = RIPEMD160_BLOCK_LENGTH - have;
 
 	/* Update bitcount */
-	ctx->count += 
-#ifndef TC_NO_COMPILER_INT64
-		(uint64)
-#endif
-		len << 3;
+	ctx->count += len << 3;
 
 	if (len >= need) {
 		if (have != 0) {
-			memcpy (ctx->buffer + have, input, need);
+			memcpy (ctx->buffer + have, input, (size_t) need);
 			RMD160Transform ((uint32 *) ctx->state, (const uint32 *) ctx->buffer);
 			input += need;
 			len -= need;
@@ -109,20 +109,21 @@ void RMD160Update (RMD160_CTX *ctx, const unsigned char *input, unsigned __int32
 static void RMD160Pad(RMD160_CTX *ctx)
 {
 	byte count[8];
-	size_t padlen;
+	uint32 padlen;
 
 	/* Convert count to 8 bytes in little endian order. */
 
-#ifndef TC_NO_COMPILER_INT64
+#ifndef TC_WINDOWS_BOOT
 	PUT_64BIT_LE(count, ctx->count);
 #else
-	*(unsigned __int32 *) (count + 4) = 0;
-	PUT_32BIT_LE(count, ctx->count);
+	*(uint32 *) (count + 4) = 0;
+	*(uint16 *) (count + 2) = 0;
+	*(uint16 *) (count + 0) = ctx->count;
 #endif
 
 	/* Pad out to 56 mod 64. */
 	padlen = RIPEMD160_BLOCK_LENGTH -
-		(size_t)((ctx->count >> 3) & (RIPEMD160_BLOCK_LENGTH - 1));
+		(uint32)((ctx->count >> 3) & (RIPEMD160_BLOCK_LENGTH - 1));
 	if (padlen < 1 + 8)
 		padlen += RIPEMD160_BLOCK_LENGTH;
 	RMD160Update(ctx, PADDING, padlen - 8);            /* padlen - 8 <= 64 */
@@ -376,7 +377,7 @@ void RMD160Transform (unsigned __int32 *digest, const unsigned __int32 *data)
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */

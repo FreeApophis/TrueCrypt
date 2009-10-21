@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -463,7 +463,7 @@ namespace TrueCrypt
 				catch (...)
 				{
 					if (i > 255)
-						throw;
+						throw TemporaryDirectoryFailure (SRC_POS, StringConverter::ToWide (path.str()));
 				}
 			}
 		}

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -76,6 +76,9 @@ bool Int13Filter ()
 			uint64 sector;
 			if (drive == BootDrive)
 			{
+				if (!BootDriveGeometryValid)
+					TC_THROW_FATAL_EXCEPTION;
+
 				ChsToLba (BootDriveGeometry, chs, sector);
 #ifdef TC_TRACE_INT13
 				PrintVal (" Sec", sector.LowPart, false);
@@ -126,19 +129,6 @@ bool Int13Filter ()
 #ifdef TC_TRACE_INT13
 			PrintVal (": Drive", drive - TC_FIRST_BIOS_DRIVE, false);
 			PrintVal (" Sec", lba.Sector.LowPart, false);
-#endif
-			
-			if (drive == BootDrive)
-			{
-				ChsAddress chs;
-				LbaToChs (BootDriveGeometry, lba.Sector, chs);
-#ifdef TC_TRACE_INT13
-				Print (" Chs: ");
-				Print (chs);
-#endif
-			}
-
-#ifdef TC_TRACE_INT13
 			PrintVal (" Count", lba.SectorCount, false);
 			PrintVal (" Buf", lba.Buffer, false, true);
 			PrintEndl();
@@ -300,7 +290,7 @@ mapOverflow:
 		++overSize;
 	}
 
-	PrintError ("MMAP: ", true, false);
+	PrintErrorNoEndl ("MMAP: ");
 	Print (overSize);
 	PrintEndl();
 
@@ -360,7 +350,7 @@ bool Int15Filter ()
 		// Uninstall filter when the modified map has been issued three times to prevent
 		// problems with hardware drivers on some notebooks running Windows XP.
 
-		static CompleteMapIssueCount = 0;
+		static int CompleteMapIssueCount = 0;
 		if (++CompleteMapIssueCount >= 3)
 		{
 			__asm

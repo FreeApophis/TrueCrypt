@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -93,7 +93,7 @@ void ReleaseSectorBuffer ();
 #endif
 
 void ChsToLba (const DriveGeometry &geometry, const ChsAddress &chs, uint64 &lba);
-bool GetActiveAndFollowingPartition (byte drive);
+bool GetActivePartition (byte drive);
 BiosResult GetDriveGeometry (byte drive, DriveGeometry &geometry, bool silent = false);
 BiosResult GetDrivePartitions (byte drive, Partition *partitionArray, size_t partitionArrayCapacity, size_t &partitionCount, bool activeOnly = false, Partition *findPartitionFollowingThis = nullptr, bool silent = false);
 bool IsLbaSupported (byte drive);

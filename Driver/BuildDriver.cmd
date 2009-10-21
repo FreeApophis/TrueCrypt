@@ -1,7 +1,7 @@
 ::
 :: Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 ::
-:: Governed by the TrueCrypt License 2.7 the full text of which is contained
+:: Governed by the TrueCrypt License 2.8 the full text of which is contained
 :: in the file License.txt included in TrueCrypt binary and source code
 :: distribution packages.
 ::
@@ -19,7 +19,7 @@ shift
 
 :: Windows Driver Kit build number
 
-set TC_WINDDK_BUILD=6001.18002
+set TC_WINDDK_BUILD=7600.16385.0
 
 
 :: Check for spaces in the current directory path
@@ -36,9 +36,10 @@ if %ERRORLEVEL% == 0 (
 
 set TC_C_DEFINES=-D_WIN32 -DNT4_DRIVER
 set TC_C_FLAGS=-nologo -I..
+set TC_C_WARNING_LEVEL=-W4
+set TC_C_DISABLED_WARNINGS=-wd4057 -wd4100 -wd4127 -wd4152 -wd4201 -wd4701 -wd4702 -wd4706
 set TC_LIBRARIAN_FLAGS=-nologo
 set TC_LINKER_FLAGS=-nologo
-set NO_SAFESEH=1
 
 
 :: Windows Driver Kit root
@@ -65,6 +66,7 @@ if "%TC_ARG_ARCH%"=="-x64" (
 	set TC_BUILD_ARCH_DIR=amd64
 	set TC_ARCH=x64
 	set TC_ARCH_SUFFIX=-x64
+	set TC_C_DISABLED_WARNINGS=%TC_C_DISABLED_WARNINGS% -wd4328 -wd4366
 ) else (
 	set TC_BUILD_ARCH=WXP
 	set TC_BUILD_ARCH_DIR=i386
@@ -83,7 +85,6 @@ if "%TC_ARG_TYPE%"=="-debug" (
 ) else (
 	set TC_BUILD_TYPE=fre
 	set TC_BUILD_ALT_DIR=_driver_release
-	set TC_C_FLAGS=%TC_C_FLAGS% -w34189
 	set TC_COPY_DIR="..\Release"
 )
 
@@ -91,7 +92,7 @@ if "%TC_ARG_TYPE%"=="-debug" (
 :: WDK environment
 
 pushd .
-call %TC_WINDDK_ROOT%\bin\setenv %TC_WINDDK_ROOT% %TC_BUILD_TYPE% %TC_BUILD_ARCH% || exit /B %errorlevel%
+call %TC_WINDDK_ROOT%\bin\setenv %TC_WINDDK_ROOT% %TC_BUILD_TYPE% %TC_BUILD_ARCH% no_oacr || exit /B %errorlevel%
 popd
 
 
@@ -110,7 +111,8 @@ pushd .
 		rd /q obj%TC_BUILD_ALT_DIR% 2>NUL:
 	) else (
 
-		set USER_C_FLAGS=%TC_C_FLAGS% -FAcs -Fa%~1\obj%TC_BUILD_ALT_DIR%\%TC_BUILD_ARCH_DIR%\
+		set USER_C_FLAGS=%TC_C_FLAGS% %TC_C_DISABLED_WARNINGS% -FAcs -Fa%~1\obj%TC_BUILD_ALT_DIR%\%TC_BUILD_ARCH_DIR%\
+		set MSC_WARNING_LEVEL=%TC_C_WARNING_LEVEL%
 		set C_DEFINES=%TC_C_DEFINES%
 		set RCOPTIONS=/I %MFC_INC_PATH%
 		set LIBRARIAN_FLAGS=%TC_LIBRARIAN_FLAGS%

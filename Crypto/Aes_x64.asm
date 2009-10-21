@@ -29,6 +29,11 @@
 ; Some of the techniques used in this implementation are the result of
 ; suggestions made by him for which I am most grateful.
 
+;
+; Adapted for TrueCrypt by the TrueCrypt Foundation:
+; - Adapted for NASM
+;
+
 ; An AES implementation for AMD64 processors using the YASM assembler.  This
 ; implemetation provides only encryption, decryption and hence requires key
 ; scheduling support in C. It uses 8k bytes of tables but its encryption and
@@ -716,7 +721,7 @@ end_prologue
 %endif
 
     movzx   esi, byte [kptr+4*KS_LENGTH]
-    lea     tptr,[enc_tab wrt rip]
+    lea     tptr, [rel enc_tab]
     sub     kptr, fofs
 
     mov     eax, [rdi+0*4]
@@ -830,7 +835,7 @@ end_prologue
 %endif
 
     movzx   esi,byte[kptr+4*KS_LENGTH]
-    lea     tptr,[dec_tab wrt rip]
+    lea     tptr, [rel dec_tab]
     sub     kptr, rofs
 
     mov     eax, [rdi+0*4]
@@ -900,5 +905,3 @@ end_prologue
 %endif
 
 %endif
-
-    end

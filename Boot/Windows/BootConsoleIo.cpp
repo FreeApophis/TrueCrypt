@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -10,6 +10,7 @@
 #include "Bios.h"
 #include "BootConsoleIo.h"
 #include "BootDebug.h"
+#include "BootStrings.h"
 
 
 static int ScreenOutputDisabled = 0;
@@ -75,10 +76,10 @@ void Print (uint32 number)
 	int pos = 0;
 	while (number >= 10)
 	{
-		str[pos++] = (number % 10) + '0';
+		str[pos++] = (char) (number % 10) + '0';
 		number /= 10;
 	}
-	str[pos] = (number % 10) + '0';
+	str[pos] = (char) (number % 10) + '0';
 	
 	while (pos >= 0)
 		PrintChar (str[pos--]);
@@ -195,16 +196,20 @@ void PrintBackspace ()
 }
 
 
-void PrintError (const char *message, bool beep, bool newLine)
+void PrintError (const char *message)
 {
-	Print ("Error: ");
+	Print (TC_BOOT_STR_ERROR);
 	Print (message);
-	
-	if (newLine)
-		PrintEndl();
+	PrintEndl();
+	Beep();
+}
 
-	if (beep)
-		Beep();
+
+void PrintErrorNoEndl (const char *message)
+{
+	Print (TC_BOOT_STR_ERROR);
+	Print (message);
+	Beep();
 }
 
 
@@ -222,9 +227,15 @@ byte GetShiftFlags ()
 }
 
 
+byte GetKeyboardChar ()
+{
+	return GetKeyboardChar (nullptr);
+}
+
+
 byte GetKeyboardChar (byte *scanCode)
 {
-	// Work around a bug in the Apple BIOS
+	// Work around potential BIOS bugs (Windows boot manager polls the keystroke buffer)
 	while (!IsKeyboardCharAvailable());
 
 	byte asciiCode;

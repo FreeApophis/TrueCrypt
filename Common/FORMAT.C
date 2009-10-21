@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.7 the full text of which is contained in the
+ by the TrueCrypt License 2.8 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -28,6 +28,8 @@
 #include "Resource.h"
 #include "Format/FormatCom.h"
 #include "Format/Tcformat.h"
+
+int FormatWriteBufferSize = 1024 * 1024;
 
 
 uint64 GetVolumeDataAreaSize (BOOL hiddenVolume, uint64 volumeSize)
@@ -187,8 +189,8 @@ begin_format:
  
 			if (tmpDriveLetter != -1)
 			{
-				rootPath[0] += tmpDriveLetter;
-				szDriveLetter[0] += tmpDriveLetter;
+				rootPath[0] += (char) tmpDriveLetter;
+				szDriveLetter[0] += (char) tmpDriveLetter;
 
 				if (DefineDosDevice (DDD_RAW_TARGET_PATH, szDriveLetter, volParams->volumePath))
 				{
@@ -298,10 +300,7 @@ begin_format:
 	{
 		/* File-hosted volume */
 
-		// We could support FILE_ATTRIBUTE_HIDDEN as an option
-		// (Now if the container has hidden or system file attribute, the OS will not allow
-		// overwritting it; so the user will have to delete it manually).
-		dev = CreateFile (volParams->volumePath, GENERIC_WRITE,
+		dev = CreateFile (volParams->volumePath, GENERIC_READ | GENERIC_WRITE,
 			(volParams->hiddenVol || bInstantRetryOtherFilesys) ? (FILE_SHARE_READ | FILE_SHARE_WRITE) : 0,
 			NULL, (volParams->hiddenVol || bInstantRetryOtherFilesys) ? OPEN_EXISTING : CREATE_ALWAYS, 0, NULL);
 
@@ -310,6 +309,8 @@ begin_format:
 			nStatus = ERR_OS_ERROR; 
 			goto error;
 		}
+
+		DisableFileCompression (dev);
 
 		if (!volParams->hiddenVol && !bInstantRetryOtherFilesys)
 		{
@@ -526,6 +527,11 @@ begin_format:
 			goto error;
 	}
 
+#ifndef DEBUG
+	if (volParams->quickFormat && volParams->fileSystem != FILESYS_NTFS)
+		Sleep (500);	// User-friendly GUI
+#endif
+
 error:
 	dwError = GetLastError();
 
@@ -660,7 +666,7 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, P
 		return ERR_OS_ERROR;
 	}
 
-	write_buf = (char *)TCalloc (WRITE_BUF_SIZE);
+	write_buf = (char *)TCalloc (FormatWriteBufferSize);
 	if (!write_buf)
 		return ERR_OUTOFMEMORY;
 
@@ -772,7 +778,7 @@ BOOLEAN __stdcall FormatExCallback (int command, DWORD subCommand, PVOID paramet
 
 BOOL FormatNtfs (int driveNo, int clusterSize)
 {
-	WCHAR dir[8] = { driveNo + 'A', 0 };
+	WCHAR dir[8] = { (WCHAR) driveNo + 'A', 0 };
 	PFORMATEX FormatEx;
 	HMODULE hModule = LoadLibrary ("fmifs.dll");
 	int i;
@@ -780,7 +786,7 @@ BOOL FormatNtfs (int driveNo, int clusterSize)
 	if (hModule == NULL)
 		return FALSE;
 
-	if (!(FormatEx = (void *) GetProcAddress (GetModuleHandle("fmifs.dll"), "FormatEx")))
+	if (!(FormatEx = (PFORMATEX) GetProcAddress (GetModuleHandle ("fmifs.dll"), "FormatEx")))
 	{
 		FreeLibrary (hModule);
 		return FALSE;
@@ -792,10 +798,13 @@ BOOL FormatNtfs (int driveNo, int clusterSize)
 
 	// Windows sometimes fails to format a volume (hosted on a removable medium) as NTFS.
 	// It often helps to retry several times.
-	for (i = 0; i < 10 && FormatExResult != TRUE; i++)
+	for (i = 0; i < 50 && FormatExResult != TRUE; i++)
 	{
 		FormatEx (dir, FMIFS_HARDDISK, L"NTFS", L"", TRUE, clusterSize * SECTOR_SIZE, FormatExCallback);
 	}
+
+	// The device may be referenced for some time after FormatEx() returns
+	Sleep (2000);
 
 	FreeLibrary (hModule);
 	return FormatExResult;
@@ -813,7 +822,7 @@ BOOL WriteSector (void *dev, char *sector,
 	memcpy (write_buf + *write_buf_cnt, sector, SECTOR_SIZE);
 	(*write_buf_cnt) += SECTOR_SIZE;
 
-	if (*write_buf_cnt == WRITE_BUF_SIZE && !FlushFormatWriteBuffer (dev, write_buf, write_buf_cnt, nSecNo, cryptoInfo))
+	if (*write_buf_cnt == FormatWriteBufferSize && !FlushFormatWriteBuffer (dev, write_buf, write_buf_cnt, nSecNo, cryptoInfo))
 		return FALSE;
 	
 	if (GetTickCount () - updateTime > 25)
@@ -892,7 +901,7 @@ static BOOL StartFormatWriteThread ()
 	if (!WriteBufferFullEvent)
 		goto err;
 
-	WriteThreadBuffer = TCalloc (WRITE_BUF_SIZE);
+	WriteThreadBuffer = TCalloc (FormatWriteBufferSize);
 	if (!WriteThreadBuffer)
 	{
 		SetLastError (ERROR_OUTOFMEMORY);

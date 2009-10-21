@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -40,6 +40,7 @@ namespace TrueCrypt
 		parser.AddSwitch (L"d", L"dismount",			_("Dismount volume"));
 		parser.AddOption (L"",	L"encryption",			_("Encryption algorithm"));
 		parser.AddSwitch (L"",	L"explore",				_("Open explorer window for mounted volume"));
+		parser.AddSwitch (L"",	L"export-token-keyfile",_("Export keyfile from security token"));
 		parser.AddOption (L"",	L"filesystem",			_("Filesystem type"));
 		parser.AddSwitch (L"f", L"force",				_("Force mount/dismount/overwrite"));
 #if !defined(TC_WINDOWS) && !defined(TC_MACOSX)
@@ -184,6 +185,12 @@ namespace TrueCrypt
 			CheckCommandSingle();
 			ArgCommand = CommandId::DismountVolumes;
 			param1IsMountedVolumeSpec = true;
+		}
+		
+		if (parser.Found (L"export-token-keyfile"))
+		{
+			CheckCommandSingle();
+			ArgCommand = CommandId::ExportSecurityTokenKeyfile;
 		}
 
 		if (parser.Found (L"import-token-keyfiles"))

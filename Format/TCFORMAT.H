@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.7 the full text of which is contained in the
+ by the TrueCrypt License 2.8 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -28,20 +28,20 @@ enum timer_ids
 	TIMER_ID_KEYB_LAYOUT_GUARD
 };
 
-void localcleanup ( void );
-void LoadSettings ( HWND hwndDlg );
-void SaveSettings ( HWND hwndDlg );
-void EndMainDlg ( HWND hwndDlg );
+static void localcleanup ( void );
+static void LoadSettings ( HWND hwndDlg );
+static void SaveSettings ( HWND hwndDlg );
+static void EndMainDlg ( HWND hwndDlg );
 void ComboSelChangeEA ( HWND hwndDlg );
-void VerifySizeAndUpdate ( HWND hwndDlg , BOOL bUpdate );
-void __cdecl sysEncDriveAnalysisThread (void *hwndDlgArg);
-void __cdecl volTransformThreadFunction ( void *hwndDlg );
-void LoadPage ( HWND hwndDlg , int nPageNo );
+static void VerifySizeAndUpdate ( HWND hwndDlg , BOOL bUpdate );
+static void __cdecl sysEncDriveAnalysisThread (void *hwndDlgArg);
+static void __cdecl volTransformThreadFunction ( void *hwndDlg );
+static void LoadPage ( HWND hwndDlg , int nPageNo );
 int PrintFreeSpace ( HWND hwndTextBox , char *lpszDrive , PLARGE_INTEGER lDiskFree );
 void DisplaySizingErrorText ( HWND hwndTextBox );
 void EnableDisableFileNext ( HWND hComboBox , HWND hMainButton );
 BOOL QueryFreeSpace ( HWND hwndDlg , HWND hwndTextBox , BOOL display );
-BOOL FinalPreTransformPrompts (void);
+static BOOL FinalPreTransformPrompts (void);
 void HandleOldAssignedDriveLetter (void);
 void AddCipher ( HWND hComboBox , char *lpszCipher , int nCipher );
 BOOL CALLBACK PageDialogProc ( HWND hwndDlg , UINT uMsg , WPARAM wParam , LPARAM lParam );
@@ -53,28 +53,27 @@ BOOL IsSparseFile (HWND hwndDlg);
 BOOL GetFileVolSize (HWND hwndDlg, unsigned __int64 *size);
 BOOL SwitchWizardToSysEncMode (void);
 void SwitchWizardToFileContainerMode (void);
-BOOL ResolveUnknownSysEncDirection (void);
-BOOL WipeHiddenOSCreationConfig (void);
-void AfterWMInitTasks (HWND hwndDlg);
-void AfterSysEncProgressWMInitTasks (HWND hwndDlg);
-void InitSysEncProgressBar (void);
-void InitNonSysInplaceEncProgressBar (void);
-void UpdateNonSysInplaceEncProgressBar (void);
-BOOL SysEncInEffect (void);
-BOOL CreatingHiddenSysVol(void);
-void NonSysInplaceEncPause (void);
-void NonSysInplaceEncResume (void);
+static BOOL ResolveUnknownSysEncDirection (void);
+static BOOL WipeHiddenOSCreationConfig (void);
+static void AfterWMInitTasks (HWND hwndDlg);
+static void AfterSysEncProgressWMInitTasks (HWND hwndDlg);
+static void InitSysEncProgressBar (void);
+static void InitNonSysInplaceEncProgressBar (void);
+static void UpdateNonSysInplaceEncProgressBar (void);
+static BOOL SysEncInEffect (void);
+static BOOL CreatingHiddenSysVol(void);
+static void NonSysInplaceEncPause (void);
+static void NonSysInplaceEncResume (void);
 void ShowNonSysInPlaceEncUIStatus (void);
 void UpdateNonSysInPlaceEncControls (void);
 int MountHiddenVolHost ( HWND hwndDlg, char *volumePath, int *driveNo, Password *password, BOOL bReadOnly );
 int AnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, __int64 hiddenVolHostSize, int *realClusterSize, __int64 *pnbrFreeClusters);
 int ScanVolClusterBitmap ( HWND hwndDlg, int *driveNo, __int64 nbrClusters, __int64 *nbrFreeClusters);
-int WINAPI WINMAIN ( HINSTANCE hInstance , HINSTANCE hPrevInstance , char *lpszCommandLine , int nCmdShow );
-void WipeStart (void);
-void WipeAbort (void);
-void UpdateWipeProgressBar (void);
-void InitWipeProgressBar (void);
-void UpdateWipeControls (void);
+static void WipeStart (void);
+static void WipeAbort (void);
+static void UpdateWipeProgressBar (void);
+static void InitWipeProgressBar (void);
+static void UpdateWipeControls (void);
 
 extern BOOL showKeys;
 extern volatile HWND hMasterKey;

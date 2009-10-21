@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -19,6 +19,9 @@ For big-endian platforms define BYTE_ORDER as BIG_ENDIAN. */
 #	pragma optimize ("tl", on)
 #endif
 
+#ifdef TC_NO_COMPILER_INT64
+#	include <memory.h>
+#endif
 
 #include "Xts.h"
 

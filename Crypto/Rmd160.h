@@ -13,10 +13,10 @@ extern "C"
 typedef struct RMD160Context
 {
 	unsigned __int32 state[5];
-#ifndef TC_NO_COMPILER_INT64
+#ifndef TC_WINDOWS_BOOT
 	uint64 count;
 #else
-	unsigned __int32 count;
+	uint16 count;
 #endif
 	unsigned char buffer[RIPEMD160_BLOCK_LENGTH];
 } RMD160_CTX;

@@ -1,7 +1,7 @@
 /*
 Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
-Governed by the TrueCrypt License 2.7 the full text of which is contained
+Governed by the TrueCrypt License 2.8 the full text of which is contained
 in the file License.txt included in TrueCrypt binary and source code
 distribution packages.
 */
@@ -137,22 +137,30 @@ namespace TrueCrypt
 		if (ThreadPoolRunning)
 			return;
 
+		size_t cpuCount;
+
 #ifdef TC_WINDOWS
 
 		SYSTEM_INFO sysInfo;
 		GetSystemInfo (&sysInfo);
-		size_t cpuCount = sysInfo.dwNumberOfProcessors;
+		cpuCount = sysInfo.dwNumberOfProcessors;
 
 #elif defined (_SC_NPROCESSORS_ONLN)
 		
-		ssize_t cpuCount = sysconf (_SC_NPROCESSORS_ONLN);
+		cpuCount = (size_t) sysconf (_SC_NPROCESSORS_ONLN);
+		if (cpuCount == (size_t) -1)
+			cpuCount = 1;
 
 #elif defined (TC_MACOSX)
 
-		int cpuCount;
+		int cpuCountSys;
 		int mib[2] = { CTL_HW, HW_NCPU };
-		size_t len = sizeof (cpuCount);
-		sysctl (mib, 2, &cpuCount, &len, nullptr, 0);
+
+		size_t len = sizeof (cpuCountSys);
+		if (sysctl (mib, 2, &cpuCountSys, &len, nullptr, 0) == -1)
+			cpuCountSys = 1;
+
+		cpuCount = (size_t) cpuCountSys;
 
 #else
 #	error Cannot determine CPU count

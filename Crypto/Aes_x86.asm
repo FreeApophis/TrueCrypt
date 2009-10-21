@@ -27,6 +27,11 @@
 ; This code requires ASM_X86_V1C to be set in aesopt.h. It requires the C files
 ; aeskey.c and aestab.c for support.
 
+;
+; Adapted for TrueCrypt by the TrueCrypt Foundation:
+; - Adapted for NASM
+;
+
 ; An AES implementation for x86 processors using the YASM (or NASM) assembler.
 ; This is an assembler implementation that covers encryption and decryption
 ; only and is intended as a replacement of the C file aescrypt.c. It hence
@@ -639,6 +644,3 @@ stk_spc equ    20   ; stack space
     do_exit
 
 %endif
-
-    end
-

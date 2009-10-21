@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.7 the full text of which is contained in the
+ by the TrueCrypt License 2.8 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -15,10 +15,13 @@
 #define TC_APP_NAME						"TrueCrypt"
 
 // Version displayed to user 
-#define VERSION_STRING					"6.2a"
+#define VERSION_STRING					"6.3"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x062a
+#define VERSION_NUM						0x0630
+
+// Release date
+#define TC_STR_RELEASE_DATE				"October 21, 2009"
 
 // Sector size of encrypted filesystem, which may differ from sector size of host filesystem/device
 #define SECTOR_SIZE                     512
@@ -116,6 +119,12 @@ typedef union
 } UINT64_STRUCT;
 
 #ifdef TC_WINDOWS_BOOT
+
+#	ifdef  __cplusplus
+extern "C"
+#	endif
+void ThrowFatalException (int line);
+
 #	define TC_THROW_FATAL_EXCEPTION	ThrowFatalException (__LINE__)
 #elif defined (NT4_DRIVER)
 #	define TC_THROW_FATAL_EXCEPTION KeBugCheckEx (SECURITY_SYSTEM, __LINE__, 0, 0, 'TC')
@@ -125,38 +134,9 @@ typedef union
 
 #ifdef NT4_DRIVER
 
-#pragma warning( disable : 4201 )
-#pragma warning( disable : 4214 )
-#pragma warning( disable : 4115 )
-#pragma warning( disable : 4100 )
-#pragma warning( disable : 4101 )
-#pragma warning( disable : 4057 )
-#pragma warning( disable : 4244 )
-#pragma warning( disable : 4514 )
-#pragma warning( disable : 4127 )
-
-
 #include <ntifs.h>
 #include <ntddk.h>		/* Standard header file for nt drivers */
-
-#ifndef TC_LOCAL_WIN32_WINNT_OVERRIDE
-#	undef _WIN32_WINNT
-#	define	_WIN32_WINNT 0x0501	/* Does not apply to user-space apps */
-#endif
-
 #include <ntdddisk.h>		/* Standard I/O control codes  */
-#include <ntiologc.h>
-
-#pragma warning( default : 4201 )
-#pragma warning( default : 4214 )
-#pragma warning( default : 4115 )
-#pragma warning( default : 4100 )
-#pragma warning( default : 4101 )
-#pragma warning( default : 4057 )
-#pragma warning( default : 4244 )
-#pragma warning( default : 4127 )
-
-/* #pragma warning( default : 4514 ) this warning remains disabled */
 
 #define TCalloc(size) ((void *) ExAllocatePoolWithTag( NonPagedPool, size, 'MMCT' ))
 #define TCfree(memblock) ExFreePoolWithTag( memblock, 'MMCT' )
@@ -175,32 +155,12 @@ typedef int BOOL;
 #define FALSE !TRUE
 #endif
 
-/* Define dummies for the drivers */
-typedef int HFILE;
-typedef unsigned int WPARAM;
-typedef unsigned __int32 LPARAM;
-#define CALLBACK
-
-#ifndef UINT
-typedef unsigned int UINT;
-#endif
-
-#ifndef LRESULT
-typedef unsigned __int32 LRESULT;
-#endif
-/* NT4_DRIVER */
-
-#else
+#else				/* !NT4_DRIVER */
 
 #define TCalloc malloc
 #define TCfree free
 
 #ifdef _WIN32
-
-#pragma warning( disable : 4201 )
-#pragma warning( disable : 4214 )
-#pragma warning( disable : 4115 )
-#pragma warning( disable : 4514 )
 
 #ifndef TC_LOCAL_WIN32_WINNT_OVERRIDE
 #	undef _WIN32_WINNT
@@ -213,19 +173,9 @@ typedef unsigned __int32 LRESULT;
 #include <winioctl.h>
 #include <stdio.h>		/* For sprintf */
 
-#pragma warning( default : 4201 )
-#pragma warning( default : 4214 )
-#pragma warning( default : 4115 )
-
-/* #pragma warning( default : 4514 ) this warning remains disabled */
-
-/* This is needed to fix a bug with VC 5, the TCHAR macro _ttoi64 maps
-   incorrectly to atoLL when it should be _atoi64 */
-#define atoi64 _atoi64
-
 #endif				/* _WIN32 */
 
-#endif				/* NT4_DRIVER */
+#endif				/* !NT4_DRIVER */
 
 #ifndef TC_TO_STRING
 #	define TC_TO_STRING2(n) #n
@@ -285,6 +235,12 @@ typedef unsigned __int32 LRESULT;
 #	ifndef max
 #		define max(a,b) (((a) > (b)) ? (a) : (b))
 #	endif
+
+#	ifdef  __cplusplus
+extern "C"
+#	endif
+void EraseMemory (void *memory, int size);
+
 #	undef burn
 #	define burn EraseMemory
 #endif
@@ -294,6 +250,8 @@ typedef unsigned __int32 LRESULT;
 #else
 #define TC_MAX_PATH		260	/* Includes the null terminator */
 #endif
+
+#define TC_STR_RELEASED_BY "Released by TrueCrypt Foundation on " TC_STR_RELEASE_DATE
 
 #define MAX_URL_LENGTH	2084 /* Internet Explorer limit. Includes the terminating null character. */
 

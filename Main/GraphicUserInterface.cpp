@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -481,7 +481,7 @@ namespace TrueCrypt
 #ifdef TC_WINDOWS
 		offset = 4;
 #elif defined (__WXGTK__)
-		offset = 5;
+		offset = 7;
 #elif defined (TC_MACOSX)
 		offset = 9;
 #endif
@@ -489,6 +489,7 @@ namespace TrueCrypt
 			return offset;
 
 		int width = wxSystemSettings::GetMetric (wxSYS_VSCROLL_X, window);
+
 		if (width == -1)
 			return 24;
 

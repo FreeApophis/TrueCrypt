@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.7 the full text of which is contained in the
+ by the TrueCrypt License 2.8 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -41,12 +41,14 @@ KMUTEX driverMutex;			/* Sync mutex for the entire driver */
 BOOL DriverShuttingDown = FALSE;
 BOOL SelfTestsPassed;
 int LastUniqueVolumeId;
-ULONG OsMajorVersion;
+ULONG OsMajorVersion = 0;
 ULONG OsMinorVersion;
 BOOL ReferencedDeviceDeleted = FALSE;
-BOOL TravelerMode = FALSE;
+BOOL PortableMode = FALSE;
 BOOL VolumeClassFilterRegistered = FALSE;
 BOOL CacheBootPassword = FALSE;
+BOOL NonAdminSystemFavoritesAccessDisabled = FALSE;
+static BOOL SystemFavoriteVolumeDirty = FALSE;
 
 
 NTSTATUS DriverEntry (PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
@@ -187,13 +189,14 @@ NTSTATUS TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 		{
 		case TC_IOCTL_GET_MOUNTED_VOLUMES:
 		case TC_IOCTL_GET_PASSWORD_CACHE_STATUS:
-		case TC_IOCTL_GET_TRAVELER_MODE_STATUS:
-		case TC_IOCTL_SET_TRAVELER_MODE_STATUS:
+		case TC_IOCTL_GET_PORTABLE_MODE_STATUS:
+		case TC_IOCTL_SET_PORTABLE_MODE_STATUS:
 		case TC_IOCTL_OPEN_TEST:
 		case TC_IOCTL_GET_RESOLVED_SYMLINK:
 		case TC_IOCTL_GET_DRIVE_PARTITION_INFO:
 		case TC_IOCTL_GET_BOOT_DRIVE_VOLUME_PROPERTIES:
 		case TC_IOCTL_GET_BOOT_ENCRYPTION_STATUS:
+		case TC_IOCTL_GET_DECOY_SYSTEM_WIPE_STATUS:
 		case TC_IOCTL_IS_HIDDEN_SYSTEM_RUNNING:
 		case IOCTL_DISK_CHECK_VERIFY:
 			break;
@@ -228,17 +231,16 @@ NTSTATUS TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 	case IRP_MJ_SHUTDOWN:
 		if (Extension->bRootDevice)
 		{
+			Dump ("Driver shutting down\n");
 			DriverShuttingDown = TRUE;
 
-			if (IsBootEncryptionSetupInProgress())
+			if (EncryptionSetupThread)
 				AbortBootEncryptionSetup();
 
-			if (IsDecoySystemWipeInProgress())
+			if (DecoySystemWipeThread)
 				AbortDecoySystemWipe();
 
 			UnmountAllDevices (NULL, DeviceObject, TRUE);
-
-			// Boot drive will be dismounted when IRP_MJ_POWER is received after IRP_MJ_SHUTDOWN
 		}
 
 		return COMPLETE_IRP (DeviceObject, Irp, STATUS_SUCCESS, 0);
@@ -257,8 +259,8 @@ NTSTATUS TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
 		if (Extension->bShuttingDown)
 		{
-			Dump ("Device %d shutting down: STATUS_DEVICE_NOT_READY\n", Extension->nDosDriveNo);
-			return TCCompleteDiskIrp (Irp, STATUS_DEVICE_NOT_READY, 0);
+			Dump ("Device %d shutting down: STATUS_DELETE_PENDING\n", Extension->nDosDriveNo);
+			return TCCompleteDiskIrp (Irp, STATUS_DELETE_PENDING, 0);
 		}
 
 		if (Extension->bRemovable
@@ -282,6 +284,10 @@ NTSTATUS TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 			return ntStatus;
 
 		case IRP_MJ_DEVICE_CONTROL:
+			ntStatus = IoAcquireRemoveLock (&Extension->Queue.RemoveLock, Irp);
+			if (!NT_SUCCESS (ntStatus))
+				return TCCompleteIrp (Irp, ntStatus, 0);
+
 			IoMarkIrpPending (Irp);
 			
 			ExInterlockedInsertTailList (&Extension->ListEntry, &Irp->Tail.Overlay.ListEntry, &Extension->ListSpinLock);
@@ -403,11 +409,14 @@ NTSTATUS TCCreateDeviceObject (PDRIVER_OBJECT DriverObject,
 	Extension->lMagicNumber = 0xabfeacde;
 	Extension->nDosDriveNo = mount->nDosDriveNo;
 	Extension->bRemovable = mount->bMountRemovable;
+	Extension->PartitionInInactiveSysEncScope = mount->bPartitionInInactiveSysEncScope;
+	Extension->SystemFavorite = mount->SystemFavorite;
 
 	KeInitializeEvent (&Extension->keCreateEvent, SynchronizationEvent, FALSE);
 	KeInitializeSemaphore (&Extension->RequestSemaphore, 0L, MAXLONG);
 	KeInitializeSpinLock (&Extension->ListSpinLock);
 	InitializeListHead (&Extension->ListEntry);
+	IoInitializeRemoveLock (&Extension->Queue.RemoveLock, 'LRCT', 0, 0);
 
 	Dump ("TCCreateDeviceObject STATUS_SUCCESS END\n");
 
@@ -417,7 +426,21 @@ NTSTATUS TCCreateDeviceObject (PDRIVER_OBJECT DriverObject,
 
 void DriverMutexWait ()
 {
-	KeWaitForMutexObject (&driverMutex, Executive, KernelMode, FALSE, NULL);
+	NTSTATUS status = KeWaitForMutexObject (&driverMutex, Executive, KernelMode, FALSE, NULL);
+
+	if (!NT_SUCCESS (status))
+		TC_BUG_CHECK (status);
+}
+
+
+BOOL DriverMutexAcquireNoWait ()
+{
+	NTSTATUS status;
+	LARGE_INTEGER timeout;
+	timeout.QuadPart = 0;
+
+	status = KeWaitForMutexObject (&driverMutex, Executive, KernelMode, FALSE, &timeout);
+	return NT_SUCCESS (status) && status != STATUS_TIMEOUT;
 }
 
 
@@ -483,11 +506,11 @@ NTSTATUS ProcessVolumeDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION 
 			PMOUNTDEV_UNIQUE_ID outputBuffer = (PMOUNTDEV_UNIQUE_ID) Irp->AssociatedIrp.SystemBuffer;
 
 			strcpy (volId, TC_UNIQUE_ID_PREFIX); 
-			tmp[0] = 'A' + Extension->nDosDriveNo;
+			tmp[0] = 'A' + (UCHAR) Extension->nDosDriveNo;
 			strcat (volId, tmp);
 			
 			outputBuffer->UniqueIdLength = (USHORT) strlen (volId);
-			outLength = strlen (volId) + sizeof(USHORT);
+			outLength = (ULONG) (strlen (volId) + sizeof (USHORT));
 
 			if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < outLength)
 			{
@@ -695,10 +718,15 @@ NTSTATUS ProcessVolumeDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION 
 		}
 		break;
 		
+	case IOCTL_VOLUME_ONLINE:
+		Irp->IoStatus.Status = STATUS_SUCCESS;
+		Irp->IoStatus.Information = 0;
+		break;
+
 	case IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS:
 
 		// Vista's filesystem defragmenter fails if IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS does not succeed.
-		if (OsMajorVersion < 6)
+		if (!(OsMajorVersion == 6 && OsMinorVersion == 0))
 		{
 			Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
 			Irp->IoStatus.Information = 0;
@@ -810,6 +838,7 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 			IO_STATUS_BLOCK IoStatus;
 			LARGE_INTEGER offset;
 			unsigned char readBuffer [SECTOR_SIZE];
+			ACCESS_MASK access = FILE_READ_ATTRIBUTES;
 
 			if (!ValidateIOBufferSize (Irp, sizeof (OPEN_TEST_STRUCT), ValidateInputOutput))
 				break;
@@ -817,12 +846,14 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 			EnsureNullTerminatedString (opentest->wszFileName, sizeof (opentest->wszFileName));
 			RtlInitUnicodeString (&FullFileName, opentest->wszFileName);
 
-			InitializeObjectAttributes (&ObjectAttributes, &FullFileName, OBJ_CASE_INSENSITIVE,
-						    NULL, NULL);
+			InitializeObjectAttributes (&ObjectAttributes, &FullFileName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+
+			if (opentest->bDetectTCBootLoader || opentest->DetectFilesystem)
+				access |= FILE_READ_DATA;
 
 			ntStatus = ZwCreateFile (&NtFileHandle,
-						 SYNCHRONIZE | GENERIC_READ, &ObjectAttributes, &IoStatus, NULL /* alloc size = none  */ ,
-						 FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_OPEN, FILE_SYNCHRONOUS_IO_NONALERT | FILE_RANDOM_ACCESS, NULL, 0);
+						 SYNCHRONIZE | access, &ObjectAttributes, &IoStatus, NULL,
+						 0, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_OPEN, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);
 
 			if (NT_SUCCESS (ntStatus))
 			{
@@ -1006,7 +1037,7 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		Irp->IoStatus.Information = 0;
 		break;
 
-	case TC_IOCTL_SET_TRAVELER_MODE_STATUS:
+	case TC_IOCTL_SET_PORTABLE_MODE_STATUS:
 		if (!UserCanAccessDriveDevice())
 		{
 			Irp->IoStatus.Status = STATUS_ACCESS_DENIED;
@@ -1014,13 +1045,13 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		}
 		else
 		{
-			TravelerMode = TRUE;
-			Dump ("Setting traveler mode\n");
+			PortableMode = TRUE;
+			Dump ("Setting portable mode\n");
 		}
 		break;
 
-	case TC_IOCTL_GET_TRAVELER_MODE_STATUS:
-		Irp->IoStatus.Status = TravelerMode ? STATUS_SUCCESS : STATUS_PIPE_EMPTY;
+	case TC_IOCTL_GET_PORTABLE_MODE_STATUS:
+		Irp->IoStatus.Status = PortableMode ? STATUS_SUCCESS : STATUS_PIPE_EMPTY;
 		Irp->IoStatus.Information = 0;
 		break;
 
@@ -1118,6 +1149,7 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 					prop->volumeHeaderFlags = ListExtension->cryptoInfo->HeaderFlags;
 					prop->readOnly = ListExtension->bReadOnly;
 					prop->removable = ListExtension->bRemovable;
+					prop->partitionInInactiveSysEncScope = ListExtension->PartitionInInactiveSysEncScope;
 					prop->hiddenVolume = ListExtension->cryptoInfo->hiddenVolume;
 
 					if (ListExtension->cryptoInfo->bProtectHiddenVolume)
@@ -1363,10 +1395,10 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 
 	case TC_IOCTL_ABORT_BOOT_ENCRYPTION_SETUP:
 		DriverMutexWait ();
-		
+
 		Irp->IoStatus.Status = AbortBootEncryptionSetup();
 		Irp->IoStatus.Information = 0;
-		
+
 		DriverMutexRelease ();
 		break;
 
@@ -1448,6 +1480,29 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		Irp->IoStatus.Information = 0;
 		break;
 
+	case TC_IOCTL_IS_SYSTEM_FAVORITE_VOLUME_DIRTY:
+		if (ValidateIOBufferSize (Irp, sizeof (int), ValidateOutput))
+		{
+			*(int *) Irp->AssociatedIrp.SystemBuffer = SystemFavoriteVolumeDirty ? 1 : 0;
+			Irp->IoStatus.Information = sizeof (int);
+			Irp->IoStatus.Status = STATUS_SUCCESS;
+
+			SystemFavoriteVolumeDirty = FALSE;
+		}
+		break;
+
+	case TC_IOCTL_SET_SYSTEM_FAVORITE_VOLUME_DIRTY:
+		if (UserCanAccessDriveDevice())
+		{
+			SystemFavoriteVolumeDirty = TRUE;
+			Irp->IoStatus.Status = STATUS_SUCCESS;
+		}
+		else
+			Irp->IoStatus.Status = STATUS_ACCESS_DENIED;
+
+		Irp->IoStatus.Information = 0;
+		break;
+
 	default:
 		return TCCompleteIrp (Irp, STATUS_INVALID_DEVICE_REQUEST, 0);
 	}
@@ -1460,8 +1515,8 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		{
 		case TC_IOCTL_GET_MOUNTED_VOLUMES:
 		case TC_IOCTL_GET_PASSWORD_CACHE_STATUS:
-		case TC_IOCTL_GET_TRAVELER_MODE_STATUS:
-		case TC_IOCTL_SET_TRAVELER_MODE_STATUS:
+		case TC_IOCTL_GET_PORTABLE_MODE_STATUS:
+		case TC_IOCTL_SET_PORTABLE_MODE_STATUS:
 		case TC_IOCTL_OPEN_TEST:
 		case TC_IOCTL_GET_RESOLVED_SYMLINK:
 		case TC_IOCTL_GET_DRIVE_PARTITION_INFO:
@@ -1629,9 +1684,8 @@ void TCStopVolumeThread (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension)
 					  KernelMode,
 					  FALSE,
 					  NULL);
-	if (ntStatus != STATUS_SUCCESS)
-		Dump ("Failed waiting for crypto thread to quit: 0x%08x...\n",
-		      ntStatus);
+
+	ASSERT (NT_SUCCESS (ntStatus));
 
 	ObDereferenceObject (Extension->peThread);
 	Extension->peThread = NULL;
@@ -1749,10 +1803,10 @@ VOID VolumeThreadProc (PVOID Context)
 			irp = CONTAINING_RECORD (request, IRP, Tail.Overlay.ListEntry);
 			irpSp = IoGetCurrentIrpStackLocation (irp);
 
-			if (irpSp->MajorFunction == IRP_MJ_DEVICE_CONTROL)
-				ProcessVolumeDeviceControlIrp (DeviceObject, Extension, irp);
-			else
-				ASSERT (FALSE);
+			ASSERT (irpSp->MajorFunction == IRP_MJ_DEVICE_CONTROL);
+
+			ProcessVolumeDeviceControlIrp (DeviceObject, Extension, irp);
+			IoReleaseRemoveLock (&Extension->Queue.RemoveLock, irp);
 		}
 
 		if (Extension->bThreadShouldQuit)
@@ -1814,17 +1868,19 @@ LPWSTR TCTranslateCode (ULONG ulCode)
 		TC_CASE_RET_NAME (TC_IOCTL_GET_MOUNTED_VOLUMES);
 		TC_CASE_RET_NAME (TC_IOCTL_GET_PASSWORD_CACHE_STATUS);
 		TC_CASE_RET_NAME (TC_IOCTL_GET_SYSTEM_DRIVE_CONFIG);
-		TC_CASE_RET_NAME (TC_IOCTL_GET_TRAVELER_MODE_STATUS);
-		TC_CASE_RET_NAME (TC_IOCTL_SET_TRAVELER_MODE_STATUS);
+		TC_CASE_RET_NAME (TC_IOCTL_GET_PORTABLE_MODE_STATUS);
+		TC_CASE_RET_NAME (TC_IOCTL_SET_PORTABLE_MODE_STATUS);
 		TC_CASE_RET_NAME (TC_IOCTL_GET_RESOLVED_SYMLINK);
 		TC_CASE_RET_NAME (TC_IOCTL_GET_VOLUME_PROPERTIES);
 		TC_CASE_RET_NAME (TC_IOCTL_DISK_IS_WRITABLE);
 		TC_CASE_RET_NAME (TC_IOCTL_IS_ANY_VOLUME_MOUNTED);
 		TC_CASE_RET_NAME (TC_IOCTL_IS_HIDDEN_SYSTEM_RUNNING);
+		TC_CASE_RET_NAME (TC_IOCTL_IS_SYSTEM_FAVORITE_VOLUME_DIRTY);
 		TC_CASE_RET_NAME (TC_IOCTL_MOUNT_VOLUME);
 		TC_CASE_RET_NAME (TC_IOCTL_OPEN_TEST);
 		TC_CASE_RET_NAME (TC_IOCTL_PROBE_REAL_DRIVE_SIZE);
 		TC_CASE_RET_NAME (TC_IOCTL_REOPEN_BOOT_VOLUME_HEADER);
+		TC_CASE_RET_NAME (TC_IOCTL_SET_SYSTEM_FAVORITE_VOLUME_DIRTY);
 		TC_CASE_RET_NAME (TC_IOCTL_START_DECOY_SYSTEM_WIPE);
 		TC_CASE_RET_NAME (TC_IOCTL_WAS_REFERENCED_DEVICE_DELETED);
 		TC_CASE_RET_NAME (TC_IOCTL_WIPE_PASSWORD_CACHE);
@@ -1845,8 +1901,6 @@ LPWSTR TCTranslateCode (ULONG ulCode)
 		return (LPWSTR) _T ("IOCTL_MOUNTDEV_QUERY_SUGGESTED_LINK_NAME");
 	else if (ulCode ==		 IOCTL_MOUNTDEV_QUERY_UNIQUE_ID)
 		return (LPWSTR) _T ("IOCTL_MOUNTDEV_QUERY_UNIQUE_ID");
-	else if (ulCode ==		 IOCTL_MOUNTDEV_UNIQUE_ID_CHANGE_NOTIFY)
-		return (LPWSTR) _T ("IOCTL_MOUNTDEV_UNIQUE_ID_CHANGE_NOTIFY");
 	else if (ulCode ==		 IOCTL_VOLUME_ONLINE)
 		return (LPWSTR) _T ("IOCTL_VOLUME_ONLINE");
 	else if (ulCode ==		 IOCTL_MOUNTDEV_LINK_CREATED)
@@ -2047,8 +2101,7 @@ VOID TCUnloadDriver (PDRIVER_OBJECT DriverObject)
 }
 
 
-NTSTATUS TCDeviceIoControl (PWSTR deviceName, ULONG IoControlCode,
-				   void *InputBuffer, int InputBufferSize, void *OutputBuffer, int OutputBufferSize)
+NTSTATUS TCDeviceIoControl (PWSTR deviceName, ULONG IoControlCode, void *InputBuffer, ULONG InputBufferSize, void *OutputBuffer, ULONG OutputBufferSize)
 {
 	IO_STATUS_BLOCK ioStatusBlock;
 	NTSTATUS ntStatus;
@@ -2061,7 +2114,7 @@ NTSTATUS TCDeviceIoControl (PWSTR deviceName, ULONG IoControlCode,
 	RtlInitUnicodeString(&name, deviceName);
 	ntStatus = IoGetDeviceObjectPointer (&name, FILE_READ_ATTRIBUTES, &fileObject, &deviceObject);
 
-	if (ntStatus != STATUS_SUCCESS)
+	if (!NT_SUCCESS (ntStatus))
 		return ntStatus;
 
 	KeInitializeEvent(&event, NotificationEvent, FALSE);
@@ -2080,6 +2133,8 @@ NTSTATUS TCDeviceIoControl (PWSTR deviceName, ULONG IoControlCode,
 		ntStatus = STATUS_INSUFFICIENT_RESOURCES;
 		goto ret;
 	}
+
+	IoGetNextIrpStackLocation (irp)->FileObject = fileObject;
 
 	ntStatus = IoCallDriver (deviceObject, irp);
 	if (ntStatus == STATUS_PENDING)
@@ -2177,7 +2232,6 @@ NTSTATUS ProbeRealDriveSize (PDEVICE_OBJECT driveDeviceObject, LARGE_INTEGER *dr
 }
 
 
-// Opens a mounted TC volume on filesystem level
 NTSTATUS TCOpenFsVolume (PEXTENSION Extension, PHANDLE volumeHandle, PFILE_OBJECT * fileObject)
 {
 	NTSTATUS ntStatus;
@@ -2186,7 +2240,7 @@ NTSTATUS TCOpenFsVolume (PEXTENSION Extension, PHANDLE volumeHandle, PFILE_OBJEC
 	IO_STATUS_BLOCK ioStatus;
 	WCHAR volumeName[TC_MAX_PATH];
 
-	TCGetDosNameFromNumber (volumeName, Extension->nDosDriveNo);
+	TCGetNTNameFromNumber (volumeName, Extension->nDosDriveNo);
 	RtlInitUnicodeString (&fullFileName, volumeName);
 	InitializeObjectAttributes (&objectAttributes, &fullFileName, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
@@ -2214,13 +2268,8 @@ NTSTATUS TCOpenFsVolume (PEXTENSION Extension, PHANDLE volumeHandle, PFILE_OBJEC
 		fileObject,
 		NULL);
 
-	Dump ("ObReferenceObjectByHandle NTSTATUS 0x%08x\n", ntStatus);
-
 	if (!NT_SUCCESS (ntStatus))
-	{
-		ZwClose(*volumeHandle);
-		return ntStatus;
-	}
+		ZwClose (*volumeHandle);
 
 	return ntStatus;
 }
@@ -2361,7 +2410,7 @@ NTSTATUS MountManagerMount (MOUNT_STRUCT *mount)
 	wcscpy(in->DeviceName, arrVolume);
 
 	ntStatus = TCDeviceIoControl (MOUNTMGR_DEVICE_NAME, IOCTL_MOUNTMGR_VOLUME_ARRIVAL_NOTIFICATION,
-		in, sizeof (in->DeviceNameLength) + wcslen (arrVolume) * 2, 0, 0);
+		in, (ULONG) (sizeof (in->DeviceNameLength) + wcslen (arrVolume) * 2), 0, 0);
 
 	memset (buf, 0, sizeof buf);
 	TCGetDosNameFromNumber ((PWSTR) &point[1], mount->nDosDriveNo);
@@ -2394,6 +2443,7 @@ NTSTATUS MountManagerUnmount (int nDosDriveNo)
 
 	TCGetDosNameFromNumber ((PWSTR) &in[1], nDosDriveNo);
 
+	// Only symbolic link can be deleted with IOCTL_MOUNTMGR_DELETE_POINTS. If any other entry is specified, the mount manager will ignore subsequent IOCTL_MOUNTMGR_VOLUME_ARRIVAL_NOTIFICATION for the same volume ID.
 	in->SymbolicLinkNameOffset = sizeof (MOUNTMGR_MOUNT_POINT);
 	in->SymbolicLinkNameLength = (USHORT) wcslen ((PWCHAR) &in[1]) * 2;
 
@@ -2521,6 +2571,7 @@ NTSTATUS MountDevice (PDEVICE_OBJECT DeviceObject, MOUNT_STRUCT *mount)
 						mount->FilesystemDirty = TRUE;
 					}
 
+
 					TCCloseFsVolume (volumeHandle, volumeFileObject);
 				}
 			}
@@ -2545,20 +2596,22 @@ NTSTATUS UnmountDevice (UNMOUNT_STRUCT *unmountRequest, PDEVICE_OBJECT deviceObj
 	Dump ("UnmountDevice %d\n", extension->nDosDriveNo);
 
 	ntStatus = TCOpenFsVolume (extension, &volumeHandle, &volumeFileObject);
-	if (!NT_SUCCESS (ntStatus))
-	{
-		// User may have deleted symbolic link
-		CreateDriveLink (extension->nDosDriveNo);
-
-		ntStatus = TCOpenFsVolume (extension, &volumeHandle, &volumeFileObject);
-	}
 
 	if (NT_SUCCESS (ntStatus))
 	{
 		int dismountRetry;
 
+		// Dismounting a writable NTFS filesystem prevents the driver from being unloaded on Windows 7
+		if (IsOSAtLeast (WIN_7) && !extension->bReadOnly)
+		{
+			NTFS_VOLUME_DATA_BUFFER ntfsData;
+
+			if (NT_SUCCESS (TCFsctlCall (volumeFileObject, FSCTL_GET_NTFS_VOLUME_DATA, NULL, 0, &ntfsData, sizeof (ntfsData))))
+				ReferencedDeviceDeleted = TRUE;
+		}
+
 		// Lock volume
-		ntStatus = TCFsctlCall (volumeFileObject, FSCTL_LOCK_VOLUME, 0, 0, 0, 0);
+		ntStatus = TCFsctlCall (volumeFileObject, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0);
 		Dump ("FSCTL_LOCK_VOLUME returned %X\n", ntStatus);
 
 		if (!NT_SUCCESS (ntStatus) && !ignoreOpenFiles)
@@ -2568,13 +2621,19 @@ NTSTATUS UnmountDevice (UNMOUNT_STRUCT *unmountRequest, PDEVICE_OBJECT deviceObj
 		}
 
 		// Dismount volume
-		for (dismountRetry = 0; dismountRetry < 50; ++dismountRetry)
+		for (dismountRetry = 0; dismountRetry < 200; ++dismountRetry)
 		{
-			ntStatus = TCFsctlCall (volumeFileObject, FSCTL_DISMOUNT_VOLUME, 0, 0, 0, 0);
+			ntStatus = TCFsctlCall (volumeFileObject, FSCTL_DISMOUNT_VOLUME, NULL, 0, NULL, 0);
 			Dump ("FSCTL_DISMOUNT_VOLUME returned %X\n", ntStatus);
 
 			if (NT_SUCCESS (ntStatus) || ntStatus == STATUS_VOLUME_DISMOUNTED)
 				break;
+
+			if (!ignoreOpenFiles)
+			{
+				TCCloseFsVolume (volumeHandle, volumeFileObject);
+				return ERR_FILES_OPEN;
+			}
 
 			TCSleep (100);
 		}
@@ -2595,6 +2654,10 @@ NTSTATUS UnmountDevice (UNMOUNT_STRUCT *unmountRequest, PDEVICE_OBJECT deviceObj
 	RemoveDriveLink (extension->nDosDriveNo);
 
 	extension->bShuttingDown = TRUE;
+
+	ntStatus = IoAcquireRemoveLock (&extension->Queue.RemoveLock, NULL);
+	ASSERT (NT_SUCCESS (ntStatus));
+	IoReleaseRemoveLockAndWait (&extension->Queue.RemoveLock, NULL);
 
 	if (volumeHandle != NULL)
 		TCCloseFsVolume (volumeHandle, volumeFileObject);
@@ -2855,7 +2918,7 @@ NTSTATUS TCReadRegistryKey (PUNICODE_STRING keyPath, wchar_t *keyValueName, PKEY
 	RtlInitUnicodeString (&valName, keyValueName);
 	status = ZwQueryValueKey (regKeyHandle, &valName, KeyValuePartialInformation, NULL, 0, &size);
 		
-	if (status != STATUS_SUCCESS && status != STATUS_BUFFER_OVERFLOW && status != STATUS_BUFFER_TOO_SMALL)
+	if (!NT_SUCCESS (status) && status != STATUS_BUFFER_OVERFLOW && status != STATUS_BUFFER_TOO_SMALL)
 	{
 		ZwClose (regKeyHandle);
 		return status;
@@ -2954,8 +3017,11 @@ uint32 ReadRegistryConfigFlags ()
 			flags = *(uint32 *) data->Data;
 			Dump ("Configuration flags = 0x%x\n", flags);
 
-			if (flags & TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD)
+			if (flags & (TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD | TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD_FOR_SYS_FAVORITES))
 				CacheBootPassword = TRUE;
+
+			if (flags & TC_DRIVER_CONFIG_DISABLE_NONADMIN_SYS_FAVORITES_ACCESS)
+				NonAdminSystemFavoritesAccessDisabled = TRUE;
 		}
 
 		TCfree (data);
@@ -3066,8 +3132,13 @@ BOOL IsVolumeAccessibleByCurrentUser (PEXTENSION volumeDeviceExtension)
 	PTOKEN_USER tokenUser;
 	BOOL result = FALSE;
 
-	if (IoIsSystemThread (PsGetCurrentThread()) || UserCanAccessDriveDevice() || !volumeDeviceExtension->UserSid)
+	if (IoIsSystemThread (PsGetCurrentThread())
+		|| UserCanAccessDriveDevice()
+		|| !volumeDeviceExtension->UserSid
+		|| (volumeDeviceExtension->SystemFavorite && !NonAdminSystemFavoritesAccessDisabled))
+	{
 		return TRUE;
+	}
 
 	SeCaptureSubjectContext (&subContext);
 	accessToken = SeQuerySubjectContextToken (&subContext);
@@ -3108,4 +3179,30 @@ int64 GetElapsedTime (LARGE_INTEGER *lastPerfCounter)
 	*lastPerfCounter = counter;
 
 	return elapsed;
+}
+
+
+BOOL IsOSAtLeast (OSVersionEnum reqMinOS)
+{
+	/* When updating this function, update IsOSVersionAtLeast() in Dlgcode.c too. */
+
+	ULONG major = 0, minor = 0;
+
+	ASSERT (OsMajorVersion != 0);
+
+	switch (reqMinOS)
+	{
+	case WIN_2000:			major = 5; minor = 0; break;
+	case WIN_XP:			major = 5; minor = 1; break;
+	case WIN_SERVER_2003:	major = 5; minor = 2; break;
+	case WIN_VISTA:			major = 6; minor = 0; break;
+	case WIN_7:				major = 6; minor = 1; break;
+
+	default:
+		TC_THROW_FATAL_EXCEPTION;
+		break;
+	}
+
+	return ((OsMajorVersion << 16 | OsMinorVersion << 8)
+		>= (major << 16 | minor << 8));
 }

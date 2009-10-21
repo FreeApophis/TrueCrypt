@@ -1,13 +1,10 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
-
-#define _LARGEFILE_SOURCE	1
-#define _FILE_OFFSET_BITS	64
 
 #include <errno.h>
 #include <fcntl.h>
@@ -227,6 +224,7 @@ namespace TrueCrypt
 		FileHandle = open (string (path).c_str(), sysFlags, S_IRUSR | S_IWUSR);
 		throw_sys_sub_if (FileHandle == -1, wstring (path));
 
+#if 0 // File locking is disabled to avoid remote filesystem locking issues
 		try
 		{
 			struct flock fl;
@@ -270,6 +268,7 @@ namespace TrueCrypt
 			close (FileHandle);
 			throw;
 		}
+#endif // 0
 
 		Path = path;
 		mFileOpenFlags = flags;
@@ -331,7 +330,7 @@ namespace TrueCrypt
 #ifdef TC_TRACE_FILE_OPERATIONS
 		TraceFileOperation (FileHandle, Path, true, buffer.Size());
 #endif
-		throw_sys_sub_if (write (FileHandle, buffer, buffer.Size()) != buffer.Size(), wstring (Path));
+		throw_sys_sub_if (write (FileHandle, buffer, buffer.Size()) != (ssize_t) buffer.Size(), wstring (Path));
 	}
 	
 	void File::WriteAt (const ConstBufferPtr &buffer, uint64 position) const
@@ -341,6 +340,6 @@ namespace TrueCrypt
 #ifdef TC_TRACE_FILE_OPERATIONS
 		TraceFileOperation (FileHandle, Path, true, buffer.Size(), position);
 #endif
-		throw_sys_sub_if (pwrite (FileHandle, buffer, buffer.Size(), position) != buffer.Size(), wstring (Path));
+		throw_sys_sub_if (pwrite (FileHandle, buffer, buffer.Size(), position) != (ssize_t) buffer.Size(), wstring (Path));
 	}
 }

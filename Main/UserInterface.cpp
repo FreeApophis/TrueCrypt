@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -459,6 +459,7 @@ namespace TrueCrypt
 		EX2MSG (SecurityTokenLibraryNotInitialized,	LangString["PKCS11_MODULE_INIT_FAILED"]);
 		EX2MSG (StringConversionFailed,				_("Invalid characters encountered."));
 		EX2MSG (StringFormatterException,			_("Error while parsing formatted string."));
+		EX2MSG (TemporaryDirectoryFailure,			_("Failed to create a file or directory in a temporary directory.\n\nPlease make sure that the temporary directory exists, its security permissions allow you to access it, and there is sufficient disk space."));
 		EX2MSG (UnportablePassword,					LangString["UNSUPPORTED_CHARS_IN_PWD"]);
 		EX2MSG (UnsupportedSectorSize,				LangString["LARGE_SECTOR_UNSUPPORTED"]);
 		EX2MSG (VolumeAlreadyMounted,				LangString["VOL_ALREADY_MOUNTED"]);
@@ -1037,7 +1038,7 @@ namespace TrueCrypt
 					" Change a password and/or keyfile(s) of a volume. Most options are requested\n"
 					" from the user if not specified on command line. PKCS-5 PRF HMAC hash\n"
 					" algorithm can be changed with option --hash. See also options -k,\n"
-					" --new-keyfiles, --new-password, -p, --random-source, -v.\n"
+					" --new-keyfiles, --new-password, -p, --random-source.\n"
 					"\n"
 					"-d, --dismount[=MOUNTED_VOLUME]\n"
 					" Dismount a mounted volume. If MOUNTED_VOLUME is not specified, all\n"
@@ -1045,6 +1046,9 @@ namespace TrueCrypt
 					"\n"
 					"--delete-token-keyfiles\n"
 					" Delete keyfiles from security tokens. See also command --list-token-keyfiles.\n"
+					"\n"
+					"--export-token-keyfile\n"
+					" Export a keyfile from a security token. See also command --list-token-keyfiles.\n"
 					"\n"
 					"--import-token-keyfiles\n"
 					" Import keyfiles to a security token. See also option --token-lib.\n"
@@ -1129,6 +1133,13 @@ namespace TrueCrypt
 					"   system under certain circumstances does not alter host-file timestamps, which\n"
 					"   may be mistakenly interpreted to mean that this option does not work).\n"
 					" See also option --fs-options.\n"
+					"\n"
+					"--new-keyfiles=KEYFILE1,KEYFILE2,KEYFILE3,..\n"
+					" Add specified keyfiles to a volume. This option can only be used with command\n"
+					" -C.\n"
+					"\n"
+					"--new-password=PASSWORD\n"
+					" Specifies a new password. This option can only be used with command -C.\n"
 					"\n"
 					"-p, --password=PASSWORD\n"
 					" Use specified password to mount/open a volume. An empty password can also be\n"
@@ -1237,6 +1248,10 @@ namespace TrueCrypt
 					ShowString (helpText);
 				}
 			}
+			return true;
+
+		case CommandId::ExportSecurityTokenKeyfile:
+			ExportSecurityTokenKeyfile();
 			return true;
 
 		case CommandId::ImportSecurityTokenKeyfiles:

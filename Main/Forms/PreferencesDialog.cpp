@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -54,7 +54,7 @@ namespace TrueCrypt
 
 		TC_CHECK_BOX_VALIDATOR (BackgroundTaskEnabled);
 		TC_CHECK_BOX_VALIDATOR (CloseBackgroundTaskOnNoVolumes);
-		CloseBackgroundTaskOnNoVolumesCheckBox->Show (!Core->IsInTravelMode());
+		CloseBackgroundTaskOnNoVolumesCheckBox->Show (!Core->IsInPortableMode());
 		TC_CHECK_BOX_VALIDATOR (BackgroundTaskMenuDismountItemsEnabled);
 		TC_CHECK_BOX_VALIDATOR (BackgroundTaskMenuMountItemsEnabled);
 		TC_CHECK_BOX_VALIDATOR (BackgroundTaskMenuOpenItemsEnabled);

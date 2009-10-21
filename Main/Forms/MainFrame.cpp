@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -22,9 +22,6 @@
 #include "LegalNoticesDialog.h"
 #include "PreferencesDialog.h"
 #include "SecurityTokenKeyfilesDialog.h"
-#ifdef TC_WINDOWS
-#include "TravelerDiskWizard.h"
-#endif
 #include "VolumeCreationWizard.h"
 #include "VolumePropertiesDialog.h"
 
@@ -204,7 +201,6 @@ namespace TrueCrypt
 
 #ifndef TC_WINDOWS
 		SettingsMenu->Remove (HotkeysMenuItem);
-		ToolsMenu->Remove (TravelerDiskWizardMenuItem);
 #endif
 
 #ifdef TC_MACOSX
@@ -1159,91 +1155,91 @@ namespace TrueCrypt
 	
 	void MainFrame::OnTimer ()
 	{
-		UpdateVolumeList();
-		UpdateWipeCacheButton();
-
-		if (GetPreferences().BackgroundTaskEnabled)
+		try
 		{
-			// Inactivity auto-dismount
-			if (GetPreferences().DismountOnInactivity)
+			UpdateVolumeList();
+			UpdateWipeCacheButton();
+
+			if (GetPreferences().BackgroundTaskEnabled)
 			{
-				VolumeInfoList inactiveVolumes;
-				wxLongLong currentTime = wxGetLocalTimeMillis().GetValue();
-
-				map <wstring, VolumeActivityMapEntry> newActivityTimeMap;
-
-				foreach (shared_ptr <VolumeInfo> volume, MountedVolumes)
+				// Inactivity auto-dismount
+				if (GetPreferences().DismountOnInactivity)
 				{
-					if (VolumeActivityMap.find (volume->Path) != VolumeActivityMap.end()
-						&& VolumeActivityMap[volume->Path].SerialInstanceNumber == volume->SerialInstanceNumber)
-					{
-						VolumeActivityMapEntry ae = VolumeActivityMap[volume->Path];
+					VolumeInfoList inactiveVolumes;
+					wxLongLong currentTime = wxGetLocalTimeMillis().GetValue();
 
-						if (volume->TotalDataRead != ae.TotalDataRead || volume->TotalDataWritten != ae.TotalDataWritten)
-						{
-							ae.LastActivityTime = currentTime;
-							ae.TotalDataRead = volume->TotalDataRead;
-							ae.TotalDataWritten = volume->TotalDataWritten;
-						}
-						else if ((currentTime - ae.LastActivityTime) > GetPreferences().MaxVolumeIdleTime * 1000LL * 60)
-						{
-							inactiveVolumes.push_back (volume);
-						}
+					map <wstring, VolumeActivityMapEntry> newActivityTimeMap;
 
-						newActivityTimeMap[volume->Path] = ae;
-					}
-					else
+					foreach (shared_ptr <VolumeInfo> volume, MountedVolumes)
 					{
-						newActivityTimeMap[volume->Path] = VolumeActivityMapEntry (*volume, currentTime);
+						if (VolumeActivityMap.find (volume->Path) != VolumeActivityMap.end()
+							&& VolumeActivityMap[volume->Path].SerialInstanceNumber == volume->SerialInstanceNumber)
+						{
+							VolumeActivityMapEntry ae = VolumeActivityMap[volume->Path];
+
+							if (volume->TotalDataRead != ae.TotalDataRead || volume->TotalDataWritten != ae.TotalDataWritten)
+							{
+								ae.LastActivityTime = currentTime;
+								ae.TotalDataRead = volume->TotalDataRead;
+								ae.TotalDataWritten = volume->TotalDataWritten;
+							}
+							else if ((currentTime - ae.LastActivityTime) > GetPreferences().MaxVolumeIdleTime * 1000LL * 60)
+							{
+								inactiveVolumes.push_back (volume);
+							}
+
+							newActivityTimeMap[volume->Path] = ae;
+						}
+						else
+						{
+							newActivityTimeMap[volume->Path] = VolumeActivityMapEntry (*volume, currentTime);
+						}
 					}
+
+					VolumeActivityMap = newActivityTimeMap;
+
+					if (!inactiveVolumes.empty())
+						Gui->AutoDismountVolumes (inactiveVolumes);
 				}
 
-				VolumeActivityMap = newActivityTimeMap;
-				
-				if (!inactiveVolumes.empty())
-					Gui->AutoDismountVolumes (inactiveVolumes);
-			}
-
-			// Screen saver auto-dismount
-			if (GetPreferences().DismountOnScreenSaver)
-			{
-#ifdef TC_WINDOWS
-				bool running;
-				if (SystemParametersInfo (SPI_GETSCREENSAVERRUNNING, 0, &running, 0) != 0)
+				// Screen saver auto-dismount
+				if (GetPreferences().DismountOnScreenSaver)
 				{
-					static bool previousState = false;
-					if (running && !previousState)
-					{
-						previousState = true;
-						Gui->OnAutoDismountAllEvent();
-					}
-					else
-					{
-						previousState = running;
-					}
-				}
-#endif
-			}
-		}
-
-		if (Gui->IsInBackgroundMode())
-		{
-			if (!GetPreferences().BackgroundTaskEnabled)
-			{
-				Close (true);
-			}
-			else if (MountedVolumes.empty() && (GetPreferences().CloseBackgroundTaskOnNoVolumes || Core->IsInTravelMode()))
-			{
-				Close (true);
-			}
-		}
-	}
-
-	void MainFrame::OnTravelerDiskWizardMenuItemSelected (wxCommandEvent& event)
-	{
 #ifdef TC_WINDOWS
-		(new TravelerDiskWizard (this))->Show();
+					bool running;
+					if (SystemParametersInfo (SPI_GETSCREENSAVERRUNNING, 0, &running, 0) != 0)
+					{
+						static bool previousState = false;
+						if (running && !previousState)
+						{
+							previousState = true;
+							Gui->OnAutoDismountAllEvent();
+						}
+						else
+						{
+							previousState = running;
+						}
+					}
 #endif
+				}
+			}
+
+			if (Gui->IsInBackgroundMode())
+			{
+				if (!GetPreferences().BackgroundTaskEnabled)
+				{
+					Close (true);
+				}
+				else if (MountedVolumes.empty() && (GetPreferences().CloseBackgroundTaskOnNoVolumes || Core->IsInPortableMode()))
+				{
+					Close (true);
+				}
+			}
+		}
+		catch (exception &e)
+		{
+			Gui->ShowError (e);
+		}
 	}
 
 	void MainFrame::OnVolumeButtonClick (wxCommandEvent& event)
@@ -1336,7 +1332,7 @@ namespace TrueCrypt
 		}
 		catch (exception &e)
 		{
-			if (!Core->IsInTravelMode())
+			if (!Core->IsInPortableMode())
 				Gui->ShowError (e);
 		}
 	}
@@ -1361,7 +1357,7 @@ namespace TrueCrypt
 		{
 			wxListItem item;
 			item.SetId (itemIndex);
-			if (slotNumber == SlotListCtrl->GetItemData (item))
+			if (slotNumber == (uint32) SlotListCtrl->GetItemData (item))
 				return itemIndex;
 		}
 		return -1;

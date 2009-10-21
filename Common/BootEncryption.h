@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -73,7 +73,7 @@ namespace TrueCrypt
 		string DevicePath;
 		PARTITION_INFORMATION Info;
 		string MountPoint;
-		int Number;
+		size_t Number;
 		BOOL IsGPT;
 		wstring VolumeNameId;
 	};
@@ -116,6 +116,7 @@ namespace TrueCrypt
 		string DevicePath;
 		int DriveNumber;
 		Partition DrivePartition;
+		bool ExtraBootPartitionPresent;
 		int64 InitialUnallocatedSpace;
 		PartitionList Partitions;
 		Partition SystemPartition;
@@ -138,8 +139,10 @@ namespace TrueCrypt
 		void CheckEncryptionSetupResult ();
 		void CheckRequirements ();
 		void CheckRequirementsHiddenOS ();
+		void CopyFileAdmin (const string &sourceFile, const string &destinationFile);
 		void CreateRescueIsoImage (bool initialSetup, const string &isoImagePath);
 		void Deinstall ();
+		void DeleteFileAdmin (const string &file);
 		DecoySystemWipeStatus GetDecoyOSWipeStatus ();
 		DWORD GetDriverServiceStartType ();
 		unsigned int GetHiddenOSCreationPhase ();
@@ -159,12 +162,15 @@ namespace TrueCrypt
 		void PrepareInstallation (bool systemPartitionOnly, Password &password, int ea, int mode, int pkcs5, const string &rescueIsoImagePath);
 		void ProbeRealSystemDriveSize ();
 		void ReadBootSectorConfig (byte *config, size_t bufLength, byte *userConfig = nullptr, string *customUserMessage = nullptr, uint16 *bootLoaderVersion = nullptr);
+		uint32 ReadDriverConfigurationFlags ();
 		void RegisterBootDriver (bool hiddenSystem);
 		void RegisterFilterDriver (bool registerDriver, bool volumeClass);
+		void RegisterSystemFavoritesService (BOOL registerService);
 		void RenameDeprecatedSystemLoaderBackup ();
 		bool RestartComputer (void);
 		void InitialSecurityChecksForHiddenOS ();
 		void RestrictPagingFilesToSystemPartition ();
+		void SetDriverConfigurationFlag (uint32 flag, bool state);
 		void SetDriverServiceStartType (DWORD startType);
 		void SetHiddenOSCreationPhase (unsigned int newPhase);
 		void StartDecryption (BOOL discardUnreadableEncryptedSectors);
@@ -218,5 +224,9 @@ namespace TrueCrypt
 
 #define TC_SYS_BOOT_LOADER_BACKUP_NAME			"Original System Loader"
 #define TC_SYS_BOOT_LOADER_BACKUP_NAME_LEGACY	"Original System Loader.bak"	// Deprecated to prevent removal by some "cleaners"
+
+#define TC_SYSTEM_FAVORITES_SERVICE_NAME				TC_APP_NAME "SystemFavorites"
+#define	TC_SYSTEM_FAVORITES_SERVICE_LOAD_ORDER_GROUP	"Event Log"
+#define TC_SYSTEM_FAVORITES_SERVICE_CMDLINE_OPTION		"/systemFavoritesService"
 
 #endif // TC_HEADER_Common_BootEncryption

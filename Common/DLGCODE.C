@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.7 the full text of which is contained in the
+ by the TrueCrypt License 2.8 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -38,7 +38,6 @@
 #include "Format/Inplace.h"
 #include "Language.h"
 #include "Keyfiles.h"
-#include "Mount/Mount.h"
 #include "Pkcs5.h"
 #include "Random.h"
 #include "Registry.h"
@@ -50,7 +49,9 @@
 #include "Xts.h"
 #include "Boot/Windows/BootCommon.h"
 
-using namespace TrueCrypt;
+#ifdef TCMOUNT
+#include "Mount/Mount.h"
+#endif
 
 #ifdef VOLFORMAT
 #include "Format/Tcformat.h"
@@ -59,6 +60,8 @@ using namespace TrueCrypt;
 #ifdef SETUP
 #include "Setup/Setup.h"
 #endif
+
+using namespace TrueCrypt;
 
 LONG DriverVersion;
 
@@ -77,6 +80,8 @@ HFONT hUserUnderlineFont = NULL;
 HFONT hUserBoldFont = NULL;
 HFONT hUserUnderlineBoldFont = NULL;
 
+HFONT WindowTitleBarFont;
+
 int ScreenDPI = USER_DEFAULT_SCREEN_DPI;
 double DPIScaleFactorX = 1;
 double DPIScaleFactorY = 1;
@@ -94,7 +99,7 @@ BOOL bMountFavoritesOnLogon = FALSE;
 BOOL bHistory = FALSE;
 
 // Status of detection of hidden sectors (whole-system-drive encryption). 
-// 0 - Unknown/undetermined/success, 1: Detection is or was in progress (but did not complete e.g. due to system crash).
+// 0 - Unknown/undetermined/completed, 1: Detection is or was in progress (but did not complete e.g. due to system crash).
 int HiddenSectorDetectionStatus = 0;	
 
 OSVersionEnum nCurrentOS = WIN_UNKNOWN;
@@ -104,7 +109,7 @@ int CurrentOSServicePack = 0;
 BOOL RemoteSession = FALSE;
 BOOL UacElevated = FALSE;
 
-BOOL bTravelerModeConfirmed = FALSE;		// TRUE if it is certain that the instance is running in traveler mode
+BOOL bPortableModeConfirmed = FALSE;		// TRUE if it is certain that the instance is running in portable mode
 
 BOOL bInPlaceEncNonSysPending = FALSE;		// TRUE if the non-system in-place encryption config file indicates that one or more partitions are scheduled to be encrypted. This flag is set only when config files are loaded during app startup.
 
@@ -114,6 +119,9 @@ KeyFile	*FirstKeyFile = NULL;
 KeyFilesDlgParam		defaultKeyFilesParam;
 
 BOOL IgnoreWmDeviceChange = FALSE;
+BOOL DeviceChangeBroadcastDisabled = FALSE;
+BOOL LastMountedVolumeDirty;
+BOOL MountVolumesAsSystemFavorite = FALSE;
 
 /* Handle to the device driver */
 HANDLE hDriver = INVALID_HANDLE_VALUE;
@@ -126,7 +134,7 @@ such as whether an app should prompt the user whether to resume scheduled proces
 volatile HANDLE hNonSysInplaceEncMutex = NULL;
 
 /* This mutex is used to prevent multiple instances of the wizard or main app from trying to install or
-register the driver or from trying to launch it in traveler mode at the same time. */
+register the driver or from trying to launch it in portable mode at the same time. */
 volatile HANDLE hDriverSetupMutex = NULL;
 
 /* This mutex is used to prevent users from running the main TrueCrypt app or the wizard while an instance
@@ -401,6 +409,10 @@ void AbortProcessSilent (void)
 	exit (1);
 }
 
+
+#pragma warning(push)
+#pragma warning(disable:4702)
+
 void *err_malloc (size_t size)
 {
 	void *z = (void *) TCalloc (size);
@@ -409,6 +421,9 @@ void *err_malloc (size_t size)
 	AbortProcess ("OUTOFMEMORY");
 	return 0;
 }
+
+#pragma warning(pop)
+
 
 char *err_strdup (char *lpszText)
 {
@@ -426,6 +441,7 @@ BOOL IsDiskReadError (DWORD error)
 		|| error == ERROR_BAD_CLUSTERS
 		|| error == ERROR_SECTOR_NOT_FOUND
 		|| error == ERROR_READ_FAULT
+		|| error == ERROR_INVALID_FUNCTION // I/O error may be reported as ERROR_INVALID_FUNCTION by buggy chipset drivers
 		|| error == ERROR_SEM_TIMEOUT);	// I/O operation timeout may be reported as ERROR_SEM_TIMEOUT
 }
 
@@ -436,6 +452,7 @@ BOOL IsDiskWriteError (DWORD error)
 		|| error == ERROR_BAD_CLUSTERS
 		|| error == ERROR_SECTOR_NOT_FOUND
 		|| error == ERROR_WRITE_FAULT
+		|| error == ERROR_INVALID_FUNCTION // I/O error may be reported as ERROR_INVALID_FUNCTION by buggy chipset drivers
 		|| error == ERROR_SEM_TIMEOUT);	// I/O operation timeout may be reported as ERROR_SEM_TIMEOUT
 }
 
@@ -559,7 +576,7 @@ int CompensateYDPI (int val)
 }
 
 
-int GetTextGfxWidth (HWND hwndDlgItem, wchar_t *text, HFONT hFont)
+int GetTextGfxWidth (HWND hwndDlgItem, const wchar_t *text, HFONT hFont)
 {
 	SIZE sizes;
 	TEXTMETRIC textMetrics;
@@ -577,7 +594,7 @@ int GetTextGfxWidth (HWND hwndDlgItem, wchar_t *text, HFONT hFont)
 }
 
 
-int GetTextGfxHeight (HWND hwndDlgItem, wchar_t *text, HFONT hFont)
+int GetTextGfxHeight (HWND hwndDlgItem, const wchar_t *text, HFONT hFont)
 {
 	SIZE sizes;
 	HDC hdc = GetDC (hwndDlgItem); 
@@ -589,6 +606,30 @@ int GetTextGfxHeight (HWND hwndDlgItem, wchar_t *text, HFONT hFont)
 	ReleaseDC (hwndDlgItem, hdc); 
 
 	return ((int) sizes.cy);
+}
+
+
+std::string FitPathInGfxWidth (HWND hwnd, HFONT hFont, LONG width, const std::string &path)
+{
+	string newPath;
+
+	RECT rect;
+	rect.left = 0;
+	rect.top = 0;
+	rect.right = width;
+	rect.bottom = LONG_MAX;
+
+	HDC hdc = GetDC (hwnd); 
+	SelectObject (hdc, (HGDIOBJ) hFont);
+
+	char pathBuf[TC_MAX_PATH];
+	strcpy_s (pathBuf, sizeof (pathBuf), path.c_str());
+
+	if (DrawText (hdc, pathBuf, path.size(), &rect, DT_CALCRECT | DT_MODIFYSTRING | DT_PATH_ELLIPSIS | DT_SINGLELINE) != 0)
+		newPath = pathBuf;
+
+	ReleaseDC (hwnd, hdc); 
+	return newPath;
 }
 
 
@@ -841,6 +882,7 @@ BOOL CALLBACK AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 			strcat (szTmp, "  (debug)");
 #endif
 			SetDlgItemText (hwndDlg, IDT_ABOUT_VERSION, szTmp);
+			SetDlgItemText (hwndDlg, IDT_ABOUT_RELEASE, TC_STR_RELEASED_BY);
 
 			// Credits
 			SendMessage (GetDlgItem (hwndDlg, IDC_ABOUT_CREDITS), WM_SETFONT, (WPARAM) hUserFont, (LPARAM) 0);
@@ -1017,6 +1059,8 @@ InitDialog (HWND hwndDlg)
 
 	metric.cbSize = sizeof (metric);
 	SystemParametersInfoW (SPI_GETNONCLIENTMETRICS, sizeof(metric), &metric, 0);
+
+	WindowTitleBarFont = CreateFontIndirectW (&metric.lfCaptionFont);
 
 	metric.lfMessageFont.lfHeight = CompensateDPIFont (!font ? -11 : -font->Size);
 	metric.lfMessageFont.lfWidth = 0;
@@ -1803,7 +1847,7 @@ BOOL NonSysInplaceEncInProgressElsewhere (void)
 
 
 // Mutex handling to prevent multiple instances of the wizard or main app from trying to install
-// or register the driver or from trying to launch it in traveler mode at the same time.
+// or register the driver or from trying to launch it in portable mode at the same time.
 // Returns TRUE if the mutex is (or had been) successfully acquired (otherwise FALSE). 
 BOOL CreateDriverSetupMutex (void)
 {
@@ -2109,7 +2153,7 @@ void InitApp (HINSTANCE hInstance, char *lpszCommandLine)
 			nCurrentOS = WIN_VISTA;
 	}
 	else if (os.dwPlatformId == VER_PLATFORM_WIN32_NT && CurrentOSMajor == 6 && CurrentOSMinor == 1)
-		nCurrentOS = WIN_7;
+		nCurrentOS = (IsServerOS() ? WIN_SERVER_2008_R2 : WIN_7);
 	else if (os.dwPlatformId == VER_PLATFORM_WIN32_NT && CurrentOSMajor == 4)
 		nCurrentOS = WIN_NT4;
 	else if (os.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS && os.dwMajorVersion == 4 && os.dwMinorVersion == 0)
@@ -2125,6 +2169,16 @@ void InitApp (HINSTANCE hInstance, char *lpszCommandLine)
 
 	CoInitialize (NULL);
 
+#ifndef SETUP
+	// Application ID
+	typedef HRESULT (WINAPI *SetAppId_t) (PCWSTR appID);
+	SetAppId_t setAppId = (SetAppId_t) GetProcAddress (GetModuleHandle ("shell32.dll"), "SetCurrentProcessExplicitAppUserModelID");
+
+	if (setAppId)
+		setAppId (TC_APPLICATION_ID);
+#endif
+
+	// Language
 	langId[0] = 0;
 	SetPreferredLangId (ConfigReadString ("Language", "", langId, sizeof (langId)));
 	
@@ -2135,7 +2189,7 @@ void InitApp (HINSTANCE hInstance, char *lpszCommandLine)
 	LoadLanguageFile ();
 
 #ifndef SETUP
-	// UAC elevation moniker cannot be used in traveler mode.
+	// UAC elevation moniker cannot be used in portable mode.
 	// A new instance of the application must be created with elevated privileges.
 	if (IsNonInstallMode () && !IsAdmin () && IsUacSupported ())
 	{
@@ -2231,6 +2285,13 @@ void InitApp (HINSTANCE hInstance, char *lpszCommandLine)
 				}
 				break;
 			}
+		}
+
+		if (CurrentOSMajor == 6 && CurrentOSMinor == 1 
+			&& osEx.dwBuildNumber > 0 && osEx.dwBuildNumber < 7600)
+		{
+			Error ("UNSUPPORTED_BETA_OS");
+			exit (0);
 		}
 	}
 
@@ -2360,14 +2421,14 @@ BOOL OpenDevice (const char *lpszPath, OPEN_TEST_STRUCT *driver, BOOL detectFile
 }
 
 
-// Tells the driver that it's running in traveler mode
-void NotifyDriverOfTravelerMode (void)
+// Tells the driver that it's running in portable mode
+void NotifyDriverOfPortableMode (void)
 {
 	if (hDriver != INVALID_HANDLE_VALUE)
 	{
 		DWORD dwResult;
 
-		DeviceIoControl (hDriver, TC_IOCTL_SET_TRAVELER_MODE_STATUS, NULL, 0, NULL, 0, &dwResult, NULL);
+		DeviceIoControl (hDriver, TC_IOCTL_SET_PORTABLE_MODE_STATUS, NULL, 0, NULL, 0, &dwResult, NULL);
 	}
 }
 
@@ -2375,7 +2436,7 @@ void NotifyDriverOfTravelerMode (void)
 BOOL GetDriveLabel (int driveNo, wchar_t *label, int labelSize)
 {
 	DWORD fileSystemFlags;
-	wchar_t root[] = { L'A' + driveNo, L':', L'\\', 0 };
+	wchar_t root[] = { L'A' + (wchar_t) driveNo, L':', L'\\', 0 };
 
 	return GetVolumeInformationW (root, label, labelSize / 2, NULL, NULL, &fileSystemFlags, NULL, 0);
 }
@@ -2449,6 +2510,65 @@ int IsSystemDevicePath (char *path, HWND hwndDlg, BOOL bReliableRequired)
 	return 0;
 }
 
+
+wstring GetSysEncryptionPretestInfo2String (void)
+{
+	// This huge string is divided into smaller portions to make it easier for translators to
+	// re-translate it when a minor modification is made to it (the whole huge string will not be
+	// reverted to English, so they will have to translate only a small portion of it).
+	return (wstring (L"\n")
+		+ GetString ("SYS_ENCRYPTION_PRETEST_INFO2_PORTION_1")
+		+ GetString ("SYS_ENCRYPTION_PRETEST_INFO2_PORTION_2")
+		+ GetString ("SYS_ENCRYPTION_PRETEST_INFO2_PORTION_3")
+		+ GetString ("SYS_ENCRYPTION_PRETEST_INFO2_PORTION_4"));
+}
+
+
+wstring GetRescueDiskHelpString (void)
+{
+	// This huge string is divided into smaller portions to make it easier for translators to
+	// re-translate it when a minor modification is made to it (the whole huge string will not be
+	// reverted to English, so they will have to translate only a small portion of it).
+	return (wstring (
+		GetString ("RESCUE_DISK_HELP_PORTION_1"))
+		+ GetString ("RESCUE_DISK_HELP_PORTION_2")
+		+ GetString ("RESCUE_DISK_HELP_PORTION_3")
+		+ GetString ("RESCUE_DISK_HELP_PORTION_4")
+		+ GetString ("RESCUE_DISK_HELP_PORTION_5")
+		+ GetString ("RESCUE_DISK_HELP_PORTION_6")
+		+ GetString ("RESCUE_DISK_HELP_PORTION_7")
+		+ GetString ("RESCUE_DISK_HELP_PORTION_8")
+		+ GetString ("RESCUE_DISK_HELP_PORTION_9"));
+}
+
+
+wstring GetDecoyOsInstructionsString (void)
+{
+	// This huge string is divided into smaller portions to make it easier for translators to
+	// re-translate it when a minor modification is made to it (the whole huge string will not be
+	// reverted to English, so they will have to translate only a small portion of it).
+	return (wstring (
+		GetString ("DECOY_OS_INSTRUCTIONS_PORTION_1"))
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_2")
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_3")
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_4")
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_5")
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_6")
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_7")
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_8")
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_9")
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_10")
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_11")
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_12")
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_13")
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_14")
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_15")
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_16")
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_17")
+		+ GetString ("DECOY_OS_INSTRUCTIONS_PORTION_18"));
+}
+
+
 BOOL TextInfoDialogBox (int nID)
 {
 	return DialogBoxParamW (hInst, MAKEINTRESOURCEW (IDD_TEXT_INFO_DIALOG_BOX_DLG), MainDlg, (DLGPROC) TextInfoDialogBoxDlgProc, (LPARAM) nID);
@@ -2490,6 +2610,11 @@ BOOL CALLBACK TextInfoDialogBoxDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, L
 				LocalizeDialog (hwndDlg, NULL);
 				ShowWindow(GetDlgItem(hwndDlg, IDC_PRINT), SW_SHOW);
 				break;
+
+			case TC_TBXID_EXTRA_BOOT_PARTITION_REMOVAL_INSTRUCTIONS:
+				LocalizeDialog (hwndDlg, NULL);
+				ShowWindow(GetDlgItem(hwndDlg, IDC_PRINT), SW_SHOW);
+				break;
 			}
 
 			SendMessage (hwndDlg, TC_APPMSG_LOAD_TEXT_BOX_CONTENT, 0, 0);
@@ -2509,15 +2634,19 @@ BOOL CALLBACK TextInfoDialogBoxDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, L
 			switch (nID)
 			{
 			case TC_TBXID_SYS_ENCRYPTION_PRETEST:
-				PrintHardCopyTextUTF16 (GetString ("SYS_ENCRYPTION_PRETEST_INFO2"), "Pre-Boot Troubleshooting", wcslen (GetString ("SYS_ENCRYPTION_PRETEST_INFO2")) * 2);
+				PrintHardCopyTextUTF16 ((wchar_t *) GetSysEncryptionPretestInfo2String ().c_str(), "Pre-Boot Troubleshooting", GetSysEncryptionPretestInfo2String ().length () * 2);
 				break;
 
 			case TC_TBXID_SYS_ENC_RESCUE_DISK:
-				PrintHardCopyTextUTF16 (GetString ("RESCUE_DISK_HELP"), "TrueCrypt Rescue Disk Help", wcslen (GetString ("RESCUE_DISK_HELP")) * 2);
+				PrintHardCopyTextUTF16 ((wchar_t *) GetRescueDiskHelpString ().c_str(), "TrueCrypt Rescue Disk Help", GetRescueDiskHelpString ().length () * 2);
 				break;
 
 			case TC_TBXID_DECOY_OS_INSTRUCTIONS:
-				PrintHardCopyTextUTF16 (GetString ("DECOY_OS_INSTRUCTIONS"), "How to Create Decoy OS", wcslen (GetString ("DECOY_OS_INSTRUCTIONS")) * 2);
+				PrintHardCopyTextUTF16 ((wchar_t *) GetDecoyOsInstructionsString ().c_str(), "How to Create Decoy OS", GetDecoyOsInstructionsString ().length () * 2);
+				break;
+
+			case TC_TBXID_EXTRA_BOOT_PARTITION_REMOVAL_INSTRUCTIONS:
+				PrintHardCopyTextUTF16 (GetString ("EXTRA_BOOT_PARTITION_REMOVAL_INSTRUCTIONS"), "How to Remove Extra Boot Partition", wcslen (GetString ("EXTRA_BOOT_PARTITION_REMOVAL_INSTRUCTIONS")) * 2);
 				break;
 			}
 			return 1;
@@ -2543,17 +2672,22 @@ BOOL CALLBACK TextInfoDialogBoxDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, L
 
 			case TC_TBXID_SYS_ENCRYPTION_PRETEST:
 				LocalizeDialog (hwndDlg, NULL);
-				SetWindowTextW (GetDlgItem (hwndDlg, IDC_INFO_BOX_TEXT), GetString ("SYS_ENCRYPTION_PRETEST_INFO2"));
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_INFO_BOX_TEXT), (wchar_t *) GetSysEncryptionPretestInfo2String ().c_str());
 				break;
 
 			case TC_TBXID_SYS_ENC_RESCUE_DISK:
 				LocalizeDialog (hwndDlg, NULL);
-				SetWindowTextW (GetDlgItem (hwndDlg, IDC_INFO_BOX_TEXT), GetString ("RESCUE_DISK_HELP"));
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_INFO_BOX_TEXT), (wchar_t *) GetRescueDiskHelpString ().c_str());
 				break;
 
 			case TC_TBXID_DECOY_OS_INSTRUCTIONS:
 				LocalizeDialog (hwndDlg, NULL);
-				SetWindowTextW (GetDlgItem (hwndDlg, IDC_INFO_BOX_TEXT), GetString ("DECOY_OS_INSTRUCTIONS"));
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_INFO_BOX_TEXT), (wchar_t *) GetDecoyOsInstructionsString ().c_str());
+				break;
+
+			case TC_TBXID_EXTRA_BOOT_PARTITION_REMOVAL_INSTRUCTIONS:
+				LocalizeDialog (hwndDlg, NULL);
+				SetWindowTextW (GetDlgItem (hwndDlg, IDC_INFO_BOX_TEXT), GetString ("EXTRA_BOOT_PARTITION_REMOVAL_INSTRUCTIONS"));
 				break;
 			}
 		}
@@ -3042,6 +3176,7 @@ BOOL DriverUnload ()
 	BOOL bRet;
 	SERVICE_STATUS status;
 	int x;
+	BOOL driverUnloaded = FALSE;
 
 	if (hDriver == INVALID_HANDLE_VALUE)
 		return TRUE;
@@ -3098,18 +3233,23 @@ BOOL DriverUnload ()
 	{
 		ControlService (hService, SERVICE_CONTROL_STOP, &status);
 
-		for (x = 0; x < 5; x++)
+		for (x = 0; x < 10; x++)
 		{
 			bRet = QueryServiceStatus (hService, &status);
 			if (bRet != TRUE)
 				goto error;
 
 			if (status.dwCurrentState == SERVICE_STOPPED)
+			{
+				driverUnloaded = TRUE;
 				break;
+			}
 
 			Sleep (200);
 		}
 	}
+	else
+		driverUnloaded = TRUE;
 
 error:
 	if (hService != NULL)
@@ -3118,7 +3258,7 @@ error:
 	if (hManager != NULL)
 		CloseServiceHandle (hManager);
 
-	if (status.dwCurrentState == SERVICE_STOPPED)
+	if (driverUnloaded)
 	{
 		hDriver = INVALID_HANDLE_VALUE;
 		return TRUE;
@@ -3190,7 +3330,7 @@ start:
 			}
 			else
 			{
-				// Attempt to load the driver (non-install/traveler mode)
+				// Attempt to load the driver (non-install/portable mode)
 load:
 				BOOL res = DriverLoad ();
 
@@ -3199,13 +3339,13 @@ load:
 				if (res != ERROR_SUCCESS)
 					return res;
 
-				bTravelerModeConfirmed = TRUE;
+				bPortableModeConfirmed = TRUE;
 
 				hDriver = CreateFile (WIN32_ROOT_PREFIX, 0, 0, NULL, OPEN_EXISTING, 0, NULL);
 			}
 
-			if (bTravelerModeConfirmed)
-				NotifyDriverOfTravelerMode ();
+			if (bPortableModeConfirmed)
+				NotifyDriverOfPortableMode ();
 		}
 
 #endif	// #ifndef SETUP
@@ -3272,7 +3412,7 @@ BOOL BrowseFiles (HWND hwndDlg, char *stringId, char *lpszFileName, BOOL keepHis
 }
 
 
-BOOL BrowseFilesInDir (HWND hwndDlg, char *stringId, char *initialDir, char *lpszFileName, BOOL keepHistory, BOOL saveMode, wchar_t *browseFilter)
+BOOL BrowseFilesInDir (HWND hwndDlg, char *stringId, char *initialDir, char *lpszFileName, BOOL keepHistory, BOOL saveMode, wchar_t *browseFilter, const wchar_t *initialFileName, const wchar_t *defaultExtension)
 {
 	OPENFILENAMEW ofn;
 	wchar_t file[TC_MAX_PATH] = { 0 };
@@ -3291,6 +3431,9 @@ BOOL BrowseFilesInDir (HWND hwndDlg, char *stringId, char *initialDir, char *lps
 		ofn.lpstrInitialDir			= wInitialDir;
 	}
 
+	if (initialFileName)
+		wcscpy_s (file, array_capacity (file), initialFileName);
+
 	ofn.lStructSize				= sizeof (ofn);
 	ofn.hwndOwner				= hwndDlg;
 
@@ -3301,11 +3444,12 @@ BOOL BrowseFilesInDir (HWND hwndDlg, char *stringId, char *initialDir, char *lps
 	ofn.lpstrFile				= file;
 	ofn.nMaxFile				= sizeof (file) / sizeof (file[0]);
 	ofn.lpstrTitle				= GetString (stringId);
+	ofn.lpstrDefExt				= defaultExtension;
 	ofn.Flags					= OFN_HIDEREADONLY
 		| OFN_PATHMUSTEXIST
 		| (keepHistory ? 0 : OFN_DONTADDTORECENT)
 		| (saveMode ? OFN_OVERWRITEPROMPT : 0);
-	
+
 	if (!keepHistory)
 		CleanLastVisitedMRU ();
 
@@ -3325,11 +3469,12 @@ BOOL BrowseFilesInDir (HWND hwndDlg, char *stringId, char *initialDir, char *lps
 	if (!keepHistory)
 		CleanLastVisitedMRU ();
 
-	ResetCurrentDirectory ();
 	status = TRUE;
 
 ret:
+	ResetCurrentDirectory();
 	CoUninitialize();
+
 	return status;
 }
 
@@ -3395,11 +3540,12 @@ BOOL SelectMultipleFiles (HWND hwndDlg, char *stringId, char *lpszFileName, BOOL
 	if (!keepHistory)
 		CleanLastVisitedMRU ();
 
-	ResetCurrentDirectory ();
 	status = TRUE;
 	
 ret:
+	ResetCurrentDirectory();
 	CoUninitialize();
+
 	return status;
 }
 
@@ -5348,7 +5494,7 @@ BOOL CheckFileExtension (char *fileName)
 		".class", ".dhtm", ".dhtml",".dlo", ".emf", ".eml", ".flt", ".fot", ".gz", ".hlp", ".htm", ".html", ".ini", 
 		".j2k", ".jar", ".jff", ".jif", ".jmh", ".jng", ".jp2", ".jpe", ".jpeg", ".jpg", ".lsp", ".mod", ".nws",
 		".obj", ".olb", ".osd", ".ov1", ".ov2", ".ov3", ".ovl", ".ovl", ".ovr", ".pdr", ".pgm", ".php", ".pkg",
-		".pl", ".png", ".pot", ".pps", ".ppt", ".rar", ".rpl", ".rtf", ".sbf", ".script", ".sh", ".sha", ".shtm",
+		".pl", ".png", ".pot", ".pps", ".ppt", ".ps1", ".ps1xml", ".psc1", ".rar", ".rpl", ".rtf", ".sbf", ".script", ".sh", ".sha", ".shtm",
 		".shtml", ".spl", ".swf", ".tar", ".tgz", ".tmp", ".ttf", ".vcs", ".vlm", ".vxd", ".vxo", ".wiz", ".wll", ".wmd",
 		".wmf",	".wms", ".wmz", ".wpc", ".wsc", ".wsh", ".wwk", ".xhtm", ".xhtml", ".xl", ".xml", ".zip", ".7z", 0};
 
@@ -5486,9 +5632,14 @@ void BroadcastDeviceChange (WPARAM message, int nDosDriveNo, DWORD driveMap)
 	LONG eventId = 0;
 	int i;
 
+	if (DeviceChangeBroadcastDisabled)
+		return;
+
 	if (message == DBT_DEVICEARRIVAL)
 		eventId = SHCNE_DRIVEADD;
 	else if (message == DBT_DEVICEREMOVECOMPLETE)
+		eventId = SHCNE_DRIVEREMOVED;
+	else if (IsOSAtLeast (WIN_7) && message == DBT_DEVICEREMOVEPENDING) // Explorer on Windows 7 holds open handles of all drives when 'Computer' is expanded in navigation pane. SHCNE_DRIVEREMOVED must be used as DBT_DEVICEREMOVEPENDING is ignored.
 		eventId = SHCNE_DRIVEREMOVED;
 
 	if (driveMap == 0)
@@ -5500,7 +5651,7 @@ void BroadcastDeviceChange (WPARAM message, int nDosDriveNo, DWORD driveMap)
 		{
 			if (driveMap & (1 << i))
 			{
-				char root[] = {i + 'A', ':', '\\', 0 };
+				char root[] = { (char) i + 'A', ':', '\\', 0 };
 				SHChangeNotify (eventId, SHCNF_PATH, root, NULL);
 
 				if (nCurrentOS == WIN_2000 && RemoteSession)
@@ -5532,11 +5683,11 @@ void BroadcastDeviceChange (WPARAM message, int nDosDriveNo, DWORD driveMap)
 		timeOut = 100;
 
 	IgnoreWmDeviceChange = TRUE;
-	SendMessageTimeout (HWND_BROADCAST, WM_DEVICECHANGE, message, (LPARAM)(&dbv), 0, timeOut, &dwResult);
+	SendMessageTimeout (HWND_BROADCAST, WM_DEVICECHANGE, message, (LPARAM)(&dbv), SMTO_ABORTIFHUNG, timeOut, &dwResult);
 
 	// Explorer prior Vista sometimes fails to register a new drive
 	if (CurrentOSMajor < 6 && message == DBT_DEVICEARRIVAL)
-		SendMessageTimeout (HWND_BROADCAST, WM_DEVICECHANGE, message, (LPARAM)(&dbv), 0, 200, &dwResult);
+		SendMessageTimeout (HWND_BROADCAST, WM_DEVICECHANGE, message, (LPARAM)(&dbv), SMTO_ABORTIFHUNG, 200, &dwResult);
 
 	IgnoreWmDeviceChange = FALSE;
 }
@@ -5594,6 +5745,7 @@ int MountVolume (HWND hwndDlg,
 
 	ZeroMemory (&mount, sizeof (mount));
 	mount.bExclusiveAccess = sharedAccess ? FALSE : TRUE;
+	mount.SystemFavorite = MountVolumesAsSystemFavorite;
 	mount.UseBackupHeader =  mountOptions->UseBackupHeader;
 	mount.RecoveryMode = mountOptions->RecoveryMode;
 
@@ -5637,7 +5789,24 @@ retry:
 	if (path.find ("Volume{") == 0 && path.rfind ("}\\") == path.size() - 2)
 	{
 		// Resolve volume name
-		if (QueryDosDevice (path.substr (0, path.size() - 1).c_str(), volumePath, TC_MAX_PATH) == 0)
+		if (QueryDosDevice (path.substr (0, path.size() - 1).c_str(), volumePath, TC_MAX_PATH) != 0)
+		{
+			foreach (const HostDevice &device, GetAvailableHostDevices (true, true))
+			{
+				if (!device.DynamicVolume)
+				{
+					wchar_t resolvedVolumePath[TC_MAX_PATH];
+
+					if (ResolveSymbolicLink (SingleStringToWide (device.Path).c_str(), resolvedVolumePath)
+						&& SingleStringToWide (volumePath) == resolvedVolumePath)
+					{
+						strcpy_s (volumePath, TC_MAX_PATH, device.Path.c_str());
+						break;
+					}
+				}
+			}
+		}
+		else
 			strcpy_s (volumePath, TC_MAX_PATH, path.c_str());
 	}
 
@@ -5648,7 +5817,7 @@ retry:
 		// UNC path
 		if (path.find ("\\\\") == 0)
 		{
-			_snprintf ((char *)mount.wszVolume, MAX_PATH, "UNC%s", volumePath + 1);
+			strcpy_s ((char *)mount.wszVolume, array_capacity (mount.wszVolume), ("UNC" + path.substr (1)).c_str());
 		}
 
 		if (GetVolumePathName (volumePath, root, sizeof (root) - 1))
@@ -5692,8 +5861,7 @@ retry:
 			if (mount.bExclusiveAccess == FALSE)
 			{
 				if (!quiet)
-					MessageBoxW (hwndDlg, GetString ("FILE_IN_USE_FAILED"),
-						lpszTitle, MB_ICONSTOP);
+					Error ("FILE_IN_USE_FAILED");
 
 				return -1;
 			}
@@ -5706,8 +5874,7 @@ retry:
 				}
 
 				// Ask user 
-				if (IDYES == MessageBoxW (hwndDlg, GetString ("FILE_IN_USE"),
-					lpszTitle, MB_YESNO | MB_DEFBUTTON2 | MB_ICONEXCLAMATION))
+				if (IDYES == AskWarnNoYes ("FILE_IN_USE"))
 				{
 					mount.bExclusiveAccess = FALSE;
 					goto retry;
@@ -5781,10 +5948,12 @@ retry:
 			Warning ("HEADER_DAMAGED_AUTO_USED_HEADER_BAK");
 	}
 	
+	LastMountedVolumeDirty = mount.FilesystemDirty;
+
 	if (mount.FilesystemDirty)
 	{
 		wchar_t msg[1024];
-		wchar_t mountPoint[] = { L'A' + driveNo, L':', 0 };
+		wchar_t mountPoint[] = { L'A' + (wchar_t) driveNo, L':', 0 };
 		wsprintfW (msg, GetString ("MOUNTED_VOLUME_DIRTY"), mountPoint);
 
 		if (AskWarnYesNoString (msg) == IDYES)
@@ -5798,7 +5967,7 @@ retry:
 		&& !IsFileOnReadOnlyFilesystem (volumePath))
 	{
 		wchar_t msg[1024];
-		wchar_t mountPoint[] = { L'A' + driveNo, L':', 0 };
+		wchar_t mountPoint[] = { L'A' + (wchar_t) driveNo, L':', 0 };
 		wsprintfW (msg, GetString ("MOUNTED_CONTAINER_FORCED_READ_ONLY"), mountPoint);
 
 		WarningDirect (msg);
@@ -5809,7 +5978,7 @@ retry:
 		&& bDevice)
 	{
 		wchar_t msg[1024];
-		wchar_t mountPoint[] = { L'A' + driveNo, L':', 0 };
+		wchar_t mountPoint[] = { L'A' + (wchar_t) driveNo, L':', 0 };
 		wsprintfW (msg, GetString ("MOUNTED_DEVICE_FORCED_READ_ONLY"), mountPoint);
 
 		WarningDirect (msg);
@@ -5820,7 +5989,7 @@ retry:
 		&& strstr (volumePath, "\\Device\\Harddisk") == volumePath)
 	{
 		wchar_t msg[1024];
-		wchar_t mountPoint[] = { L'A' + driveNo, L':', 0 };
+		wchar_t mountPoint[] = { L'A' + (wchar_t) driveNo, L':', 0 };
 		wsprintfW (msg, GetString ("MOUNTED_DEVICE_FORCED_READ_ONLY_WRITE_PROTECTION"), mountPoint);
 
 		WarningDirect (msg);
@@ -5872,6 +6041,13 @@ retry:
 			{
 				forced = TRUE;
 				goto retry;
+			}
+
+			if (IsOSAtLeast (WIN_7))
+			{
+				// Undo SHCNE_DRIVEREMOVED
+				char root[] = { (char) nDosDriveNo + 'A', ':', '\\', 0 };
+				SHChangeNotify (SHCNE_DRIVEADD, SHCNF_PATH, root, NULL);
 			}
 
 			return FALSE;
@@ -5956,6 +6132,32 @@ BOOL IsAdmin (void)
 }
 
 
+BOOL IsBuiltInAdmin ()
+{
+	HANDLE procToken;
+	DWORD size;
+
+	if (!IsAdmin() || !OpenProcessToken (GetCurrentProcess(), TOKEN_QUERY, &procToken))
+		return FALSE;
+
+	finally_do_arg (HANDLE, procToken, { CloseHandle (finally_arg); });
+
+	if (GetTokenInformation (procToken, TokenUser, NULL, 0, &size) || GetLastError() != ERROR_INSUFFICIENT_BUFFER)
+		return FALSE;
+
+	TOKEN_USER *tokenUser = (TOKEN_USER *) malloc (size);
+	if (!tokenUser)
+		return FALSE;
+
+	finally_do_arg (void *, tokenUser, { free (finally_arg); });
+
+	if (!GetTokenInformation (procToken, TokenUser, tokenUser, size, &size))
+		return FALSE;
+
+	return IsWellKnownSid (tokenUser->User.Sid, WinAccountAdministratorSid);
+}
+
+
 BOOL IsUacSupported ()
 {
 	HKEY hkey;
@@ -5976,7 +6178,7 @@ BOOL IsUacSupported ()
 }
 
 
-BOOL ResolveSymbolicLink (PWSTR symLinkName, PWSTR targetName)
+BOOL ResolveSymbolicLink (const wchar_t *symLinkName, PWSTR targetName)
 {
 	BOOL bResult;
 	DWORD dwResult;
@@ -6053,7 +6255,7 @@ int GetDiskDeviceDriveLetter (PWSTR deviceName)
 
 	for (i = 0; i < 26; i++)
 	{
-		WCHAR drive[] = { i + 'A', ':', 0 };
+		WCHAR drive[] = { (WCHAR) i + 'A', ':', 0 };
 
 		wcscpy (link, L"\\DosDevices\\");
 		wcscat (link, drive);
@@ -6107,7 +6309,7 @@ __int64 GetStatsFreeSpaceOnPartition (const char *devicePath, float *percentFree
 	ToUNICODE ((char *) devPath);
 
 	driveLetterNo = GetDiskDeviceDriveLetter (devPath);
-	szRootPath[0] = driveLetterNo + 'A';
+	szRootPath[0] = (char) driveLetterNo + 'A';
 
 
 	if (!GetDiskFreeSpaceEx (szRootPath, &freeSpaceSize, &totalNumberOfBytes, &totalNumberOfFreeBytes))
@@ -6512,20 +6714,20 @@ BOOL IsNonInstallMode ()
 	HKEY hkey;
 	DWORD dw;
 
-	if (bTravelerModeConfirmed)
+	if (bPortableModeConfirmed)
 		return TRUE;
 
 	if (hDriver != INVALID_HANDLE_VALUE)
 	{
 		// The driver is running
-		if (DeviceIoControl (hDriver, TC_IOCTL_GET_TRAVELER_MODE_STATUS, NULL, 0, NULL, 0, &dw, 0))
+		if (DeviceIoControl (hDriver, TC_IOCTL_GET_PORTABLE_MODE_STATUS, NULL, 0, NULL, 0, &dw, 0))
 		{
-			bTravelerModeConfirmed = TRUE;
+			bPortableModeConfirmed = TRUE;
 			return TRUE;
 		}
 		else
 		{
-			// This is also returned if we fail to determine the status (it does not mean that traveler mode is disproved).
+			// This is also returned if we fail to determine the status (it does not mean that portable mode is disproved).
 			return FALSE;	
 		}
 	}
@@ -6550,10 +6752,10 @@ BOOL IsNonInstallMode ()
 				if (FileExists (path))
 				{
 					// To maintain consistency and safety, if the system encryption config file exits, we cannot
-					// allow traveler mode. (This happens e.g. when the pretest fails and the user selects 
+					// allow portable mode. (This happens e.g. when the pretest fails and the user selects 
 					// "Last Known Good Configuration" from the Windows boot menu.)
 
-					// However, if UAC elevation is needed, we have to confirm traveler mode first (after we are elevated, we won't).
+					// However, if UAC elevation is needed, we have to confirm portable mode first (after we are elevated, we won't).
 					if (!IsAdmin () && IsUacSupported ())
 						return TRUE;
 
@@ -6561,7 +6763,7 @@ BOOL IsNonInstallMode ()
 				}
 			}
 
-			// As the driver was not found in the system path, we can predict that we will run in traveler mode
+			// As the driver was not found in the system path, we can predict that we will run in portable mode
 			return TRUE;	
 		}
 		else
@@ -6847,7 +7049,7 @@ int GetDriverRefCount ()
 // processed by mputLong(). The result is stored in *result. Returns TRUE if successful (otherwise FALSE).
 BOOL LoadInt32 (char *filePath, unsigned __int32 *result, __int64 fileOffset)
 {
-	int bufSize = sizeof(__int32);
+	size_t bufSize = sizeof(__int32);
 	unsigned char *buffer = (unsigned char *) malloc (bufSize);
 	unsigned char *bufferPtr = buffer;
 	HANDLE src = NULL;
@@ -6891,7 +7093,7 @@ fsif_end:
 // processed by mputWord(). The result is stored in *result. Returns TRUE if successful (otherwise FALSE).
 BOOL LoadInt16 (char *filePath, int *result, __int64 fileOffset)
 {
-	int bufSize = sizeof(__int16);
+	size_t bufSize = sizeof(__int16);
 	unsigned char *buffer = (unsigned char *) malloc (bufSize);
 	unsigned char *bufferPtr = buffer;
 	HANDLE src = NULL;
@@ -6962,7 +7164,7 @@ char *LoadFile (const char *fileName, DWORD *size)
 
 
 // Returns NULL if there's any error.
-char *LoadFileBlock (char *fileName, __int64 fileOffset, int count)
+char *LoadFileBlock (char *fileName, __int64 fileOffset, size_t count)
 {
 	char *buf;
 	DWORD bytesRead = 0;
@@ -7055,13 +7257,31 @@ char *GetConfigPath (char *fileName)
 	return path;
 }
 
+
+char *GetProgramConfigPath (char *fileName)
+{
+	static char path[MAX_PATH * 2] = { 0 };
+
+	if (SUCCEEDED (SHGetFolderPath (NULL, CSIDL_COMMON_APPDATA | CSIDL_FLAG_CREATE, NULL, 0, path)))
+	{
+		strcat (path, "\\TrueCrypt\\");
+		CreateDirectory (path, NULL);
+		strcat (path, fileName);
+	}
+	else
+		path[0] = 0;
+
+	return path;
+}
+
+
 // Returns 0 if an error occurs or the drive letter (as an upper-case char) of the system partition (e.g. 'C');
 char GetSystemDriveLetter (void)
 {
 	char systemDir [MAX_PATH];
 
 	if (GetSystemDirectory (systemDir, sizeof (systemDir)))
-		return (toupper (systemDir [0]));
+		return (char) (toupper (systemDir [0]));
 	else
 		return 0;
 }
@@ -7131,77 +7351,84 @@ int ErrorDirect (const wchar_t *errMsg)
 
 int AskYesNo (char *stringId)
 {
-	if (Silent) return 0;
+	if (Silent) return IDNO;
 	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONQUESTION | MB_YESNO | MB_DEFBUTTON1);
+}
+
+
+int AskYesNoString (const wchar_t *str)
+{
+	if (Silent) return IDNO;
+	return MessageBoxW (MainDlg, str, lpszTitle, MB_ICONQUESTION | MB_YESNO | MB_DEFBUTTON1);
 }
 
 
 int AskNoYes (char *stringId)
 {
-	if (Silent) return 0;
+	if (Silent) return IDNO;
 	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONQUESTION | MB_YESNO | MB_DEFBUTTON2);
 }
 
 
 int AskOkCancel (char *stringId)
 {
-	if (Silent) return 0;
+	if (Silent) return IDCANCEL;
 	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONQUESTION | MB_OKCANCEL | MB_DEFBUTTON1);
 }
 
 
 int AskWarnYesNo (char *stringId)
 {
-	if (Silent) return 0;
+	if (Silent) return IDNO;
 	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON1);
 }
 
 
 int AskWarnNoYes (char *stringId)
 {
-	if (Silent) return 0;
+	if (Silent) return IDNO;
 	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
 }
 
 
-int AskWarnNoYesString (wchar_t *string)
+int AskWarnNoYesString (const wchar_t *string)
 {
-	if (Silent) return 0;
+	if (Silent) return IDNO;
 	return MessageBoxW (MainDlg, string, lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
 }
 
 
-int AskWarnYesNoString (wchar_t *string)
+int AskWarnYesNoString (const wchar_t *string)
 {
-	if (Silent) return 0;
+	if (Silent) return IDNO;
 	return MessageBoxW (MainDlg, string, lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON1);
 }
 
 
 int AskWarnOkCancel (char *stringId)
 {
-	if (Silent) return 0;
+	if (Silent) return IDCANCEL;
 	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONWARNING | MB_OKCANCEL | MB_DEFBUTTON1);
 }
 
 
 int AskWarnCancelOk (char *stringId)
 {
-	if (Silent) return 0;
+	if (Silent) return IDCANCEL;
 	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONWARNING | MB_OKCANCEL | MB_DEFBUTTON2);
 }
 
 
 int AskErrYesNo (char *stringId)
 {
-	if (Silent) return 0;
+	if (Silent) return IDNO;
 	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONERROR | MB_YESNO | MB_DEFBUTTON1);
 }
 
 
 int AskErrNoYes (char *stringId)
 {
-	if (Silent) return 0;
+	if (Silent) return IDNO;
 	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONERROR | MB_YESNO | MB_DEFBUTTON2);
 }
 
@@ -7473,7 +7700,12 @@ BOOL IsOSAtLeast (OSVersionEnum reqMinOS)
 // Example 3: IsOSVersionAtLeast (WIN_XP, 3) called under Windows Vista SP1, returns TRUE.
 BOOL IsOSVersionAtLeast (OSVersionEnum reqMinOS, int reqMinServicePack)
 {
-	int major, minor;
+	/* When updating this function, update IsOSAtLeast() in Ntdriver.c too. */
+
+	if (CurrentOSMajor <= 0)
+		TC_THROW_FATAL_EXCEPTION;
+
+	int major = 0, minor = 0;
 
 	switch (reqMinOS)
 	{
@@ -7511,6 +7743,16 @@ BOOL Is64BitOs ()
 
 	valid = TRUE;
     return isWow64;
+}
+
+
+BOOL IsServerOS ()
+{
+	OSVERSIONINFOEXA osVer;
+	osVer.dwOSVersionInfoSize = sizeof (OSVERSIONINFOEXA);
+	GetVersionExA ((LPOSVERSIONINFOA) &osVer);
+
+	return (osVer.wProductType == VER_NT_SERVER || osVer.wProductType == VER_NT_DOMAIN_CONTROLLER);
 }
 
 
@@ -7613,6 +7855,10 @@ std::string GetWindowsEdition ()
 
 	case WIN_7:
 		osname += "7";
+		break;
+
+	case WIN_SERVER_2008_R2:
+		osname += "2008r2";
 		break;
 
 	default:
@@ -8256,6 +8502,8 @@ static BOOL CALLBACK NewSecurityTokenKeyfileDlgProc (HWND hwndDlg, UINT msg, WPA
 	{
 	case WM_INITDIALOG:
 		{
+			LocalizeDialog (hwndDlg, "IDD_NEW_TOKEN_KEYFILE");
+
 			newParams = (NewSecurityTokenKeyfileDlgProcParams *) lParam;
 
 			WaitCursor();
@@ -8661,6 +8909,7 @@ BOOL InitSecurityTokenLibrary ()
 std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties, bool singleList, bool noFloppy, bool detectUnencryptedFilesystems)
 {
 	vector <HostDevice> devices;
+	size_t device0Index;
 
 	for (int devNumber = 0; devNumber < 64; devNumber++)
 	{
@@ -8719,37 +8968,38 @@ std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties, bool 
 			if (partNumber == 0)
 			{
 				devices.push_back (device);
+				device0Index = devices.size() - 1;
 			}
 			else
 			{
-				HostDevice &dev0 = *--devices.end();
+				HostDevice *device0 = &devices[device0Index];
 
 				// System creates a virtual partition1 for some storage devices without
 				// partition table. We try to detect this case by comparing sizes of
 				// partition0 and partition1. If they match, no partition of the device
 				// is displayed to the user to avoid confusion. Drive letter assigned by
 				// system to partition1 is assigned partition0
-				if (partNumber == 1 && dev0.Size == device.Size)
+				if (partNumber == 1 && device0->Size == device.Size)
 				{
-					dev0.IsVirtualPartition = true;
-					dev0.MountPoint = device.MountPoint;
-					dev0.Name = device.Name;
-					dev0.Path = device.Path;
-					dev0.HasUnencryptedFilesystem = device.HasUnencryptedFilesystem;
+					device0->IsVirtualPartition = true;
+					device0->MountPoint = device.MountPoint;
+					device0->Name = device.Name;
+					device0->Path = device.Path;
+					device0->HasUnencryptedFilesystem = device.HasUnencryptedFilesystem;
 					break;
 				}
 
 				device.IsPartition = true;
 				device.SystemNumber = partNumber;
-				device.Removable = dev0.Removable;
+				device.Removable = device0->Removable;
 
 				if (device.ContainsSystem)
-					dev0.ContainsSystem = true;
-
-				dev0.Partitions.push_back (device);
+					device0->ContainsSystem = true;
 
 				if (singleList)
 					devices.push_back (device);
+				else
+					device0->Partitions.push_back (device);
 			}
 		}
 	}
@@ -8855,7 +9105,7 @@ BOOL IsFileOnReadOnlyFilesystem (const char *path)
 void CheckFilesystem (int driveNo, BOOL fixErrors)
 {
 	wchar_t msg[1024], param[1024];
-	char driveRoot[] = { 'A' + driveNo, ':', 0};
+	char driveRoot[] = { 'A' + (char) driveNo, ':', 0 };
 
 	if (fixErrors && AskWarnYesNo ("FILESYS_REPAIR_CONFIRM_BACKUP") == IDNO)
 		return;
@@ -8992,4 +9242,78 @@ void EnableElevatedCursorChange (HWND parent)
 		DestroyWindow (hWnd);
 		UnregisterClass (className, hInst);
 	}
+}
+
+
+BOOL DisableFileCompression (HANDLE file)
+{
+	USHORT format;
+	DWORD bytesOut;
+
+	if (!DeviceIoControl (file, FSCTL_GET_COMPRESSION, NULL, 0, &format, sizeof (format), &bytesOut, NULL))
+		return FALSE;
+
+	if (format == COMPRESSION_FORMAT_NONE)
+		return TRUE;
+
+	format = COMPRESSION_FORMAT_NONE;
+	return DeviceIoControl (file, FSCTL_SET_COMPRESSION, &format, sizeof (format), NULL, 0, &bytesOut, NULL); 
+}
+
+
+BOOL VolumePathExists (char *volumePath)
+{
+	OPEN_TEST_STRUCT openTest;
+	char upperCasePath[TC_MAX_PATH];
+
+	UpperCaseCopy (upperCasePath, volumePath);
+
+	if (strstr (upperCasePath, "\\DEVICE\\") == upperCasePath)
+		return OpenDevice (volumePath, &openTest, FALSE);
+
+	string path = volumePath;
+	if (path.find ("\\\\?\\Volume{") == 0 && path.rfind ("}\\") == path.size() - 2)
+	{
+		char devicePath[TC_MAX_PATH];
+		if (QueryDosDevice (path.substr (4, path.size() - 5).c_str(), devicePath, TC_MAX_PATH) != 0)
+			return TRUE;
+	}
+
+	return _access (volumePath, 0) == 0;
+}
+
+
+BOOL IsWindowsIsoBurnerAvailable ()
+{
+	char path[MAX_PATH*2] = { 0 };
+
+	if (!IsOSAtLeast (WIN_7))
+	{
+		return FALSE;
+	}
+
+	if (SUCCEEDED(SHGetFolderPath (NULL, CSIDL_SYSTEM, NULL, 0, path)))
+	{
+		strcat (path, "\\" ISO_BURNER_TOOL);
+
+		return (FileExists (path));
+	}
+
+	return FALSE;
+}
+
+
+BOOL LaunchWindowsIsoBurner (HWND hwnd, const char *isoPath)
+{
+	int r = (int) ShellExecute (hwnd, "open", ISO_BURNER_TOOL, (string ("\"") + isoPath + "\"").c_str(), NULL, SW_SHOWNORMAL);
+
+	if (r <= 32)
+	{
+		SetLastError (r);
+		handleWin32Error (hwnd);
+
+		return FALSE;
+	}
+
+	return TRUE;
 }

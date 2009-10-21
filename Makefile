@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 #
-# Governed by the TrueCrypt License 2.7 the full text of which is contained
+# Governed by the TrueCrypt License 2.8 the full text of which is contained
 # in the file License.txt included in TrueCrypt binary and source code
 # distribution packages.
 #
@@ -34,8 +34,8 @@ export CXX ?= g++
 export RANLIB ?= ranlib
 
 export CFLAGS := -Wall
-export CXXFLAGS := -Wall -Wno-sign-compare -Wno-unused-parameter
-C_CXX_FLAGS := -MMD -I$(BASE_DIR) -I$(BASE_DIR)/Crypto
+export CXXFLAGS := -Wall -Wno-unused-parameter
+C_CXX_FLAGS := -MMD -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGE_FILES -I$(BASE_DIR) -I$(BASE_DIR)/Crypto
 
 export LFLAGS :=
 
@@ -145,7 +145,10 @@ ifeq "$(shell uname -s)" "Darwin"
 
 PLATFORM := MacOSX
 APPNAME := TrueCrypt
+
 TC_OSX_SDK ?= /Developer/SDKs/MacOSX10.4u.sdk
+CC := gcc-4.0
+CXX := g++-4.0
 
 C_CXX_FLAGS += -DTC_UNIX -DTC_BSD -DTC_MACOSX -mmacosx-version-min=10.4 -isysroot $(TC_OSX_SDK)
 LFLAGS += -mmacosx-version-min=10.4 -Wl,-syslibroot $(TC_OSX_SDK)

@@ -271,6 +271,20 @@ BEGIN
     LTEXT           "",IDC_CUSTOM_BOOT_LOADER_MESSAGE_HELP,18,74,337,73
 END
 
+IDD_SYS_FAVORITES_SETTINGS DIALOGEX 0, 0, 370, 87
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "TrueCrypt - System Favorite Volumes - Options"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    CONTROL         "Mount system favorite volumes when Windows starts (in the initial phase of the start procedure)",IDC_MOUNT_SYSTEM_FAVORITES_ON_BOOT,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,18,23,339,10
+    CONTROL         "Allow only administrators to view and dismount system favorite volumes in TrueCrypt",IDC_DISABLE_NONADMIN_SYS_FAVORITES_ACCESS,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,18,39,339,10
+    DEFPUSHBUTTON   "OK",IDOK,257,66,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,313,66,50,14
+    GROUPBOX        "System Favorite Volumes Options",IDT_SYSTEM_FAVORITES_OPTIONS,7,6,355,53
+END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -344,7 +358,14 @@ BEGIN
         LEFTMARGIN, 7
         RIGHTMARGIN, 363
         TOPMARGIN, 7
-        BOTTOMMARGIN, 235
+    END
+
+    IDD_SYS_FAVORITES_SETTINGS, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 363
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 80
     END
 END
 #endif    // APSTUDIO_INVOKED
@@ -356,8 +377,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 6,2,1,0
- PRODUCTVERSION 6,2,1,0
+ FILEVERSION 6,3,0,0
+ PRODUCTVERSION 6,3,0,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -374,12 +395,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt"
-            VALUE "FileVersion", "6.2a"
-            VALUE "LegalCopyright", "TrueCrypt Foundation"
+            VALUE "FileVersion", "6.3"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "6.2a"
+            VALUE "ProductVersion", "6.3"
         END
     END
     BLOCK "VarFileInfo"
@@ -441,7 +461,8 @@ BEGIN
         MENUITEM "Select Device...",            IDM_SELECT_DEVICE
         MENUITEM SEPARATOR
         MENUITEM "Mount Favorite Volumes",      IDM_MOUNT_FAVORITE_VOLUMES
-        MENUITEM "Save Currently Mounted Volumes as Favorite", IDM_SAVE_FAVORITE_VOLUMES
+        MENUITEM "Save Currently Mounted Volumes as Favorites", IDM_SAVE_FAVORITE_VOLUMES
+        MENUITEM "Save Currently Mounted Volumes as System Favorites", IDM_SAVE_SYSTEM_FAVORITE_VOLUMES
         MENUITEM SEPARATOR
         MENUITEM "Resume Interrupted Process",  IDM_RESUME_INTERRUPTED_PROC
         MENUITEM SEPARATOR
@@ -511,7 +532,10 @@ BEGIN
     BEGIN
         MENUITEM "Language...",                 IDM_LANGUAGE
         MENUITEM "Hot Keys...",                 IDM_HOTKEY_SETTINGS
+        MENUITEM SEPARATOR
         MENUITEM "System Encryption...",        IDM_SYSENC_SETTINGS
+        MENUITEM "System Favorite Volumes...",  IDM_SYS_FAVORITES_SETTINGS
+        MENUITEM SEPARATOR
         MENUITEM "Default Keyfiles...",         IDM_DEFAULT_KEYFILES
         MENUITEM "Security Tokens...",          IDM_TOKEN_PREFERENCES
         MENUITEM SEPARATOR

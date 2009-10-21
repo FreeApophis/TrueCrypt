@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -788,6 +788,31 @@ namespace TrueCrypt
 	void TextUserInterface::DoShowWarning (const wxString &message) const
 	{
 		wcerr << L"Warning: " << static_cast<wstring> (message) << endl;
+	}
+
+	void TextUserInterface::ExportSecurityTokenKeyfile () const
+	{
+		wstring keyfilePath = AskString (_("Enter security token keyfile path: "));
+
+		if (keyfilePath.empty())
+			throw UserAbort (SRC_POS);
+
+		SecurityTokenKeyfile tokenKeyfile (keyfilePath);
+
+		vector <byte> keyfileData;
+		SecurityToken::GetKeyfileData (tokenKeyfile, keyfileData);
+
+		BufferPtr keyfileDataBuf (&keyfileData.front(), keyfileData.size());
+		finally_do_arg (BufferPtr, keyfileDataBuf, { finally_arg.Erase(); });
+		
+		FilePath exportFilePath = AskFilePath();
+
+		if (exportFilePath.IsEmpty())
+			throw UserAbort (SRC_POS);
+
+		File keyfile;
+		keyfile.Open (exportFilePath, File::CreateWrite);
+		keyfile.Write (keyfileDataBuf);
 	}
 
 	shared_ptr <GetStringFunctor> TextUserInterface::GetAdminPasswordRequestHandler ()

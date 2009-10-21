@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -295,7 +295,7 @@ namespace TrueCrypt
 
 		TestFlag = false;
 		{
-			finally_do_arg (bool&, TestFlag, { finally_arg = true; });
+			finally_do_arg (bool*, &TestFlag, { *finally_arg = true; });
 			if (TestFlag)
 				throw TestFailed (SRC_POS);
 		}
@@ -305,7 +305,7 @@ namespace TrueCrypt
 		TestFlag = false;
 		int tesFlag2 = 0;
 		{
-			finally_do_arg2 (bool&, TestFlag, int&, tesFlag2, { finally_arg = true; finally_arg2 = 2; });
+			finally_do_arg2 (bool*, &TestFlag, int*, &tesFlag2, { *finally_arg = true; *finally_arg2 = 2; });
 			if (TestFlag || tesFlag2 != 0)
 				throw TestFailed (SRC_POS);
 		}

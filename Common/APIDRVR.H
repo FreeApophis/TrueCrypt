@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.7 the full text of which is contained in the
+ by the TrueCrypt License 2.8 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -47,8 +47,8 @@
 #define TC_IOCTL_GET_BOOT_DRIVE_VOLUME_PROPERTIES		TC_IOCTL (22)
 #define TC_IOCTL_REOPEN_BOOT_VOLUME_HEADER				TC_IOCTL (23)
 #define TC_IOCTL_GET_BOOT_ENCRYPTION_ALGORITHM_NAME		TC_IOCTL (24)
-#define TC_IOCTL_GET_TRAVELER_MODE_STATUS				TC_IOCTL (25)
-#define TC_IOCTL_SET_TRAVELER_MODE_STATUS				TC_IOCTL (26)
+#define TC_IOCTL_GET_PORTABLE_MODE_STATUS				TC_IOCTL (25)
+#define TC_IOCTL_SET_PORTABLE_MODE_STATUS				TC_IOCTL (26)
 #define TC_IOCTL_IS_HIDDEN_SYSTEM_RUNNING				TC_IOCTL (27)
 #define TC_IOCTL_GET_SYSTEM_DRIVE_CONFIG				TC_IOCTL (28)
 #define TC_IOCTL_DISK_IS_WRITABLE						TC_IOCTL (29)
@@ -57,6 +57,8 @@
 #define TC_IOCTL_GET_DECOY_SYSTEM_WIPE_STATUS			TC_IOCTL (32)
 #define TC_IOCTL_GET_DECOY_SYSTEM_WIPE_RESULT			TC_IOCTL (33)
 #define TC_IOCTL_WRITE_BOOT_DRIVE_SECTOR				TC_IOCTL (34)
+#define TC_IOCTL_IS_SYSTEM_FAVORITE_VOLUME_DIRTY		TC_IOCTL (35)
+#define TC_IOCTL_SET_SYSTEM_FAVORITE_VOLUME_DIRTY		TC_IOCTL (36)
 
 // Legacy IOCTLs used before version 5.0
 #define TC_IOCTL_LEGACY_GET_DRIVER_VERSION		466968
@@ -89,6 +91,7 @@ typedef struct
 	BOOL bPreserveTimestamp;			/* Preserve file container timestamp */
 	BOOL bPartitionInInactiveSysEncScope;		/* If TRUE, we are to attempt to mount a partition located on an encrypted system drive without pre-boot authentication. */
 	int nPartitionInInactiveSysEncScopeDriveNo;	/* If bPartitionInInactiveSysEncScope is TRUE, this contains the drive number of the system drive on which the partition is located. */
+	BOOL SystemFavorite;
 	// Hidden volume protection
 	BOOL bProtectHiddenVolume;			/* TRUE if the user wants the hidden volume within this volume to be protected against being overwritten (damaged) */
 	Password ProtectedHidVolPassword;	/* Password to the hidden volume to be protected against overwriting */
@@ -126,6 +129,7 @@ typedef struct
 	BOOL hiddenVolume;
 	BOOL readOnly;
 	BOOL removable;
+	BOOL partitionInInactiveSysEncScope;
 #if 0
 	unsigned __int64 volumeCreationTime;	// Deprecated in v6.0
 	unsigned __int64 headerCreationTime;	// Deprecated in v6.0
@@ -290,6 +294,8 @@ typedef struct
 
 #define TC_DRIVER_CONFIG_REG_VALUE_NAME DRIVER_STR("TrueCryptConfig")
 
-#define TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD	0x1
+#define TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD						0x1
+#define TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD_FOR_SYS_FAVORITES		0x2
+#define TC_DRIVER_CONFIG_DISABLE_NONADMIN_SYS_FAVORITES_ACCESS		0x4
 
 #endif		/* _WIN32 */

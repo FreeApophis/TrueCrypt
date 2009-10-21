@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -192,7 +192,7 @@ namespace TrueCrypt
 				try
 				{
 					// Test for read beyond the end of the volume
-					if (offset + size > FuseService::GetVolumeSize())
+					if ((uint64) offset + size > FuseService::GetVolumeSize())
 						size = FuseService::GetVolumeSize() - offset;
 
 					size_t sectorSize = FuseService::GetVolumeSectorSize();
@@ -230,7 +230,7 @@ namespace TrueCrypt
 				shared_ptr <Buffer> infoBuf = FuseService::GetVolumeInfo();
 				BufferPtr outBuf ((byte *)buf, size);
 
-				if (offset >= infoBuf->Size())
+				if (offset >= (off_t) infoBuf->Size())
 					return 0;
 
 				if (offset + size > infoBuf->Size())
@@ -357,7 +357,7 @@ namespace TrueCrypt
 		}
 		catch (VolumeProtected&)
 		{
-			return -EIO;
+			return -EPERM;
 		}
 		catch (VolumeReadOnly&)
 		{

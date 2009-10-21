@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.7 the full text of which is contained in the
+ by the TrueCrypt License 2.8 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -20,7 +20,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 /* IDs for dynamically generated GUI elements */
 enum dynamic_gui_element_ids
@@ -39,8 +38,11 @@ enum
 	TC_TBXID_LEGAL_NOTICES,
 	TC_TBXID_SYS_ENCRYPTION_PRETEST,
 	TC_TBXID_SYS_ENC_RESCUE_DISK,
-	TC_TBXID_DECOY_OS_INSTRUCTIONS
+	TC_TBXID_DECOY_OS_INSTRUCTIONS,
+	TC_TBXID_EXTRA_BOOT_PARTITION_REMOVAL_INSTRUCTIONS
 };
+
+#define TC_APPLICATION_ID	L"TrueCryptFoundation.TrueCrypt"
 
 #define TC_MUTEX_NAME_SYSENC				"Global\\TrueCrypt System Encryption Wizard"
 #define TC_MUTEX_NAME_NONSYS_INPLACE_ENC	"Global\\TrueCrypt In-Place Encryption Wizard"
@@ -67,6 +69,7 @@ enum
 #define TC_APPD_FILENAME_DEFAULT_KEYFILES					"Default Keyfiles.xml"
 #define TC_APPD_FILENAME_HISTORY							"History.xml"
 #define TC_APPD_FILENAME_FAVORITE_VOLUMES					"Favorite Volumes.xml"
+#define TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES			"System Favorite Volumes.xml"
 #define TC_APPD_FILENAME_NONSYS_INPLACE_ENC					"In-Place Encryption"
 #define TC_APPD_FILENAME_NONSYS_INPLACE_ENC_WIPE			"In-Place Encryption Wipe Algo"
 #define TC_APPD_FILENAME_POST_INSTALL_TASK_TUTORIAL			"Post-Install Task - Tutorial"
@@ -87,26 +90,6 @@ enum
 	TC_POST_INSTALL_CFG_RELEASE_NOTES
 };
 
-typedef enum
-{
-	// IMPORTANT: If you add a new item here, update IsOSVersionAtLeast().
-
-	WIN_UNKNOWN = 0,
-	WIN_31,
-	WIN_95,
-	WIN_98,
-	WIN_ME,
-	WIN_NT3,
-	WIN_NT4,
-	WIN_2000,
-	WIN_XP,
-	WIN_XP64,
-	WIN_SERVER_2003,
-	WIN_VISTA,
-	WIN_SERVER_2008,
-	WIN_7
-} OSVersionEnum;
-
 extern char *LastDialogId;
 extern char *ConfigBuffer;
 extern char szHelpFile[TC_MAX_PATH];
@@ -119,6 +102,7 @@ extern HFONT hFixedFont;
 extern HFONT hUserFont;
 extern HFONT hUserUnderlineFont;
 extern HFONT hUserBoldFont;
+extern HFONT WindowTitleBarFont;
 extern int ScreenDPI;
 extern double DlgAspectRatio;
 extern HWND MainDlg;
@@ -150,6 +134,9 @@ extern KeyFile	*FirstKeyFile;
 extern KeyFilesDlgParam		defaultKeyFilesParam;
 extern BOOL UacElevated;
 extern BOOL IgnoreWmDeviceChange;
+extern BOOL DeviceChangeBroadcastDisabled;
+extern BOOL LastMountedVolumeDirty;
+extern BOOL MountVolumesAsSystemFavorite;
 
 
 enum tc_app_msg_ids
@@ -169,7 +156,6 @@ enum tc_app_msg_ids
 	TC_APPMSG_MOUNT_ENABLE_DISABLE_CONTROLS =		WM_APP + 201,
 	TC_APPMSG_MOUNT_SHOW_WINDOW =					WM_APP + 202,
 	TC_APPMSG_PREBOOT_PASSWORD_MODE =				WM_APP + 203,
-	TC_APPMSG_VOLUMES_DISMOUNTED_ON_POWER =			WM_APP + 204,
 	// Format									
 	TC_APPMSG_VOL_TRANSFORM_THREAD_ENDED =			WM_APP + 301,
 	TC_APPMSG_FORMAT_FINISHED =						WM_APP + 302,
@@ -227,12 +213,7 @@ typedef struct
 #define ICON_HAND MB_ICONHAND
 #define YES_NO MB_YESNO
 
-#ifdef _UNICODE
-#define WINMAIN wWinMain
-#else
-#define WINMAIN WinMain
-#endif
-
+#define	ISO_BURNER_TOOL "isoburn.exe"
 #define PRINT_TOOL "notepad"
 
 void cleanup ( void );
@@ -295,11 +276,10 @@ int LoadNonSysInPlaceEncSettings (WipeAlgorithmId *wipeAlgorithm);
 void RemoveNonSysInPlaceEncNotifications (void);
 void SavePostInstallTasksSettings (int command);
 void DoPostInstallTasks (void);
-BOOL SysEncryptionOrDecryptionRequired (void);
 void InitApp ( HINSTANCE hInstance, char *lpszCommandLine );
 void InitHelpFileName (void);
 BOOL OpenDevice (const char *lpszPath, OPEN_TEST_STRUCT *driver, BOOL detectFilesystem);
-void NotifyDriverOfTravelerMode (void);
+void NotifyDriverOfPortableMode (void);
 int GetAvailableFixedDisks ( HWND hComboBox , char *lpszRootPath );
 int GetAvailableRemovables ( HWND hComboBox , char *lpszRootPath );
 int IsSystemDevicePath (char *path, HWND hwndDlg, BOOL bReliableRequired);
@@ -314,8 +294,8 @@ BOOL CALLBACK MultiChoiceDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
 int DriverAttach ( void );
 BOOL CALLBACK CipherTestDialogProc ( HWND hwndDlg , UINT uMsg , WPARAM wParam , LPARAM lParam );
 void ResetCipherTest ( HWND hwndDlg , int idTestCipher );
+void ResetCurrentDirectory ();
 BOOL BrowseFiles (HWND hwndDlg, char *stringId, char *lpszFileName, BOOL keepHistory, BOOL saveMode, wchar_t *browseFilter);
-BOOL BrowseFilesInDir (HWND hwndDlg, char *stringId, char *initialDir, char *lpszFileName, BOOL keepHistory, BOOL saveMode, wchar_t *browseFilter);
 BOOL BrowseDirectories (HWND hWnd, char *lpszTitle, char *dirName);
 void handleError ( HWND hwndDlg , int code );
 void LocalizeDialog ( HWND hwnd, char *stringId );
@@ -339,8 +319,9 @@ BOOL IsPasswordCacheEmpty (void);
 BOOL IsMountedVolume (const char *volname);
 int GetMountedVolumeDriveNo (char *volname);
 BOOL IsAdmin (void);
+BOOL IsBuiltInAdmin ();
 BOOL IsUacSupported ();
-BOOL ResolveSymbolicLink (PWSTR symLinkName, PWSTR targetName);
+BOOL ResolveSymbolicLink (const wchar_t *symLinkName, PWSTR targetName);
 int GetDiskDeviceDriveLetter (PWSTR deviceName);
 int FileSystemAppearsEmpty (const char *devicePath);
 __int64 GetStatsFreeSpaceOnPartition (const char *devicePath, float *percent, __int64 *occupiedBytes, BOOL silent);
@@ -373,9 +354,10 @@ __int64 GetFileSize64 (const char *path);
 BOOL LoadInt16 (char *filePath, int *result, __int64 fileOffset);
 BOOL LoadInt32 (char *filePath, unsigned __int32 *result, __int64 fileOffset);
 char *LoadFile (const char *fileName, DWORD *size);
-char *LoadFileBlock (char *fileName, __int64 fileOffset, int count);
+char *LoadFileBlock (char *fileName, __int64 fileOffset, size_t count);
 char *GetModPath (char *path, int maxSize);
 char *GetConfigPath (char *fileName);
+char *GetProgramConfigPath (char *fileName);
 char GetSystemDriveLetter (void);
 void OpenPageHelp (HWND hwndDlg, int nPage);
 int Info (char *stringId);
@@ -388,12 +370,13 @@ int Error (char *stringId);
 int ErrorDirect (const wchar_t *errMsg);
 int ErrorTopMost (char *stringId);
 int AskYesNo (char *stringId);
+int AskYesNoString (const wchar_t *str);
 int AskNoYes (char *stringId);
 int AskOkCancel (char *stringId);
 int AskWarnYesNo (char *stringId);
 int AskWarnNoYes (char *stringId);
-int AskWarnNoYesString (wchar_t *string);
-int AskWarnYesNoString (wchar_t *string);
+int AskWarnNoYesString (const wchar_t *string);
+int AskWarnYesNoString (const wchar_t *string);
 int AskWarnOkCancel (char *stringId);
 int AskWarnCancelOk (char *stringId);
 int AskErrYesNo (char *stringId);
@@ -412,6 +395,7 @@ void DebugMsgBox (char *format, ...);
 BOOL IsOSAtLeast (OSVersionEnum reqMinOS);
 BOOL IsOSVersionAtLeast (OSVersionEnum reqMinOS, int reqMinServicePack);
 BOOL Is64BitOs ();
+BOOL IsServerOS ();
 BOOL IsHiddenOSRunning (void);
 BOOL RestartComputer (void);
 void Applink (char *dest, BOOL bSendOS, char *extraOutput);
@@ -432,8 +416,8 @@ BOOL IsVolumeDeviceHosted (char *lpszDiskFile);
 int CompensateXDPI (int val);
 int CompensateYDPI (int val);
 int CompensateDPIFont (int val);
-int GetTextGfxWidth (HWND hwndDlgItem, wchar_t *text, HFONT hFont);
-int GetTextGfxHeight (HWND hwndDlgItem, wchar_t *text, HFONT hFont);
+int GetTextGfxWidth (HWND hwndDlgItem, const wchar_t *text, HFONT hFont);
+int GetTextGfxHeight (HWND hwndDlgItem, const wchar_t *text, HFONT hFont);
 BOOL ToHyperlink (HWND hwndDlg, UINT ctrlId);
 void ToBootPwdField (HWND hwndDlg, UINT ctrlId);
 void AccommodateTextField (HWND hwndDlg, UINT ctrlId, BOOL bFirstUpdate);
@@ -455,6 +439,10 @@ BOOL BufferContainsString (const byte *buffer, size_t bufferSize, const char *st
 int AskNonSysInPlaceEncryptionResume ();
 BOOL RemoveDeviceWriteProtection (HWND hwndDlg, char *devicePath);
 void EnableElevatedCursorChange (HWND parent);
+BOOL DisableFileCompression (HANDLE file);
+BOOL VolumePathExists (char *volumePath);
+BOOL IsWindowsIsoBurnerAvailable ();
+BOOL LaunchWindowsIsoBurner (HWND hwnd, const char *isoPath);
 
 #ifdef __cplusplus
 }
@@ -495,6 +483,7 @@ struct HostDevice
 	std::vector <HostDevice> Partitions;
 };
 
+BOOL BrowseFilesInDir (HWND hwndDlg, char *stringId, char *initialDir, char *lpszFileName, BOOL keepHistory, BOOL saveMode, wchar_t *browseFilter, const wchar_t *initialFileName = NULL, const wchar_t *defaultExtension = NULL);
 std::wstring SingleStringToWide (const std::string &singleString);
 std::wstring Utf8StringToWide (const std::string &utf8String);
 std::string WideToSingleString (const std::wstring &wideString);
@@ -503,6 +492,7 @@ std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties = fals
 std::string ToUpperCase (const std::string &str);
 std::wstring GetWrongPasswordErrorMessage (HWND hwndDlg);
 std::string GetWindowsEdition ();
+std::string FitPathInGfxWidth (HWND hwnd, HFONT hFont, LONG width, const std::string &path);
 
 #endif // __cplusplus
 

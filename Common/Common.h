@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2005-2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2005-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -10,6 +10,27 @@
 #define COMMON_H
 
 #include "Crypto.h"
+
+typedef enum
+{
+	// IMPORTANT: If you add a new item here, update IsOSVersionAtLeast().
+
+	WIN_UNKNOWN = 0,
+	WIN_31,
+	WIN_95,
+	WIN_98,
+	WIN_ME,
+	WIN_NT3,
+	WIN_NT4,
+	WIN_2000,
+	WIN_XP,
+	WIN_XP64,
+	WIN_SERVER_2003,
+	WIN_VISTA,
+	WIN_SERVER_2008,
+	WIN_7,
+	WIN_SERVER_2008_R2,
+} OSVersionEnum;
 
 /* Volume types */
 enum

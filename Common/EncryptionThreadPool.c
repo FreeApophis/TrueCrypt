@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -12,7 +12,7 @@
 #include "Driver/Ntdriver.h"
 #endif
 
-#define TC_ENC_THREAD_POOL_MAX_THREAD_COUNT 32
+#define TC_ENC_THREAD_POOL_MAX_THREAD_COUNT 64
 #define TC_ENC_THREAD_POOL_QUEUE_SIZE (TC_ENC_THREAD_POOL_MAX_THREAD_COUNT * 2)
 
 #ifdef DEVICE_DRIVER
@@ -24,7 +24,6 @@
 #define TC_CLEAR_EVENT(EVENT) KeClearEvent (&EVENT)
 
 #define TC_MUTEX FAST_MUTEX
-#define TC_INIT_MUTEX(MUTEX) ExInitializeFastMutex (MUTEX)
 #define TC_ACQUIRE_MUTEX(MUTEX) ExAcquireFastMutex (MUTEX)
 #define TC_RELEASE_MUTEX(MUTEX) ExReleaseFastMutex (MUTEX)
 
@@ -36,10 +35,9 @@
 #define TC_SET_EVENT(EVENT) SetEvent (EVENT)
 #define TC_CLEAR_EVENT(EVENT) ResetEvent (EVENT)
 
-#define TC_MUTEX CRITICAL_SECTION
-#define TC_INIT_MUTEX(MUTEX) InitializeCriticalSectionAndSpinCount (MUTEX, 4000)
-#define TC_ACQUIRE_MUTEX(MUTEX) EnterCriticalSection (MUTEX)
-#define TC_RELEASE_MUTEX(MUTEX) LeaveCriticalSection (MUTEX)
+#define TC_MUTEX HANDLE
+#define TC_ACQUIRE_MUTEX(MUTEX) WaitForSingleObject (*(MUTEX), INFINITE)
+#define TC_RELEASE_MUTEX(MUTEX) ReleaseMutex (*(MUTEX))
 
 #endif // !DEVICE_DRIVER
 
@@ -69,7 +67,7 @@ typedef struct EncryptionThreadPoolWorkItemStruct
 			PCRYPTO_INFO CryptoInfo;
 			byte *Data;
 			UINT64_STRUCT StartUnitNo;
-			TC_LARGEST_COMPILER_UINT UnitCount;
+			uint32 UnitCount;
 
 		} Encryption;
 
@@ -95,7 +93,7 @@ typedef struct EncryptionThreadPoolWorkItemStruct
 static volatile BOOL ThreadPoolRunning = FALSE;
 static volatile BOOL StopPending = FALSE;
 
-static size_t ThreadCount;
+static uint32 ThreadCount;
 static TC_THREAD_HANDLE ThreadHandles[TC_ENC_THREAD_POOL_MAX_THREAD_COUNT];
 
 static EncryptionThreadPoolWorkItem WorkItemQueue[TC_ENC_THREAD_POOL_QUEUE_SIZE];
@@ -254,14 +252,21 @@ BOOL EncryptionThreadPoolStart ()
 	
 	WorkItemCompletedEvent = CreateEvent (NULL, FALSE, FALSE, NULL);
 	if (!WorkItemCompletedEvent)
-	{
-		CloseHandle (WorkItemReadyEvent);
 		return FALSE;
-	}
 #endif
 	
-	TC_INIT_MUTEX (&DequeueMutex);
-	TC_INIT_MUTEX (&EnqueueMutex);
+#ifdef DEVICE_DRIVER
+	ExInitializeFastMutex (&DequeueMutex);
+	ExInitializeFastMutex (&EnqueueMutex);
+#else
+	DequeueMutex = CreateMutex (NULL, FALSE, NULL);
+	if (!DequeueMutex)
+		return FALSE;
+
+	EnqueueMutex = CreateMutex (NULL, FALSE, NULL);
+	if (!EnqueueMutex)
+		return FALSE;
+#endif
 
 	memset (WorkItemQueue, 0, sizeof (WorkItemQueue));
 
@@ -321,8 +326,8 @@ void EncryptionThreadPoolStop ()
 	ThreadCount = 0;
 
 #ifndef DEVICE_DRIVER
-	DeleteCriticalSection (&DequeueMutex);
-	DeleteCriticalSection (&EnqueueMutex);
+	CloseHandle (DequeueMutex);
+	CloseHandle (EnqueueMutex);
 
 	CloseHandle (WorkItemReadyEvent);
 	CloseHandle (WorkItemCompletedEvent);
@@ -377,14 +382,14 @@ void EncryptionThreadPoolBeginKeyDerivation (TC_EVENT *completionEvent, TC_EVENT
 }
 
 
-void EncryptionThreadPoolDoWork (EncryptionThreadPoolWorkType type, byte *data, const UINT64_STRUCT *startUnitNo, TC_LARGEST_COMPILER_UINT unitCount, PCRYPTO_INFO cryptoInfo)
+void EncryptionThreadPoolDoWork (EncryptionThreadPoolWorkType type, byte *data, const UINT64_STRUCT *startUnitNo, uint32 unitCount, PCRYPTO_INFO cryptoInfo)
 {
-	size_t fragmentCount;
-	size_t unitsPerFragment;
-	size_t remainder;
+	uint32 fragmentCount;
+	uint32 unitsPerFragment;
+	uint32 remainder;
 
 	byte *fragmentData;
-	TC_LARGEST_COMPILER_UINT fragmentStartUnitNo;
+	uint64 fragmentStartUnitNo;
 
 	EncryptionThreadPoolWorkItem *workItem;
 	EncryptionThreadPoolWorkItem *firstFragmentWorkItem;
@@ -413,7 +418,7 @@ void EncryptionThreadPoolDoWork (EncryptionThreadPoolWorkType type, byte *data, 
 
 	if (unitCount <= ThreadCount)
 	{
-		fragmentCount = (size_t) unitCount;
+		fragmentCount = unitCount;
 		unitsPerFragment = 1;
 		remainder = 0;
 	}
@@ -424,8 +429,8 @@ void EncryptionThreadPoolDoWork (EncryptionThreadPoolWorkType type, byte *data, 
 		process actually slower than a single-threaded process. */
 
 		fragmentCount = ThreadCount;
-		unitsPerFragment = (size_t) unitCount / ThreadCount;
-		remainder = (size_t) unitCount % ThreadCount;
+		unitsPerFragment = unitCount / ThreadCount;
+		remainder = unitCount % ThreadCount;
 
 		if (remainder > 0)
 			++unitsPerFragment;

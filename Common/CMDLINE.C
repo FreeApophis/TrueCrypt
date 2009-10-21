@@ -4,8 +4,8 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2008 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.7 the full text of which is contained in the
+ this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
+ by the TrueCrypt License 2.8 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -71,98 +71,52 @@ BOOL CALLBACK CommandHelpDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM 
 
 int Win32CommandLine (char *lpszCommandLine, char ***lpszArgs)
 {
-	int i = 0, k = 0, x = 0, nValid = TRUE;
-	int nLen = strlen (lpszCommandLine);
-	int nArrSize = 1024;
-	char szTmp[MAX_PATH * 2];
+	int argumentCount;
+	int i;
 
-	*lpszArgs = malloc (sizeof (char *)* nArrSize);
-
-	if (*lpszArgs == NULL)
-		return 0;
-
-	while (i < nLen)
+	LPWSTR *arguments = CommandLineToArgvW (GetCommandLineW(), &argumentCount);
+	if (!arguments)
 	{
-		if (lpszCommandLine[i] == ' ')
-		{
-			if (k > 0)
-			{
-				szTmp[k] = 0;
-				(*lpszArgs)[x] = _strdup (szTmp);
-				if ((*lpszArgs)[x] == NULL)
-				{
-					free (*lpszArgs);
-					return 0;
-				}
-				x++;
-				k = 0;
-				if (x == nArrSize)
-				{
-					break;
-				}
-			}
-			i++;
-			continue;
-		}
-		if (lpszCommandLine[i] == '"')
-		{
-			i++;
-			while (i < nLen)
-			{
-				if (lpszCommandLine[i] == '"')
-					break;
-				if (k < sizeof (szTmp))
-					szTmp[k++] = lpszCommandLine[i++];
-				else
-				{
-					free (*lpszArgs);
-					return 0;
-				}
-			}
+		handleWin32Error (NULL);
+		return 0;
+	}
 
-			if (lpszCommandLine[i] != '"')
+	--argumentCount;
+	if (argumentCount < 1)
+	{
+		LocalFree (arguments);
+		return 0;
+	}
+
+	*lpszArgs = malloc (sizeof (char *) * argumentCount);
+	if (!*lpszArgs)
+		AbortProcess ("OUTOFMEMORY");
+
+	for (i = 0; i < argumentCount; ++i)
+	{
+		size_t argLen = wcslen (arguments[i + 1]);
+
+		char *arg = malloc (argLen + 1);
+		if (!arg)
+			AbortProcess ("OUTOFMEMORY");
+
+		if (argLen > 0)
+		{
+			int len = WideCharToMultiByte (CP_ACP, 0, arguments[i + 1], -1, arg, argLen + 1, NULL, NULL);
+			if (len == 0)
 			{
-				nValid = FALSE;
-				break;
+				handleWin32Error (NULL);
+				AbortProcessSilent();
 			}
 		}
 		else
-		{
-			if (k < sizeof (szTmp))
-				szTmp[k++] = lpszCommandLine[i];
-			else
-			{
-				free (*lpszArgs);
-				return 0;
-			}
-		}
+			arg[0] = 0;
 
-		i++;
+		(*lpszArgs)[i] = arg;
 	}
 
-	if (nValid == FALSE)
-	{
-		free (*lpszArgs);
-		return 0;
-	}
-	else if (k > 0)
-	{
-		szTmp[k] = 0;
-		(*lpszArgs)[x] = _strdup (szTmp);
-		if ((*lpszArgs)[x] == NULL)
-		{
-			free (*lpszArgs);
-			return 0;
-		}
-		x++;
-		k = 0;
-	}
-	if (!x)
-	{
-		free (*lpszArgs);
-		return 0;
-	}
-	return x;
+	LocalFree (arguments);
+	return argumentCount;
 }
 
 int GetArgSepPosOffset (char *lpszArgument)

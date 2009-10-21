@@ -5,13 +5,14 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.7 the full text of which is contained in the
+ by the TrueCrypt License 2.8 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
 #ifndef TC_HEADER_NTDRIVER
 #define TC_HEADER_NTDRIVER
 
+#include "Common.h"
 #include "EncryptedIoQueue.h"
 
 /* This structure is used to start new threads */
@@ -68,8 +69,10 @@ typedef struct EXTENSION
 
 	BOOL bReadOnly;				/* Is this device read-only ? */
 	BOOL bRemovable;			/* Is this device removable media ? */
+	BOOL PartitionInInactiveSysEncScope;
 	BOOL bRawDevice;			/* Is this a raw-partition or raw-floppy device ? */
 	BOOL bMountManager;			/* Mount manager knows about volume */
+	BOOL SystemFavorite;
 
 	WCHAR wszVolume[TC_MAX_PATH];	/*  DONT change this size without also changing MOUNT_LIST_STRUCT! */
 
@@ -129,7 +132,7 @@ void TCGetDosNameFromNumber (LPWSTR dosname, int nDriveNo);
 LPWSTR TCTranslateCode (ULONG ulCode);
 PDEVICE_OBJECT TCDeleteDeviceObject (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension);
 VOID TCUnloadDriver (PDRIVER_OBJECT DriverObject);
-NTSTATUS TCDeviceIoControl (PWSTR deviceName, ULONG IoControlCode, void *InputBuffer, int InputBufferSize, void *OutputBuffer, int OutputBufferSize);
+NTSTATUS TCDeviceIoControl (PWSTR deviceName, ULONG IoControlCode, void *InputBuffer, ULONG InputBufferSize, void *OutputBuffer, ULONG OutputBufferSize);
 NTSTATUS TCOpenFsVolume (PEXTENSION Extension, PHANDLE volumeHandle, PFILE_OBJECT * fileObject);
 void TCCloseFsVolume (HANDLE volumeHandle, PFILE_OBJECT fileObject);
 NTSTATUS TCFsctlCall (PFILE_OBJECT fileObject, LONG IoControlCode, void *InputBuffer, int InputBufferSize, void *OutputBuffer, int OutputBufferSize);
@@ -142,6 +145,7 @@ NTSTATUS UnmountDevice (UNMOUNT_STRUCT *unmountRequest, PDEVICE_OBJECT deviceObj
 NTSTATUS UnmountAllDevices (UNMOUNT_STRUCT *unmountRequest, PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles);
 NTSTATUS SymbolicLinkToTarget (PWSTR symlinkName, PWSTR targetName, USHORT maxTargetNameLength);
 void DriverMutexWait ();
+BOOL DriverMutexAcquireNoWait ();
 void DriverMutexRelease ();
 BOOL RegionsOverlap (unsigned __int64 start1, unsigned __int64 end1, unsigned __int64 start2, unsigned __int64 end2);
 void GetIntersection (uint64 start1, uint32 length1, uint64 start2, uint64 end2, uint64 *intersectStart, uint32 *intersectLength);
@@ -165,7 +169,8 @@ NTSTATUS ReadDeviceSkipUnreadableSectors (PDEVICE_OBJECT deviceObject, byte *buf
 BOOL IsVolumeAccessibleByCurrentUser (PEXTENSION volumeDeviceExtension);
 void GetElapsedTimeInit (LARGE_INTEGER *lastPerfCounter);
 int64 GetElapsedTime (LARGE_INTEGER *lastPerfCounter);
+BOOL IsOSAtLeast (OSVersionEnum reqMinOS);
 
-#define TC_BUG_CHECK(status) KeBugCheckEx (SECURITY_SYSTEM, __LINE__, status, 0, 'TC')
+#define TC_BUG_CHECK(status) KeBugCheckEx (SECURITY_SYSTEM, __LINE__, (ULONG_PTR) status, 0, 'TC')
 
 #endif // TC_HEADER_NTDRIVER

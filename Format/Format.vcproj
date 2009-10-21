@@ -50,9 +50,9 @@
 				RuntimeLibrary="1"
 				BufferSecurityCheck="true"
 				UsePrecompiledHeader="0"
-				WarningLevel="3"
+				WarningLevel="4"
 				DebugInformationFormat="4"
-				DisableSpecificWarnings="4311"
+				DisableSpecificWarnings="4057;4100;4127;4201;4204;4701;4706"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -136,9 +136,9 @@
 				UsePrecompiledHeader="0"
 				AssemblerOutput="2"
 				AssemblerListingLocation="$(IntDir)/"
-				WarningLevel="3"
+				WarningLevel="4"
 				DebugInformationFormat="0"
-				DisableSpecificWarnings="4311"
+				DisableSpecificWarnings="4057;4100;4127;4201;4204;4701;4706"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -276,6 +276,22 @@
 				<File
 					RelativePath="..\Common\Dictionary.c"
 					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							CompileAs="2"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							CompileAs="2"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\Common\Dlgcode.c"
@@ -543,22 +559,6 @@
 				Name="Common"
 				>
 				<File
-					RelativePath="..\Boot\Windows\Release_Serpent\BootLoader.com.gz"
-					>
-				</File>
-				<File
-					RelativePath="..\Boot\Windows\Release_AES\BootLoader.com.gz"
-					>
-				</File>
-				<File
-					RelativePath="..\Boot\Windows\Release\BootLoader.com.gz"
-					>
-				</File>
-				<File
-					RelativePath="..\Boot\Windows\Release_Twofish\BootLoader.com.gz"
-					>
-				</File>
-				<File
 					RelativePath="..\Boot\Windows\Rescue_Serpent\BootLoader.com.gz"
 					>
 				</File>
@@ -572,6 +572,22 @@
 				</File>
 				<File
 					RelativePath="..\Boot\Windows\Rescue_Twofish\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Release_Serpent\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Release_AES\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Release\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Release_Twofish\BootLoader.com.gz"
 					>
 				</File>
 				<File

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -126,13 +126,16 @@ static NTSTATUS OnStartDeviceCompleted (PDEVICE_OBJECT filterDeviceObject, PIRP 
 
 static NTSTATUS DispatchControl (PDEVICE_OBJECT DeviceObject, PIRP Irp, VolumeFilterExtension *Extension, PIO_STACK_LOCATION irpSp)
 {
-	NTSTATUS status;
+	NTSTATUS status = IoAcquireRemoveLock (&Extension->Queue.RemoveLock, Irp);
+	if (!NT_SUCCESS (status))
+		return TCCompleteIrp (Irp, status, 0);
 
 	if (IsHiddenSystemRunning())
 	{
 		switch (irpSp->Parameters.DeviceIoControl.IoControlCode)
 		{
 		case IOCTL_DISK_IS_WRITABLE:
+			IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
 
 			if (SystemVolumePdo == NULL)
 			{
@@ -159,15 +162,23 @@ static NTSTATUS DispatchControl (PDEVICE_OBJECT DeviceObject, PIRP Irp, VolumeFi
 
 			// Volume filter may be attached to a merged drive+volume PDO. First test if TC_IOCTL_DISK_IS_WRITABLE works for the underlying device.
 			status = SendDeviceIoControlRequest (Extension->LowerDeviceObject, TC_IOCTL_DISK_IS_WRITABLE, NULL, 0, NULL, 0);
+
 			if (NT_SUCCESS (status) || status == STATUS_MEDIA_WRITE_PROTECTED)
+			{
+				IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
 				return TCCompleteDiskIrp (Irp, status, 0);
+			}
 
 			status = SendDeviceIoControlRequest (Extension->LowerDeviceObject, IOCTL_DISK_IS_WRITABLE, NULL, 0, NULL, 0);
+
+			IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
 			return TCCompleteDiskIrp (Irp, status, 0);
 		}
 	}
 
-	return PassIrp (Extension->LowerDeviceObject, Irp);
+	status = PassIrp (Extension->LowerDeviceObject, Irp);
+	IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
+	return status;
 }
 
 
@@ -177,7 +188,7 @@ static NTSTATUS DispatchPnp (PDEVICE_OBJECT DeviceObject, PIRP Irp, VolumeFilter
 
 	status = IoAcquireRemoveLock (&Extension->Queue.RemoveLock, Irp);
 	if (!NT_SUCCESS (status))
-		return TCCompleteIrp (Irp, status, Irp->IoStatus.Information);
+		return TCCompleteIrp (Irp, status, 0);
 
 	switch (irpSp->MinorFunction)
 	{
@@ -228,7 +239,7 @@ static NTSTATUS DispatchPower (PDEVICE_OBJECT DeviceObject, PIRP Irp, VolumeFilt
 
 	status = IoAcquireRemoveLock (&Extension->Queue.RemoveLock, Irp);
 	if (!NT_SUCCESS (status))
-		return TCCompleteIrp (Irp, status, Irp->IoStatus.Information);
+		return TCCompleteIrp (Irp, status, 0);
 
 	IoSkipCurrentIrpStackLocation (Irp);
 	status = PoCallDriver (Extension->LowerDeviceObject, Irp);
@@ -242,6 +253,7 @@ NTSTATUS VolumeFilterDispatchIrp (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
 	VolumeFilterExtension *Extension = (VolumeFilterExtension *) DeviceObject->DeviceExtension;
 	PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation (Irp);
+	NTSTATUS status;
 
 	ASSERT (!Extension->bRootDevice && Extension->IsVolumeFilterDevice);
 
@@ -257,6 +269,13 @@ NTSTATUS VolumeFilterDispatchIrp (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 		return DispatchPower (DeviceObject, Irp, Extension, irpSp);
 
 	default:
-		return PassIrp (Extension->LowerDeviceObject, Irp);
+		status = IoAcquireRemoveLock (&Extension->Queue.RemoveLock, Irp);
+		if (!NT_SUCCESS (status))
+			return TCCompleteIrp (Irp, status, 0);
+
+		status = PassIrp (Extension->LowerDeviceObject, Irp);
+
+		IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
+		return status;
 	}
 }

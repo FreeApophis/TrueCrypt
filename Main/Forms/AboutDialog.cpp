@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -20,7 +20,7 @@ namespace TrueCrypt
 		LogoBitmap->SetBitmap (Resources::GetTextualLogoBitmap());
 
 		VersionStaticText->SetLabel (Application::GetName() + L" " + StringConverter::ToWide (Version::String()));
-		CopyrightStaticText->SetLabel (L"Copyright \xA9 2003-2009 TrueCrypt Foundation");
+		CopyrightStaticText->SetLabel (StringConverter::ToWide (TC_STR_RELEASED_BY));
 		WebsiteHyperlink->SetLabel (L"www.truecrypt.org");
 
 		CreditsTextCtrl->SetMinSize (wxSize (

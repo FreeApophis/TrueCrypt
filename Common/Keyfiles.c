@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2005 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -544,7 +544,7 @@ BOOL CALLBACK KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 		{
 			HDROP hdrop = (HDROP) wParam;
 
-			int i = 0, count = DragQueryFile (hdrop, -1, NULL, 0);
+			int i = 0, count = DragQueryFile (hdrop, 0xFFFFFFFF, NULL, 0);
 
 			while (count-- > 0)
 			{

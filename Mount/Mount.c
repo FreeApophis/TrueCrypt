@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.7 the full text of which is contained in the
+ by the TrueCrypt License 2.8 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -16,6 +16,7 @@
 #include <dbt.h>
 #include <fcntl.h>
 #include <io.h>
+#include <shlobj.h>
 #include <sys/stat.h>
 #include <windowsx.h>
 
@@ -99,6 +100,7 @@ BOOL MultipleMountOperationInProgress = FALSE;
 
 BOOL Quit = FALSE;					/* Exit after processing command line */
 BOOL ComServerMode = FALSE;
+BOOL ServiceMode = FALSE;
 BOOL UsePreferences = TRUE;
 
 int HiddenSysLeakProtectionNotificationStatus = TC_HIDDEN_OS_READ_ONLY_NOTIF_MODE_NONE;
@@ -110,6 +112,8 @@ int cmdUnmountDrive = 0;			/* Volume drive letter to unmount (-1 = all) */
 Password VolumePassword;			/* Password used for mounting volumes */
 Password CmdVolumePassword;			/* Password passed from command line */
 BOOL CmdVolumePasswordValid = FALSE;
+MountOptions CmdMountOptions;
+BOOL CmdMountOptionsValid = FALSE;
 MountOptions mountOptions;
 MountOptions defaultMountOptions;
 KeyFile *FirstCmdKeyFile;
@@ -132,6 +136,7 @@ static int bSysEncPwdChangeDlgMode = FALSE;
 static int bPrebootPasswordDlgMode = FALSE;
 static int NoCmdLineArgs;
 static BOOL CmdLineVolumeSpecified;
+static int LastDriveListVolumeColumnWidth;
 
 static void localcleanup (void)
 {
@@ -219,10 +224,12 @@ static void InitMainDialog (HWND hwndDlg)
 	InitDialog (hwndDlg);
 	LocalizeDialog (hwndDlg, NULL);
 
+	SetWindowLongPtr (hwndDlg, DWLP_USER, (LONG_PTR) (IsAdmin() ? TC_MAIN_WINDOW_FLAG_ADMIN_PRIVILEGES : 0));
+
 	DragAcceptFiles (hwndDlg, TRUE);
 
 	SendMessage (GetDlgItem (hwndDlg, IDC_VOLUME), CB_LIMITTEXT, TC_MAX_PATH, 0);
-	SetWindowTextW (hwndDlg, lpszTitle);
+	SetWindowTextW (hwndDlg, (IsAdmin() && !IsBuiltInAdmin() && IsUacSupported() && !IsNonInstallMode()) ? (wstring (lpszTitle) + L" [" + GetString ("ADMINISTRATOR") + L"]").c_str() : lpszTitle);
 
 	// Help file name
 	InitHelpFileName();
@@ -399,7 +406,7 @@ void LoadSettings (HWND hwndDlg)
 	bEnableBkgTask =				ConfigReadInt ("EnableBackgroundTask", TRUE);
 	bCloseBkgTaskWhenNoVolumes =	ConfigReadInt ("CloseBackgroundTaskOnNoVolumes", FALSE);
 
-	bDismountOnLogOff =				ConfigReadInt ("DismountOnLogOff", TRUE);
+	bDismountOnLogOff =				ConfigReadInt ("DismountOnLogOff", !(IsServerOS() && IsAdmin()));
 	bDismountOnPowerSaving =		ConfigReadInt ("DismountOnPowerSaving", FALSE);
 	bDismountOnScreenSaver =		ConfigReadInt ("DismountOnScreenSaver", FALSE);
 	bForceAutoDismount =			ConfigReadInt ("ForceAutoDismount", TRUE);
@@ -1192,6 +1199,7 @@ void LoadDriveLetters (HWND hTree, int drive)
 				else
 					sprintf (szTmp, "%s", ((char *) driver.wszVolume[i]) + 4);
 
+				strcpy_s (szTmp, sizeof (szTmp), FitPathInGfxWidth (hTree, hUserFont, ListView_GetColumnWidth (hTree, 1) - GetTextGfxWidth (hTree, L"___", hUserFont), szTmp).c_str());
 				listItem.iSubItem = 1;
 				ListView_SetItem (hTree, &listItem);
 			}
@@ -1844,15 +1852,11 @@ BOOL CALLBACK PasswordDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 			else if (strlen (PasswordDlgVolume) > 0)
 			{
 				wchar_t s[1024];
-				const int maxVisibleLen = 40;
-				
-				if (strlen (PasswordDlgVolume) > maxVisibleLen)
-				{
-					string volStr = PasswordDlgVolume;
-					wsprintfW (s, GetString ("ENTER_PASSWORD_FOR"), ("..." + volStr.substr (volStr.size() - maxVisibleLen - 1)).c_str());
-				}
-				else
-					wsprintfW (s, GetString ("ENTER_PASSWORD_FOR"), PasswordDlgVolume);
+				RECT rect;
+				GetWindowRect (hwndDlg, &rect);
+
+				wsprintfW (s, GetString ("ENTER_PASSWORD_FOR"), "___");
+				wsprintfW (s, GetString ("ENTER_PASSWORD_FOR"), FitPathInGfxWidth (hwndDlg, WindowTitleBarFont, rect.right - rect.left - GetTextGfxWidth (hwndDlg, s, WindowTitleBarFont), PasswordDlgVolume).c_str());
 
 				SetWindowTextW (hwndDlg, s);
 			}
@@ -2080,7 +2084,7 @@ BOOL CALLBACK PasswordDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 	case WM_DROPFILES:
 		{
 			HDROP hdrop = (HDROP) wParam;
-			int i = 0, count = DragQueryFile (hdrop, -1, NULL, 0);
+			int i = 0, count = DragQueryFile (hdrop, 0xFFFFFFFF, NULL, 0);
 
 			while (count-- > 0)
 			{
@@ -2221,23 +2225,26 @@ BOOL CALLBACK PreferencesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM 
 
 		// Forced dismount disabled warning
 		if (lw == IDC_PREF_DISMOUNT_INACTIVE
+			|| lw == IDC_PREF_DISMOUNT_LOGOFF
 			|| lw == IDC_PREF_DISMOUNT_POWERSAVING
 			|| lw == IDC_PREF_DISMOUNT_SCREENSAVER
 			|| lw == IDC_PREF_FORCE_AUTO_DISMOUNT)
 		{
 			BOOL i = IsButtonChecked (GetDlgItem (hwndDlg, IDC_PREF_DISMOUNT_INACTIVE));
+			BOOL l = IsButtonChecked (GetDlgItem (hwndDlg, IDC_PREF_DISMOUNT_LOGOFF));
 			BOOL p = IsButtonChecked (GetDlgItem (hwndDlg, IDC_PREF_DISMOUNT_POWERSAVING));
 			BOOL s = IsButtonChecked (GetDlgItem (hwndDlg, IDC_PREF_DISMOUNT_SCREENSAVER));
 			BOOL q = IsButtonChecked (GetDlgItem (hwndDlg, IDC_PREF_FORCE_AUTO_DISMOUNT));
 
 			if (!q)
 			{
-				if (lw == IDC_PREF_FORCE_AUTO_DISMOUNT && (i || p || s))
+				if (lw == IDC_PREF_FORCE_AUTO_DISMOUNT && (i || l || p || s))
 				{
 					if (AskWarnNoYes ("CONFIRM_NO_FORCED_AUTODISMOUNT") == IDNO)
 						SetCheckBox (hwndDlg, IDC_PREF_FORCE_AUTO_DISMOUNT, TRUE);
 				}
 				else if ((lw == IDC_PREF_DISMOUNT_INACTIVE && i
+					|| lw == IDC_PREF_DISMOUNT_LOGOFF && l
 					|| lw == IDC_PREF_DISMOUNT_POWERSAVING && p
 					|| lw == IDC_PREF_DISMOUNT_SCREENSAVER && s))
 					Warning ("WARN_PREF_AUTO_DISMOUNT");
@@ -2294,6 +2301,7 @@ BOOL CALLBACK PreferencesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM 
 			AppendMenuW (popup, MF_STRING, IDM_LANGUAGE, GetString ("IDM_LANGUAGE"));
 			AppendMenuW (popup, MF_STRING, IDM_HOTKEY_SETTINGS, GetString ("IDM_HOTKEY_SETTINGS"));
 			AppendMenuW (popup, MF_STRING, IDM_SYSENC_SETTINGS, GetString ("IDM_SYSENC_SETTINGS"));
+			AppendMenuW (popup, MF_STRING, IDM_SYS_FAVORITES_SETTINGS, GetString ("IDM_SYS_FAVORITES_SETTINGS"));
 			AppendMenuW (popup, MF_STRING, IDM_DEFAULT_KEYFILES, GetString ("IDM_DEFAULT_KEYFILES"));
 			AppendMenuW (popup, MF_STRING, IDM_TOKEN_PREFERENCES, GetString ("IDM_TOKEN_PREFERENCES"));
 
@@ -2910,7 +2918,8 @@ BOOL CALLBACK TravelerDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 	{
 	case WM_INITDIALOG:
 		{
-			int i, index;
+			char i;
+			int index;
 			char drive[] = { 0, ':', 0 };
 
 			LocalizeDialog (hwndDlg, "IDD_TRAVELER_DLG");
@@ -3109,7 +3118,7 @@ BOOL CALLBACK TravelerDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 			{
 				FILE *af;
 				char autoMount[100];
-				char driveLetter[] = { ' ', '/', 'l', drive, 0 };
+				char driveLetter[] = { ' ', '/', 'l', (char) drive, 0 };
 
 				af = fopen (dstPath, "w,ccs=UNICODE");
 
@@ -3178,6 +3187,7 @@ BuildTree (HWND hTree)
 	lvCol.cx = CompensateXDPI (253);           
 	lvCol.fmt = LVCFMT_LEFT;
 	SendMessage (hTree,LVM_INSERTCOLUMNW,1,(LPARAM)&lvCol);
+	LastDriveListVolumeColumnWidth = ListView_GetColumnWidth (hTree, 1);
 
 	lvCol.pszText = GetString ("SIZE");  
 	lvCol.cx = CompensateXDPI (55);
@@ -3303,7 +3313,8 @@ static BOOL Mount (HWND hwndDlg, int nDosDriveNo, char *szFileName)
 	if (nDosDriveNo == 0)
 		nDosDriveNo = HIWORD (GetSelectedLong (GetDlgItem (hwndDlg, IDC_DRIVELIST))) - 'A';
 
-	VolumePassword.Length = 0;
+	if (!MultipleMountOperationInProgress)
+		VolumePassword.Length = 0;
 
 	if (szFileName == NULL)
 	{
@@ -3324,19 +3335,31 @@ static BOOL Mount (HWND hwndDlg, int nDosDriveNo, char *szFileName)
 		goto ret;
 	}
 
+	if (!VolumePathExists (szFileName))
+	{
+		if (!MultipleMountOperationInProgress)
+			handleWin32Error (hwndDlg);
+
+		status = FALSE;
+		goto ret;
+	}
+
 	ResetWrongPwdRetryCount ();
 
 	// First try cached passwords and if they fail ask user for a new one
 	WaitCursor ();
 
-	mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, NULL, bCacheInDriver, bForceMount, &mountOptions, FALSE, FALSE);
+	mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, NULL, bCacheInDriver, bForceMount, &mountOptions, Silent, FALSE);
 	
 	// If keyfiles are enabled, test empty password first
 	if (!mounted && KeyFilesEnable)
 	{
 		KeyFilesApply (&VolumePassword, FirstKeyFile);
-		mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, &VolumePassword, bCacheInDriver, bForceMount, &mountOptions, FALSE, FALSE);
+		mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, &VolumePassword, bCacheInDriver, bForceMount, &mountOptions, Silent, FALSE);
 	}
+
+	if (!mounted && !KeyFilesEnable && MultipleMountOperationInProgress && VolumePassword.Length != 0)
+		mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, &VolumePassword, bCacheInDriver, bForceMount, &mountOptions, Silent, FALSE);
 
 	NormalCursor ();
 
@@ -3374,7 +3397,7 @@ static BOOL Mount (HWND hwndDlg, int nDosDriveNo, char *szFileName)
 		if (KeyFilesEnable)
 			KeyFilesApply (&VolumePassword, FirstKeyFile);
 
-		mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, &VolumePassword, bCacheInDriver, bForceMount, &mountOptions, FALSE, TRUE);
+		mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, &VolumePassword, bCacheInDriver, bForceMount, &mountOptions, Silent, !Silent);
 		NormalCursor ();
 
 		// Check for deprecated CBC mode
@@ -3394,7 +3417,9 @@ static BOOL Mount (HWND hwndDlg, int nDosDriveNo, char *szFileName)
 		if (mounted > 0 && CheckFileExtension (szFileName))
 			Warning ("EXE_FILE_EXTENSION_MOUNT_WARNING");
 
-		burn (&VolumePassword, sizeof (VolumePassword));
+		if (!MultipleMountOperationInProgress)
+			burn (&VolumePassword, sizeof (VolumePassword));
+
 		burn (&mountOptions.ProtectedHidVolPassword, sizeof (mountOptions.ProtectedHidVolPassword));
 
 		if (CmdVolumePassword.Length > 0 || Silent)
@@ -3406,7 +3431,7 @@ static BOOL Mount (HWND hwndDlg, int nDosDriveNo, char *szFileName)
 		status = TRUE;
 
 		if (bBeep)
-			MessageBeep (-1);
+			MessageBeep (0xFFFFFFFF);
 
 		RefreshMainDlg(hwndDlg);
 
@@ -3422,7 +3447,9 @@ static BOOL Mount (HWND hwndDlg, int nDosDriveNo, char *szFileName)
 	}
 
 ret:
-	burn (&VolumePassword, sizeof (VolumePassword));
+	if (!MultipleMountOperationInProgress)
+		burn (&VolumePassword, sizeof (VolumePassword));
+
 	burn (&mountOptions.ProtectedHidVolPassword, sizeof (mountOptions.ProtectedHidVolPassword));
 
 	RestoreDefaultKeyFilesParam ();
@@ -3455,7 +3482,7 @@ static BOOL Dismount (HWND hwndDlg, int nDosDriveNo)
 		status = TRUE;
 
 		if (bBeep)
-			MessageBeep (-1);
+			MessageBeep (0xFFFFFFFF);
 		RefreshMainDlg (hwndDlg);
 
 		if (nCurrentOS == WIN_2000 && RemoteSession && !IsAdmin ())
@@ -3561,6 +3588,21 @@ retry:
 				goto retry;
 			}
 
+			if (IsOSAtLeast (WIN_7))
+			{
+				// Undo SHCNE_DRIVEREMOVED
+				DeviceIoControl (hDriver, TC_IOCTL_GET_MOUNTED_VOLUMES, NULL, 0, &mountList, sizeof (mountList), &dwResult, NULL);
+
+				for (i = 0; i < 26; i++)
+				{
+					if (mountList.ulMountedDrives & (1 << i))
+					{
+						char root[] = { (char) i + 'A', ':', '\\', 0 };
+						SHChangeNotify (SHCNE_DRIVEADD, SHCNF_PATH, root, NULL);
+					}
+				}
+			}
+
 			return FALSE;
 		}
 		
@@ -3570,7 +3612,7 @@ retry:
 	else
 	{
 		if (bBeep)
-			MessageBeep (-1);
+			MessageBeep (0xFFFFFFFF);
 	}
 
 	return status;
@@ -3622,7 +3664,6 @@ static BOOL MountAllDevices (HWND hwndDlg, BOOL bPasswordPrompt)
 
 		if (devices.empty())
 			devices = GetAvailableHostDevices (true, false, true, true);
-
 		foreach (const HostDevice &drive, devices)
 		{
 			vector <HostDevice> partitions = drive.Partitions;
@@ -3684,7 +3725,7 @@ static BOOL MountAllDevices (HWND hwndDlg, BOOL bPasswordPrompt)
 						}
 
 						if (bBeep)
-							MessageBeep (-1);
+							MessageBeep (0xFFFFFFFF);
 
 						status = TRUE;
 
@@ -3815,6 +3856,12 @@ static void ChangePassword (HWND hwndDlg)
 	if (IsMountedVolume (szFileName))
 	{
 		Warning (pwdChangeDlgMode == PCDM_CHANGE_PKCS5_PRF ? "MOUNTED_NO_PKCS5_PRF_CHANGE" : "MOUNTED_NOPWCHANGE");
+		return;
+	}
+
+	if (!VolumePathExists (szFileName))
+	{
+		handleWin32Error (hwndDlg);
 		return;
 	}
 
@@ -4125,7 +4172,10 @@ void CreateRescueDisk (void)
 				return;
 			}
 
-			if (BrowseFiles (MainDlg, "OPEN_TITLE", szRescueDiskISO, FALSE, TRUE, NULL) == FALSE)
+			char initialDir[MAX_PATH];
+			SHGetFolderPath (NULL, CSIDL_MYDOCUMENTS, NULL, 0, initialDir);
+
+			if (!BrowseFilesInDir (MainDlg, "OPEN_TITLE", initialDir, szRescueDiskISO, FALSE, TRUE, NULL, L"TrueCrypt Rescue Disk.iso", L"iso"))
 			{		
 				CloseSysEncMutex ();
 				return;
@@ -4135,10 +4185,16 @@ void CreateRescueDisk (void)
 			BootEncObj->CreateRescueIsoImage (false, szRescueDiskISO);
 
 			_snwprintf (szTmp, sizeof szTmp / 2,
-				GetString ("RESCUE_DISK_NON_WIZARD_CREATION_BURN"),
+				GetString (IsWindowsIsoBurnerAvailable() ? "RESCUE_DISK_NON_WIZARD_CREATION_WIN_ISOBURN" : "RESCUE_DISK_NON_WIZARD_CREATION_BURN"),
 				szRescueDiskISO);
 
-			MessageBoxW (MainDlg, szTmp, lpszTitle, MB_ICONINFORMATION | MB_SETFOREGROUND | MB_TOPMOST);
+			if (IsWindowsIsoBurnerAvailable())
+			{
+				if (AskYesNoString (szTmp) == IDYES)
+					LaunchWindowsIsoBurner (MainDlg, szRescueDiskISO);
+			}
+			else
+				InfoDirect (szTmp);
 		}
 		catch (Exception &e)
 		{
@@ -4328,12 +4384,12 @@ static BOOL CheckMountList ()
 	if (LastKnownLogicalDrives != GetLogicalDrives()
 		|| memcmp (&LastKnownMountList, &current, sizeof (current)) != 0)
 	{
-		int selDrive;
+		char selDrive;
 
 		WaitCursor ();
 		LastKnownMountList = current;
 
-		selDrive = HIWORD (GetSelectedLong (GetDlgItem (MainDlg, IDC_DRIVELIST)));
+		selDrive = (char) HIWORD (GetSelectedLong (GetDlgItem (MainDlg, IDC_DRIVELIST)));
 		LoadDriveLetters (GetDlgItem (MainDlg, IDC_DRIVELIST), 0);
 		NormalCursor ();
 
@@ -4365,7 +4421,7 @@ static BOOL CheckMountList ()
 		{
 			/* System encryption status change */
 
-			int selDrive;
+			char selDrive;
 			int driveLetterToRefresh;
 
 			if (RecentBootEncStatus.DriveMounted == newBootEncStatus.DriveMounted)	// If an icon (and whole new line) for a system device isn't to be added/removed
@@ -4388,14 +4444,10 @@ static BOOL CheckMountList ()
 				driveLetterToRefresh = 0;	
 			}
 
-			WaitCursor ();
-
-			selDrive = HIWORD (GetSelectedLong (GetDlgItem (MainDlg, IDC_DRIVELIST)));
+			selDrive = (char) HIWORD (GetSelectedLong (GetDlgItem (MainDlg, IDC_DRIVELIST)));
 			LoadDriveLetters (GetDlgItem (MainDlg, IDC_DRIVELIST), driveLetterToRefresh);
 
-			memcpy (&RecentBootEncStatus, &newBootEncStatus, sizeof (RecentBootEncStatus));
-
-			NormalCursor ();
+			RecentBootEncStatus = newBootEncStatus;
 
 			if ((current.ulMountedDrives & (1 << (selDrive - 'A'))) == 0 && !IsDriveAvailable (selDrive - 'A'))
 			{
@@ -4405,9 +4457,6 @@ static BOOL CheckMountList ()
 			if (nSelectedDriveIndex >= 0)
 			{
 				SelectItem (GetDlgItem (MainDlg, IDC_DRIVELIST),selDrive);
-
-				//if(nSelectedDriveIndex > SendMessage (GetDlgItem (MainDlg, IDC_DRIVELIST), LVM_GETITEMCOUNT, 0, 0)/2) 
-				//	SendMessage(GetDlgItem (MainDlg, IDC_DRIVELIST), LVM_SCROLL, 0, 1000);
 			}
 		}
 
@@ -4419,7 +4468,11 @@ static BOOL CheckMountList ()
 		{
 			bHibernationPreventionNotified = TRUE;
 			RecentBootEncStatus.HibernationPreventionCount = newBootEncStatus.HibernationPreventionCount;
-			Warning ("SYS_ENC_HIBERNATION_PREVENTED");
+
+			if (IsHiddenOSRunning() && BootEncObj->GetSystemDriveConfiguration().ExtraBootPartitionPresent)
+				WarningTopMost ("HIDDEN_OS_HIBERNATION_PREVENTED");
+			else
+				WarningTopMost ("SYS_ENC_HIBERNATION_PREVENTED");
 		}
 
 		// Write mode prevention (hidden OS leak protection)
@@ -4553,7 +4606,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			try
 			{
 				BootEncStatus = BootEncObj->GetStatus();
-				memcpy (&RecentBootEncStatus, &BootEncStatus, sizeof (RecentBootEncStatus));
+				RecentBootEncStatus = BootEncStatus;
 			}
 			catch (...)
 			{
@@ -4570,6 +4623,9 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				RestoreDefaultKeyFilesParam ();
 			}
 
+			if (CmdMountOptionsValid)
+				mountOptions = CmdMountOptions;
+
 			InitMainDialog (hwndDlg);
 
 			if (IsHiddenOSRunning())
@@ -4582,16 +4638,12 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				catch (...) { }
 			}
 
-			// Wipe cache
-			if (bWipe)
-				WipeCache (hwndDlg, Silent);
-
 			// Automount
 			if (bAuto || (Quit && szFileName[0] != 0))
 			{
 				// No drive letter specified on command line
 				if (commandLineDrive == 0)
-					szDriveLetter[0] = GetFirstAvailableDrive () + 'A';
+					szDriveLetter[0] = (char) GetFirstAvailableDrive () + 'A';
 
 				if (bAutoMountDevices)
 				{
@@ -4603,7 +4655,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						defaultKeyFilesParam.FirstKeyFile = KeyFileCloneAll (FirstCmdKeyFile);
 					}
 
-					if (!MountAllDevices (hwndDlg, !Silent && !CmdVolumePasswordValid && !FirstCmdKeyFile && IsPasswordCacheEmpty()))
+					if (!MountAllDevices (hwndDlg, !Silent && !CmdVolumePasswordValid && IsPasswordCacheEmpty()))
 						exitCode = 1;
 				}
 
@@ -4617,7 +4669,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						defaultKeyFilesParam.FirstKeyFile = KeyFileCloneAll (FirstCmdKeyFile);
 					}
 
-					if (!MountFavoriteVolumes ())
+					if (!MountFavoriteVolumes (FALSE))
 						exitCode = 1;
 				}
 
@@ -4680,7 +4732,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					if (mounted > 0)
 					{
 						if (bBeep) 
-							MessageBeep (-1);
+							MessageBeep (0xFFFFFFFF);
 
 						if (bExplore) 
 							OpenVolumeExplorerWindow (szDriveLetter[0] - 'A');
@@ -4714,6 +4766,10 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				if (!Quit)
 					RefreshMainDlg(hwndDlg);
 			}
+			
+			// Wipe cache
+			if (bWipe)
+				WipeCache (hwndDlg, Silent);
 
 			// Wipe command line password
 			if (CmdVolumePassword.Length != 0)
@@ -4781,7 +4837,8 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				HWND h = hwndDlg;
 				EnumWindows (FindTCWindowEnum, (LPARAM) &h);
 
-				if (h != hwndDlg)
+				if (h != hwndDlg
+					&& (!IsAdmin() || (GetWindowLongPtr (h, DWLP_USER) & TC_MAIN_WINDOW_FLAG_ADMIN_PRIVILEGES) != 0))
 				{
 					if (CmdLineVolumeSpecified)
 					{
@@ -4817,6 +4874,11 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 			SetFocus (GetDlgItem (hwndDlg, IDC_DRIVELIST));
 
+			DWORD bytesOut;
+			int dirty;
+			if (DeviceIoControl (hDriver, TC_IOCTL_IS_SYSTEM_FAVORITE_VOLUME_DIRTY, NULL, 0, &dirty, sizeof (dirty), &bytesOut, NULL) && dirty)
+				WarningTopMost ("SYS_FAVORITE_VOLUME_DIRTY");
+
 			/* Check system encryption status */
 
 			if (!Quit)	// Do not care about system encryption or in-place encryption if we were launched from the system startup sequence (the wizard was added to it too).
@@ -4847,6 +4909,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			}
 
 			DoPostInstallTasks ();
+			ResetCurrentDirectory ();
 		}
 		return 0;
 
@@ -4883,7 +4946,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				if (bWipeCacheOnAutoDismount)
 					DeviceIoControl (hDriver, TC_IOCTL_WIPE_PASSWORD_CACHE, NULL, 0, NULL, 0, &dwResult, NULL);
 				
-				DismountAll (hwndDlg, bForceAutoDismount, !bForceAutoDismount, 1, 0);
+				DismountAll (hwndDlg, bForceAutoDismount, FALSE, 1, 0);
 			}
 
 			TaskBarIconRemove (hwndDlg);
@@ -4898,7 +4961,6 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 		{
 			// Auto-dismount when entering power-saving mode
 			DWORD dwResult;
-			BOOL volumesMounted = LastKnownMountList.ulMountedDrives != 0;
 
 			if (bWipeCacheOnAutoDismount)
 			{
@@ -4906,8 +4968,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				SecurityToken::CloseAllSessions();
 			}
 
-			if (DismountAll (hwndDlg, bForceAutoDismount, TRUE, UNMOUNT_MAX_AUTO_RETRIES, UNMOUNT_AUTO_RETRY_DELAY) && volumesMounted)
-				PostMessage (hwndDlg, TC_APPMSG_VOLUMES_DISMOUNTED_ON_POWER, 0, NULL);
+			DismountAll (hwndDlg, bForceAutoDismount, TRUE, UNMOUNT_MAX_AUTO_RETRIES, UNMOUNT_AUTO_RETRY_DELAY);
 		}
 		return 0;
 
@@ -4966,8 +5027,6 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				TaskBarIconRemove (hwndDlg);
 				EndMainDlg (hwndDlg);
 			}
-
-			return 1;
 		}
 		return 1;
 
@@ -5107,10 +5166,6 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 		return 1;
 
-	case TC_APPMSG_VOLUMES_DISMOUNTED_ON_POWER:
-		Info ("MOUNTED_VOLUMES_AUTO_DISMOUNTED");
-		return 1;
-
 	case WM_DEVICECHANGE:
 		if (!IgnoreWmDeviceChange && wParam != DBT_DEVICEARRIVAL)
 		{
@@ -5140,14 +5195,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 									vol += 4;
 
 								if (vol[1] == L':' && i == (vol[0] - (vol[0] <= L'Z' ? L'A' : L'a')))
-								{
 									UnmountVolume (hwndDlg, m, TRUE);
-									if (bWipeCacheOnAutoDismount || bWipeCacheOnExit)
-									{
-										WipeCache (NULL, TRUE);
-										SecurityToken::CloseAllSessions();
-									}
-								}
 							}
 						}
 					}
@@ -5172,14 +5220,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						OPEN_TEST_STRUCT ots;
 
 						if (!OpenDevice (volp, &ots, FALSE))
-						{
 							UnmountVolume (hwndDlg, m, TRUE);
-							if (bWipeCacheOnAutoDismount || bWipeCacheOnExit)
-							{
-								WipeCache (NULL, TRUE);
-								SecurityToken::CloseAllSessions();
-							}
-						}
 					}
 				}
 			}
@@ -5191,6 +5232,17 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 		if(wParam == IDC_DRIVELIST)
 		{
+			if (((LPNMHDR) lParam)->code == NM_CUSTOMDRAW)
+			{
+				int width = ListView_GetColumnWidth (GetDlgItem (hwndDlg, IDC_DRIVELIST), 1);
+				if (width != LastDriveListVolumeColumnWidth)
+				{
+					LastDriveListVolumeColumnWidth = width;
+					LoadDriveLetters (GetDlgItem (hwndDlg, IDC_DRIVELIST), 0);
+				}
+				return 0;
+			}
+
 			/* Single click within drive list */
 			if (((LPNMHDR) lParam)->code == LVN_ITEMCHANGED && (((LPNMLISTVIEW) lParam)->uNewState & LVIS_FOCUSED ))
 			{
@@ -5690,20 +5742,13 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 		if (lw == IDM_CLOSE_ALL_TOKEN_SESSIONS)
 		{
-			try
 			{
-				{
-					WaitCursor();
-					finally_do ({ NormalCursor(); });
+				WaitCursor();
+				finally_do ({ NormalCursor(); });
 
-					SecurityToken::CloseAllSessions();
-				}
-				Info ("ALL_TOKEN_SESSIONS_CLOSED");
+				SecurityToken::CloseAllSessions();
 			}
-			catch (Exception &e)
-			{
-				e.Show (hwndDlg);
-			}
+			Info ("ALL_TOKEN_SESSIONS_CLOSED");
 
 			return 1;
 		}
@@ -5830,6 +5875,12 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			return 1;
 		}
 
+		if (lw == IDM_SYS_FAVORITES_SETTINGS)
+		{
+			DialogBoxParamW (hInst, MAKEINTRESOURCEW (IDD_SYS_FAVORITES_SETTINGS), hwndDlg, (DLGPROC) SystemFavoritesSettingsDlgProc, 0);
+			return 1;
+		}
+
 		if (lw == IDM_BENCHMARK)
 		{
 			Benchmark (hwndDlg);
@@ -5944,7 +5995,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 		if (lw == IDM_MOUNT_FAVORITE_VOLUMES)
 		{
-			MountFavoriteVolumes ();
+			MountFavoriteVolumes (FALSE);
 			return 1;
 		}
 
@@ -5956,7 +6007,27 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 		if (lw == IDM_SAVE_FAVORITE_VOLUMES)
 		{
-			SaveFavoriteVolumes ();
+			SaveFavoriteVolumes (FALSE);
+			return 1;
+		}
+
+		if (lw == IDM_SAVE_SYSTEM_FAVORITE_VOLUMES)
+		{
+			try
+			{
+				BootEncStatus = BootEncObj->GetStatus();
+			}
+			catch (Exception &e)
+			{
+				e.Show (MainDlg);
+				return 1;
+			}
+
+			if (BootEncStatus.DriveMounted)
+				SaveFavoriteVolumes (TRUE);
+			else
+				Error ("SYS_FAVORITES_REQUIRE_PBA");
+
 			return 1;
 		}
 
@@ -6020,7 +6091,10 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			if (memcmp (&cd->dwData, WM_COPY_SET_VOLUME_NAME, 4) == 0)
 			{
 				if (cd->cbData > 0)
+				{
+					((char *) cd->lpData)[cd->cbData - 1] = 0;
 					AddComboItem (GetDlgItem (hwndDlg, IDC_VOLUME), (char *)cd->lpData, bHistory);
+				}
 
 				EnableDisableButtons (hwndDlg);
 				SetFocus (GetDlgItem (hwndDlg, IDC_DRIVELIST));
@@ -6188,6 +6262,10 @@ void ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 				GetArgumentValue (lpszCommandLineArgs, nArgPos, &i, nNoCommandLineArgs,
 					szDriveLetter, sizeof (szDriveLetter));
 				commandLineDrive = *szDriveLetter = (char) toupper (*szDriveLetter);
+
+				if (commandLineDrive < 'C' || commandLineDrive > 'Z')
+					AbortProcess ("BAD_DRIVE_LETTER");
+
 				break;
 
 			case OptionHistory:
@@ -6226,6 +6304,9 @@ void ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 
 						if (!_stricmp (szTmp, "recovery"))
 							mountOptions.RecoveryMode = TRUE;
+
+						CmdMountOptions = mountOptions;
+						CmdMountOptionsValid = TRUE;
 					}
 				}
 				break;
@@ -6298,15 +6379,8 @@ void ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 				// no option = file name
 			default:
 				{
-					strncpy (szFileName, lpszCommandLineArgs[i], MAX_PATH-1);
-					if (szFileName[0] != '\\' && strchr (szFileName, ':') == 0)
-					{
-						char path[MAX_PATH*2];
-						GetCurrentDirectory (MAX_PATH, path);
-						strcat (path, "\\");
-						strcat (path, szFileName);
-						strncpy (szFileName, path, MAX_PATH-1);
-					}
+					strcpy_s (szFileName, array_capacity (szFileName), lpszCommandLineArgs[i]);
+					RelativePath2Absolute (szFileName);
 
 					if (nNoCommandLineArgs == 1)
 						CmdLineVolumeSpecified = TRUE;
@@ -6324,8 +6398,94 @@ void ExtractCommandLine (HWND hwndDlg, char *lpszCommandLine)
 }
 
 
-int WINAPI WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine, int nCmdShow)
+static SERVICE_STATUS SystemFavoritesServiceStatus;
+static SERVICE_STATUS_HANDLE SystemFavoritesServiceStatusHandle;
+
+
+static void SystemFavoritesServiceLogError (const string &errorMessage)
+{ 
+	HANDLE eventSource = RegisterEventSource (NULL, TC_SYSTEM_FAVORITES_SERVICE_NAME);
+
+	if (eventSource)
+	{
+		LPCTSTR strings[] = { TC_SYSTEM_FAVORITES_SERVICE_NAME, errorMessage.c_str() };
+		ReportEvent (eventSource, EVENTLOG_ERROR_TYPE, 0, 0xC0000001, NULL, array_capacity (strings), 0, strings, NULL);
+
+		DeregisterEventSource (eventSource);
+	}
+}
+
+
+static void SystemFavoritesServiceSetStatus (DWORD status, DWORD waitHint = 0)
 {
+	SystemFavoritesServiceStatus.dwCurrentState = status;
+	SystemFavoritesServiceStatus.dwWaitHint = waitHint;
+	SystemFavoritesServiceStatus.dwWin32ExitCode = NO_ERROR;
+
+	SetServiceStatus (SystemFavoritesServiceStatusHandle, &SystemFavoritesServiceStatus);
+}
+
+
+static VOID WINAPI SystemFavoritesServiceCtrlHandler (DWORD control)
+{
+	if (control == SERVICE_CONTROL_STOP) 
+		SystemFavoritesServiceSetStatus (SERVICE_STOP_PENDING);
+	else
+		SystemFavoritesServiceSetStatus (SystemFavoritesServiceStatus.dwCurrentState);
+}
+
+
+static VOID WINAPI SystemFavoritesServiceMain (DWORD argc, LPTSTR *argv)
+{
+	memset (&SystemFavoritesServiceStatus, 0, sizeof (SystemFavoritesServiceStatus));
+	SystemFavoritesServiceStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
+
+	SystemFavoritesServiceStatusHandle = RegisterServiceCtrlHandler (TC_SYSTEM_FAVORITES_SERVICE_NAME, SystemFavoritesServiceCtrlHandler);
+	if (!SystemFavoritesServiceStatusHandle)
+		return;
+
+	SystemFavoritesServiceSetStatus (SERVICE_START_PENDING, 60000);
+
+	MountFavoriteVolumes (TRUE);
+
+	SystemFavoritesServiceSetStatus (SERVICE_RUNNING);
+	SystemFavoritesServiceSetStatus (SERVICE_STOPPED);
+}
+
+
+static BOOL StartSystemFavoritesService ()
+{
+	ServiceMode = TRUE;
+	Silent = TRUE;
+	DeviceChangeBroadcastDisabled = TRUE;
+
+	if (DriverAttach() != ERR_SUCCESS)
+		return FALSE;
+
+	SERVICE_TABLE_ENTRY serviceTable[2];
+	serviceTable[0].lpServiceName = TC_SYSTEM_FAVORITES_SERVICE_NAME;
+	serviceTable[0].lpServiceProc = SystemFavoritesServiceMain;
+
+	serviceTable[1].lpServiceName = NULL;
+	serviceTable[1].lpServiceProc = NULL;
+
+	BOOL result = StartServiceCtrlDispatcher (serviceTable);
+
+	if (!(ReadDriverConfigurationFlags() & TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD))
+		WipeCache (NULL, TRUE);
+
+	return result;
+}
+
+
+int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine, int nCmdShow)
+{
+	int argc;
+	LPWSTR *argv = CommandLineToArgvW (GetCommandLineW(), &argc);
+
+	if (argv && argc == 2 && SingleStringToWide (TC_SYSTEM_FAVORITES_SERVICE_CMDLINE_OPTION) == argv[1])
+		return StartSystemFavoritesService() ? 0 : 1;
+
 	int status;
 	atexit (localcleanup);
 	SetProcessShutdownParameters (0x100, 0);
@@ -6505,19 +6665,19 @@ void DismountIdleVolumes ()
 }
 
 
-BOOL MountFavoriteVolumes ()
+BOOL MountFavoriteVolumes (BOOL systemFavorites)
 {
 	BOOL status = TRUE;
 	DWORD size;
-	char *favorites = LoadFile (GetConfigPath (TC_APPD_FILENAME_FAVORITE_VOLUMES), &size);
+	char *favorites = LoadFile (systemFavorites ? GetProgramConfigPath (TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES) : GetConfigPath (TC_APPD_FILENAME_FAVORITE_VOLUMES), &size);
 	char *xml = favorites;
 	char mountPoint[MAX_PATH], volume[MAX_PATH];
 
 	if (xml == NULL) return FALSE;
 
 	mountOptions = defaultMountOptions;
-	bPrebootPasswordDlgMode = FALSE;
 
+	VolumePassword.Length = 0;
 	MultipleMountOperationInProgress = TRUE;
 
 	while (xml = XmlFindElement (xml, "volume"))
@@ -6536,17 +6696,66 @@ BOOL MountFavoriteVolumes ()
 		if (boolVal[0])
 			mountOptions.Removable = (boolVal[0] == '1' ? TRUE : FALSE);
 
+		XmlGetAttributeText (xml, "system", boolVal, sizeof (boolVal));
+		if (boolVal[0] == '1')
+		{
+			mountOptions.PartitionInInactiveSysEncScope = TRUE;
+			bPrebootPasswordDlgMode = TRUE;
+		}
+		else
+		{
+			mountOptions.PartitionInInactiveSysEncScope = FALSE;
+			bPrebootPasswordDlgMode = FALSE;
+		}
+
+		string path = volume;
+		if (path.find ("\\\\?\\Volume{") == 0 && path.rfind ("}\\") == path.size() - 2)
+		{
+			// Resolve volume name
+			char volDevPath[TC_MAX_PATH];
+			if (QueryDosDevice (path.substr (4, path.size() - 5).c_str(), volDevPath, TC_MAX_PATH) != 0)
+			{
+				foreach (const HostDevice &device, GetAvailableHostDevices (true, true))
+				{
+					if (!device.DynamicVolume)
+					{
+						wchar_t resolvedVolumePath[TC_MAX_PATH];
+
+						if (ResolveSymbolicLink (SingleStringToWide (device.Path).c_str(), resolvedVolumePath)
+							&& SingleStringToWide (volDevPath) == resolvedVolumePath)
+						{
+							strcpy_s (volume, TC_MAX_PATH, device.Path.c_str());
+							break;
+						}
+					}
+				}
+			}
+		}
+
 		if ((LastKnownMountList.ulMountedDrives & (1 << drive)) == 0)
 		{
+			MountVolumesAsSystemFavorite = systemFavorites;
+
 			if (!Mount (MainDlg, drive, volume))
 				status = FALSE;
 			LoadDriveLetters (GetDlgItem (MainDlg, IDC_DRIVELIST), 0);
+
+			MountVolumesAsSystemFavorite = FALSE;
+
+			if (ServiceMode && LastMountedVolumeDirty)
+			{
+				DWORD bytesOut;
+				DeviceIoControl (hDriver, TC_IOCTL_SET_SYSTEM_FAVORITE_VOLUME_DIRTY, NULL, 0, NULL, 0, &bytesOut, NULL);
+
+				SystemFavoritesServiceLogError (string ("The filesystem of the volume mounted as ") + (char) (drive + 'A') + ": was not cleanly dismounted and needs to be checked for errors.");
+			}
 		}
 
 		xml++;
 	}
 
 	MultipleMountOperationInProgress = FALSE;
+	burn (&VolumePassword, sizeof (VolumePassword));
 
 	if (status && CloseSecurityTokenSessionsAfterMount)
 		SecurityToken::CloseAllSessions();
@@ -6556,14 +6765,14 @@ BOOL MountFavoriteVolumes ()
 }
 
 
-void SaveFavoriteVolumes ()
+void SaveFavoriteVolumes (BOOL systemFavorites)
 {
-	if (AskNoYes("CONFIRM_SAVE_FAVORITE_VOL") == IDYES)
+	if (AskYesNo (systemFavorites ? "CONFIRM_SAVE_SYS_FAVORITE_VOL" : "CONFIRM_SAVE_FAVORITE_VOL") == IDYES)
 	{
 		FILE *f;
 		int i, cnt = 0;
 
-		f = fopen (GetConfigPath (TC_APPD_FILENAME_FAVORITE_VOLUMES), "w");
+		f = fopen (GetConfigPath (systemFavorites ? TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES : TC_APPD_FILENAME_FAVORITE_VOLUMES), "w");
 		if (f == NULL)
 		{
 			handleWin32Error (MainDlg);
@@ -6580,6 +6789,39 @@ void SaveFavoriteVolumes ()
 				char t[2048], tq[2048];
 				
 				sprintf_s (t, sizeof (t), "%ls", &LastKnownMountList.wszVolume[i][(LastKnownMountList.wszVolume[i][1] == L'?') ? 4 : 0]);
+
+				if (strstr (t, "\\Device\\") == t)
+				{
+					// Convert device path to GUID path
+					string volumeDevPath = t;
+
+					wchar_t resolvedVolumeDevPath[TC_MAX_PATH];
+					if (ResolveSymbolicLink (SingleStringToWide (volumeDevPath).c_str(), resolvedVolumeDevPath))
+						volumeDevPath = WideToSingleString (resolvedVolumeDevPath);
+
+					char volumeName[TC_MAX_PATH];
+					HANDLE find = FindFirstVolume (volumeName, sizeof (volumeName));
+
+					if (find != INVALID_HANDLE_VALUE)
+					{
+						do
+						{
+							char findVolumeDevPath[TC_MAX_PATH];
+							string vn = volumeName;
+
+							if (QueryDosDevice (vn.substr (4, vn.size() - 5).c_str(), findVolumeDevPath, sizeof (findVolumeDevPath)) != 0
+								&& volumeDevPath == findVolumeDevPath)
+							{
+								strcpy_s (t, array_capacity (t), volumeName);
+								break;
+							}
+
+						} while (FindNextVolume (find, volumeName, sizeof (volumeName)));
+						
+						FindVolumeClose (find);
+					}
+				}
+
 				XmlQuoteText (t, tq, sizeof (tq));
 
 				VOLUME_PROPERTIES_STRUCT prop;
@@ -6594,8 +6836,12 @@ void SaveFavoriteVolumes ()
 					continue;
 				}
 
-				fprintf (f, "\n\t\t<volume mountpoint=\"%c:\\\" readonly=\"%d\" removable=\"%d\">%s</volume>", i + 'A',
-					(int) prop.readOnly, (int) prop.removable, tq);
+				fprintf (f, "\n\t\t<volume mountpoint=\"%c:\\\" readonly=\"%d\" removable=\"%d\" system=\"%d\">%s</volume>",
+					i + 'A',
+					prop.readOnly ? 1 : 0,
+					prop.removable ? 1 : 0,
+					prop.partitionInInactiveSysEncScope ? 1 : 0,
+					tq);
 
 				cnt++;
 			}
@@ -6605,10 +6851,46 @@ void SaveFavoriteVolumes ()
 		XmlWriteFooter (f);
 		fclose (f);
 
-		if (cnt == 0)
-			remove (GetConfigPath (TC_APPD_FILENAME_FAVORITE_VOLUMES));		// No volumes to save as favorite
+		if (systemFavorites)
+		{
+			finally_do ({ remove (GetConfigPath (TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES)); });
 
-		Info ("FAVORITE_VOLUMES_SAVED");
+			try
+			{
+				BootEncObj->DeleteFileAdmin (GetProgramConfigPath (TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES));
+			}
+			catch (UserAbort&) { return; }
+			catch (...) { }
+
+			try
+			{
+				if (cnt != 0)
+					BootEncObj->CopyFileAdmin (GetConfigPath (TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES), GetProgramConfigPath (TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES));
+
+				Info ("SYS_FAVORITE_VOLUMES_SAVED");
+			}
+			catch (Exception &e)
+			{
+				e.Show (NULL);
+			}
+
+		}
+		else
+			Info ("FAVORITE_VOLUMES_SAVED");
+
+		if (cnt == 0)
+		{
+			if (systemFavorites)
+			{
+				try
+				{
+					BootEncObj->DeleteFileAdmin (GetProgramConfigPath (TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES));
+				}
+				catch (...) { }
+			}
+			else
+				remove (GetConfigPath (TC_APPD_FILENAME_FAVORITE_VOLUMES));
+		}
 	}
 }
 
@@ -6691,7 +6973,7 @@ static void HandleHotKey (HWND hwndDlg, WPARAM wParam)
 		MountAllDevices (hwndDlg, TRUE);
 
 		if (bPlaySoundOnHotkeyMountDismount)
-			MessageBeep(-1);
+			MessageBeep (0xFFFFFFFF);
 
 		break;
 
@@ -6707,7 +6989,7 @@ static void HandleHotKey (HWND hwndDlg, WPARAM wParam)
 			InfoTopMost (wParam == HK_DISMOUNT_ALL_AND_WIPE ? "PASSWORD_CACHE_WIPED" : "DISMOUNT_ALL_ATTEMPT_COMPLETED");
 
 		if (!bDisplayMsgBoxOnHotkeyDismount && bPlaySoundOnHotkeyMountDismount)
-			MessageBeep(-1);
+			MessageBeep (0xFFFFFFFF);
 
 		break;
 
@@ -6721,7 +7003,7 @@ static void HandleHotKey (HWND hwndDlg, WPARAM wParam)
 		if (success)
 		{
 			if (bPlaySoundOnHotkeyMountDismount)
-				MessageBeep(-1);
+				MessageBeep (0xFFFFFFFF);
 
 			if (bDisplayMsgBoxOnHotkeyDismount)
 				InfoTopMost ("VOLUMES_DISMOUNTED_CACHE_WIPED");
@@ -6734,7 +7016,7 @@ static void HandleHotKey (HWND hwndDlg, WPARAM wParam)
 		if (success)
 		{
 			if (bPlaySoundOnHotkeyMountDismount)
-				MessageBeep(-1);
+				MessageBeep (0xFFFFFFFF);
 
 			if (bDisplayMsgBoxOnHotkeyDismount)
 				InfoTopMost ("VOLUMES_DISMOUNTED_CACHE_WIPED");
@@ -6744,10 +7026,10 @@ static void HandleHotKey (HWND hwndDlg, WPARAM wParam)
 		break;
 
 	case HK_MOUNT_FAVORITE_VOLUMES:
-		MountFavoriteVolumes ();
+		MountFavoriteVolumes (FALSE);
 
 		if (bPlaySoundOnHotkeyMountDismount)
-			MessageBeep(-1);
+			MessageBeep (0xFFFFFFFF);
 
 		break;
 
@@ -6756,15 +7038,8 @@ static void HandleHotKey (HWND hwndDlg, WPARAM wParam)
 		break;
 
 	case HK_CLOSE_SECURITY_TOKEN_SESSIONS:
-		try
-		{
-			SecurityToken::CloseAllSessions();
-			InfoTopMost ("ALL_TOKEN_SESSIONS_CLOSED");
-		}
-		catch (Exception &e)
-		{
-			e.Show (hwndDlg);
-		}
+		SecurityToken::CloseAllSessions();
+		InfoTopMost ("ALL_TOKEN_SESSIONS_CLOSED");
 		break;
 	}
 }
@@ -6811,6 +7086,12 @@ int BackupVolumeHeader (HWND hwndDlg, BOOL bRequireConfirmation, char *lpszVolum
 	if (IsMountedVolume (lpszVolume))
 	{
 		Warning ("DISMOUNT_FIRST");
+		goto ret;
+	}
+
+	if (!VolumePathExists (lpszVolume))
+	{
+		handleWin32Error (hwndDlg);
 		goto ret;
 	}
 
@@ -7044,7 +7325,12 @@ int RestoreVolumeHeader (HWND hwndDlg, char *lpszVolume)
 		return 0;
 	}
 
-	
+	if (!VolumePathExists (lpszVolume))
+	{
+		handleWin32Error (hwndDlg);
+		return 0;
+	}
+
 	BOOL restoreInternalBackup;
 
 	// Ask the user to select the type of backup (internal/external)
@@ -7412,27 +7698,15 @@ error:
 }
 
 
-void ReadDriverConfiguration (DriverConfiguration *configuration)
+uint32 ReadDriverConfigurationFlags ()
 {
-	DWORD configMap;
-	memset (configuration, 0, sizeof (*configuration));
-
-	if (ReadLocalMachineRegistryDword ("SYSTEM\\CurrentControlSet\\Services\\truecrypt", TC_DRIVER_CONFIG_REG_VALUE_NAME, &configMap))
-	{
-		if (configMap & TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD)
-			configuration->CacheBootPassword = TRUE;
-	}
+	return BootEncObj->ReadDriverConfigurationFlags();
 }
 
 
-void WriteDriverConfiguration (DriverConfiguration *configuration)
+void SetDriverConfigurationFlag (uint32 flag, BOOL state)
 {
-	DWORD configMap = 0;
-
-	if (configuration->CacheBootPassword)
-		configMap |= TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD;
-
-	BootEncObj->WriteLocalMachineRegistryDwordValue ("SYSTEM\\CurrentControlSet\\Services\\truecrypt", TC_DRIVER_CONFIG_REG_VALUE_NAME, configMap);
+	BootEncObj->SetDriverConfigurationFlag (flag, state ? true : false);
 }
 
 
@@ -7597,7 +7871,7 @@ static BOOL CALLBACK BootLoaderPreferencesDlgProc (HWND hwndDlg, UINT msg, WPARA
 	{
 	case WM_INITDIALOG:
 		{
-			if (!BootEncStatus.DriveMounted)
+			if (!BootEncObj->GetStatus().DriveMounted)
 			{
 				Warning ("SYS_DRIVE_NOT_ENCRYPTED");
 				EndDialog (hwndDlg, IDCANCEL);
@@ -7608,9 +7882,9 @@ static BOOL CALLBACK BootLoaderPreferencesDlgProc (HWND hwndDlg, UINT msg, WPARA
 			{
 				LocalizeDialog (hwndDlg, "IDD_SYSENC_SETTINGS");
 
+				uint32 driverConfig = ReadDriverConfigurationFlags();
 				byte userConfig;
 				string customUserMessage;
-				DriverConfiguration driverConfig;
 				uint16 bootLoaderVersion;
 
 				BootEncObj->ReadBootSectorConfig (nullptr, 0, &userConfig, &customUserMessage, &bootLoaderVersion);
@@ -7618,14 +7892,12 @@ static BOOL CALLBACK BootLoaderPreferencesDlgProc (HWND hwndDlg, UINT msg, WPARA
 				if (bootLoaderVersion != VERSION_NUM)
 					Warning ("BOOT_LOADER_VERSION_INCORRECT_PREFERENCES");
 
-				ReadDriverConfiguration (&driverConfig);
-
 				SendMessage (GetDlgItem (hwndDlg, IDC_CUSTOM_BOOT_LOADER_MESSAGE), EM_LIMITTEXT, TC_BOOT_SECTOR_USER_MESSAGE_MAX_LENGTH, 0);
 				SetDlgItemText (hwndDlg, IDC_CUSTOM_BOOT_LOADER_MESSAGE, customUserMessage.c_str());
 
 				CheckDlgButton (hwndDlg, IDC_DISABLE_BOOT_LOADER_OUTPUT, (userConfig & TC_BOOT_USER_CFG_FLAG_SILENT_MODE) ? BST_CHECKED : BST_UNCHECKED);
 				CheckDlgButton (hwndDlg, IDC_ALLOW_ESC_PBA_BYPASS, (userConfig & TC_BOOT_USER_CFG_FLAG_DISABLE_ESC) ? BST_UNCHECKED : BST_CHECKED);
-				CheckDlgButton (hwndDlg, IDC_BOOT_LOADER_CACHE_PASSWORD, driverConfig.CacheBootPassword ? BST_CHECKED : BST_UNCHECKED);
+				CheckDlgButton (hwndDlg, IDC_BOOT_LOADER_CACHE_PASSWORD, (driverConfig & TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD) ? BST_CHECKED : BST_UNCHECKED);
 
 				SetWindowTextW (GetDlgItem (hwndDlg, IDC_CUSTOM_BOOT_LOADER_MESSAGE_HELP), GetString("CUSTOM_BOOT_LOADER_MESSAGE_HELP"));
 			}
@@ -7648,6 +7920,12 @@ static BOOL CALLBACK BootLoaderPreferencesDlgProc (HWND hwndDlg, UINT msg, WPARA
 
 		case IDOK:
 			{
+				if (!BootEncObj->GetStatus().DriveMounted)
+				{
+					EndDialog (hwndDlg, IDCANCEL);
+					return 1;
+				}
+
 				char customUserMessage[TC_BOOT_SECTOR_USER_MESSAGE_MAX_LENGTH + 1];
 				GetDlgItemText (hwndDlg, IDC_CUSTOM_BOOT_LOADER_MESSAGE, customUserMessage, sizeof (customUserMessage));
 
@@ -7658,13 +7936,10 @@ static BOOL CALLBACK BootLoaderPreferencesDlgProc (HWND hwndDlg, UINT msg, WPARA
 				if (!IsDlgButtonChecked (hwndDlg, IDC_ALLOW_ESC_PBA_BYPASS))
 					userConfig |= TC_BOOT_USER_CFG_FLAG_DISABLE_ESC;
 
-				DriverConfiguration driverConfig;
-				driverConfig.CacheBootPassword = IsDlgButtonChecked (hwndDlg, IDC_BOOT_LOADER_CACHE_PASSWORD);
-
 				try
 				{
 					BootEncObj->WriteBootSectorUserConfig (userConfig, customUserMessage);
-					WriteDriverConfiguration (&driverConfig);
+					SetDriverConfigurationFlag (TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD, IsDlgButtonChecked (hwndDlg, IDC_BOOT_LOADER_CACHE_PASSWORD));
 				}
 				catch (Exception &e)
 				{
@@ -7688,6 +7963,85 @@ static BOOL CALLBACK BootLoaderPreferencesDlgProc (HWND hwndDlg, UINT msg, WPARA
 		case IDC_BOOT_LOADER_CACHE_PASSWORD:
 			if (IsDlgButtonChecked (hwndDlg, IDC_BOOT_LOADER_CACHE_PASSWORD))
 				Warning ("BOOT_PASSWORD_CACHE_KEYBOARD_WARNING");
+
+			break;
+		}
+		return 0;
+	}
+
+	return 0;
+}
+
+
+static BOOL CALLBACK SystemFavoritesSettingsDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	WORD lw = LOWORD (wParam);
+
+	switch (msg)
+	{
+	case WM_INITDIALOG:
+		{
+			if (!BootEncObj->GetStatus().DriveMounted)
+			{
+				Warning ("SYS_FAVORITES_REQUIRE_PBA");
+				EndDialog (hwndDlg, IDCANCEL);
+				return 1;
+			}
+
+			LocalizeDialog (hwndDlg, "IDD_SYS_FAVORITES_SETTINGS");
+
+			uint32 driverConfig = ReadDriverConfigurationFlags();
+
+			CheckDlgButton (hwndDlg, IDC_MOUNT_SYSTEM_FAVORITES_ON_BOOT, (driverConfig & TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD_FOR_SYS_FAVORITES) ? BST_CHECKED : BST_UNCHECKED);
+			CheckDlgButton (hwndDlg, IDC_DISABLE_NONADMIN_SYS_FAVORITES_ACCESS, (driverConfig & TC_DRIVER_CONFIG_DISABLE_NONADMIN_SYS_FAVORITES_ACCESS) ? BST_CHECKED : BST_UNCHECKED);
+		}
+		return 0;
+
+	case WM_COMMAND:
+
+		switch (lw)
+		{
+		case IDCANCEL:
+			EndDialog (hwndDlg, lw);
+			return 1;
+
+		case IDOK:
+			{
+				if (!BootEncObj->GetStatus().DriveMounted)
+				{
+					EndDialog (hwndDlg, IDCANCEL);
+					return 1;
+				}
+
+				try
+				{
+					uint32 reqConfig = IsDlgButtonChecked (hwndDlg, IDC_MOUNT_SYSTEM_FAVORITES_ON_BOOT) ? TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD_FOR_SYS_FAVORITES : 0;
+					if (reqConfig != (ReadDriverConfigurationFlags() & TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD_FOR_SYS_FAVORITES))
+						BootEncObj->RegisterSystemFavoritesService (reqConfig ? TRUE : FALSE);
+
+					SetDriverConfigurationFlag (TC_DRIVER_CONFIG_DISABLE_NONADMIN_SYS_FAVORITES_ACCESS, IsDlgButtonChecked (hwndDlg, IDC_DISABLE_NONADMIN_SYS_FAVORITES_ACCESS));
+				}
+				catch (Exception &e)
+				{
+					e.Show (hwndDlg);
+					return 1;
+				}
+
+				EndDialog (hwndDlg, lw);
+				return 1;
+			}
+
+		case IDC_MOUNT_SYSTEM_FAVORITES_ON_BOOT:
+			if (IsDlgButtonChecked (hwndDlg, IDC_MOUNT_SYSTEM_FAVORITES_ON_BOOT))
+				WarningDirect ((wstring (GetString ("SYS_FAVORITES_KEYBOARD_WARNING")) + L"\n\n" + GetString ("BOOT_PASSWORD_CACHE_KEYBOARD_WARNING")).c_str());
+
+			break;
+
+		case IDC_DISABLE_NONADMIN_SYS_FAVORITES_ACCESS:
+			if (IsDlgButtonChecked (hwndDlg, IDC_DISABLE_NONADMIN_SYS_FAVORITES_ACCESS))
+				WarningDirect ((wstring (GetString ("SYS_FAVORITES_ADMIN_ONLY_WARNING")) + L"\n\n" + GetString ("SETTING_REQUIRES_REBOOT")).c_str());
+			else
+				Warning ("SETTING_REQUIRES_REBOOT");
 
 			break;
 		}

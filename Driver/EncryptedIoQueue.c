@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -156,9 +156,7 @@ static void DecrementOutstandingIoCount (EncryptedIoQueue *queue)
 static void OnItemCompleted (EncryptedIoQueueItem *item, BOOL freeItem)
 {
 	DecrementOutstandingIoCount (item->Queue);
-	
-	if (item->Queue->IsFilterDevice)
-		IoReleaseRemoveLock (&item->Queue->RemoveLock, item->OriginalIrp);
+	IoReleaseRemoveLock (&item->Queue->RemoveLock, item->OriginalIrp);
 
 	if (NT_SUCCESS (item->Status))
 	{
@@ -262,11 +260,6 @@ static VOID CompletionThreadProc (PVOID threadArg)
 			{
 				CompleteOriginalIrp (request->Item, request->Item->Status,
 					NT_SUCCESS (request->Item->Status) ? request->Item->OriginalLength : 0);
-			}
-			else
-			{
-				InterlockedDecrement (&request->Item->OutstandingRequestCount);
-				KeSetEvent (&queue->RequestCompletedEvent, IO_DISK_INCREMENT, FALSE);
 			}
 
 			ReleasePoolBuffer (queue, request);
@@ -428,11 +421,6 @@ static VOID IoThreadProc (PVOID threadArg)
 					CompleteOriginalIrp (request->Item, request->Item->Status,
 						NT_SUCCESS (request->Item->Status) ? request->Item->OriginalLength : 0);
 				}
-				else
-				{
-					InterlockedDecrement (&request->Item->OutstandingRequestCount);
-					KeSetEvent (&queue->RequestCompletedEvent, IO_DISK_INCREMENT, FALSE);
-				}
 
 				ReleasePoolBuffer (queue, request);
 			}
@@ -506,9 +494,6 @@ static VOID MainThreadProc (PVOID threadArg)
 	uint64 intersectStart;
 	uint32 intersectLength;
 
-	int64 mdlWaitTime;
-	LARGE_INTEGER mdlWaitPerfCounter;
-
 	if (IsEncryptionThreadPoolRunning())
 		KeSetPriorityThread (KeGetCurrentThread(), LOW_REALTIME_PRIORITY);
 
@@ -526,21 +511,8 @@ static VOID MainThreadProc (PVOID threadArg)
 				KeWaitForSingleObject (&queue->QueueResumedEvent, Executive, KernelMode, FALSE, NULL);
 
 			item = GetPoolBuffer (queue, sizeof (EncryptedIoQueueItem));
-			if (!item)
-			{
-				EncryptedIoQueueItem stackItem;
-				stackItem.Queue = queue;
-				stackItem.OriginalIrp = irp;
-				stackItem.Status = STATUS_INSUFFICIENT_RESOURCES;
-
-				TCCompleteDiskIrp (irp, STATUS_INSUFFICIENT_RESOURCES, 0);
-				OnItemCompleted (&stackItem, FALSE);
-				continue;
-			}
-
 			item->Queue = queue;
 			item->OriginalIrp = irp;
-			item->OutstandingRequestCount = 0;
 			item->Status = STATUS_SUCCESS;
 
 			IoSetCancelRoutine (irp, NULL);
@@ -675,6 +647,14 @@ static VOID MainThreadProc (PVOID threadArg)
 					}
 				}
 			}
+			else if (item->Write
+				&& RegionsOverlap (item->OriginalOffset.QuadPart, item->OriginalOffset.QuadPart + item->OriginalLength - 1, TC_BOOT_VOLUME_HEADER_SECTOR_OFFSET, TC_BOOT_VOLUME_HEADER_SECTOR_OFFSET + TC_BOOT_ENCRYPTION_VOLUME_HEADER_SIZE - 1))
+			{
+				// Prevent inappropriately designed software from damaging important data that may be out of sync with the backup on the Rescue Disk (such as the end of the encrypted area).
+				Dump ("Preventing write to the system encryption key data area\n");
+				CompleteOriginalIrp (item, STATUS_MEDIA_WRITE_PROTECTED, 0);
+				continue;
+			}
 			else if (item->Write && IsHiddenSystemRunning()
 				&& (RegionsOverlap (item->OriginalOffset.QuadPart, item->OriginalOffset.QuadPart + item->OriginalLength - 1, SECTOR_SIZE, TC_BOOT_LOADER_AREA_SECTOR_COUNT * SECTOR_SIZE - 1)
 				 || RegionsOverlap (item->OriginalOffset.QuadPart, item->OriginalOffset.QuadPart + item->OriginalLength - 1, GetBootDriveLength(), _I64_MAX)))
@@ -684,22 +664,7 @@ static VOID MainThreadProc (PVOID threadArg)
 				continue;
 			}
 
-			// Original IRP data buffer
-			mdlWaitTime = 0;
-			mdlWaitPerfCounter.QuadPart = 0;
-			while (TRUE)
-			{
-				dataBuffer = (PUCHAR) MmGetSystemAddressForMdlSafe (irp->MdlAddress, HighPagePriority);
-
-				if (dataBuffer || mdlWaitTime >= TC_ENC_IO_QUEUE_MEM_ALLOC_TIMEOUT)
-					break;
-
-				if (mdlWaitPerfCounter.QuadPart == 0)
-					GetElapsedTimeInit (&mdlWaitPerfCounter);
-
-				TCSleep (TC_ENC_IO_QUEUE_MEM_ALLOC_RETRY_DELAY);
-				mdlWaitTime += GetElapsedTime (&mdlWaitPerfCounter) / 1000;
-			}
+			dataBuffer = (PUCHAR) MmGetSystemAddressForMdlSafe (irp->MdlAddress, HighPagePriority);
 
 			if (dataBuffer == NULL)
 			{
@@ -719,19 +684,10 @@ static VOID MainThreadProc (PVOID threadArg)
 				ULONG dataFragmentLength = isLastFragment ? dataRemaining : TC_ENC_IO_QUEUE_MAX_FRAGMENT_SIZE;
 				activeFragmentBuffer = (activeFragmentBuffer == queue->FragmentBufferA ? queue->FragmentBufferB : queue->FragmentBufferA);
 
-				// Create IO request
-				request = GetPoolBuffer (queue, sizeof (EncryptedIoRequest));
-				if (!request)
-				{
-					while (InterlockedExchangeAdd (&item->OutstandingRequestCount, 0) > 0)
-						KeWaitForSingleObject (&queue->RequestCompletedEvent, Executive, KernelMode, FALSE, NULL);
-
-					CompleteOriginalIrp (item, STATUS_INSUFFICIENT_RESOURCES, 0);
-					break;
-				}
-
 				InterlockedIncrement (&queue->IoThreadPendingRequestCount);
 
+				// Create IO request
+				request = GetPoolBuffer (queue, sizeof (EncryptedIoRequest));
 				request->Item = item;
 				request->CompleteOriginalIrp = isLastFragment;
 				request->Offset = fragmentOffset;
@@ -784,8 +740,6 @@ static VOID MainThreadProc (PVOID threadArg)
 				}
 
 				// Queue IO request
-				InterlockedIncrement (&item->OutstandingRequestCount);
-
 				ExInterlockedInsertTailList (&queue->IoThreadQueue, &request->ListEntry, &queue->IoThreadQueueLock);
 				KeSetEvent (&queue->IoThreadQueueNotEmptyEvent, IO_DISK_INCREMENT, FALSE);
 
@@ -815,12 +769,9 @@ NTSTATUS EncryptedIoQueueAddIrp (EncryptedIoQueue *queue, PIRP irp)
 		goto err;
 	}
 
-	if (queue->IsFilterDevice)
-	{
-		status = IoAcquireRemoveLock (&queue->RemoveLock, irp);
-		if (!NT_SUCCESS (status))
-			goto err;
-	}
+	status = IoAcquireRemoveLock (&queue->RemoveLock, irp);
+	if (!NT_SUCCESS (status))
+		goto err;
 
 #ifdef TC_TRACE_IO_QUEUE
 	{
@@ -931,7 +882,6 @@ NTSTATUS EncryptedIoQueueStart (EncryptedIoQueue *queue)
 	KeInitializeMutex (&queue->BufferPoolMutex, 0);
 
 	KeInitializeEvent (&queue->NoOutstandingIoEvent, SynchronizationEvent, FALSE);
-	KeInitializeEvent (&queue->RequestCompletedEvent, SynchronizationEvent, FALSE);
 	KeInitializeEvent (&queue->PoolBufferFreeEvent, SynchronizationEvent, FALSE);
 	KeInitializeEvent (&queue->QueueResumedEvent, SynchronizationEvent, FALSE);
 

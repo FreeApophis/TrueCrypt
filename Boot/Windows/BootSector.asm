@@ -1,7 +1,7 @@
 ;
 ; Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 ;
-; Governed by the TrueCrypt License 2.7 the full text of which is contained
+; Governed by the TrueCrypt License 2.8 the full text of which is contained
 ; in the file License.txt included in TrueCrypt binary and source code
 ; distribution packages.
 ;
@@ -230,8 +230,8 @@ backup_loader_used		db 0
 disk_error_msg			db 'Disk error', 13, 10, 7, 0
 loader_damaged_msg		db 7, 'Loader damaged! Use Rescue Disk: Repair Options > Restore', 0
 
-ORG 7C00h + 508
-	dw 0, 0AA55h		; Boot sector signature
+ORG 7C00h + 510
+	dw 0AA55h			; Boot sector signature
 
 _TEXT ENDS
 END start

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -30,7 +30,7 @@ namespace TrueCrypt
 	list <int> Poller::WaitForData (int timeOut) const
 	{
 		vector <pollfd> pfd (FileDescriptors.size());
-		for (int i = 0; i < FileDescriptors.size(); i++)
+		for (size_t i = 0; i < FileDescriptors.size(); i++)
 		{
 			pfd[i].fd = FileDescriptors[i];
 			pfd[i].events = POLLIN;
@@ -45,7 +45,7 @@ namespace TrueCrypt
 
 		if (pollRes > 0)
 		{
-			for (int i = 0; i < pfd.size(); i++)
+			for (size_t i = 0; i < pfd.size(); i++)
 			{
 				if (pfd[i].revents & POLLIN)
 					descList.push_back (pfd[i].fd);

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -31,13 +31,13 @@ void ShowInPlaceEncErrMsgWAltSteps (char *iniStrId, BOOL bErr);
 void SetNonSysInplaceEncUIStatus (int nonSysInplaceEncStatus);
 int FastVolumeHeaderUpdate (HANDLE dev, CRYPTO_INFO *headerCryptoInfo, CRYPTO_INFO *masterCryptoInfo, __int64 deviceSize);
 
-HANDLE OpenPartitionVolume (const char *devName, BOOL bExclusiveRequired, BOOL bSharedRequired, BOOL bSharedRequiresConfirmation, BOOL bShowAlternativeSteps, BOOL bSilent);
-int DismountFileSystem (HANDLE dev, int driveLetter, BOOL bForcedAllowed, BOOL bForcedRequiresConfirmation, BOOL bSilent);
-int ConcealNTFS (HANDLE dev);
+static HANDLE OpenPartitionVolume (const char *devName, BOOL bExclusiveRequired, BOOL bSharedRequired, BOOL bSharedRequiresConfirmation, BOOL bShowAlternativeSteps, BOOL bSilent);
+static int DismountFileSystem (HANDLE dev, int driveLetter, BOOL bForcedAllowed, BOOL bForcedRequiresConfirmation, BOOL bSilent);
+static int ConcealNTFS (HANDLE dev);
 BOOL SaveNonSysInPlaceEncSettings (int delta, WipeAlgorithmId wipeAlgorithm);
-void ExportProgressStats (__int64 bytesDone, __int64 totalSectors);
+static void ExportProgressStats (__int64 bytesDone, __int64 totalSectors);
 int ZeroUnreadableSectors (HANDLE dev, LARGE_INTEGER startOffset, int64 size, int sectorSize, uint64 *zeroedSectorCount);
-int OpenBackupHeader (HANDLE dev, const char *devicePath, Password *password, PCRYPTO_INFO *retCryptoInfo, CRYPTO_INFO *headerCryptoInfo, __int64 deviceSize);
+static int OpenBackupHeader (HANDLE dev, const char *devicePath, Password *password, PCRYPTO_INFO *retCryptoInfo, CRYPTO_INFO *headerCryptoInfo, __int64 deviceSize);
 BOOL MoveClustersBeforeThreshold (HANDLE volumeHandle, PWSTR volumeDevicePath, int64 clusterThreshold);
 
 #ifdef __cplusplus

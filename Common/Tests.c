@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.7 the full text of which is contained in the
+ by the TrueCrypt License 2.8 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -301,6 +301,8 @@ typedef struct {
 	unsigned char plaintext[8];
 	unsigned char ciphertext[8];
 	} BF_TEST;
+
+#pragma warning(disable:4295)
 
 BF_TEST bf_ecb_vectors[BF_TEST_COUNT] = {
 "\x00\x00\x00\x00\x00\x00\x00\x00","\x00\x00\x00\x00\x00\x00\x00\x00","\x4E\xF9\x97\x45\x61\x98\xDD\x78",
@@ -639,7 +641,7 @@ BOOL TestSectorBufEncryption (PCRYPTO_INFO ci)
 	char name[64];
 	unsigned __int32 crc;
 	UINT64_STRUCT unitNo;
-	TC_LARGEST_COMPILER_UINT nbrUnits;
+	uint32 nbrUnits;
 	unsigned __int64 writeOffset;
 	int testCase = 0;
 	int nTestsPerformed = 0;
@@ -664,8 +666,8 @@ BOOL TestSectorBufEncryption (PCRYPTO_INFO ci)
 	/* The buffer can accommodate 4 data units and we'll test 4 cases by "scrolling". The data unit 0xFFFFFFFFFF
 	will "move" from the start of the buffer to its end. For a 512-byte data unit, the byte offset 562949953420800
 	corresponds to the data unit 0xFFFFFFFFFF. */
-	for (writeOffset = 562949953420800LL; 
-		writeOffset > 562949953420800LL - nbrUnits * ENCRYPTION_DATA_UNIT_SIZE; 
+	for (writeOffset = 562949953420800ULL; 
+		writeOffset > 562949953420800ULL - nbrUnits * ENCRYPTION_DATA_UNIT_SIZE; 
 		writeOffset -= ENCRYPTION_DATA_UNIT_SIZE)
 	{
 		unitNo.Value = writeOffset / ENCRYPTION_DATA_UNIT_SIZE;
@@ -1035,7 +1037,7 @@ BOOL TestLegacySectorBufEncryption (PCRYPTO_INFO ci)
 	char name[64];
 	unsigned __int32 crc;
 	UINT64_STRUCT unitNo;
-	TC_LARGEST_COMPILER_UINT nbrUnits;
+	uint32 nbrUnits;
 	int blockSize;
 	BOOL lrw64InitDone = FALSE;
 	BOOL lrw128InitDone = FALSE;
@@ -1544,7 +1546,7 @@ BOOL test_hmac_sha512 ()
 	for (i = 0; i < sizeof (hmac_sha512_test_data) / sizeof(char *); i++)
 	{
 		char digest[SHA512_DIGESTSIZE];
-		hmac_sha512 (hmac_sha512_test_keys[i], strlen (hmac_sha512_test_keys[i]), hmac_sha512_test_data[i], strlen (hmac_sha512_test_data[i]), digest, SHA512_DIGESTSIZE);
+		hmac_sha512 (hmac_sha512_test_keys[i], (int) strlen (hmac_sha512_test_keys[i]), hmac_sha512_test_data[i], (int) strlen (hmac_sha512_test_data[i]), digest, SHA512_DIGESTSIZE);
 		if (memcmp (digest, hmac_sha512_test_vectors[i], SHA512_DIGESTSIZE) != 0)
 			return FALSE;
 		else
@@ -1564,7 +1566,7 @@ BOOL test_hmac_sha1 ()
 	for (i = 0; i < 3; i++)
 	{
 		char digest[SHA1_DIGESTSIZE];
-		hmac_sha1 (hmac_sha1_test_keys[i], strlen (hmac_sha1_test_keys[i]), hmac_sha1_test_data[i], strlen (hmac_sha1_test_data[i]), digest, SHA1_DIGESTSIZE);
+		hmac_sha1 (hmac_sha1_test_keys[i], (int) strlen (hmac_sha1_test_keys[i]), hmac_sha1_test_data[i], (int) strlen (hmac_sha1_test_data[i]), digest, SHA1_DIGESTSIZE);
 		if (memcmp (digest, hmac_sha1_test_vectors[i], SHA1_DIGESTSIZE) != 0)
 			return FALSE;
 		else
@@ -1582,7 +1584,7 @@ BOOL test_hmac_ripemd160 ()
 	for (i = 0; i < sizeof (hmac_ripemd160_test_data) / sizeof(char *); i++)
 	{
 		char digest[RIPEMD160_DIGESTSIZE];
-		hmac_ripemd160 (hmac_ripemd160_test_keys[i], RIPEMD160_DIGESTSIZE, hmac_ripemd160_test_data[i], strlen (hmac_ripemd160_test_data[i]), digest);
+		hmac_ripemd160 (hmac_ripemd160_test_keys[i], RIPEMD160_DIGESTSIZE, hmac_ripemd160_test_data[i], (int) strlen (hmac_ripemd160_test_data[i]), digest);
 		if (memcmp (digest, hmac_ripemd160_test_vectors[i], RIPEMD160_DIGESTSIZE) != 0)
 			return FALSE;
 		else
@@ -1596,7 +1598,7 @@ BOOL test_hmac_whirlpool ()
 {
 	unsigned char digest[WHIRLPOOL_DIGESTSIZE];
 
-	hmac_whirlpool (hmac_whirlpool_test_key, 64, hmac_whirlpool_test_data, strlen (hmac_whirlpool_test_data), digest, WHIRLPOOL_DIGESTSIZE);
+	hmac_whirlpool (hmac_whirlpool_test_key, 64, hmac_whirlpool_test_data, (int) strlen (hmac_whirlpool_test_data), digest, WHIRLPOOL_DIGESTSIZE);
 	if (memcmp (digest, hmac_whirlpool_test_vectors, WHIRLPOOL_DIGESTSIZE) != 0)
 		return FALSE;
 

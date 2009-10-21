@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -29,8 +29,8 @@ namespace TrueCrypt
 		static shared_ptr <KeyfileList> DeserializeList (shared_ptr <Stream> stream, const string &name);
 		static void SerializeList (shared_ptr <Stream> stream, const string &name, shared_ptr <KeyfileList> keyfiles);
 
-		static const int MinProcessedLength = 1;
-		static const int MaxProcessedLength	= 1024 * 1024;
+		static const size_t MinProcessedLength = 1;
+		static const size_t MaxProcessedLength = 1024 * 1024;
 
 	protected:
 		void Apply (const BufferPtr &pool) const;

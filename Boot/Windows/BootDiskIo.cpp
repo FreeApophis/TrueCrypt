@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -70,7 +70,7 @@ void PrintDiskError (BiosResult error, bool write, byte drive, const uint64 *sec
 	Print (write ? "Write" : "Read"); Print (" error:");
 	Print (error);
 	Print (" Drive:");
-	Print (drive < TC_FIRST_BIOS_DRIVE ? drive : drive - TC_FIRST_BIOS_DRIVE);
+	Print (drive ^ 0x80);
 
 	if (sector)
 	{
@@ -129,7 +129,7 @@ BiosResult ReadWriteSectors (bool write, uint16 bufferSegment, uint16 bufferOffs
 		mov	al, sectorCount
 		mov	ah, function
 		int	0x13
-		jnc ok				// Ignore AH if CF=0 to prevent potential bugs in BIOSes
+		jnc ok				// If CF=0, ignore AH to prevent issues caused by potential bugs in BIOSes
 		mov	result, ah
 	ok:
 		pop es
@@ -198,7 +198,7 @@ static BiosResult ReadWriteSectors (bool write, BiosLbaPacket &dapPacket, byte d
 		mov	ah, function
 		xor al, al
 		int	0x13
-		jnc ok				// Ignore AH if CF=0 to prevent potential bugs in BIOSes
+		jnc ok				// If CF=0, ignore AH to prevent issues caused by potential bugs in BIOSes
 		mov	result, ah
 	ok:
 	}
@@ -284,8 +284,11 @@ BiosResult GetDriveGeometry (byte drive, DriveGeometry &geometry, bool silent)
 	}
 	else if (!silent)
 	{
-		PrintError ("Cannot get geometry of drive ", true, false);
-		PrintHex (drive);
+		Print ("Drive ");
+		Print (drive ^ 0x80);
+		Print (" not found: ");
+		PrintErrorNoEndl ("");
+		Print (result);
 		PrintEndl();
 	}
 
@@ -302,10 +305,10 @@ void ChsToLba (const DriveGeometry &geometry, const ChsAddress &chs, uint64 &lba
 
 void LbaToChs (const DriveGeometry &geometry, const uint64 &lba, ChsAddress &chs)
 {
-	chs.Sector = (lba.LowPart % geometry.Sectors) + 1;
+	chs.Sector = (byte) ((lba.LowPart % geometry.Sectors) + 1);
 	uint32 ch = lba.LowPart / geometry.Sectors;
-	chs.Head = ch % geometry.Heads;
-	chs.Cylinder = ch / geometry.Heads;
+	chs.Head = (byte) (ch % geometry.Heads);
+	chs.Cylinder = (uint16) (ch / geometry.Heads);
 }
 
 
@@ -451,20 +454,16 @@ BiosResult GetDrivePartitions (byte drive, Partition *partitionArray, size_t par
 }
 
 
-bool GetActiveAndFollowingPartition (byte drive)
+bool GetActivePartition (byte drive)
 {
 	size_t partCount;
 
-	// Find active partition
 	if (GetDrivePartitions (drive, &ActivePartition, 1, partCount, true) != BiosResultSuccess || partCount < 1)
 	{
 		ActivePartition.Drive = TC_INVALID_BIOS_DRIVE;
 		PrintError (TC_BOOT_STR_NO_BOOT_PARTITION);
 		return false;
 	}
-
-	// Find partition following the active one
-	GetDrivePartitions (drive, &PartitionFollowingActive, 1, partCount, false, &ActivePartition);
-
+	
 	return true;
 }

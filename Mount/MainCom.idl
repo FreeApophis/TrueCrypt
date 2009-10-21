@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2007-2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2007-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -12,7 +12,7 @@ import "..\Common\Password.h";
 [
 	uuid(1770F56C-7881-4591-A179-79B8001C7D42),
 	helpstring("TrueCrypt Main UAC Support Library"),
-	version(2.2)
+	version(2.3)
 ]
 library TrueCryptMainCom
 {
@@ -27,9 +27,12 @@ library TrueCryptMainCom
 		int BackupVolumeHeader (LONG_PTR hwndDlg, BOOL bRequireConfirmation, BSTR lpszVolume);
 		DWORD CallDriver (DWORD ioctl, BSTR input, BSTR *output);
 		int ChangePassword (BSTR volumePath, Password *oldPassword, Password *newPassword, int pkcs5, LONG_PTR hWnd);
+		DWORD CopyFile (BSTR sourceFile, BSTR destinationFile);
+		DWORD DeleteFile (BSTR file);
 		BOOL IsPagingFileActive (BOOL checkNonWindowsPartitionsOnly);
 		DWORD ReadWriteFile (BOOL write, BOOL device, BSTR filePath, BSTR *bufferBstr, unsigned __int64 offset, unsigned __int32 size, DWORD *sizeDone);
 		DWORD RegisterFilterDriver (BOOL registerDriver, BOOL volumeClass);
+		DWORD RegisterSystemFavoritesService (BOOL registerService);
 		int RestoreVolumeHeader (LONG_PTR hwndDlg, BSTR lpszVolume);
 		DWORD SetDriverServiceStartType (DWORD startType);
 		DWORD WriteLocalMachineRegistryDwordValue (BSTR keyPath, BSTR valueName, DWORD value);

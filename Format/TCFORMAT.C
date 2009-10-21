@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions of
  this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.7 the full text of which is contained in the
+ by the TrueCrypt License 2.8 the full text of which is contained in the
  file License.txt included in TrueCrypt binary and source code distribution
  packages. */
 
@@ -53,7 +53,7 @@ using namespace TrueCrypt;
 enum wizard_pages
 {
 	/* IMPORTANT: IF YOU ADD/REMOVE/MOVE ANY PAGES THAT ARE RELATED TO SYSTEM ENCRYPTION,
-	REVISE THE 'DECOY_OS_INSTRUCTIONS' STRING! */
+	REVISE THE 'DECOY_OS_INSTRUCTIONS_PORTION_??' STRINGS! */
 
 	INTRO_PAGE,
 			SYSENC_TYPE_PAGE,
@@ -936,10 +936,6 @@ BOOL SwitchWizardToSysEncMode (void)
 		NormalCursor ();
 		return TRUE;
 	}
-
-	CloseSysEncMutex ();	
-	NormalCursor ();
-	return FALSE;
 }
 
 void SwitchWizardToFileContainerMode (void)
@@ -1176,7 +1172,7 @@ void ComboSelChangeEA (HWND hwndDlg)
 		char name[100];
 		wchar_t auxLine[4096];
 		wchar_t hyperLink[256] = { 0 };
-		char cipherIDs[5];
+		int cipherIDs[5];
 		int i, cnt = 0;
 
 		nIndex = SendMessage (GetDlgItem (hwndDlg, IDC_COMBO_BOX), CB_GETITEMDATA, nIndex, 0);
@@ -1360,6 +1356,11 @@ static int GetSelectedWizardMode (HWND hwndDlg)
 
 static void RefreshMultiBootControls (HWND hwndDlg)
 {
+#ifdef DEBUG
+	if (nMultiBoot == 0)
+		nMultiBoot = 1;
+#endif
+
 	SendMessage (GetDlgItem (hwndDlg, IDC_SINGLE_BOOT),
 		BM_SETCHECK,
 		nMultiBoot == 1 ? BST_CHECKED : BST_UNCHECKED,
@@ -2209,12 +2210,17 @@ static void __cdecl sysEncDriveAnalysisThread (void *hwndDlgArg)
 	}
 	catch (Exception &e)
 	{
+		// There was a problem but the system did not freeze. Mark the detection process as completed.
+		HiddenSectorDetectionStatus = 0;
+		SaveSettings (NULL);
+		BroadcastSysEncCfgUpdate ();
+
 		e.Show (NULL);
 		EndMainDlg (MainDlg);
 		exit(0);
 	}
 
-	// Mark the detection process as successful
+	// Mark the detection process as completed
 	HiddenSectorDetectionStatus = 0;
 	SaveSettings (NULL);
 	BroadcastSysEncCfgUpdate ();
@@ -3236,7 +3242,7 @@ void HandleOldAssignedDriveLetter (void)
 			&& !bHiddenOS
 			&& driveLetter > 1)		// If a drive letter is assigned to the device, but not A: or B:
 		{
-			char rootPath[] = { driveLetter + 'A', ':', '\\', 0 };
+			char rootPath[] = { (char) driveLetter + 'A', ':', '\\', 0 };
 			wchar_t szTmp[8192];
 
 			swprintf (szTmp, GetString ("AFTER_FORMAT_DRIVE_LETTER_WARN"), rootPath[0], rootPath[0], rootPath[0], rootPath[0]);
@@ -4022,7 +4028,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 				_snwprintf (szTmp, sizeof szTmp / 2,
 					GetString (bDontVerifyRescueDisk ? "RESCUE_DISK_BURN_INFO_NO_CHECK" : "RESCUE_DISK_BURN_INFO"),
-					szRescueDiskISO);
+					szRescueDiskISO, IsWindowsIsoBurnerAvailable() ? L"" : GetString ("RESCUE_DISK_BURN_INFO_NONWIN_ISO_BURNER"));
 
 				SetWindowTextW (GetDlgItem (hwndDlg, IDT_RESCUE_DISK_BURN_INFO), szTmp);
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_NEXT), TRUE);
@@ -4032,7 +4038,13 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				would be confusion and bug reports). */
 				EnableWindow (GetDlgItem (GetParent (hwndDlg), IDC_PREV), FALSE);
 
+				if (IsWindowsIsoBurnerAvailable())
+					SetWindowTextW (GetDlgItem (hwndDlg, IDC_DOWNLOAD_CD_BURN_SOFTWARE), GetString ("LAUNCH_WIN_ISOBURN"));
+
 				ToHyperlink (hwndDlg, IDC_DOWNLOAD_CD_BURN_SOFTWARE);
+
+				if (IsWindowsIsoBurnerAvailable() && !bDontVerifyRescueDisk)
+					LaunchWindowsIsoBurner (hwndDlg, szRescueDiskISO);
 			}
 			break;
 
@@ -4210,7 +4222,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				}
 				 
 				// Deselect all
-				SendMessage (GetDlgItem (hwndDlg, IDC_LIST_BOX), LB_SETCURSEL, -1, 0);
+				SendMessage (GetDlgItem (hwndDlg, IDC_LIST_BOX), LB_SETCURSEL, (WPARAM) -1, 0);
 			}
 
 			break;
@@ -4780,7 +4792,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					if (selPartitionItemId == LB_ERR)
 					{
 						// Deselect all
-						SendMessage (GetDlgItem (hwndDlg, IDC_LIST_BOX), LB_SETCURSEL, -1, 0);
+						SendMessage (GetDlgItem (hwndDlg, IDC_LIST_BOX), LB_SETCURSEL, (WPARAM) -1, 0);
 
 						SetFocus (GetDlgItem (MainDlg, IDC_NEXT));
 						return 1;
@@ -5270,7 +5282,11 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 		if (nCurPageNo == SYSENC_RESCUE_DISK_BURN_PAGE && lw == IDC_DOWNLOAD_CD_BURN_SOFTWARE)
 		{
-			Applink ("isoburning", TRUE, "");
+			if (IsWindowsIsoBurnerAvailable())
+				LaunchWindowsIsoBurner (hwndDlg, szRescueDiskISO);
+			else
+				Applink ("isoburning", TRUE, "");
+
 			return 1;
 		}
 
@@ -5384,10 +5400,17 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			SHGetFolderPath (NULL, CSIDL_MYDOCUMENTS, NULL, 0, szRescueDiskISO);
 			strcat (szRescueDiskISO, "\\TrueCrypt Rescue Disk.iso");
 
+			if (IsOSAtLeast (WIN_VISTA))
+			{
+				// Availability of in-place encryption (which is pre-selected by default whenever
+				// possible) makes partition-hosted volume creation safer.
+				bWarnDeviceFormatAdvanced = FALSE;	
+			}
+
 #ifdef _DEBUG
 			// For faster testing
-			sprintf (szVerify, "%s", "q");
-			sprintf (szRawPassword, "%s", "q");
+			strcpy (szVerify, "q");
+			strcpy (szRawPassword, "q");
 #endif
 
 			PostMessage (hwndDlg, TC_APPMSG_PERFORM_POST_WMINIT_TASKS, 0, 0);
@@ -5760,6 +5783,9 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 							TextInfoDialogBox (TC_TBXID_DECOY_OS_INSTRUCTIONS);
 
+							if (BootEncObj->GetSystemDriveConfiguration().ExtraBootPartitionPresent)
+								Warning ("DECOY_OS_VERSION_WARNING");
+
 							return 1;
 						}
 					}
@@ -5964,7 +5990,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				{
 				case WIZARD_MODE_FILE_CONTAINER:
 
-					if (CurrentOSMajor >= 6 && IsUacSupported() && IsAdmin() && !IsNonInstallMode())
+					if (CurrentOSMajor >= 6 && IsUacSupported() && IsAdmin() && !IsBuiltInAdmin() && !IsNonInstallMode())
 					{
 						static bool warningConfirmed = false;
 						if (!warningConfirmed)
@@ -6042,11 +6068,9 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					return 1;
 				}
 
-				if (AskWarnYesNo ("DECOY_OS_REQUIREMENTS") == IDNO)
-				{
-					NormalCursor ();
-					return 1;
-				}
+				WarningDirect ((wstring (GetString ("HIDDEN_OS_WRITE_PROTECTION_BRIEF_INFO"))
+					+ L"\n\n"
+					+ GetString ("HIDDEN_OS_WRITE_PROTECTION_EXPLANATION")).c_str());
 
 				if (!IsAdmin() && IsUacSupported())
 				{
@@ -6145,6 +6169,21 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				{
 					if (bHiddenOS)
 					{
+						if (IsOSAtLeast (WIN_7)
+							&& BootEncObj->GetSystemDriveConfiguration().ExtraBootPartitionPresent
+							&& AskWarnYesNo ("CONFIRM_HIDDEN_OS_EXTRA_BOOT_PARTITION") == IDNO)
+						{
+							TextInfoDialogBox (TC_TBXID_EXTRA_BOOT_PARTITION_REMOVAL_INSTRUCTIONS);
+							NormalCursor ();
+							return 1;
+						}
+
+						if (AskWarnYesNo ("DECOY_OS_REQUIREMENTS") == IDNO)
+						{
+							NormalCursor ();
+							return 1;
+						}
+
 						if (!ChangeWizardMode (WIZARD_MODE_NONSYS_DEVICE))
 						{
 							NormalCursor ();
@@ -6156,6 +6195,8 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					else
 						nNewPageNo = CIPHER_PAGE - 1;		// Skip irrelevant pages
 				}
+				else if (bHiddenOS)
+					AbortProcess ("MULTI_BOOT_HIDDEN_OS_NOT_SUPPORTED");
 				else if (AskWarnNoYes ("MULTI_BOOT_FOR_ADVANCED_ONLY") == IDNO)
 					return 1;
 			}
@@ -6297,7 +6338,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					if (IsHiddenOSRunning())
 					{
 						WarningDirect ((wstring (GetString ("HIDDEN_VOL_CREATION_UNDER_HIDDEN_OS_HOWTO"))
-							+ L"\n\n\n"
+							+ L"\n\n"
 							+ GetString ("NOTE_BEGINNING")
 							+ GetString ("HIDDEN_OS_WRITE_PROTECTION_BRIEF_INFO")
 							+ L" "
@@ -6564,7 +6605,13 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					if (KeyFilesEnable)
 					{
 						WaitCursor ();
-						KeyFilesApply (&volumePassword, FirstKeyFile);
+
+						if (!KeyFilesApply (&volumePassword, FirstKeyFile))
+						{
+							NormalCursor ();
+							return 1;
+						}
+
 						NormalCursor ();
 					}
 
@@ -6862,6 +6909,10 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					NormalCursor ();
 					return 1;
 				}
+
+				if (IsWindowsIsoBurnerAvailable() && !bDontVerifyRescueDisk)
+					Info ("RESCUE_DISK_WIN_ISOBURN_PRELAUNCH_NOTE");
+
 				NormalCursor ();
 			}
 
@@ -6876,7 +6927,13 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						WaitCursor();
 						if (!BootEncObj->VerifyRescueDisk ())
 						{
-							Error ("RESCUE_DISK_CHECK_FAILED");
+							wchar_t szTmp[8000];
+
+							swprintf (szTmp, GetString ("RESCUE_DISK_CHECK_FAILED"), 
+								IsWindowsIsoBurnerAvailable () ? L"" : GetString ("RESCUE_DISK_CHECK_FAILED_SENTENCE_APPENDIX"));
+
+							ErrorDirect (szTmp);
+
 							NormalCursor ();
 #ifndef _DEBUG
 							return 1;
@@ -7867,8 +7924,8 @@ int AnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, __int64 hiddenVolHostSi
 	DWORD dwResult;
 	int result;
 	char szFileSystemNameBuffer[256];
-	char tmpPath[7] = {'\\','\\','.','\\',*driveNo + 'A',':',0};
-	char szRootPathName[4] = {*driveNo + 'A', ':', '\\', 0};
+	char tmpPath[7] = {'\\','\\','.','\\',(char) *driveNo + 'A',':',0};
+	char szRootPathName[4] = {(char) *driveNo + 'A', ':', '\\', 0};
 	BYTE readBuffer[SECTOR_SIZE*2];
 	LARGE_INTEGER offset, offsetNew;
 	VOLUME_PROPERTIES_STRUCT volProp;
@@ -8052,7 +8109,7 @@ int ScanVolClusterBitmap (HWND hwndDlg, int *driveNo, __int64 nbrClusters, __int
 	HANDLE hDevice;
 	DWORD lBytesReturned;
 	BYTE rmnd;
-	char tmpPath[7] = {'\\','\\','.','\\', *driveNo + 'A', ':', 0};
+	char tmpPath[7] = {'\\','\\','.','\\', (char) *driveNo + 'A', ':', 0};
 
 	DWORD bufLen;
 	__int64 bitmapCnt;
@@ -8708,7 +8765,7 @@ static void AfterWMInitTasks (HWND hwndDlg)
 	}
 }
 
-int WINAPI WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine, int nCmdShow)
+int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszCommandLine, int nCmdShow)
 {
 	int status;
 	atexit (localcleanup);
@@ -8741,6 +8798,10 @@ int WINAPI WINMAIN (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszComm
 
 	InitCommonControls ();
 	InitApp (hInstance, lpszCommandLine);
+
+	// Write block size greater than 64 KB causes a performance drop when writing to files on XP/Vista
+	if (!IsOSAtLeast (WIN_7))
+		FormatWriteBufferSize = 64 * 1024;
 
 	nPbar = IDC_PROGRESS_BAR;
 

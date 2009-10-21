@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -40,7 +40,7 @@ static uint32 HibernationPreventionCount = 0;
 
 static BootEncryptionSetupRequest SetupRequest;
 static volatile BOOL SetupInProgress = FALSE;
-static PKTHREAD EncryptionSetupThread;
+PKTHREAD EncryptionSetupThread = NULL;
 static volatile BOOL EncryptionSetupThreadAbortRequested;
 static KSPIN_LOCK SetupStatusSpinLock;
 static int64 SetupStatusEncryptedAreaEnd;
@@ -52,7 +52,7 @@ static volatile BOOL DecoySystemWipeInProgress = FALSE;
 static volatile BOOL DecoySystemWipeThreadAbortRequested;
 static KSPIN_LOCK DecoySystemWipeStatusSpinLock;
 static int64 DecoySystemWipedAreaEnd;
-static PKTHREAD DecoySystemWipeThread;
+PKTHREAD DecoySystemWipeThread = NULL;
 static NTSTATUS DecoySystemWipeResult;
 
 
@@ -100,12 +100,16 @@ NTSTATUS LoadBootArguments ()
 				BootArgs.DecoySystemPartitionStart = 0;
 			}
 
+			if (BootArgs.BootLoaderVersion < 0x630)
+				BootArgs.Flags = 0;
+
 			Dump ("BootLoaderVersion = %x\n", (int) BootArgs.BootLoaderVersion);
 			Dump ("HeaderSaltCrc32 = %x\n", (int) BootArgs.HeaderSaltCrc32);
 			Dump ("CryptoInfoOffset = %x\n", (int) BootArgs.CryptoInfoOffset);
 			Dump ("CryptoInfoLength = %d\n", (int) BootArgs.CryptoInfoLength);
 			Dump ("HiddenSystemPartitionStart = %I64u\n", BootArgs.HiddenSystemPartitionStart);
 			Dump ("DecoySystemPartitionStart = %I64u\n", BootArgs.DecoySystemPartitionStart);
+			Dump ("Flags = %x\n", BootArgs.Flags);
 			Dump ("BootArgumentsCrc32 = %x\n", BootArgs.BootArgumentsCrc32);
 
 			if (CacheBootPassword && BootArgs.BootPassword.Length > 0)
@@ -394,7 +398,7 @@ static NTSTATUS SaveDriveVolumeHeader (DriveFilterExtension *Extension)
 		if (GetHeaderField32 (header, TC_HEADER_OFFSET_MAGIC) != 0x54525545)
 		{
 			Dump ("Header not decrypted");
-			status = STATUS_UNSUCCESSFUL;
+			status = STATUS_UNKNOWN_REVISION;
 			goto ret;
 		}
 
@@ -483,7 +487,9 @@ static void CheckDeviceTypeAndMount (DriveFilterExtension *filterExtension)
 		}
 		else if (!BootDriveFound)
 		{
+			DriverMutexWait();
 			MountDrive (filterExtension, &BootArgs.BootPassword, &BootArgs.HeaderSaltCrc32);
+			DriverMutexRelease();
 		}
 	}
 }
@@ -535,7 +541,7 @@ static NTSTATUS DispatchPnp (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilterE
 
 	status = IoAcquireRemoveLock (&Extension->Queue.RemoveLock, Irp);
 	if (!NT_SUCCESS (status))
-		return TCCompleteIrp (Irp, status, Irp->IoStatus.Information);
+		return TCCompleteIrp (Irp, status, 0);
 
 	switch (irpSp->MinorFunction)
 	{
@@ -566,7 +572,7 @@ static NTSTATUS DispatchPnp (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilterE
 			if (irpSp->Parameters.UsageNotification.Type == DeviceUsageTypeHibernation)
 				++HibernationPreventionCount;
 
-			return TCCompleteIrp (Irp, STATUS_UNSUCCESSFUL, Irp->IoStatus.Information);
+			return TCCompleteIrp (Irp, STATUS_UNSUCCESSFUL, 0);
 		}
 
 		return PassFilteredIrp (Extension->LowerDeviceObject, Irp, OnDeviceUsageNotificationCompleted, Extension);
@@ -580,6 +586,8 @@ static NTSTATUS DispatchPnp (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilterE
 
 		IoDetachDevice (Extension->LowerDeviceObject);
 
+		DriverMutexWait();
+
 		if (Extension->DriveMounted)
 			DismountDrive (Extension, TRUE);
 
@@ -589,8 +597,8 @@ static NTSTATUS DispatchPnp (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilterE
 			BootDriveFilterExtension = NULL;
 		}
 
-		DriverMutexWait();
 		IoDeleteDevice (DeviceObject);
+
 		DriverMutexRelease();
 
 		return status;
@@ -611,23 +619,21 @@ static NTSTATUS DispatchPower (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilte
 
 	if (SetupInProgress
 		&& irpSp->MinorFunction == IRP_MN_SET_POWER
-		&& irpSp->Parameters.Power.Type == DevicePowerState
 		&& irpSp->Parameters.Power.ShutdownType == PowerActionHibernate)
 	{
-		EncryptionSetupThreadAbortRequested = TRUE;
-		ObDereferenceObject (EncryptionSetupThread);
-		
-		while (SetupInProgress)
-			TCSleep (200);
+		AbortBootEncryptionSetup();
 	}
 
 #if 0	// Dismount of the system drive is disabled until there is a way to do it without causing system errors (see the documentation for more info)
 	if (DriverShuttingDown
+		&& Extension->BootDrive
 		&& Extension->DriveMounted
 		&& irpSp->MinorFunction == IRP_MN_SET_POWER
 		&& irpSp->Parameters.Power.Type == DevicePowerState)
 	{
+		DriverMutexWait();
 		DismountDrive (Extension, TRUE);
+		DriverMutexRelease();
 	}
 #endif // 0
 
@@ -635,7 +641,7 @@ static NTSTATUS DispatchPower (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilte
 
 	status = IoAcquireRemoveLock (&Extension->Queue.RemoveLock, Irp);
 	if (!NT_SUCCESS (status))
-		return TCCompleteIrp (Irp, status, Irp->IoStatus.Information);
+		return TCCompleteIrp (Irp, status, 0);
 
 	IoSkipCurrentIrpStackLocation (Irp);
 	status = PoCallDriver (Extension->LowerDeviceObject, Irp);
@@ -649,6 +655,7 @@ NTSTATUS DriveFilterDispatchIrp (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
 	DriveFilterExtension *Extension = (DriveFilterExtension *) DeviceObject->DeviceExtension;
 	PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation (Irp);
+	NTSTATUS status;
 
 	ASSERT (!Extension->bRootDevice && Extension->IsDriveFilterDevice);
 
@@ -656,29 +663,32 @@ NTSTATUS DriveFilterDispatchIrp (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 	{
 	case IRP_MJ_READ:
 	case IRP_MJ_WRITE:
-		if (!Extension->BootDrive)
+		if (Extension->BootDrive)
 		{
-			return PassIrp (Extension->LowerDeviceObject, Irp);
-		}
-		else
-		{
-			NTSTATUS status = EncryptedIoQueueAddIrp (&Extension->Queue, Irp);
+			status = EncryptedIoQueueAddIrp (&Extension->Queue, Irp);
 			
 			if (status != STATUS_PENDING)
 				TCCompleteDiskIrp (Irp, status, 0);
 
 			return status;
 		}
+		break;
 
 	case IRP_MJ_PNP:
 		return DispatchPnp (DeviceObject, Irp, Extension, irpSp);
 
 	case IRP_MJ_POWER:
 		return DispatchPower (DeviceObject, Irp, Extension, irpSp);
-
-	default:
-		return PassIrp (Extension->LowerDeviceObject, Irp);
 	}
+
+	status = IoAcquireRemoveLock (&Extension->Queue.RemoveLock, Irp);
+	if (!NT_SUCCESS (status))
+		return TCCompleteIrp (Irp, status, 0);
+
+	status = PassIrp (Extension->LowerDeviceObject, Irp);
+
+	IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
+	return status;
 }
 
 
@@ -1042,6 +1052,10 @@ void StartHibernationDriverFilter ()
 
 	ASSERT (KeGetCurrentIrql() == PASSIVE_LEVEL);
 
+	// Hidden system hibernation is not supported if an extra boot partition is present as the system is not allowed to update the boot partition
+	if (IsHiddenSystemRunning() && (BootArgs.Flags & TC_BOOT_ARGS_FLAG_EXTRA_BOOT_PARTITION))
+		return;
+
 	if (!TCDriverObject->DriverSection || !*(ModuleTableItem **) TCDriverObject->DriverSection)
 		goto err;
 
@@ -1336,12 +1350,7 @@ static VOID SetupThreadProc (PVOID threadArg)
 		if (bytesWrittenSinceHeaderUpdate >= TC_ENCRYPTION_SETUP_HEADER_UPDATE_THRESHOLD)
 		{
 			status = SaveDriveVolumeHeader (Extension);
-
-			if (!NT_SUCCESS (status))
-			{
-				SetupResult = status;
-				goto err;
-			}
+			ASSERT (NT_SUCCESS (status));
 
 			headerUpdateRequired = FALSE;
 			bytesWrittenSinceHeaderUpdate = 0;
@@ -1382,7 +1391,15 @@ err:
 
 	if (SetupRequest.SetupMode == SetupDecryption && Extension->ConfiguredEncryptedAreaEnd == -1 && Extension->DriveMounted)
 	{
+		while (!DriverMutexAcquireNoWait() && !EncryptionSetupThreadAbortRequested)
+		{
+			TCSleep (100);
+		}
+
 		DismountDrive (Extension, FALSE);
+
+		if (!EncryptionSetupThreadAbortRequested)
+			DriverMutexRelease();
 	}
 
 ret:
@@ -1404,9 +1421,13 @@ NTSTATUS StartBootEncryptionSetup (PDEVICE_OBJECT DeviceObject, PIRP irp, PIO_ST
 		return STATUS_ACCESS_DENIED;
 
 	if (SetupInProgress || !BootDriveFound || !BootDriveFilterExtension
+		|| !BootDriveFilterExtension->DriveMounted
 		|| BootDriveFilterExtension->HiddenSystem
 		|| irpSp->Parameters.DeviceIoControl.InputBufferLength < sizeof (BootEncryptionSetupRequest))
 		return STATUS_INVALID_PARAMETER;
+
+	if (EncryptionSetupThread)
+		AbortBootEncryptionSetup();
 
 	SetupRequest = *(BootEncryptionSetupRequest *) irp->AssociatedIrp.SystemBuffer;
 
@@ -1432,7 +1453,7 @@ void GetBootDriveVolumeProperties (PIRP irp, PIO_STACK_LOCATION irpSp)
 		VOLUME_PROPERTIES_STRUCT *prop = (VOLUME_PROPERTIES_STRUCT *) irp->AssociatedIrp.SystemBuffer;
 		memset (prop, 0, sizeof (*prop));
 
-		if (!BootDriveFound || !Extension)
+		if (!BootDriveFound || !Extension || !Extension->DriveMounted)
 		{
 			irp->IoStatus.Status = STATUS_INVALID_PARAMETER;
 			irp->IoStatus.Information = 0;
@@ -1479,7 +1500,7 @@ void GetBootEncryptionStatus (PIRP irp, PIO_STACK_LOCATION irpSp)
 		bootEncStatus->SetupMode = SetupRequest.SetupMode;
 		bootEncStatus->TransformWaitingForIdle = TransformWaitingForIdle;
 
-		if (!BootDriveFound || !Extension)
+		if (!BootDriveFound || !Extension || !Extension->DriveMounted)
 		{
 			bootEncStatus->DriveEncrypted = FALSE;
 			bootEncStatus->DriveMounted = FALSE;
@@ -1597,11 +1618,17 @@ NTSTATUS AbortBootEncryptionSetup ()
 	if (!IoIsSystemThread (PsGetCurrentThread()) && !UserCanAccessDriveDevice())
 		return STATUS_ACCESS_DENIED;
 
-	if (!SetupInProgress)
-		return STATUS_SUCCESS;
-		
-	EncryptionSetupThreadAbortRequested = TRUE;
-	TCStopThread (EncryptionSetupThread, NULL);
+	DriverMutexWait();
+
+	if (EncryptionSetupThread)
+	{
+		EncryptionSetupThreadAbortRequested = TRUE;
+
+		TCStopThread (EncryptionSetupThread, NULL);
+		EncryptionSetupThread = NULL;
+	}
+
+	DriverMutexRelease();
 
 	return STATUS_SUCCESS;
 }
@@ -1619,7 +1646,7 @@ static VOID DecoySystemWipeThreadProc (PVOID threadArg)
 	byte *wipeBuffer = NULL;
 	byte *wipeRandBuffer = NULL;
 	byte wipeRandChars[TC_WIPE_RAND_CHAR_COUNT];
-	size_t wipePass;
+	int wipePass;
 	int ea = Extension->Queue.CryptoInfo->ea;
 
 	KIRQL irql;
@@ -1754,6 +1781,9 @@ NTSTATUS StartDecoySystemWipe (PDEVICE_OBJECT DeviceObject, PIRP irp, PIO_STACK_
 	if (DecoySystemWipeInProgress)
 		return STATUS_SUCCESS;
 
+	if (DecoySystemWipeThread)
+		AbortDecoySystemWipe();
+
 	request = (WipeDecoySystemRequest *) irp->AssociatedIrp.SystemBuffer;
 	WipeDecoyRequest = *request;
 
@@ -1823,11 +1853,17 @@ NTSTATUS AbortDecoySystemWipe ()
 	if (!IoIsSystemThread (PsGetCurrentThread()) && !UserCanAccessDriveDevice())
 		return STATUS_ACCESS_DENIED;
 
-	if (DecoySystemWipeInProgress)
+	DriverMutexWait();
+
+	if (DecoySystemWipeThread)
 	{
 		DecoySystemWipeThreadAbortRequested = TRUE;
+
 		TCStopThread (DecoySystemWipeThread, NULL);
+		DecoySystemWipeThread = NULL;
 	}
+
+	DriverMutexRelease();
 
 	return STATUS_SUCCESS;
 }

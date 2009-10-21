@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2007-2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -86,6 +86,28 @@ DWORD BaseCom::CallDriver (DWORD ioctl, BSTR input, BSTR *output)
 }
 
 
+DWORD BaseCom::CopyFile (BSTR sourceFile, BSTR destinationFile)
+{
+	USES_CONVERSION;
+
+	if (!::CopyFile (CW2A (sourceFile), CW2A (destinationFile), FALSE))
+		return GetLastError();
+
+	return ERROR_SUCCESS;
+}
+
+
+DWORD BaseCom::DeleteFile (BSTR file)
+{
+	USES_CONVERSION;
+
+	if (!::DeleteFile (CW2A (file)))
+		return GetLastError();
+
+	return ERROR_SUCCESS;
+}
+
+
 BOOL BaseCom::IsPagingFileActive (BOOL checkNonWindowsPartitionsOnly)
 {
 	return ::IsPagingFileActive (checkNonWindowsPartitionsOnly);
@@ -135,6 +157,31 @@ DWORD BaseCom::RegisterFilterDriver (BOOL registerDriver, BOOL volumeClass)
 	{
 		BootEncryption bootEnc (NULL);
 		bootEnc.RegisterFilterDriver (registerDriver ? true : false, volumeClass ? true : false);
+	}
+	catch (SystemException &)
+	{
+		return GetLastError();
+	}
+	catch (Exception &e)
+	{
+		e.Show (NULL);
+		return ERROR_EXCEPTION_IN_SERVICE;
+	}
+	catch (...)
+	{
+		return ERROR_EXCEPTION_IN_SERVICE;
+	}
+
+	return ERROR_SUCCESS;
+}
+
+
+DWORD BaseCom::RegisterSystemFavoritesService (BOOL registerService)
+{
+	try
+	{
+		BootEncryption bootEnc (NULL);
+		bootEnc.RegisterSystemFavoritesService (registerService);
 	}
 	catch (SystemException &)
 	{

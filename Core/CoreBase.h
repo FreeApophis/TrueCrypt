@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -39,7 +39,7 @@ namespace TrueCrypt
 		virtual DirectoryPath GetDeviceMountPoint (const DevicePath &devicePath) const = 0;
 		virtual VolumeSlotNumber GetFirstFreeSlotNumber (VolumeSlotNumber startFrom = 0) const;
 		virtual VolumeSlotNumber GetFirstSlotNumber () const { return 1; }
-		virtual VolumeSlotNumber GetLastSlotNumber () const { return 32; }
+		virtual VolumeSlotNumber GetLastSlotNumber () const { return 64; }
 		virtual HostDeviceList GetHostDevices (bool pathListOnly = false) const = 0;
 		virtual FilePath GetApplicationExecutablePath () const { return ApplicationExecutablePath; }
 		virtual uint64 GetDeviceSize (const DevicePath &devicePath) const = 0;
@@ -52,7 +52,7 @@ namespace TrueCrypt
 		virtual void Init () { }
 		virtual bool IsDeviceChangeInProgress () const { return DeviceChangeInProgress; }
 		virtual bool IsDevicePresent (const DevicePath &device) const = 0;
-		virtual bool IsInTravelMode () const = 0;
+		virtual bool IsInPortableMode () const = 0;
 		virtual bool IsMountPointAvailable (const DirectoryPath &mountPoint) const = 0;
 		virtual bool IsOSVersion (int major, int minor) const = 0;
 		virtual bool IsOSVersionLower (int major, int minor) const = 0;

@@ -525,6 +525,8 @@ static ZCONST int dbits = 6;    /* bits in base distance lookup table */
 
 #ifndef ASM_INFLATECODES
 
+#pragma warning(disable:4131)
+
 int inflate_codes(__G__ tl, td, bl, bd)
      __GDEF
 struct huft *tl, *td;   /* literal/length and distance decoder tables */

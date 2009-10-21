@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2005 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2005-2009 TrueCrypt Foundation. All rights reserved.
 
- Governed by the TrueCrypt License 2.7 the full text of which is contained
+ Governed by the TrueCrypt License 2.8 the full text of which is contained
  in the file License.txt included in TrueCrypt binary and source code
  distribution packages.
 */
@@ -433,14 +433,14 @@ BOOL CALLBACK LanguageDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 					char l[6];
 
 					// Decode language id from LPARAM
-					l[0] = id;
-					l[1] = id >> 8;
+					l[0] = (char) id;
+					l[1] = (char) (id >> 8);
 					l[2] = 0;
 
 					if ((id & 0xffff0000) != 0)
 					{
 						l[2] = '-';
-						l[3] = id >> 16;
+						l[3] = (char) (id >> 16);
 						l[4] = id >> 24;
 						l[5] = 0;
 					}	
