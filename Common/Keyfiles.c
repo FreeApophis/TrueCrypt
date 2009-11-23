@@ -1,9 +1,9 @@
 /*
- Copyright (c) 2005 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2005-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained
- in the file License.txt included in TrueCrypt binary and source code
- distribution packages.
+ Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ the file License.txt included in TrueCrypt binary and source code distribution
+ packages.
 */
 
 #include <stdlib.h>
@@ -147,8 +147,6 @@ static BOOL KeyFileProcess (unsigned __int8 *keyPool, KeyFile *keyFile)
 	{
 		if (GetFileTime ((HANDLE) src, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime))
 			bTimeStampValid = TRUE;
-		else
-			Warning ("GETFILETIME_FAILED_KEYFILE");
 	}
 
 	f = fopen (keyFile->FileName, "rb");
@@ -198,8 +196,7 @@ close:
 	if (bTimeStampValid && !IsFileOnReadOnlyFilesystem (keyFile->FileName))
 	{
 		// Restore the keyfile timestamp
-		if (!SetFileTime (src, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime))
-			Warning ("SETFILETIME_FAILED_KEYFILE");
+		SetFileTime (src, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime);
 		CloseHandle (src);
 	}
 
@@ -288,6 +285,7 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile)
 		if (statStruct.st_mode & S_IFDIR)		// If it's a directory
 		{
 			/* Find and process all keyfiles in the directory */
+			int keyfileCount = 0;
 
 			snprintf (searchPath, sizeof (searchPath), "%s\\*.*", kf->FileName);
 			if ((searchHandle = _findfirst (searchPath, &fBuf)) == -1)
@@ -319,6 +317,7 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile)
 					continue;	 
 				}
 
+				++keyfileCount;
 
 				// Apply keyfile to the pool
 				if (!KeyFileProcess (keyPool, kfSub))
@@ -333,6 +332,11 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile)
 
 			burn (&kfSubStruct, sizeof (kfSubStruct));
 
+			if (keyfileCount == 0)
+			{
+				ErrorDirect ((wstring (GetString ("ERR_KEYFILE_PATH_EMPTY")) + L"\n\n" + SingleStringToWide (kf->FileName)).c_str());
+				status = FALSE;
+			}
 		}
 		// Apply keyfile to the pool
 		else if (!KeyFileProcess (keyPool, kf))

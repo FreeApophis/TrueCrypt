@@ -3,11 +3,11 @@
  derived from the source code of Encryption for the Masses 2.02a, which is
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
- the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.8 the full text of which is contained in the
- file License.txt included in TrueCrypt binary and source code distribution
- packages. */
+ the original source code (contained in this file) and all other portions
+ of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 2.8 the full text of which is
+ contained in the file License.txt included in TrueCrypt binary and source
+ code distribution packages. */
 
 #include "TCdefs.h"
 #include <wchar.h>
@@ -213,9 +213,6 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		{
 			if (mount->bPreserveTimestamp)
 			{
-				/* Remember the container timestamp. (Used to reset access/modification file date/time
-				of file-hosted volumes upon dismount or after unsuccessful mount attempt to preserve
-				plausible deniability of hidden volumes.) */
 				Extension->fileCreationTime = FileBasicInfo.CreationTime;
 				Extension->fileLastAccessTime = FileBasicInfo.LastAccessTime;
 				Extension->fileLastWriteTime = FileBasicInfo.LastWriteTime;
@@ -685,7 +682,6 @@ error:
 
 	if (Extension->bTimeStampValid)
 	{
-		/* Restore the container timestamp to preserve plausible deniability of possible hidden volume. */
 		RestoreTimeStamp (Extension);
 	}
 
@@ -716,7 +712,6 @@ void TCCloseVolume (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension)
 		if (Extension->bRawDevice == FALSE
 			&& Extension->bTimeStampValid)
 		{
-			/* Restore the container timestamp to preserve plausible deniability of possible hidden volume. */
 			RestoreTimeStamp (Extension);
 		}
 		ZwClose (Extension->hDeviceFile);
@@ -795,7 +790,7 @@ NTSTATUS COMPLETE_IRP (PDEVICE_OBJECT DeviceObject,
 	return IrpStatus;
 }
 
-// Restores the container timestamp to preserve plausible deniability of possible hidden volume.
+
 static void RestoreTimeStamp (PEXTENSION Extension)
 {
 	NTSTATUS ntStatus;

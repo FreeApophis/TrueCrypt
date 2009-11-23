@@ -3,11 +3,11 @@
  derived from the source code of Encryption for the Masses 2.02a, which is
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
- the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.8 the full text of which is contained in the
- file License.txt included in TrueCrypt binary and source code distribution
- packages. */
+ the original source code (contained in this file) and all other portions
+ of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 2.8 the full text of which is
+ contained in the file License.txt included in TrueCrypt binary and source
+ code distribution packages. */
 
 #include "Tcdefs.h"
 
@@ -208,6 +208,7 @@ void EndMainDlg (HWND hwndDlg)
 	}
 	else
 	{
+		KillTimer (hwndDlg, TIMER_ID_MAIN);
 		TaskBarIconRemove (hwndDlg);
 		EndDialog (hwndDlg, 0);
 	}
@@ -992,8 +993,9 @@ void LoadDriveLetters (HWND hTree, int drive)
 
 	if (bResult == FALSE)
 	{
+		KillTimer (MainDlg, TIMER_ID_MAIN);
 		handleWin32Error (hTree);
-		driver.ulMountedDrives = 0;
+		AbortProcessSilent();
 	}
 
 	LastKnownLogicalDrives = dwUsedDrives = GetLogicalDrives ();
@@ -1758,8 +1760,13 @@ BOOL CALLBACK PasswordChangeDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPAR
 				KeyFilesApply (&oldPassword, FirstKeyFile);
 
 			if (newKeyFilesParam.EnableKeyFiles)
-				KeyFilesApply (&newPassword,
-				pwdChangeDlgMode==PCDM_CHANGE_PKCS5_PRF ? FirstKeyFile : newKeyFilesParam.FirstKeyFile);
+			{
+				if (!KeyFilesApply (&newPassword, pwdChangeDlgMode == PCDM_CHANGE_PKCS5_PRF ? FirstKeyFile : newKeyFilesParam.FirstKeyFile))
+				{
+					nStatus = ERR_DONT_REPORT;
+					goto err;
+				}
+			}
 
 			if (bSysEncPwdChangeDlgMode)
 			{
@@ -1792,6 +1799,7 @@ BOOL CALLBACK PasswordChangeDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPAR
 				}
 			}
 
+err:
 			burn (&oldPassword, sizeof (oldPassword));
 			burn (&newPassword, sizeof (newPassword));
 
@@ -2210,12 +2218,6 @@ BOOL CALLBACK PreferencesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM 
 		return 0;
 
 	case WM_COMMAND:
-
-		if (lw == IDC_PRESERVE_TIMESTAMPS && !IsButtonChecked (GetDlgItem (hwndDlg, IDC_PRESERVE_TIMESTAMPS)))
-		{
-			if (AskWarnNoYes ("CONFIRM_TIMESTAMP_UPDATING") == IDNO)
-				SetCheckBox (hwndDlg, IDC_PRESERVE_TIMESTAMPS, TRUE);
-		}
 
 		if (lw == IDC_PREF_BKG_TASK_ENABLE && !IsButtonChecked (GetDlgItem (hwndDlg, IDC_PREF_BKG_TASK_ENABLE)))
 		{
@@ -3352,13 +3354,19 @@ static BOOL Mount (HWND hwndDlg, int nDosDriveNo, char *szFileName)
 	mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, NULL, bCacheInDriver, bForceMount, &mountOptions, Silent, FALSE);
 	
 	// If keyfiles are enabled, test empty password first
-	if (!mounted && KeyFilesEnable)
+	if (!mounted && KeyFilesEnable && FirstKeyFile)
 	{
-		KeyFilesApply (&VolumePassword, FirstKeyFile);
-		mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, &VolumePassword, bCacheInDriver, bForceMount, &mountOptions, Silent, FALSE);
+		Password emptyPassword;
+		emptyPassword.Length = 0;
+
+		KeyFilesApply (&emptyPassword, FirstKeyFile);
+		mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, &emptyPassword, bCacheInDriver, bForceMount, &mountOptions, Silent, FALSE);
+		
+		burn (&emptyPassword, sizeof (emptyPassword));
 	}
 
-	if (!mounted && !KeyFilesEnable && MultipleMountOperationInProgress && VolumePassword.Length != 0)
+	// Test password and/or keyfiles used for the previous volume
+	if (!mounted && MultipleMountOperationInProgress && VolumePassword.Length != 0)
 		mounted = MountVolume (hwndDlg, nDosDriveNo, szFileName, &VolumePassword, bCacheInDriver, bForceMount, &mountOptions, Silent, FALSE);
 
 	NormalCursor ();
@@ -6669,7 +6677,7 @@ BOOL MountFavoriteVolumes (BOOL systemFavorites)
 {
 	BOOL status = TRUE;
 	DWORD size;
-	char *favorites = LoadFile (systemFavorites ? GetProgramConfigPath (TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES) : GetConfigPath (TC_APPD_FILENAME_FAVORITE_VOLUMES), &size);
+	char *favorites = LoadFile (systemFavorites ? GetServiceConfigPath (TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES).c_str() : GetConfigPath (TC_APPD_FILENAME_FAVORITE_VOLUMES), &size);
 	char *xml = favorites;
 	char mountPoint[MAX_PATH], volume[MAX_PATH];
 
@@ -6857,7 +6865,7 @@ void SaveFavoriteVolumes (BOOL systemFavorites)
 
 			try
 			{
-				BootEncObj->DeleteFileAdmin (GetProgramConfigPath (TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES));
+				BootEncObj->DeleteFileAdmin (GetServiceConfigPath (TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES).c_str());
 			}
 			catch (UserAbort&) { return; }
 			catch (...) { }
@@ -6865,7 +6873,7 @@ void SaveFavoriteVolumes (BOOL systemFavorites)
 			try
 			{
 				if (cnt != 0)
-					BootEncObj->CopyFileAdmin (GetConfigPath (TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES), GetProgramConfigPath (TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES));
+					BootEncObj->CopyFileAdmin (GetConfigPath (TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES), GetServiceConfigPath (TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES).c_str());
 
 				Info ("SYS_FAVORITE_VOLUMES_SAVED");
 			}
@@ -6884,7 +6892,7 @@ void SaveFavoriteVolumes (BOOL systemFavorites)
 			{
 				try
 				{
-					BootEncObj->DeleteFileAdmin (GetProgramConfigPath (TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES));
+					BootEncObj->DeleteFileAdmin (GetServiceConfigPath (TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES).c_str());
 				}
 				catch (...) { }
 			}
@@ -7517,10 +7525,7 @@ int RestoreVolumeHeader (HWND hwndDlg, char *lpszVolume)
 			/* Remember the container modification/creation date and time. */
 
 			if (GetFileTime ((HANDLE) dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
-			{
 				bTimeStampValid = FALSE;
-				Warning ("GETFILETIME_FAILED_GENERIC");
-			}
 			else
 				bTimeStampValid = TRUE;
 		}
@@ -7669,11 +7674,7 @@ error:
 			crypto_close (restoredCryptoInfo);
 
 		if (bTimeStampValid)
-		{
-			// Restore the container timestamp (to preserve plausible deniability of possible hidden volume). 
-			if (SetFileTime (dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
-				MessageBoxW (hwndDlg, GetString ("SETFILETIME_FAILED_PW"), L"TrueCrypt", MB_OK | MB_ICONEXCLAMATION);
-		}
+			SetFileTime (dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime);
 
 		if (dev != INVALID_HANDLE_VALUE)
 			CloseHandle (dev);
@@ -8033,8 +8034,12 @@ static BOOL CALLBACK SystemFavoritesSettingsDlgProc (HWND hwndDlg, UINT msg, WPA
 
 		case IDC_MOUNT_SYSTEM_FAVORITES_ON_BOOT:
 			if (IsDlgButtonChecked (hwndDlg, IDC_MOUNT_SYSTEM_FAVORITES_ON_BOOT))
+			{
 				WarningDirect ((wstring (GetString ("SYS_FAVORITES_KEYBOARD_WARNING")) + L"\n\n" + GetString ("BOOT_PASSWORD_CACHE_KEYBOARD_WARNING")).c_str());
 
+				if (!IsServerOS() && !IsDlgButtonChecked (hwndDlg, IDC_DISABLE_NONADMIN_SYS_FAVORITES_ACCESS))
+					Info ("SYS_FAVORITES_ADMIN_ONLY_INFO");
+			}
 			break;
 
 		case IDC_DISABLE_NONADMIN_SYS_FAVORITES_ACCESS:

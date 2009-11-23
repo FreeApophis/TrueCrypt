@@ -1,15 +1,16 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained
- in the file License.txt included in TrueCrypt binary and source code
- distribution packages.
+ Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ the file License.txt included in TrueCrypt binary and source code distribution
+ packages.
 */
 
 #include "Platform/Serializer.h"
 #include "Common/SecurityToken.h"
 #include "Crc32.h"
 #include "Keyfile.h"
+#include "VolumeException.h"
 
 namespace TrueCrypt
 {
@@ -56,7 +57,7 @@ namespace TrueCrypt
 			goto done;
 		}
 
-		file.Open (Path, File::OpenRead, File::ShareRead, File::PreserveTimestamps);
+		file.Open (Path, File::OpenRead, File::ShareRead);
 
 		while ((readLength = file.Read (keyfileBuf)) > 0)
 		{
@@ -96,10 +97,15 @@ done:
 		{
 			if (FilesystemPath (*keyfile).IsDirectory())
 			{
+				size_t keyfileCount = 0;
 				foreach_ref (const FilePath &path, Directory::GetFilePaths (*keyfile))
 				{
 					keyfilesExp.push_back (make_shared <Keyfile> (path));
+					++keyfileCount;
 				}
+
+				if (keyfileCount == 0)
+					throw KeyfilePathEmpty (SRC_POS, FilesystemPath (*keyfile));
 			}
 			else
 			{

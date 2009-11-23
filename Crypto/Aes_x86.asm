@@ -28,8 +28,8 @@
 ; aeskey.c and aestab.c for support.
 
 ;
-; Adapted for TrueCrypt by the TrueCrypt Foundation:
-; - Adapted for NASM
+; Adapted for TrueCrypt:
+; - Compatibility with NASM
 ;
 
 ; An AES implementation for x86 processors using the YASM (or NASM) assembler.

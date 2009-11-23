@@ -1,9 +1,9 @@
 /*
-Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
-Governed by the TrueCrypt License 2.8 the full text of which is contained
-in the file License.txt included in TrueCrypt binary and source code
-distribution packages.
+ Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ the file License.txt included in TrueCrypt binary and source code distribution
+ packages.
 */
 
 #include "Tcdefs.h"
@@ -1708,10 +1708,14 @@ namespace TrueCrypt
 		SC_HANDLE scm = OpenSCManager (NULL, NULL, SC_MANAGER_ALL_ACCESS);
 		throw_sys_if (!scm);
 
+		string servicePath = GetServiceConfigPath (TC_APP_NAME ".exe");
+
 		if (registerService)
 		{
 			char appPath[TC_MAX_PATH];
 			throw_sys_if (!GetModuleFileName (NULL, appPath, sizeof (appPath)));
+
+			throw_sys_if (!CopyFile (appPath, servicePath.c_str(), FALSE));
 
 			SC_HANDLE service = CreateService (scm,
 				TC_SYSTEM_FAVORITES_SERVICE_NAME,
@@ -1720,7 +1724,7 @@ namespace TrueCrypt
 				SERVICE_WIN32_OWN_PROCESS,
 				SERVICE_AUTO_START,
 				SERVICE_ERROR_NORMAL,
-				(string ("\"") + appPath + "\" " TC_SYSTEM_FAVORITES_SERVICE_CMDLINE_OPTION).c_str(),
+				(string ("\"") + servicePath + "\" " TC_SYSTEM_FAVORITES_SERVICE_CMDLINE_OPTION).c_str(),
 				TC_SYSTEM_FAVORITES_SERVICE_LOAD_ORDER_GROUP,
 				NULL,
 				NULL,
@@ -1759,6 +1763,8 @@ namespace TrueCrypt
 
 			throw_sys_if (!DeleteService (service));
 			CloseServiceHandle (service);
+
+			DeleteFile (servicePath.c_str());
 		}
 	}
 

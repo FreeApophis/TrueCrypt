@@ -30,8 +30,8 @@
 ; suggestions made by him for which I am most grateful.
 
 ;
-; Adapted for TrueCrypt by the TrueCrypt Foundation:
-; - Adapted for NASM
+; Adapted for TrueCrypt:
+; - Compatibility with NASM
 ;
 
 ; An AES implementation for AMD64 processors using the YASM assembler.  This

@@ -7,7 +7,7 @@
  * This code is in the public domain; do with it what you wish.
  */
 
-/* Adapted by TrueCrypt Foundation */
+/* Adapted for TrueCrypt */
 
 #include <memory.h>
 #include "Common/Tcdefs.h"
@@ -375,11 +375,11 @@ void RMD160Transform (unsigned __int32 *digest, const unsigned __int32 *data)
 #else // TC_MINIMIZE_CODE_SIZE
 
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained
- in the file License.txt included in TrueCrypt binary and source code
- distribution packages.
+ Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ the file License.txt included in TrueCrypt binary and source code distribution
+ packages.
 */
 
 #pragma optimize ("tl", on)

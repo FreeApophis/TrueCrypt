@@ -85,7 +85,7 @@
 ; the do_exit macro). Define DLL_EXPORT for the Dynamic Link Library version.
 
 ;
-; Adapted for TrueCrypt by the TrueCrypt Foundation:
+; Adapted for TrueCrypt:
 ; - All tables generated at run-time
 ; - Adapted for 16-bit environment
 ;

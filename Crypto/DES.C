@@ -15,7 +15,7 @@
  * Phil Karn KA9Q, karn@unix.ka9q.ampr.org, August 1994.
  */
 
-/* Adapted for TrueCrypt by the TrueCrypt Foundation */
+/* Adapted for TrueCrypt */
 
 #include <memory.h>
 #include "Common/Tcdefs.h"

@@ -3,11 +3,11 @@
  derived from the source code of Encryption for the Masses 2.02a, which is
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
- the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.8 the full text of which is contained in the
- file License.txt included in TrueCrypt binary and source code distribution
- packages. */
+ the original source code (contained in this file) and all other portions
+ of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 2.8 the full text of which is
+ contained in the file License.txt included in TrueCrypt binary and source
+ code distribution packages. */
 
 #include "Tcdefs.h"
 
@@ -159,6 +159,7 @@ BOOL bSysDriveSelected = FALSE;			/* TRUE if the user selected the system drive 
 /* To populate these arrays, call GetSysDevicePaths(). If they contain valid paths, bCachedSysDevicePathsValid is TRUE. */
 char SysPartitionDevicePath [TC_MAX_PATH];
 char SysDriveDevicePath [TC_MAX_PATH];
+string ExtraBootPartitionDevicePath;
 char bCachedSysDevicePathsValid = FALSE;
 
 BOOL bHyperLinkBeingTracked = FALSE;
@@ -902,13 +903,13 @@ BOOL CALLBACK AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 			"Paulo Barreto, Brian Gladman, Wei Dai, Peter Gutmann, and many others.\r\n\r\n"
 
 			"Portions of this software:\r\n"
-			"Copyright \xA9 2003-2009 TrueCrypt Foundation. All Rights Reserved.\r\n"
+			"Copyright \xA9 2003-2009 TrueCrypt Developers Association. All Rights Reserved.\r\n"
 			"Copyright \xA9 1998-2000 Paul Le Roux. All Rights Reserved.\r\n"
 			"Copyright \xA9 1998-2008 Brian Gladman. All Rights Reserved.\r\n"
 			"Copyright \xA9 2002-2004 Mark Adler. All Rights Reserved.\r\n\r\n"
 
 			"This software as a whole:\r\n"
-			"Copyright \xA9 2009 TrueCrypt Foundation. All rights reserved.\r\n\r\n"
+			"Copyright \xA9 2009 TrueCrypt Developers Association. All rights reserved.\r\n\r\n"
 
 			"A TrueCrypt Foundation Release");
 
@@ -2285,13 +2286,13 @@ void InitApp (HINSTANCE hInstance, char *lpszCommandLine)
 				}
 				break;
 			}
-		}
 
-		if (CurrentOSMajor == 6 && CurrentOSMinor == 1 
-			&& osEx.dwBuildNumber > 0 && osEx.dwBuildNumber < 7600)
-		{
-			Error ("UNSUPPORTED_BETA_OS");
-			exit (0);
+			if (CurrentOSMajor == 6 && CurrentOSMinor == 1 
+				&& osEx.dwBuildNumber > 0 && osEx.dwBuildNumber < 7600)
+			{
+				Error ("UNSUPPORTED_BETA_OS");
+				exit (0);
+			}
 		}
 	}
 
@@ -2464,6 +2465,27 @@ BOOL GetSysDevicePaths (HWND hwndDlg)
 				strcpy_s (device.IsPartition ? SysPartitionDevicePath : SysDriveDevicePath, TC_MAX_PATH, device.Path.c_str()); 
 		}
 
+		if (IsOSAtLeast (WIN_7))
+		{
+			// Find extra boot partition
+			foreach (const HostDevice &drive, GetAvailableHostDevices (false, false))
+			{
+				if (drive.ContainsSystem)
+				{
+					foreach (const HostDevice &sysDrivePartition, drive.Partitions)
+					{
+						if (sysDrivePartition.Bootable)
+						{
+							if (sysDrivePartition.Size <= TC_MAX_EXTRA_BOOT_PARTITION_SIZE)
+								ExtraBootPartitionDevicePath = sysDrivePartition.Path;
+							break;
+						}
+					}
+					break;
+				}
+			}
+		}
+
 		bCachedSysDevicePathsValid = 1;
 	}
 
@@ -2488,6 +2510,7 @@ is ignored (TRUE implied), repeated executions complete very fast, and the resul
 Return codes:
 1  - it is the system partition path (e.g. \Device\Harddisk0\Partition1)
 2  - it is the system drive path (e.g. \Device\Harddisk0\Partition0)
+3  - it is the extra boot partition path
 0  - it's not the system partition/drive path
 -1 - the result can't be determined, isn't reliable, or there was an error. */
 int IsSystemDevicePath (char *path, HWND hwndDlg, BOOL bReliableRequired)
@@ -2506,6 +2529,8 @@ int IsSystemDevicePath (char *path, HWND hwndDlg, BOOL bReliableRequired)
 		return 1;
 	else if (strncmp (path, SysDriveDevicePath, max (strlen(path), strlen(SysDriveDevicePath))) == 0)
 		return 2;
+	else if (ExtraBootPartitionDevicePath == path)
+		return 3;
 
 	return 0;
 }
@@ -6632,7 +6657,6 @@ BOOL SaveBufferToFile (char *inputBuffer, char *destinationFile, DWORD inputLeng
 	}
 
 	CloseHandle (dst);
-	FlushFileBuffers (dst);
 
 	if (!res && !bAppend)
 		remove (destinationFile);
@@ -7272,6 +7296,24 @@ char *GetProgramConfigPath (char *fileName)
 		path[0] = 0;
 
 	return path;
+}
+
+
+std::string GetServiceConfigPath (const char *fileName)
+{
+	char sysPath[TC_MAX_PATH];
+	
+	if (Is64BitOs())
+	{
+		typedef UINT (WINAPI *GetSystemWow64Directory_t) (LPTSTR lpBuffer, UINT uSize);
+
+		GetSystemWow64Directory_t getSystemWow64Directory = (GetSystemWow64Directory_t) GetProcAddress (GetModuleHandle ("kernel32"), "GetSystemWow64DirectoryA");
+		getSystemWow64Directory (sysPath, sizeof (sysPath));
+	}
+	else
+		GetSystemDirectory (sysPath, sizeof (sysPath));
+
+	return string (sysPath) + "\\" + fileName;
 }
 
 
@@ -8093,10 +8135,7 @@ int OpenVolume (OpenVolumeContext *context, const char *volumePath, Password *pa
 	if (!context->IsDevice && preserveTimestamps)
 	{
 		if (GetFileTime (context->HostFileHandle, &context->CreationTime, &context->LastAccessTime, &context->LastWriteTime) == 0)
-		{
 			context->TimestampsValid = FALSE;
-			Warning ("GETFILETIME_FAILED_GENERIC");
-		}
 		else
 			context->TimestampsValid = TRUE;
 	}
@@ -8222,15 +8261,8 @@ void CloseVolume (OpenVolumeContext *context)
 
 	if (context->HostFileHandle != INVALID_HANDLE_VALUE)
 	{
-		// Restore the container timestamp (to preserve plausible deniability of possible hidden volume). 
 		if (context->TimestampsValid)
-		{
-			if (!SetFileTime (context->HostFileHandle, &context->CreationTime, &context->LastAccessTime, &context->LastWriteTime))
-			{
-				handleWin32Error (NULL);
-				Warning ("SETFILETIME_FAILED_PW");
-			}
-		}
+			SetFileTime (context->HostFileHandle, &context->CreationTime, &context->LastAccessTime, &context->LastWriteTime);
 
 		CloseHandle (context->HostFileHandle);
 		context->HostFileHandle = INVALID_HANDLE_VALUE;
@@ -8936,7 +8968,10 @@ std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties, bool 
 			PARTITION_INFORMATION partInfo;
 
 			if (GetPartitionInfo (devPath, &partInfo))
+			{
+				device.Bootable = partInfo.BootIndicator ? true : false;
 				device.Size = partInfo.PartitionLength.QuadPart;
+			}
 
 			device.HasUnencryptedFilesystem = (detectUnencryptedFilesystems && openTest.FilesystemDetected) ? true : false;
 

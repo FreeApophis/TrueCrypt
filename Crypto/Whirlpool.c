@@ -17,7 +17,7 @@
  * 
  * @author  Paulo S.L.M. Barreto
  * @author  Vincent Rijmen.
- * Minor modifications by TrueCrypt Foundation.
+ * Adapted for TrueCrypt.
  *
  * @version 3.0 (2003.03.12)
  *

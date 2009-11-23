@@ -56,7 +56,7 @@ product, or any portion thereof, made available for download).
 
 
 
-II. Terms and Conditions for Use, Copying, and Distribution
+II. Use, Copying, and Distribution of This Product
 
 1. Provided that You comply with all applicable terms and
 conditions of this License, You may make copies of This Product
@@ -73,8 +73,7 @@ commercial and/or commercial purposes.
 
 
 
-III. Terms and Conditions for Modification and Derivation of New
-Products
+III. Modification, Derivation, and Inclusion in Other Products
 
 1. If all conditions specified in the following paragraphs in
 this Chapter (III) are met (for exceptions, see Section III.2)
@@ -94,14 +93,14 @@ Your Product.
     any other names confusingly similar to the name TrueCrypt
     (e.g., True-Crypt, True Crypt, TruKrypt, etc.)
 
-    Note: TrueCrypt and the TrueCrypt logos are trademarks of
-    the TrueCrypt Foundation. The goal is not to monetize the
-    name or the product, but to protect the reputation of
-    TrueCrypt, and to prevent support issues and other kinds of
-    issues that might arise from the existence of similar
-    products with the same or similar name. Even though
-    TrueCrypt and the TrueCrypt logos are trademarks, TrueCrypt
-    is and will remain open-source and free software.
+    Note: TrueCrypt and the TrueCrypt logo are registered
+    trademarks. The goal is not to monetize the name or the
+    product, but to protect the reputation of TrueCrypt, and to
+    prevent support issues and other kinds of issues that might
+    arise from the existence of similar products with the same
+    or similar name. Even though TrueCrypt and the TrueCrypt
+    logo are trademarks, TrueCrypt is and will remain
+    open-source and free software.
 
     All occurrences of the name TrueCrypt that could reasonably
     be considered to identify Your Product must be removed from
@@ -285,13 +284,14 @@ automatically and immediately terminates Your rights under This
 License and may constitute trademark infringement (which may be
 prosecuted).
 
-TrueCrypt is a registered trademark of the TrueCrypt Foundation
-registered with the World Intellectual Property Organization, an
-agency of the United Nations, (international trademark
-registration), in the U.S. Patent and Trademark Office, and in
-the trademark offices of other countries. All TrueCrypt logos
-(including the non-textual logo consisting primarily of a key in
-stylized form) are trademarks of the TrueCrypt Foundation.
+TrueCrypt is a trademark registered with the World Intellectual
+Property Organization, an agency of the United Nations,
+(international trademark registration), in the U.S. Patent and
+Trademark Office, and in the trademark offices of other
+countries. All TrueCrypt logos are trademarks and the
+non-textual TrueCrypt logo consisting primarily of a key in
+stylized form is a trademark registered in the U.S. Patent and
+Trademark Office.
 
 Note: The goal is not to monetize the name or the product, but
 to protect the reputation of TrueCrypt. TrueCrypt is and will

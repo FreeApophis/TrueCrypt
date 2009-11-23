@@ -3,11 +3,11 @@
  derived from the source code of Encryption for the Masses 2.02a, which is
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
- the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.8 the full text of which is contained in the
- file License.txt included in TrueCrypt binary and source code distribution
- packages. */
+ the original source code (contained in this file) and all other portions
+ of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 2.8 the full text of which is
+ contained in the file License.txt included in TrueCrypt binary and source
+ code distribution packages. */
 
 #ifndef TC_HEADER_DLGCODE
 #define TC_HEADER_DLGCODE
@@ -69,7 +69,7 @@ enum
 #define TC_APPD_FILENAME_DEFAULT_KEYFILES					"Default Keyfiles.xml"
 #define TC_APPD_FILENAME_HISTORY							"History.xml"
 #define TC_APPD_FILENAME_FAVORITE_VOLUMES					"Favorite Volumes.xml"
-#define TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES			"System Favorite Volumes.xml"
+#define TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES			TC_APP_NAME " System Favorite Volumes.xml"
 #define TC_APPD_FILENAME_NONSYS_INPLACE_ENC					"In-Place Encryption"
 #define TC_APPD_FILENAME_NONSYS_INPLACE_ENC_WIPE			"In-Place Encryption Wipe Algo"
 #define TC_APPD_FILENAME_POST_INSTALL_TASK_TUTORIAL			"Post-Install Task - Tutorial"
@@ -454,6 +454,7 @@ struct HostDevice
 {
 	HostDevice ()
 		:
+		Bootable (false),
 		ContainsSystem (false),
 		DynamicVolume (false),
 		Floppy (false),
@@ -467,6 +468,7 @@ struct HostDevice
 
 	~HostDevice () { }
 
+	bool Bootable;
 	bool ContainsSystem;
 	bool DynamicVolume;
 	bool Floppy;
@@ -493,6 +495,7 @@ std::string ToUpperCase (const std::string &str);
 std::wstring GetWrongPasswordErrorMessage (HWND hwndDlg);
 std::string GetWindowsEdition ();
 std::string FitPathInGfxWidth (HWND hwnd, HFONT hFont, LONG width, const std::string &path);
+std::string GetServiceConfigPath (const char *fileName);
 
 #endif // __cplusplus
 

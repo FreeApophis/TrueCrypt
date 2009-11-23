@@ -3,11 +3,11 @@
  derived from the source code of Encryption for the Masses 2.02a, which is
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
- the original source code (contained in this file) and all other portions of
- this file are Copyright (c) 2003-2009 TrueCrypt Foundation and are governed
- by the TrueCrypt License 2.8 the full text of which is contained in the
- file License.txt included in TrueCrypt binary and source code distribution
- packages. */
+ the original source code (contained in this file) and all other portions
+ of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 2.8 the full text of which is
+ contained in the file License.txt included in TrueCrypt binary and source
+ code distribution packages. */
 
 #include <stdlib.h>
 #include <string.h>
@@ -341,13 +341,8 @@ begin_format:
 
 	if (volParams->hiddenVol && !volParams->bDevice && bPreserveTimestamp)
 	{
-		/* Remember the container timestamp (used to reset file date and time of file-hosted
-		containers to preserve plausible deniability of hidden volume)  */
 		if (GetFileTime ((HANDLE) dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
-		{
 			bTimeStampValid = FALSE;
-			MessageBoxW (volParams->hwndDlg, GetString ("GETFILETIME_FAILED_IMPLANT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
-		}
 		else
 			bTimeStampValid = TRUE;
 	}
@@ -550,11 +545,7 @@ error:
 		FlushFileBuffers (dev);
 
 		if (bTimeStampValid)
-		{
-			// Restore the container timestamp (to preserve plausible deniability of the hidden volume) 
-			if (SetFileTime (dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime) == 0)
-				MessageBoxW (volParams->hwndDlg, GetString ("SETFILETIME_FAILED_IMPLANT"), lpszTitle, MB_OK | MB_ICONEXCLAMATION);
-		}
+			SetFileTime (dev, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime);
 
 		CloseHandle (dev);
 		dev = INVALID_HANDLE_VALUE;

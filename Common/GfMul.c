@@ -29,9 +29,10 @@
 */
 
 /* 
- Portions Copyright (c) 2005 TrueCrypt Foundation
+ ---------------------------------------------------------------------------
+ Portions Copyright (c) 2005 TrueCrypt Developers Association
 
- TrueCrypt Foundation made the following changes:
+ Changes:
 
    - Added multiplication in the finite field GF(2^128) optimized for
      cases involving a 64-bit operand.
@@ -43,6 +44,7 @@
    - Added basic test algorithms.
 
    - Removed GCM.
+ ---------------------------------------------------------------------------
 */
 
 #include <memory.h>

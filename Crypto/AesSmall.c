@@ -31,7 +31,7 @@
  that developed by Karl Malbrain. His contribution is acknowledged.
  */
 
-/* Adapted by TrueCrypt Foundation:
+/* Adapted for TrueCrypt:
   - Macro-generated tables were replaced with static data to enable compiling
     with MSVC++ 1.5 which runs out of resources when expanding large macros.
 */

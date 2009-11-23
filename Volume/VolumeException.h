@@ -1,9 +1,9 @@
 /*
- Copyright (c) 2008 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained
- in the file License.txt included in TrueCrypt binary and source code
- distribution packages.
+ Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ the file License.txt included in TrueCrypt binary and source code distribution
+ packages.
 */
 
 #ifndef TC_HEADER_Volume_VolumeExceptions
@@ -26,6 +26,7 @@ namespace TrueCrypt
 #undef TC_EXCEPTION_SET
 #define TC_EXCEPTION_SET \
 	TC_EXCEPTION (HigherVersionRequired); \
+	TC_EXCEPTION (KeyfilePathEmpty); \
 	TC_EXCEPTION (MissingVolumeData); \
 	TC_EXCEPTION (MountedVolumeInUse); \
 	TC_EXCEPTION (VolumeEncryptionNotCompleted); \

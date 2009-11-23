@@ -1,6 +1,6 @@
 // serpent.cpp - written and placed in the public domain by Wei Dai
 
-/* Adapted for TrueCrypt by the TrueCrypt Foundation */
+/* Adapted for TrueCrypt */
 
 #ifdef TC_WINDOWS_BOOT
 #pragma optimize ("t", on)

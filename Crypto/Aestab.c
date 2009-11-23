@@ -25,7 +25,7 @@
  Issue Date: 20/12/2007
 */
 
-/* Adapted for TrueCrypt by the TrueCrypt Foundation:
+/* Adapted for TrueCrypt:
    - Added run-time table generator for Aes_x86_v2.asm
 */
 

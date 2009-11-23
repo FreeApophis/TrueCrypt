@@ -94,7 +94,7 @@
     c16  20 Apr 97  J. Altman       added memzero(v[]) in huft_build()
    c16b  29 Mar 98  C. Spieler      modified DLL code for slide redirection
 
-   fork	 12 Dec 07	TrueCrypt Foundation	 Adapted for TrueCrypt
+   fork	 12 Dec 07					Adapted for TrueCrypt
  */
 
 

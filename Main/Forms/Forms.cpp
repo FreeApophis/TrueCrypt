@@ -1611,7 +1611,7 @@ PreferencesDialogBase::PreferencesDialogBase( wxWindow* parent, wxWindowID id, c
 	
 	FilesystemSecuritySizer = new wxStaticBoxSizer( new wxStaticBox( SecurityPage, wxID_ANY, _("Filesystem") ), wxVERTICAL );
 	
-	PreserveTimestampsCheckBox = new wxCheckBox( SecurityPage, wxID_ANY, _("Preserve modification time of file containers"), wxDefaultPosition, wxDefaultSize, 0 );
+	PreserveTimestampsCheckBox = new wxCheckBox( SecurityPage, wxID_ANY, _("Preserve modification timestamp of file containers"), wxDefaultPosition, wxDefaultSize, 0 );
 	
 	FilesystemSecuritySizer->Add( PreserveTimestampsCheckBox, 0, wxALL, 5 );
 	

@@ -1,9 +1,9 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained
- in the file License.txt included in TrueCrypt binary and source code
- distribution packages.
+ Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ the file License.txt included in TrueCrypt binary and source code distribution
+ packages.
 */
 
 #include "TCdefs.h"
@@ -452,12 +452,11 @@ static VOID IoThreadProc (PVOID threadArg)
 					queue->ReadAheadOffset.QuadPart = queue->LastReadOffset.QuadPart + queue->LastReadLength;
 					queue->ReadAheadLength = queue->LastReadLength;
 
-#ifdef TC_TRACE_IO_QUEUE
-					Dump ("A   %I64d [%I64d] roff=%I64d rlen=%d\n", request->Item->OriginalIrpOffset.QuadPart, GetElapsedTime (&queue->LastPerformanceCounter), queue->ReadAheadOffset, queue->ReadAheadLength);
-#endif
-
 					if (queue->ReadAheadOffset.QuadPart + queue->ReadAheadLength <= queue->MaxReadAheadOffset.QuadPart)
 					{
+#ifdef TC_TRACE_IO_QUEUE
+						Dump ("A   %I64d [%I64d] roff=%I64d rlen=%d\n", request->Item->OriginalIrpOffset.QuadPart, GetElapsedTime (&queue->LastPerformanceCounter), queue->ReadAheadOffset, queue->ReadAheadLength);
+#endif
 						if (queue->IsFilterDevice)
 						{
 							queue->ReadAheadBufferValid = NT_SUCCESS (TCReadDevice (queue->LowerDeviceObject, queue->ReadAheadBuffer, queue->ReadAheadOffset, queue->ReadAheadLength));

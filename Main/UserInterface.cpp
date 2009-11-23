@@ -1,9 +1,9 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained
- in the file License.txt included in TrueCrypt binary and source code
- distribution packages.
+ Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ the file License.txt included in TrueCrypt binary and source code distribution
+ packages.
 */
 
 #include "System.h"
@@ -438,6 +438,7 @@ namespace TrueCrypt
 		EX2MSG (InvalidSecurityTokenKeyfilePath,	LangString["INVALID_TOKEN_KEYFILE_PATH"]);
 		EX2MSG (HigherVersionRequired,				LangString["NEW_VERSION_REQUIRED"]);
 		EX2MSG (KernelCryptoServiceTestFailed,		_("Kernel cryptographic service test failed. The cryptographic service of your kernel most likely does not support volumes larger than 2 TB.\n\nPossible solutions:\n- Try upgrading your kernel.\n- Disable use of the kernel cryptographic services (Settings > Preferences > System Integration) or use 'nokernelcrypto' mount option on the command line."));
+		EX2MSG (KeyfilePathEmpty,					LangString["ERR_KEYFILE_PATH_EMPTY"]);
 		EX2MSG (LoopDeviceSetupFailed,				_("Failed to set up a loop device."));
 		EX2MSG (MissingArgument,					_("A required argument is missing."));
 		EX2MSG (MissingVolumeData,					_("Volume data missing."));
@@ -1129,9 +1130,10 @@ namespace TrueCrypt
 					"  nokernelcrypto: Do not use kernel cryptographic services.\n"
 					"  readonly|ro: Mount volume as read-only.\n"
 					"  system: Mount partition using system encryption.\n"
-					"  timestamp|ts: Do not preserve host-file timestamps (note that the operating\n"
-					"   system under certain circumstances does not alter host-file timestamps, which\n"
-					"   may be mistakenly interpreted to mean that this option does not work).\n"
+					"  timestamp|ts: Do not restore host-file modification timestamp when a volume\n"
+					"   is dismounted (note that the operating system under certain circumstances\n"
+					"   does not alter host-file timestamps, which may be mistakenly interpreted\n"
+					"   to mean that this option does not work).\n"
 					" See also option --fs-options.\n"
 					"\n"
 					"--new-keyfiles=KEYFILE1,KEYFILE2,KEYFILE3,..\n"

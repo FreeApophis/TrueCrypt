@@ -1,9 +1,9 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Foundation. All rights reserved.
+ Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained
- in the file License.txt included in TrueCrypt binary and source code
- distribution packages.
+ Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ the file License.txt included in TrueCrypt binary and source code distribution
+ packages.
 */
 
 #include "System.h"
@@ -385,15 +385,10 @@ namespace TrueCrypt
 	
 	void PreferencesDialog::OnPreserveTimestampsCheckBoxClick (wxCommandEvent& event)
 	{
-		if (!event.IsChecked())
-		{
-			bool confirmed = Gui->AskYesNo (LangString["CONFIRM_TIMESTAMP_UPDATING"], false, true);
-			PreserveTimestampsCheckBox->SetValue (!confirmed);
 #ifdef TC_LINUX
-			if (confirmed)
-				Gui->ShowInfo (_("Please note that disabling this option may have no effect on volumes mounted using kernel cryptographic services."));
+		if (!event.IsChecked())
+			Gui->ShowInfo (_("Please note that disabling this option may have no effect on volumes mounted using kernel cryptographic services."));
 #endif
-		}
 	}
 
 	void PreferencesDialog::OnRemoveHotkeyButtonClick (wxCommandEvent& event)

@@ -1,7 +1,7 @@
 // cast.cpp - written and placed in the public domain by Wei Dai and Leonard Janke
 // based on Steve Reid's public domain cast.c
 
-/* Adapted for TrueCrypt by the TrueCrypt Foundation */
+/* Adapted for TrueCrypt */
 
 #include <memory.h>
 #include "Common/Tcdefs.h"
