@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -10,6 +10,7 @@
 #define TC_HEADER_Encryption_EncryptionMode
 
 #include "Platform/Platform.h"
+#include "Common/Crypto.h"
 #include "Cipher.h"
 
 namespace TrueCrypt
@@ -46,7 +47,7 @@ namespace TrueCrypt
 		void ValidateParameters (byte *data, uint64 length) const;
 		virtual void ValidateParameters (byte *data, uint64 sectorCount, size_t sectorSize) const;
 
-		static const size_t EncryptionDataUnitSize = 512;
+		static const size_t EncryptionDataUnitSize = ENCRYPTION_DATA_UNIT_SIZE;
 
 		CipherList Ciphers;
 		bool KeySet;

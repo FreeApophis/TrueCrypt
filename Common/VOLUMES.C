@@ -4,8 +4,8 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
@@ -34,7 +34,31 @@
 #include "Pkcs5.h"
 
 
-/* Volume header v4 structure (used since TrueCrypt 6.0): */
+/* Volume header v5 structure (used since TrueCrypt 7.0): */
+//
+// Offset	Length	Description
+// ------------------------------------------
+// Unencrypted:
+// 0		64		Salt
+// Encrypted:
+// 64		4		ASCII string 'TRUE'
+// 68		2		Header version
+// 70		2		Required program version
+// 72		4		CRC-32 checksum of the (decrypted) bytes 256-511
+// 76		8		Reserved (set to zero)
+// 84		8		Reserved (set to zero)
+// 92		8		Size of hidden volume in bytes (0 = normal volume)
+// 100		8		Size of the volume in bytes (identical with field 92 for hidden volumes, valid if field 70 >= 0x600 or flag bit 0 == 1)
+// 108		8		Byte offset of the start of the master key scope (valid if field 70 >= 0x600 or flag bit 0 == 1)
+// 116		8		Size of the encrypted area within the master key scope (valid if field 70 >= 0x600 or flag bit 0 == 1)
+// 124		4		Flags: bit 0 set = system encryption; bit 1 set = non-system in-place encryption, bits 2-31 are reserved (set to zero)
+// 128		4		Sector size in bytes
+// 132		120		Reserved (set to zero)
+// 252		4		CRC-32 checksum of the (decrypted) bytes 64-251
+// 256		256		Concatenated primary master key(s) and secondary master key(s) (XTS mode)
+
+
+/* Deprecated/legacy volume header v4 structure (used by TrueCrypt 6.x): */
 //
 // Offset	Length	Description
 // ------------------------------------------
@@ -441,6 +465,20 @@ KeyReady:	;
 				// Flags
 				cryptoInfo->HeaderFlags = GetHeaderField32 (header, TC_HEADER_OFFSET_FLAGS);
 
+				// Sector size
+				if (headerVersion >= 5)
+					cryptoInfo->SectorSize = GetHeaderField32 (header, TC_HEADER_OFFSET_SECTOR_SIZE);
+				else
+					cryptoInfo->SectorSize = TC_SECTOR_SIZE_LEGACY;
+
+				if (cryptoInfo->SectorSize < TC_MIN_VOLUME_SECTOR_SIZE
+					|| cryptoInfo->SectorSize > TC_MAX_VOLUME_SECTOR_SIZE
+					|| cryptoInfo->SectorSize % ENCRYPTION_DATA_UNIT_SIZE != 0)
+				{
+					status = ERR_PARAMETER_INCORRECT;
+					goto err;
+				}
+
 				// Preserve scheduled header keys if requested			
 				if (retHeaderCryptoInfo)
 				{
@@ -649,7 +687,7 @@ ret:
 int CreateVolumeHeaderInMemory (BOOL bBoot, char *header, int ea, int mode, Password *password,
 		   int pkcs5_prf, char *masterKeydata, PCRYPTO_INFO *retInfo,
 		   unsigned __int64 volumeSize, unsigned __int64 hiddenVolumeSize,
-		   unsigned __int64 encryptedAreaStart, unsigned __int64 encryptedAreaLength, uint16 requiredProgramVersion, uint32 headerFlags, BOOL bWipeMode)
+		   unsigned __int64 encryptedAreaStart, unsigned __int64 encryptedAreaLength, uint16 requiredProgramVersion, uint32 headerFlags, uint32 sectorSize, BOOL bWipeMode)
 {
 	unsigned char *p = (unsigned char *) header;
 	static KEY_INFO keyInfo;
@@ -687,9 +725,10 @@ int CreateVolumeHeaderInMemory (BOOL bBoot, char *header, int ea, int mode, Pass
 			// Deprecated/legacy modes of operation
 			bytesNeeded = LEGACY_VOL_IV_SIZE + EAGetKeySize (ea);
 
-			/* In fact, this should never be the case since new volumes are not supposed to use
-			   any deprecated mode of operation. */
-			return ERR_VOL_FORMAT_BAD;
+			// In fact, this should never be the case since volumes being newly created are not
+			// supposed to use any deprecated mode of operation.
+			TC_THROW_FATAL_EXCEPTION;
+			break;
 
 		default:
 			bytesNeeded = EAGetKeySize (ea) * 2;	// Size of primary + secondary key(s)
@@ -808,6 +847,17 @@ int CreateVolumeHeaderInMemory (BOOL bBoot, char *header, int ea, int mode, Pass
 	// Flags
 	cryptoInfo->HeaderFlags = headerFlags;
 	mputLong (p, headerFlags);
+
+	// Sector size
+	if (sectorSize < TC_MIN_VOLUME_SECTOR_SIZE
+		|| sectorSize > TC_MAX_VOLUME_SECTOR_SIZE
+		|| sectorSize % ENCRYPTION_DATA_UNIT_SIZE != 0)
+	{
+		TC_THROW_FATAL_EXCEPTION;
+	}
+
+	cryptoInfo->SectorSize = sectorSize;
+	mputLong (p, sectorSize);
 
 	// CRC of the header fields
 	x = GetCrc32 (header + TC_HEADER_OFFSET_MAGIC, TC_HEADER_OFFSET_HEADER_CRC - TC_HEADER_OFFSET_MAGIC);
@@ -939,6 +989,105 @@ int CreateVolumeHeaderInMemory (BOOL bBoot, char *header, int ea, int mode, Pass
 }
 
 
+BOOL ReadEffectiveVolumeHeader (BOOL device, HANDLE fileHandle, byte *header, DWORD *bytesRead)
+{
+#if TC_VOLUME_HEADER_EFFECTIVE_SIZE > TC_MAX_VOLUME_SECTOR_SIZE
+#error TC_VOLUME_HEADER_EFFECTIVE_SIZE > TC_MAX_VOLUME_SECTOR_SIZE
+#endif
+
+	byte sectorBuffer[TC_MAX_VOLUME_SECTOR_SIZE];
+	DISK_GEOMETRY geometry;
+
+	if (!device)
+		return ReadFile (fileHandle, header, TC_VOLUME_HEADER_EFFECTIVE_SIZE, bytesRead, NULL);
+
+	if (!DeviceIoControl (fileHandle, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0, &geometry, sizeof (geometry), bytesRead, NULL))
+		return FALSE;
+
+	if (geometry.BytesPerSector > sizeof (sectorBuffer) || geometry.BytesPerSector < TC_MIN_VOLUME_SECTOR_SIZE)
+	{
+		SetLastError (ERROR_INVALID_PARAMETER);
+		return FALSE;
+	}
+
+	if (!ReadFile (fileHandle, sectorBuffer, max (TC_VOLUME_HEADER_EFFECTIVE_SIZE, geometry.BytesPerSector), bytesRead, NULL))
+		return FALSE;
+
+	memcpy (header, sectorBuffer, min (*bytesRead, TC_VOLUME_HEADER_EFFECTIVE_SIZE));
+	
+	if (*bytesRead > TC_VOLUME_HEADER_EFFECTIVE_SIZE)
+		*bytesRead = TC_VOLUME_HEADER_EFFECTIVE_SIZE;
+
+	return TRUE;
+}
+
+
+BOOL WriteEffectiveVolumeHeader (BOOL device, HANDLE fileHandle, byte *header)
+{
+#if TC_VOLUME_HEADER_EFFECTIVE_SIZE > TC_MAX_VOLUME_SECTOR_SIZE
+#error TC_VOLUME_HEADER_EFFECTIVE_SIZE > TC_MAX_VOLUME_SECTOR_SIZE
+#endif
+
+	byte sectorBuffer[TC_MAX_VOLUME_SECTOR_SIZE];
+	DWORD bytesDone;
+	DISK_GEOMETRY geometry;
+
+	if (!device)
+	{
+		if (!WriteFile (fileHandle, header, TC_VOLUME_HEADER_EFFECTIVE_SIZE, &bytesDone, NULL))
+			return FALSE;
+
+		if (bytesDone != TC_VOLUME_HEADER_EFFECTIVE_SIZE)
+		{
+			SetLastError (ERROR_INVALID_PARAMETER);
+			return FALSE;
+		}
+
+		return TRUE;
+	}
+
+	if (!DeviceIoControl (fileHandle, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0, &geometry, sizeof (geometry), &bytesDone, NULL))
+		return FALSE;
+
+	if (geometry.BytesPerSector > sizeof (sectorBuffer) || geometry.BytesPerSector < TC_MIN_VOLUME_SECTOR_SIZE)
+	{
+		SetLastError (ERROR_INVALID_PARAMETER);
+		return FALSE;
+	}
+
+	if (geometry.BytesPerSector != TC_VOLUME_HEADER_EFFECTIVE_SIZE)
+	{
+		LARGE_INTEGER seekOffset;
+
+		if (!ReadFile (fileHandle, sectorBuffer, geometry.BytesPerSector, &bytesDone, NULL))
+			return FALSE;
+
+		if (bytesDone != geometry.BytesPerSector)
+		{
+			SetLastError (ERROR_INVALID_PARAMETER);
+			return FALSE;
+		}
+
+		seekOffset.QuadPart = -(int) bytesDone;
+		if (!SetFilePointerEx (fileHandle, seekOffset, NULL, FILE_CURRENT))
+			return FALSE;
+	}
+
+	memcpy (sectorBuffer, header, TC_VOLUME_HEADER_EFFECTIVE_SIZE);
+
+	if (!WriteFile (fileHandle, sectorBuffer, geometry.BytesPerSector, &bytesDone, NULL))
+		return FALSE;
+
+	if (bytesDone != geometry.BytesPerSector)
+	{
+		SetLastError (ERROR_INVALID_PARAMETER);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+
 // Writes randomly generated data to unused/reserved header areas.
 // When bPrimaryOnly is TRUE, then only the primary header area (not the backup header area) is filled with random data.
 // When bBackupOnly is TRUE, only the backup header area (not the primary header area) is filled with random data.
@@ -947,11 +1096,12 @@ int WriteRandomDataToReservedHeaderAreas (HANDLE dev, CRYPTO_INFO *cryptoInfo, u
 	char temporaryKey[MASTER_KEYDATA_SIZE];
 	char originalK2[MASTER_KEYDATA_SIZE];
 
-	byte buf[TC_VOLUME_HEADER_GROUP_SIZE - TC_VOLUME_HEADER_EFFECTIVE_SIZE];
+	byte buf[TC_VOLUME_HEADER_GROUP_SIZE];
 
 	LARGE_INTEGER offset;
 	int nStatus = ERR_SUCCESS;
 	DWORD dwError;
+	DWORD bytesDone;
 	BOOL backupHeaders = bBackupOnly;
 
 	if (bPrimaryOnly && bBackupOnly)
@@ -980,7 +1130,6 @@ int WriteRandomDataToReservedHeaderAreas (HANDLE dev, CRYPTO_INFO *cryptoInfo, u
 		}
 
 		offset.QuadPart = backupHeaders ? dataAreaSize + TC_VOLUME_HEADER_GROUP_SIZE : TC_VOLUME_HEADER_OFFSET;
-		offset.QuadPart += TC_VOLUME_HEADER_EFFECTIVE_SIZE;
 
 		if (!SetFilePointerEx (dev, offset, NULL, FILE_BEGIN))
 		{
@@ -988,11 +1137,36 @@ int WriteRandomDataToReservedHeaderAreas (HANDLE dev, CRYPTO_INFO *cryptoInfo, u
 			goto final_seq;
 		}
 
-		EncryptBuffer (buf, sizeof (buf), cryptoInfo);
-
-		if (_lwrite ((HFILE) dev, buf, sizeof (buf)) == HFILE_ERROR)
+		if (!ReadFile (dev, buf, sizeof (buf), &bytesDone, NULL))
 		{
 			nStatus = ERR_OS_ERROR;
+			goto final_seq;
+		}
+
+		if (bytesDone < TC_VOLUME_HEADER_EFFECTIVE_SIZE)
+		{
+			SetLastError (ERROR_INVALID_PARAMETER);
+			nStatus = ERR_OS_ERROR;
+			goto final_seq;
+		}
+
+		EncryptBuffer (buf + TC_VOLUME_HEADER_EFFECTIVE_SIZE, sizeof (buf) - TC_VOLUME_HEADER_EFFECTIVE_SIZE, cryptoInfo);
+
+		if (!SetFilePointerEx (dev, offset, NULL, FILE_BEGIN))
+		{
+			nStatus = ERR_OS_ERROR;
+			goto final_seq;
+		}
+
+		if (!WriteFile (dev, buf, sizeof (buf), &bytesDone, NULL))
+		{
+			nStatus = ERR_OS_ERROR;
+			goto final_seq;
+		}
+
+		if (bytesDone != sizeof (buf))
+		{
+			nStatus = ERR_PARAMETER_INCORRECT;
 			goto final_seq;
 		}
 

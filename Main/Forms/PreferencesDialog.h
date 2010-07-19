@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -33,6 +33,7 @@ namespace TrueCrypt
 		void OnForceAutoDismountCheckBoxClick (wxCommandEvent& event);
 		void OnHotkeyListItemDeselected (wxListEvent& event);
 		void OnHotkeyListItemSelected (wxListEvent& event);
+		void OnNoHardwareCryptoCheckBoxClick (wxCommandEvent& event);
 		void OnNoKernelCryptoCheckBoxClick (wxCommandEvent& event);
 		void OnOKButtonClick (wxCommandEvent& event);
 		void OnPreserveTimestampsCheckBoxClick (wxCommandEvent& event);

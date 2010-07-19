@@ -18,6 +18,12 @@ MainFrameBase::MainFrameBase( wxWindow* parent, wxWindowID id, const wxString& t
 	
 	MainMenuBar = new wxMenuBar( 0 );
 	VolumesMenu = new wxMenu();
+	wxMenuItem* CreateNewVolumeMenuItem;
+	CreateNewVolumeMenuItem = new wxMenuItem( VolumesMenu, wxID_ANY, wxString( _("Create New Volume...") ) , wxEmptyString, wxITEM_NORMAL );
+	VolumesMenu->Append( CreateNewVolumeMenuItem );
+	
+	VolumesMenu->AppendSeparator();
+	
 	MountVolumeMenuItem = new wxMenuItem( VolumesMenu, wxID_ANY, wxString( _("Mount Volume") ) , wxEmptyString, wxITEM_NORMAL );
 	VolumesMenu->Append( MountVolumeMenuItem );
 	
@@ -35,10 +41,6 @@ MainFrameBase::MainFrameBase( wxWindow* parent, wxWindowID id, const wxString& t
 	
 	VolumesMenu->AppendSeparator();
 	
-	wxMenuItem* CreateNewVolumeMenuItem;
-	CreateNewVolumeMenuItem = new wxMenuItem( VolumesMenu, wxID_ANY, wxString( _("Create New Volume...") ) , wxEmptyString, wxITEM_NORMAL );
-	VolumesMenu->Append( CreateNewVolumeMenuItem );
-	
 	wxMenuItem* ChangePasswordMenuItem;
 	ChangePasswordMenuItem = new wxMenuItem( VolumesMenu, wxID_ANY, wxString( _("Change Volume Password...") ) , wxEmptyString, wxITEM_NORMAL );
 	VolumesMenu->Append( ChangePasswordMenuItem );
@@ -47,6 +49,14 @@ MainFrameBase::MainFrameBase( wxWindow* parent, wxWindowID id, const wxString& t
 	ChangePkcs5PrfMenuItem = new wxMenuItem( VolumesMenu, wxID_ANY, wxString( _("Change Header Key Derivation Algorithm...") ) , wxEmptyString, wxITEM_NORMAL );
 	VolumesMenu->Append( ChangePkcs5PrfMenuItem );
 	
+	wxMenuItem* ChangeKeyfilesMenuItem;
+	ChangeKeyfilesMenuItem = new wxMenuItem( VolumesMenu, wxID_ANY, wxString( _("Add/Remove Keyfiles to/from Volume...") ) , wxEmptyString, wxITEM_NORMAL );
+	VolumesMenu->Append( ChangeKeyfilesMenuItem );
+	
+	wxMenuItem* RemoveKeyfilesMenuItem;
+	RemoveKeyfilesMenuItem = new wxMenuItem( VolumesMenu, wxID_ANY, wxString( _("Remove All Keyfiles from Volume...") ) , wxEmptyString, wxITEM_NORMAL );
+	VolumesMenu->Append( RemoveKeyfilesMenuItem );
+	
 	VolumesMenu->AppendSeparator();
 	
 	VolumePropertiesMenuItem = new wxMenuItem( VolumesMenu, wxID_ANY, wxString( _("Volume Properties...") ) , wxEmptyString, wxITEM_NORMAL );
@@ -54,44 +64,11 @@ MainFrameBase::MainFrameBase( wxWindow* parent, wxWindowID id, const wxString& t
 	
 	MainMenuBar->Append( VolumesMenu, _("&Volumes") );
 	
-	KeyfilesMenu = new wxMenu();
-	wxMenuItem* ChangeKeyfilesMenuItem;
-	ChangeKeyfilesMenuItem = new wxMenuItem( KeyfilesMenu, wxID_ANY, wxString( _("Add/Remove Keyfiles to/from Volume...") ) , wxEmptyString, wxITEM_NORMAL );
-	KeyfilesMenu->Append( ChangeKeyfilesMenuItem );
-	
-	wxMenuItem* RemoveKeyfilesMenuItem;
-	RemoveKeyfilesMenuItem = new wxMenuItem( KeyfilesMenu, wxID_ANY, wxString( _("Remove All Keyfiles from Volume...") ) , wxEmptyString, wxITEM_NORMAL );
-	KeyfilesMenu->Append( RemoveKeyfilesMenuItem );
-	
-	KeyfilesMenu->AppendSeparator();
-	
-	wxMenuItem* CreateKeyfileMenuItem;
-	CreateKeyfileMenuItem = new wxMenuItem( KeyfilesMenu, wxID_ANY, wxString( _("Generate Random Keyfile...") ) , wxEmptyString, wxITEM_NORMAL );
-	KeyfilesMenu->Append( CreateKeyfileMenuItem );
-	
-	KeyfilesMenu->AppendSeparator();
-	
-	wxMenuItem* ManageSecurityTokenKeyfilesMenuItem;
-	ManageSecurityTokenKeyfilesMenuItem = new wxMenuItem( KeyfilesMenu, wxID_ANY, wxString( _("Manage Security Token Keyfiles...") ) , wxEmptyString, wxITEM_NORMAL );
-	KeyfilesMenu->Append( ManageSecurityTokenKeyfilesMenuItem );
-	
-	wxMenuItem* CloseAllSecurityTokenSessionsMenuItem;
-	CloseAllSecurityTokenSessionsMenuItem = new wxMenuItem( KeyfilesMenu, wxID_ANY, wxString( _("Close All Security Token Sessions") ) , wxEmptyString, wxITEM_NORMAL );
-	KeyfilesMenu->Append( CloseAllSecurityTokenSessionsMenuItem );
-	
-	KeyfilesMenu->AppendSeparator();
-	
-	wxMenuItem* SetDefaultKeyfilesMenuItem;
-	SetDefaultKeyfilesMenuItem = new wxMenuItem( KeyfilesMenu, wxID_ANY, wxString( _("Set Default Keyfiles/Paths...") ) , wxEmptyString, wxITEM_NORMAL );
-	KeyfilesMenu->Append( SetDefaultKeyfilesMenuItem );
-	
-	MainMenuBar->Append( KeyfilesMenu, _("&Keyfiles") );
-	
 	FavoritesMenu = new wxMenu();
-	AddToFavoritesMenuItem = new wxMenuItem( FavoritesMenu, wxID_ANY, wxString( _("Add Selected Volume...") ) , wxEmptyString, wxITEM_NORMAL );
+	AddToFavoritesMenuItem = new wxMenuItem( FavoritesMenu, wxID_ANY, wxString( _("Add Selected Volume to Favorites...") ) , wxEmptyString, wxITEM_NORMAL );
 	FavoritesMenu->Append( AddToFavoritesMenuItem );
 	
-	AddAllMountedToFavoritesMenuItem = new wxMenuItem( FavoritesMenu, wxID_ANY, wxString( _("Add All Mounted Volumes...") ) , wxEmptyString, wxITEM_NORMAL );
+	AddAllMountedToFavoritesMenuItem = new wxMenuItem( FavoritesMenu, wxID_ANY, wxString( _("Add All Mounted Volumes to Favorites...") ) , wxEmptyString, wxITEM_NORMAL );
 	FavoritesMenu->Append( AddAllMountedToFavoritesMenuItem );
 	
 	wxMenuItem* OrganizeFavoritesMenuItem;
@@ -101,7 +78,7 @@ MainFrameBase::MainFrameBase( wxWindow* parent, wxWindowID id, const wxString& t
 	FavoritesMenu->AppendSeparator();
 	
 	wxMenuItem* MountAllFavoritesMenuItem;
-	MountAllFavoritesMenuItem = new wxMenuItem( FavoritesMenu, wxID_ANY, wxString( _("Mount All Favorite Volumes") ) , wxEmptyString, wxITEM_NORMAL );
+	MountAllFavoritesMenuItem = new wxMenuItem( FavoritesMenu, wxID_ANY, wxString( _("Mount Favorite Volumes") ) , wxEmptyString, wxITEM_NORMAL );
 	FavoritesMenu->Append( MountAllFavoritesMenuItem );
 	
 	FavoritesMenu->AppendSeparator();
@@ -109,6 +86,10 @@ MainFrameBase::MainFrameBase( wxWindow* parent, wxWindowID id, const wxString& t
 	MainMenuBar->Append( FavoritesMenu, _("&Favorites") );
 	
 	ToolsMenu = new wxMenu();
+	wxMenuItem* BenchmarkMenuItem;
+	BenchmarkMenuItem = new wxMenuItem( ToolsMenu, wxID_ANY, wxString( _("Benchmark...") ) , wxEmptyString, wxITEM_NORMAL );
+	ToolsMenu->Append( BenchmarkMenuItem );
+	
 	wxMenuItem* EncryptionTestMenuItem;
 	EncryptionTestMenuItem = new wxMenuItem( ToolsMenu, wxID_ANY, wxString( _("Test Vectors...") ) , wxEmptyString, wxITEM_NORMAL );
 	ToolsMenu->Append( EncryptionTestMenuItem );
@@ -126,6 +107,20 @@ MainFrameBase::MainFrameBase( wxWindow* parent, wxWindowID id, const wxString& t
 	
 	RestoreVolumeHeaderMenuItem = new wxMenuItem( ToolsMenu, wxID_ANY, wxString( _("Restore Volume Header...") ) , wxEmptyString, wxITEM_NORMAL );
 	ToolsMenu->Append( RestoreVolumeHeaderMenuItem );
+	
+	ToolsMenu->AppendSeparator();
+	
+	wxMenuItem* CreateKeyfileMenuItem;
+	CreateKeyfileMenuItem = new wxMenuItem( ToolsMenu, wxID_ANY, wxString( _("Keyfile Generator") ) , wxEmptyString, wxITEM_NORMAL );
+	ToolsMenu->Append( CreateKeyfileMenuItem );
+	
+	wxMenuItem* ManageSecurityTokenKeyfilesMenuItem;
+	ManageSecurityTokenKeyfilesMenuItem = new wxMenuItem( ToolsMenu, wxID_ANY, wxString( _("Manage Security Token Keyfiles...") ) , wxEmptyString, wxITEM_NORMAL );
+	ToolsMenu->Append( ManageSecurityTokenKeyfilesMenuItem );
+	
+	wxMenuItem* CloseAllSecurityTokenSessionsMenuItem;
+	CloseAllSecurityTokenSessionsMenuItem = new wxMenuItem( ToolsMenu, wxID_ANY, wxString( _("Close All Security Token Sessions") ) , wxEmptyString, wxITEM_NORMAL );
+	ToolsMenu->Append( CloseAllSecurityTokenSessionsMenuItem );
 	
 	ToolsMenu->AppendSeparator();
 	
@@ -403,28 +398,28 @@ MainFrameBase::MainFrameBase( wxWindow* parent, wxWindowID id, const wxString& t
 	// Connect Events
 	this->Connect( wxEVT_ACTIVATE, wxActivateEventHandler( MainFrameBase::OnActivate ) );
 	this->Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( MainFrameBase::OnClose ) );
+	this->Connect( CreateNewVolumeMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnCreateVolumeButtonClick ) );
 	this->Connect( MountVolumeMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnMountVolumeMenuItemSelected ) );
 	this->Connect( AutoMountDevicesMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnMountAllDevicesButtonClick ) );
 	this->Connect( DismountVolumeMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnDismountVolumeMenuItemSelected ) );
 	this->Connect( DismountAllMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnDismountAllButtonClick ) );
-	this->Connect( CreateNewVolumeMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnCreateVolumeButtonClick ) );
 	this->Connect( ChangePasswordMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnChangePasswordMenuItemSelected ) );
 	this->Connect( ChangePkcs5PrfMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnChangePkcs5PrfMenuItemSelected ) );
-	this->Connect( VolumePropertiesMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnVolumePropertiesButtonClick ) );
 	this->Connect( ChangeKeyfilesMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnChangeKeyfilesMenuItemSelected ) );
 	this->Connect( RemoveKeyfilesMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnRemoveKeyfilesMenuItemSelected ) );
-	this->Connect( CreateKeyfileMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnCreateKeyfileMenuItemSelected ) );
-	this->Connect( ManageSecurityTokenKeyfilesMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnManageSecurityTokenKeyfilesMenuItemSelected ) );
-	this->Connect( CloseAllSecurityTokenSessionsMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnCloseAllSecurityTokenSessionsMenuItemSelected ) );
-	this->Connect( SetDefaultKeyfilesMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnDefaultKeyfilesMenuItemSelected ) );
+	this->Connect( VolumePropertiesMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnVolumePropertiesButtonClick ) );
 	this->Connect( AddToFavoritesMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnAddToFavoritesMenuItemSelected ) );
 	this->Connect( AddAllMountedToFavoritesMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnAddAllMountedToFavoritesMenuItemSelected ) );
 	this->Connect( OrganizeFavoritesMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnOrganizeFavoritesMenuItemSelected ) );
 	this->Connect( MountAllFavoritesMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnMountAllFavoritesMenuItemSelected ) );
+	this->Connect( BenchmarkMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnBenchmarkMenuItemSelected ) );
 	this->Connect( EncryptionTestMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnEncryptionTestMenuItemSelected ) );
 	this->Connect( VolumeCreationWizardMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnCreateVolumeButtonClick ) );
 	this->Connect( BackupVolumeHeadersMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnBackupVolumeHeadersMenuItemSelected ) );
 	this->Connect( RestoreVolumeHeaderMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnRestoreVolumeHeaderMenuItemSelected ) );
+	this->Connect( CreateKeyfileMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnCreateKeyfileMenuItemSelected ) );
+	this->Connect( ManageSecurityTokenKeyfilesMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnManageSecurityTokenKeyfilesMenuItemSelected ) );
+	this->Connect( CloseAllSecurityTokenSessionsMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnCloseAllSecurityTokenSessionsMenuItemSelected ) );
 	this->Connect( WipeCachedPasswordsMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnWipeCacheButtonClick ) );
 	this->Connect( HotkeysMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnHotkeysMenuItemSelected ) );
 	this->Connect( DefaultKeyfilesMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnDefaultKeyfilesMenuItemSelected ) );
@@ -467,28 +462,28 @@ MainFrameBase::~MainFrameBase()
 	// Disconnect Events
 	this->Disconnect( wxEVT_ACTIVATE, wxActivateEventHandler( MainFrameBase::OnActivate ) );
 	this->Disconnect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( MainFrameBase::OnClose ) );
+	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnCreateVolumeButtonClick ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnMountVolumeMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnMountAllDevicesButtonClick ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnDismountVolumeMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnDismountAllButtonClick ) );
-	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnCreateVolumeButtonClick ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnChangePasswordMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnChangePkcs5PrfMenuItemSelected ) );
-	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnVolumePropertiesButtonClick ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnChangeKeyfilesMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnRemoveKeyfilesMenuItemSelected ) );
-	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnCreateKeyfileMenuItemSelected ) );
-	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnManageSecurityTokenKeyfilesMenuItemSelected ) );
-	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnCloseAllSecurityTokenSessionsMenuItemSelected ) );
-	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnDefaultKeyfilesMenuItemSelected ) );
+	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnVolumePropertiesButtonClick ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnAddToFavoritesMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnAddAllMountedToFavoritesMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnOrganizeFavoritesMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnMountAllFavoritesMenuItemSelected ) );
+	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnBenchmarkMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnEncryptionTestMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnCreateVolumeButtonClick ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnBackupVolumeHeadersMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnRestoreVolumeHeaderMenuItemSelected ) );
+	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnCreateKeyfileMenuItemSelected ) );
+	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnManageSecurityTokenKeyfilesMenuItemSelected ) );
+	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnCloseAllSecurityTokenSessionsMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnWipeCacheButtonClick ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnHotkeysMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnDefaultKeyfilesMenuItemSelected ) );
@@ -749,6 +744,78 @@ AboutDialogBase::~AboutDialogBase()
 	// Disconnect Events
 	WebsiteHyperlink->Disconnect( wxEVT_COMMAND_HYPERLINK, wxHyperlinkEventHandler( AboutDialogBase::OnWebsiteHyperlinkClick ), NULL, this );
 	DonationsButton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( AboutDialogBase::OnDonationsButtonClick ), NULL, this );
+}
+
+BenchmarkDialogBase::BenchmarkDialogBase( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxDialog( parent, id, title, pos, size, style )
+{
+	this->SetSizeHints( wxDefaultSize, wxDefaultSize );
+	
+	wxBoxSizer* bSizer153;
+	bSizer153 = new wxBoxSizer( wxVERTICAL );
+	
+	wxBoxSizer* bSizer154;
+	bSizer154 = new wxBoxSizer( wxVERTICAL );
+	
+	wxBoxSizer* bSizer155;
+	bSizer155 = new wxBoxSizer( wxHORIZONTAL );
+	
+	wxStaticText* m_staticText54;
+	m_staticText54 = new wxStaticText( this, wxID_ANY, _("Buffer Size:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText54->Wrap( -1 );
+	bSizer155->Add( m_staticText54, 0, wxALIGN_CENTER_VERTICAL|wxTOP|wxBOTTOM|wxLEFT, 5 );
+	
+	wxArrayString BufferSizeChoiceChoices;
+	BufferSizeChoice = new wxChoice( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, BufferSizeChoiceChoices, 0 );
+	BufferSizeChoice->SetSelection( 0 );
+	bSizer155->Add( BufferSizeChoice, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	bSizer154->Add( bSizer155, 0, wxEXPAND, 5 );
+	
+	wxStaticLine* m_staticline6;
+	m_staticline6 = new wxStaticLine( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL );
+	bSizer154->Add( m_staticline6, 0, wxEXPAND | wxALL, 5 );
+	
+	wxBoxSizer* bSizer156;
+	bSizer156 = new wxBoxSizer( wxHORIZONTAL );
+	
+	BenchmarkListCtrl = new wxListCtrl( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_NO_SORT_HEADER|wxLC_REPORT|wxSUNKEN_BORDER );
+	bSizer156->Add( BenchmarkListCtrl, 1, wxALL|wxEXPAND, 5 );
+	
+	RightSizer = new wxBoxSizer( wxVERTICAL );
+	
+	BenchmarkButton = new wxButton( this, wxID_OK, _("Benchmark"), wxDefaultPosition, wxDefaultSize, 0 );
+	BenchmarkButton->SetDefault(); 
+	RightSizer->Add( BenchmarkButton, 0, wxALL|wxEXPAND, 5 );
+	
+	wxButton* CancelButton;
+	CancelButton = new wxButton( this, wxID_CANCEL, _("Close"), wxDefaultPosition, wxDefaultSize, 0 );
+	RightSizer->Add( CancelButton, 0, wxALL|wxEXPAND, 5 );
+	
+	
+	RightSizer->Add( 0, 0, 0, wxEXPAND|wxTOP|wxBOTTOM, 5 );
+	
+	BenchmarkNoteStaticText = new wxStaticText( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	BenchmarkNoteStaticText->Wrap( -1 );
+	RightSizer->Add( BenchmarkNoteStaticText, 1, wxALL|wxEXPAND, 5 );
+	
+	bSizer156->Add( RightSizer, 0, wxEXPAND, 5 );
+	
+	bSizer154->Add( bSizer156, 1, wxEXPAND, 5 );
+	
+	bSizer153->Add( bSizer154, 1, wxEXPAND|wxALL, 5 );
+	
+	this->SetSizer( bSizer153 );
+	this->Layout();
+	bSizer153->Fit( this );
+	
+	// Connect Events
+	BenchmarkButton->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( BenchmarkDialogBase::OnBenchmarkButtonClick ), NULL, this );
+}
+
+BenchmarkDialogBase::~BenchmarkDialogBase()
+{
+	// Disconnect Events
+	BenchmarkButton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( BenchmarkDialogBase::OnBenchmarkButtonClick ), NULL, this );
 }
 
 ChangePasswordDialogBase::ChangePasswordDialogBase( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxDialog( parent, id, title, pos, size, style )
@@ -1778,6 +1845,45 @@ PreferencesDialogBase::PreferencesDialogBase( wxWindow* parent, wxWindowID id, c
 	SystemIntegrationPage->Layout();
 	bSizer49->Fit( SystemIntegrationPage );
 	PreferencesNotebook->AddPage( SystemIntegrationPage, _("System Integration"), false );
+	PerformanceOptionsPage = new wxPanel( PreferencesNotebook, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
+	wxBoxSizer* bSizer151;
+	bSizer151 = new wxBoxSizer( wxVERTICAL );
+	
+	wxBoxSizer* bSizer152;
+	bSizer152 = new wxBoxSizer( wxVERTICAL );
+	
+	wxStaticBoxSizer* sbSizer44;
+	sbSizer44 = new wxStaticBoxSizer( new wxStaticBox( PerformanceOptionsPage, wxID_ANY, _("Hardware Acceleration") ), wxVERTICAL );
+	
+	wxBoxSizer* bSizer158;
+	bSizer158 = new wxBoxSizer( wxHORIZONTAL );
+	
+	wxStaticText* m_staticText57;
+	m_staticText57 = new wxStaticText( PerformanceOptionsPage, wxID_ANY, _("Processor (CPU) in this computer provides hardware acceleration for AES:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText57->Wrap( -1 );
+	bSizer158->Add( m_staticText57, 0, wxALL, 5 );
+	
+	AesHwCpuSupportedStaticText = new wxStaticText( PerformanceOptionsPage, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0|wxSUNKEN_BORDER );
+	AesHwCpuSupportedStaticText->Wrap( -1 );
+	bSizer158->Add( AesHwCpuSupportedStaticText, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	sbSizer44->Add( bSizer158, 1, wxEXPAND, 5 );
+	
+	
+	sbSizer44->Add( 0, 0, 0, wxBOTTOM, 5 );
+	
+	NoHardwareCryptoCheckBox = new wxCheckBox( PerformanceOptionsPage, wxID_ANY, _("Do not accelerate AES encryption/decryption by using the AES instructions of the processor"), wxDefaultPosition, wxDefaultSize, 0 );
+	
+	sbSizer44->Add( NoHardwareCryptoCheckBox, 0, wxALL, 5 );
+	
+	bSizer152->Add( sbSizer44, 0, wxEXPAND|wxALL, 5 );
+	
+	bSizer151->Add( bSizer152, 1, wxALL|wxEXPAND, 5 );
+	
+	PerformanceOptionsPage->SetSizer( bSizer151 );
+	PerformanceOptionsPage->Layout();
+	bSizer151->Fit( PerformanceOptionsPage );
+	PreferencesNotebook->AddPage( PerformanceOptionsPage, _("Performance"), false );
 	DefaultKeyfilesPage = new wxPanel( PreferencesNotebook, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
 	wxBoxSizer* bSizer40;
 	bSizer40 = new wxBoxSizer( wxVERTICAL );
@@ -1951,6 +2057,7 @@ PreferencesDialogBase::PreferencesDialogBase( wxWindow* parent, wxWindowID id, c
 	PreserveTimestampsCheckBox->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( PreferencesDialogBase::OnPreserveTimestampsCheckBoxClick ), NULL, this );
 	BackgroundTaskEnabledCheckBox->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( PreferencesDialogBase::OnBackgroundTaskEnabledCheckBoxClick ), NULL, this );
 	NoKernelCryptoCheckBox->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( PreferencesDialogBase::OnNoKernelCryptoCheckBoxClick ), NULL, this );
+	NoHardwareCryptoCheckBox->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( PreferencesDialogBase::OnNoHardwareCryptoCheckBoxClick ), NULL, this );
 	SelectPkcs11ModuleButton->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( PreferencesDialogBase::OnSelectPkcs11ModuleButtonClick ), NULL, this );
 	HotkeyListCtrl->Connect( wxEVT_COMMAND_LIST_ITEM_DESELECTED, wxListEventHandler( PreferencesDialogBase::OnHotkeyListItemDeselected ), NULL, this );
 	HotkeyListCtrl->Connect( wxEVT_COMMAND_LIST_ITEM_SELECTED, wxListEventHandler( PreferencesDialogBase::OnHotkeyListItemSelected ), NULL, this );
@@ -1970,6 +2077,7 @@ PreferencesDialogBase::~PreferencesDialogBase()
 	PreserveTimestampsCheckBox->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( PreferencesDialogBase::OnPreserveTimestampsCheckBoxClick ), NULL, this );
 	BackgroundTaskEnabledCheckBox->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( PreferencesDialogBase::OnBackgroundTaskEnabledCheckBoxClick ), NULL, this );
 	NoKernelCryptoCheckBox->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( PreferencesDialogBase::OnNoKernelCryptoCheckBoxClick ), NULL, this );
+	NoHardwareCryptoCheckBox->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( PreferencesDialogBase::OnNoHardwareCryptoCheckBoxClick ), NULL, this );
 	SelectPkcs11ModuleButton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( PreferencesDialogBase::OnSelectPkcs11ModuleButtonClick ), NULL, this );
 	HotkeyListCtrl->Disconnect( wxEVT_COMMAND_LIST_ITEM_DESELECTED, wxListEventHandler( PreferencesDialogBase::OnHotkeyListItemDeselected ), NULL, this );
 	HotkeyListCtrl->Disconnect( wxEVT_COMMAND_LIST_ITEM_SELECTED, wxListEventHandler( PreferencesDialogBase::OnHotkeyListItemSelected ), NULL, this );
@@ -2233,8 +2341,6 @@ EncryptionOptionsWizardPageBase::EncryptionOptionsWizardPageBase( wxWindow* pare
 	bSizer97->Add( 0, 0, 1, wxEXPAND, 5 );
 	
 	BenchmarkButton = new wxButton( this, wxID_ANY, _("&Benchmark"), wxDefaultPosition, wxDefaultSize, 0 );
-	BenchmarkButton->Hide();
-	
 	bSizer97->Add( BenchmarkButton, 0, wxALL, 5 );
 	
 	sbSizer29->Add( bSizer97, 0, wxEXPAND, 5 );

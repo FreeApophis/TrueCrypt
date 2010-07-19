@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -23,6 +23,7 @@ namespace TrueCrypt
 			:
 			CachePassword (false),
 			NoFilesystem (false),
+			NoHardwareCrypto (false),
 			NoKernelCrypto (false),
 			PartitionInSystemEncryptionScope (false),
 			PreserveTimestamps (true),
@@ -47,6 +48,7 @@ namespace TrueCrypt
 		shared_ptr <KeyfileList> Keyfiles;
 		shared_ptr <DirectoryPath> MountPoint;
 		bool NoFilesystem;
+		bool NoHardwareCrypto;
 		bool NoKernelCrypto;
 		shared_ptr <VolumePassword> Password;
 		bool PartitionInSystemEncryptionScope;

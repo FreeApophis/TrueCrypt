@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -25,9 +25,10 @@ typedef enum
 
 void EncryptionThreadPoolBeginKeyDerivation (TC_EVENT *completionEvent, TC_EVENT *noOutstandingWorkItemEvent, LONG *completionFlag, LONG *outstandingWorkItemCount, int pkcs5Prf, char *password, int passwordLength, char *salt, int iterationCount, char *derivedKey);
 void EncryptionThreadPoolDoWork (EncryptionThreadPoolWorkType type, byte *data, const UINT64_STRUCT *startUnitNo, uint32 unitCount, PCRYPTO_INFO cryptoInfo);
-BOOL EncryptionThreadPoolStart ();
+BOOL EncryptionThreadPoolStart (size_t encryptionFreeCpuCount);
 void EncryptionThreadPoolStop ();
 size_t GetEncryptionThreadCount ();
+size_t GetMaxEncryptionThreadCount ();
 BOOL IsEncryptionThreadPoolRunning ();
 
 #ifdef __cplusplus

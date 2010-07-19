@@ -4,8 +4,8 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
@@ -183,6 +183,7 @@ typedef struct
 #	include "AesSmall.h"
 #endif
 
+#include "Aes_hw_cpu.h"
 #include "Blowfish.h"
 #include "Cast.h"
 #include "Des.h"
@@ -247,7 +248,9 @@ typedef struct CRYPTO_INFO_t
 	uint16 RequiredProgramVersion;
 	BOOL LegacyVolume;
 
-#endif // TC_WINDOWS_BOOT
+	uint32 SectorSize;
+
+#endif // !TC_WINDOWS_BOOT
 
 	UINT64_STRUCT VolumeSize;
 
@@ -265,6 +268,7 @@ void crypto_close (PCRYPTO_INFO cryptoInfo);
 int CipherGetBlockSize (int cipher);
 int CipherGetKeySize (int cipher);
 int CipherGetKeyScheduleSize (int cipher);
+BOOL CipherSupportsIntraDataUnitParallelization (int cipher);
 char * CipherGetName (int cipher);
 
 int CipherInit (int cipher, unsigned char *key, unsigned char *ks);
@@ -272,6 +276,10 @@ int EAInit (int ea, unsigned char *key, unsigned char *ks);
 BOOL EAInitMode (PCRYPTO_INFO ci);
 void EncipherBlock(int cipher, void *data, void *ks);
 void DecipherBlock(int cipher, void *data, void *ks);
+#ifndef TC_WINDOWS_BOOT
+void EncipherBlocks (int cipher, void *dataPtr, void *ks, size_t blockCount);
+void DecipherBlocks (int cipher, void *dataPtr, void *ks, size_t blockCount);
+#endif
 
 int EAGetFirst ();
 int EAGetCount (void);
@@ -312,6 +320,10 @@ void EncryptBufferLRW64 (byte *buffer, uint64 length, uint64 blockIndex, PCRYPTO
 void DecryptBufferLRW64 (byte *buffer, uint64 length, uint64 blockIndex, PCRYPTO_INFO cryptoInfo);
 uint64 DataUnit2LRWIndex (uint64 dataUnit, int blockSize, PCRYPTO_INFO ci);
 #endif	// #ifndef TC_NO_COMPILER_INT64
+
+BOOL IsAesHwCpuSupported ();
+void EnableHwEncryption (BOOL enable);
+BOOL IsHwEncryptionEnabled ();
 
 #ifdef __cplusplus
 }

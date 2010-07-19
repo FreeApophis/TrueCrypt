@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -90,7 +90,11 @@ namespace TrueCrypt
 
 	protected:
 		wxString GetDefaultKeyfilesFileName () const { return L"Default Keyfiles.xml"; }
+#ifdef TC_PROTOTYPE
+		wxString GetPreferencesFileName () const { return L"Configuration_Debug.xml"; }
+#else
 		wxString GetPreferencesFileName () const { return L"Configuration.xml"; }
+#endif
 		void SetValue (const wxString &cfgText, bool &cfgVar);
 		void SetValue (const wxString &cfgText, int &cfgVar);
 		void SetValue (const wxString &cfgText, uint64 &cfgVar);

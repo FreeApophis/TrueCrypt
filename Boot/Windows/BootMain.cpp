@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -1042,6 +1042,8 @@ void main ()
 
 #ifndef TC_WINDOWS_BOOT_RESCUE_DISK_MODE
 	ReadBootSectorUserConfiguration();
+#elif defined (TC_WINDOWS_BOOT_AES)
+	EnableHwEncryption (!(BootSectorFlags & TC_BOOT_CFG_FLAG_RESCUE_DISABLE_HW_ENCRYPTION));
 #endif
 
 	InitVideoMode();

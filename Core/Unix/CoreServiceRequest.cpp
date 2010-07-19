@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -117,7 +117,27 @@ namespace TrueCrypt
 		sr.Serialize ("SyncVolumeInfo", SyncVolumeInfo);
 		MountedVolumeInfo->Serialize (stream);
 	}
-	
+
+	// GetDeviceSectorSizeRequest
+	void GetDeviceSectorSizeRequest::Deserialize (shared_ptr <Stream> stream)
+	{
+		CoreServiceRequest::Deserialize (stream);
+		Serializer sr (stream);
+		Path = sr.DeserializeWString ("Path");
+	}
+
+	bool GetDeviceSectorSizeRequest::RequiresElevation () const
+	{
+		return !Core->HasAdminPrivileges();
+	}
+
+	void GetDeviceSectorSizeRequest::Serialize (shared_ptr <Stream> stream) const
+	{
+		CoreServiceRequest::Serialize (stream);
+		Serializer sr (stream);
+		sr.Serialize ("Path", wstring (Path));
+	}
+
 	// GetDeviceSizeRequest
 	void GetDeviceSizeRequest::Deserialize (shared_ptr <Stream> stream)
 	{
@@ -241,6 +261,7 @@ namespace TrueCrypt
 	TC_SERIALIZER_FACTORY_ADD_CLASS (DismountFilesystemRequest);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (DismountVolumeRequest);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (ExitRequest);
+	TC_SERIALIZER_FACTORY_ADD_CLASS (GetDeviceSectorSizeRequest);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (GetDeviceSizeRequest);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (GetHostDevicesRequest);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (MountVolumeRequest);

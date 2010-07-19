@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -160,6 +160,7 @@ namespace TrueCrypt
 			
 			if (fields.size() != 4
 				|| fields[3].find ("loop") == 0	// skip loop devices
+				|| fields[3].find ("cloop") == 0
 				|| fields[3].find ("ram") == 0	// skip RAM devices
 				|| fields[3].find ("dm-") == 0	// skip device mapper devices
 				|| fields[2] == "1"				// skip extended partitions
@@ -286,9 +287,7 @@ namespace TrueCrypt
 			throw NotApplicable (SRC_POS);
 		}
 
-		vector <int> osVersion = SystemInfo::GetVersion();
-
-		if (osVersion.size() >= 3 && osVersion[0] == 2 && osVersion[1] == 6 && osVersion[2] < (xts ? 24 : 20))
+		if (!SystemInfo::IsVersionAtLeast (2, 6, xts ? 24 : 20))
 			throw NotApplicable (SRC_POS);
 
 		// Load device mapper kernel module
@@ -312,7 +311,7 @@ namespace TrueCrypt
 
 		// Attach volume to loopback device if required
 		VolumePath volumePath = volume->GetPath();
-		if (!volumePath.IsDevice() || (options.Path->IsDevice() && volume->GetFile()->GetDeviceSectorSize() != ENCRYPTION_DATA_UNIT_SIZE))
+		if (!volumePath.IsDevice())
 		{
 			volumePath = AttachFileToLoopDevice (volumePath, options.Protection == VolumeProtection::ReadOnly);
 			loopDevAttached = true;
@@ -333,7 +332,7 @@ namespace TrueCrypt
 				dmCreateArgs << "0 " << volume->GetSize() / ENCRYPTION_DATA_UNIT_SIZE << " crypt ";
 
 				// Mode
-				dmCreateArgs << StringConverter::ToLower (StringConverter::ToSingle (cipher.GetName())) << (xts ? "-xts-plain " : "-lrw-benbi ");
+				dmCreateArgs << StringConverter::ToLower (StringConverter::ToSingle (cipher.GetName())) << (xts ? (SystemInfo::IsVersionAtLeast (2, 6, 33) ? "-xts-plain64 " : "-xts-plain ") : "-lrw-benbi ");
 
 				size_t keyArgOffset = dmCreateArgs.str().size();
 				dmCreateArgs << setw (cipher.GetKeySize() * (xts ? 4 : 2) + (xts ? 0 : 16 * 2)) << 0 << setw (0);

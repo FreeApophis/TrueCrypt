@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2005 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2005-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -161,7 +161,7 @@ char *XmlGetNodeText (char *xmlNode, char *xmlText, int xmlTextSize)
 }
 
 
-char *XmlQuoteText (char *textSrc, char *textDst, int textDstMaxSize)
+char *XmlQuoteText (const char *textSrc, char *textDst, int textDstMaxSize)
 {
 	char *textDstLast = textDst + textDstMaxSize - 1;
 
@@ -213,7 +213,19 @@ int XmlWriteHeader (FILE *file)
 }
 
 
+int XmlWriteHeaderW (FILE *file)
+{
+	return fputws (L"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<TrueCrypt>", file);
+}
+
+
 int XmlWriteFooter (FILE *file)
 {
 	return fputs ("\n</TrueCrypt>", file);
+}
+
+
+int XmlWriteFooterW (FILE *file)
+{
+	return fputws (L"\n</TrueCrypt>", file);
 }

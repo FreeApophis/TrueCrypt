@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -43,6 +43,7 @@ namespace TrueCrypt
 		shared_ptr <Pkcs5Kdf> Kdf;
 		ConstBufferPtr HeaderKey;
 		ConstBufferPtr Salt;
+		uint32 SectorSize;
 		uint64 VolumeDataSize;
 		uint64 VolumeDataStart;
 		VolumeType::Enum Type;
@@ -66,7 +67,7 @@ namespace TrueCrypt
 		static size_t GetLargestSerializedKeySize ();
 		shared_ptr <Pkcs5Kdf> GetPkcs5Kdf () const { return Pkcs5; }
 		uint16 GetRequiredMinProgramVersion () const { return RequiredMinProgramVersion; }
-		size_t GetSectorSize () const { return 512; }
+		size_t GetSectorSize () const { return SectorSize; }
 		static uint32 GetSaltSize () { return SaltSize; }
 		uint64 GetVolumeDataSize () const { return VolumeDataSize; }
 		VolumeTime GetVolumeCreationTime () const { return VolumeCreationTime; }
@@ -112,6 +113,7 @@ namespace TrueCrypt
 		uint64 EncryptedAreaStart;
 		uint64 EncryptedAreaLength;
 		uint32 Flags;
+		uint32 SectorSize;
 
 		SecureBuffer DataAreaKey;
 

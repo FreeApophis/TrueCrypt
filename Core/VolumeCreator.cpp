@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -60,7 +60,7 @@ namespace TrueCrypt
 			// Create filesystem
 			if (Options->Filesystem == VolumeCreationOptions::FilesystemType::FAT)
 			{
-				if (filesystemSize < TC_MIN_FAT_FS_SIZE || filesystemSize > TC_MAX_FAT_FS_SIZE)
+				if (filesystemSize < TC_MIN_FAT_FS_SIZE || filesystemSize > TC_MAX_FAT_SECTOR_COUNT * Options->SectorSize)
 					throw ParameterIncorrect (SRC_POS);
 
 				struct WriteSectorCallback : public FatFormatter::WriteSectorCallback
@@ -83,7 +83,7 @@ namespace TrueCrypt
 						if (OutputBufferWritePos > 0)
 						{
 							Creator->Options->EA->EncryptSectors (OutputBuffer.GetRange (0, OutputBufferWritePos),
-								Creator->WriteOffset / SECTOR_SIZE, OutputBufferWritePos / SECTOR_SIZE, SECTOR_SIZE);
+								Creator->WriteOffset / ENCRYPTION_DATA_UNIT_SIZE, OutputBufferWritePos / ENCRYPTION_DATA_UNIT_SIZE, ENCRYPTION_DATA_UNIT_SIZE);
 
 							Creator->VolumeFile->Write (OutputBuffer.GetRange (0, OutputBufferWritePos));
 
@@ -100,7 +100,7 @@ namespace TrueCrypt
 				};
 
 				WriteSectorCallback sectorWriter (this);
-				FatFormatter::Format (sectorWriter, filesystemSize, Options->FilesystemClusterSize);
+				FatFormatter::Format (sectorWriter, filesystemSize, Options->FilesystemClusterSize, Options->SectorSize);
 				sectorWriter.FlushOutputBuffer();
 			}
 
@@ -118,7 +118,7 @@ namespace TrueCrypt
 						dataFragmentLength = endOffset - WriteOffset;
 
 					outputBuffer.Zero();
-					Options->EA->EncryptSectors (outputBuffer, WriteOffset / SECTOR_SIZE, dataFragmentLength / SECTOR_SIZE, SECTOR_SIZE);
+					Options->EA->EncryptSectors (outputBuffer, WriteOffset / ENCRYPTION_DATA_UNIT_SIZE, dataFragmentLength / ENCRYPTION_DATA_UNIT_SIZE, ENCRYPTION_DATA_UNIT_SIZE);
 					VolumeFile->Write (outputBuffer, (size_t) dataFragmentLength);
 
 					WriteOffset += dataFragmentLength;
@@ -206,9 +206,23 @@ namespace TrueCrypt
 
 		try
 		{
-			// Test sector size
-			if (options->Path.IsDevice() && VolumeFile->GetDeviceSectorSize() != SECTOR_SIZE)
-				throw UnsupportedSectorSize (SRC_POS);
+			// Sector size
+			if (options->Path.IsDevice())
+			{
+				options->SectorSize = VolumeFile->GetDeviceSectorSize();
+
+				if (options->SectorSize < TC_MIN_VOLUME_SECTOR_SIZE
+					|| options->SectorSize > TC_MAX_VOLUME_SECTOR_SIZE
+#if !defined (TC_LINUX)
+					|| options->SectorSize != TC_SECTOR_SIZE_LEGACY
+#endif
+					|| options->SectorSize % ENCRYPTION_DATA_UNIT_SIZE != 0)
+				{
+					throw UnsupportedSectorSize (SRC_POS);
+				}
+			}
+			else
+				options->SectorSize = TC_SECTOR_SIZE_FILE_HOSTED_VOLUME;
 
 			// Volume layout
 			switch (options->Type)
@@ -236,6 +250,8 @@ namespace TrueCrypt
 			headerOptions.EA = options->EA;
 			headerOptions.Kdf = options->VolumeHeaderKdf;
 			headerOptions.Type = options->Type;
+
+			headerOptions.SectorSize = options->SectorSize;
 
 			if (options->Type == VolumeType::Hidden)
 				headerOptions.VolumeDataStart = HostSize - Layout->GetHeaderSize() * 2 - options->Size;

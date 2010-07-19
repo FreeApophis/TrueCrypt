@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 6,3,1,0
- PRODUCTVERSION 6,3,1,0
+ FILEVERSION 7,0,0,0
+ PRODUCTVERSION 7,0,0,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -46,11 +46,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Format"
-            VALUE "FileVersion", "6.3a"
+            VALUE "FileVersion", "7.0"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt Format.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "6.3a"
+            VALUE "ProductVersion", "7.0"
         END
     END
     BLOCK "VarFileInfo"
@@ -101,7 +101,7 @@ FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     COMBOBOX        IDC_COMBO_BOX,7,23,137,126,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     PUSHBUTTON      "&Test",IDC_CIPHER_TEST,149,22,59,14
-    PUSHBUTTON      "&Benchmark",IDC_WIZ_BENCHMARK,149,82,59,14
+    PUSHBUTTON      "&Benchmark",IDC_BENCHMARK,149,82,59,14
     COMBOBOX        IDC_COMBO_BOX_HASH_ALGO,7,122,83,126,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     LTEXT           "",IDC_BOX_HELP,7,40,205,40
     GROUPBOX        "Encryption Algorithm",IDT_ENCRYPTION_ALGO,0,10,217,95
@@ -118,7 +118,7 @@ BEGIN
     EDITTEXT        IDC_VERIFY,53,19,163,14,ES_PASSWORD | ES_AUTOHSCROLL
     CONTROL         "&Display password",IDC_SHOW_PASSWORD,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,53,45,95,11,WS_EX_TRANSPARENT
     CONTROL         "U&se keyfiles",IDC_KEYFILES_ENABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,53,35,95,10
-    PUSHBUTTON      "&Keyfiles..",IDC_KEY_FILES,152,36,64,14,WS_DISABLED
+    PUSHBUTTON      "&Keyfiles...",IDC_KEY_FILES,152,36,64,14,WS_DISABLED
     RTEXT           "Password:",IDT_PASSWORD,1,6,50,8
     RTEXT           "&Confirm:",IDT_CONFIRM,1,23,50,8
     LTEXT           "",IDC_BOX_HELP,0,59,225,89
@@ -141,7 +141,7 @@ STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     COMBOBOX        IDC_COMBO_BOX,0,9,148,80,CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
-    CONTROL         "Never &save history",IDC_NO_HISTORY,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,3,28,137,10
+    CONTROL         "&Never save history",IDC_NO_HISTORY,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,3,28,137,10
     PUSHBUTTON      "",IDC_SELECT_VOLUME_LOCATION,155,9,62,14
     LTEXT           "",IDC_BOX_HELP,0,45,219,104
 END
@@ -225,7 +225,7 @@ BEGIN
     EDITTEXT        IDC_PASSWORD_DIRECT,50,11,149,14,ES_PASSWORD | ES_AUTOHSCROLL
     CONTROL         "&Display password",IDC_SHOW_PASSWORD_SINGLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,50,27,84,11,WS_EX_TRANSPARENT
     CONTROL         "U&se keyfiles",IDC_KEYFILES_ENABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,50,38,82,11
-    PUSHBUTTON      "&Keyfiles..",IDC_KEY_FILES,135,29,64,14
+    PUSHBUTTON      "&Keyfiles...",IDC_KEY_FILES,135,29,64,14
     LTEXT           "",IDC_BOX_HELP,0,57,225,94
     RTEXT           "Password:",IDT_PASSWORD,0,15,48,8
 END

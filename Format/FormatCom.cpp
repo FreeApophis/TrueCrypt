@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2007-2008 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -103,9 +103,9 @@ public:
 		return BaseCom::ReadWriteFile (write, device, filePath, bufferBstr, offset, size, sizeDone);
 	}
 
-	virtual DWORD STDMETHODCALLTYPE RegisterFilterDriver (BOOL registerDriver, BOOL volumeClass)
+	virtual DWORD STDMETHODCALLTYPE RegisterFilterDriver (BOOL registerDriver, int filterType)
 	{
-		return BaseCom::RegisterFilterDriver (registerDriver, volumeClass);
+		return BaseCom::RegisterFilterDriver (registerDriver, filterType);
 	}
 
 	virtual DWORD STDMETHODCALLTYPE RegisterSystemFavoritesService (BOOL registerService)

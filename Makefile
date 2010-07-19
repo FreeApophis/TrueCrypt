@@ -1,7 +1,7 @@
 #
-# Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+# Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 #
-# Governed by the TrueCrypt License 2.8 the full text of which is contained in
+# Governed by the TrueCrypt License 3.0 the full text of which is contained in
 # the file License.txt included in TrueCrypt binary and source code distribution
 # packages.
 #
@@ -9,6 +9,7 @@
 #------ Command line arguments ------
 # DEBUG:		Disable optimizations and enable debugging checks
 # DEBUGGER:		Enable debugging information for use by debuggers
+# NOASM:		Exclude modules requiring assembler
 # NOGUI:		Disable graphical user interface (build console-only application)
 # NOSTRIP:		Do not strip release binary
 # NOTEST:		Do not test release binary
@@ -31,12 +32,13 @@ export BUILD_INC := $(BASE_DIR)/Build/Include
 export AR ?= ar
 export CC ?= gcc
 export CXX ?= g++
+export AS := nasm
 export RANLIB ?= ranlib
 
 export CFLAGS := -Wall
 export CXXFLAGS := -Wall -Wno-unused-parameter
 C_CXX_FLAGS := -MMD -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGE_FILES -I$(BASE_DIR) -I$(BASE_DIR)/Crypto
-
+export ASFLAGS := -Ox -D __GNUC__
 export LFLAGS :=
 
 export PKG_CONFIG_PATH ?= /usr/local/lib/pkgconfig
@@ -52,32 +54,32 @@ WX_ROOT ?= ..
 export TC_BUILD_CONFIG := Release
 
 ifeq "$(origin DEBUG)" "command line"
-ifneq "$(DEBUG)" "0"
-TC_BUILD_CONFIG := Debug
-endif
+	ifneq "$(DEBUG)" "0"
+		TC_BUILD_CONFIG := Debug
+	endif
 endif
 
 ifeq "$(origin NOGUI)" "command line"
-export TC_NO_GUI := 1
-C_CXX_FLAGS += -DTC_NO_GUI
-WX_CONFIGURE_FLAGS += --disable-gui
+	export TC_NO_GUI := 1
+	C_CXX_FLAGS += -DTC_NO_GUI
+	WX_CONFIGURE_FLAGS += --disable-gui
 endif
 
 ifdef PKCS11_INC
-C_CXX_FLAGS += -I$(PKCS11_INC)
+	C_CXX_FLAGS += -I$(PKCS11_INC)
 endif
 
 ifeq "$(origin RESOURCEDIR)" "command line"
-C_CXX_FLAGS += -DTC_RESOURCE_DIR="$(RESOURCEDIR)"
+	C_CXX_FLAGS += -DTC_RESOURCE_DIR="$(RESOURCEDIR)"
 endif
 
 ifneq "$(origin VERBOSE)" "command line"
-MAKEFLAGS += -s
+	MAKEFLAGS += -s
 endif
 
 ifeq "$(origin WXSTATIC)" "command line"
-WX_CONFIG = $(WX_BUILD_DIR)/wx-config
-WX_CONFIG_ARGS += --static
+	WX_CONFIG = $(WX_BUILD_DIR)/wx-config
+	WX_CONFIG_ARGS += --static
 endif
 
 
@@ -85,18 +87,18 @@ endif
 
 ifeq "$(TC_BUILD_CONFIG)" "Release"
 
-C_CXX_FLAGS += -O2 -fno-strict-aliasing  # Do not enable strict aliasing
-export WX_BUILD_DIR ?= $(BASE_DIR)/wxrelease
-WX_CONFIGURE_FLAGS += --disable-debug_flag --disable-debug_gdb --disable-debug_info
+	C_CXX_FLAGS += -O2 -fno-strict-aliasing  # Do not enable strict aliasing
+	export WX_BUILD_DIR ?= $(BASE_DIR)/wxrelease
+	WX_CONFIGURE_FLAGS += --disable-debug_flag --disable-debug_gdb --disable-debug_info
 
 else
 
 #------ Debug configuration ------
 
-C_CXX_FLAGS += -DDEBUG
-CXXFLAGS += -fno-default-inline -Wno-unused-function -Wno-unused-variable
-export WX_BUILD_DIR ?= $(BASE_DIR)/wxdebug
-WX_CONFIGURE_FLAGS += --enable-debug_flag --disable-debug_gdb --disable-debug_info
+	C_CXX_FLAGS += -DDEBUG
+	CXXFLAGS += -fno-default-inline -Wno-unused-function -Wno-unused-variable
+	export WX_BUILD_DIR ?= $(BASE_DIR)/wxdebug
+	WX_CONFIGURE_FLAGS += --enable-debug_flag --disable-debug_gdb --disable-debug_info
 
 endif
 
@@ -105,8 +107,8 @@ endif
 
 ifeq "$(origin DEBUGGER)" "command line"
 
-C_CXX_FLAGS += -ggdb  
-WX_CONFIGURE_FLAGS += --enable-debug_gdb --enable-debug_info
+	C_CXX_FLAGS += -ggdb  
+	WX_CONFIGURE_FLAGS += --enable-debug_gdb --enable-debug_info
 
 endif
 
@@ -116,25 +118,50 @@ endif
 export PLATFORM := "Unknown"
 export PLATFORM_UNSUPPORTED := 0
 
+export CPU_ARCH ?= unknown
+
+ARCH = $(shell uname -p)
+ifeq "$(ARCH)" "unknown"
+	ARCH = $(shell uname -m)
+endif
+
+ifneq (,$(filter i386 i486 i586 i686 x86,$(ARCH)))
+	CPU_ARCH = x86
+	ASM_OBJ_FORMAT = elf32
+else ifneq (,$(filter x86_64 x86-64 amd64 x64,$(ARCH)))
+	CPU_ARCH = x64
+	ASM_OBJ_FORMAT = elf64
+endif
+
+ifeq "$(origin NOASM)" "command line"
+	CPU_ARCH = unknown
+endif
+
+ifeq "$(CPU_ARCH)" "x86"
+	C_CXX_FLAGS += -D TC_ARCH_X86
+else ifeq "$(CPU_ARCH)" "x64"
+	C_CXX_FLAGS += -D TC_ARCH_X64
+endif
+
 
 #------ Linux configuration ------
 
 ifeq "$(shell uname -s)" "Linux"
 
-PLATFORM := Linux
-C_CXX_FLAGS += -DTC_UNIX -DTC_LINUX
+	PLATFORM := Linux
+	C_CXX_FLAGS += -DTC_UNIX -DTC_LINUX
 
-ifeq "$(TC_BUILD_CONFIG)" "Release"
-C_CXX_FLAGS += -fdata-sections -ffunction-sections
-LFLAGS += -Wl,--gc-sections
+	ifeq "$(TC_BUILD_CONFIG)" "Release"
+		C_CXX_FLAGS += -fdata-sections -ffunction-sections
+		LFLAGS += -Wl,--gc-sections
 
-ifneq "$(shell ld --help 2>&1 | grep sysv | wc -l)" "0"
-LFLAGS += -Wl,--hash-style=sysv
-endif
+		ifneq "$(shell ld --help 2>&1 | grep sysv | wc -l)" "0"
+			LFLAGS += -Wl,--hash-style=sysv
+		endif
 
-WXCONFIG_CFLAGS += -fdata-sections -ffunction-sections
-WXCONFIG_CXXFLAGS += -fdata-sections -ffunction-sections
-endif
+		WXCONFIG_CFLAGS += -fdata-sections -ffunction-sections
+		WXCONFIG_CXXFLAGS += -fdata-sections -ffunction-sections
+	endif
 
 endif
 
@@ -143,36 +170,43 @@ endif
 
 ifeq "$(shell uname -s)" "Darwin"
 
-PLATFORM := MacOSX
-APPNAME := TrueCrypt
+	PLATFORM := MacOSX
+	APPNAME := TrueCrypt
 
-TC_OSX_SDK ?= /Developer/SDKs/MacOSX10.4u.sdk
-CC := gcc-4.0
-CXX := g++-4.0
+	TC_OSX_SDK ?= /Developer/SDKs/MacOSX10.4u.sdk
+	CC := gcc-4.0
+	CXX := g++-4.0
 
-C_CXX_FLAGS += -DTC_UNIX -DTC_BSD -DTC_MACOSX -mmacosx-version-min=10.4 -isysroot $(TC_OSX_SDK)
-LFLAGS += -mmacosx-version-min=10.4 -Wl,-syslibroot $(TC_OSX_SDK)
-WX_CONFIGURE_FLAGS += --with-macosx-version-min=10.4 --with-macosx-sdk=$(TC_OSX_SDK)
+	C_CXX_FLAGS += -DTC_UNIX -DTC_BSD -DTC_MACOSX -mmacosx-version-min=10.4 -isysroot $(TC_OSX_SDK)
+	LFLAGS += -mmacosx-version-min=10.4 -Wl,-syslibroot $(TC_OSX_SDK)
+	WX_CONFIGURE_FLAGS += --with-macosx-version-min=10.4 --with-macosx-sdk=$(TC_OSX_SDK)
 
-ifeq "$(TC_BUILD_CONFIG)" "Release"
+	ifeq "$(CPU_ARCH)" "x64"
+		CPU_ARCH = x86
+	endif
 
-export DISABLE_PRECOMPILED_HEADERS := 1
+	ASM_OBJ_FORMAT = macho
+	ASFLAGS += --prefix _
 
-S := $(C_CXX_FLAGS)
-C_CXX_FLAGS = $(subst -MMD,,$(S))
+	ifeq "$(TC_BUILD_CONFIG)" "Release"
 
-C_CXX_FLAGS += -gfull -arch i386 -arch ppc
-LFLAGS += -Wl,-dead_strip -arch i386 -arch ppc
+		export DISABLE_PRECOMPILED_HEADERS := 1
 
-WX_CONFIGURE_FLAGS += --enable-universal_binary
-WXCONFIG_CFLAGS += -gfull
-WXCONFIG_CXXFLAGS += -gfull
+		S := $(C_CXX_FLAGS)
+		C_CXX_FLAGS = $(subst -MMD,,$(S))
 
-else
+		C_CXX_FLAGS += -gfull -arch i386 -arch ppc
+		LFLAGS += -Wl,-dead_strip -arch i386 -arch ppc
 
-WX_CONFIGURE_FLAGS += --disable-universal_binary
+		WX_CONFIGURE_FLAGS += --enable-universal_binary
+		WXCONFIG_CFLAGS += -gfull
+		WXCONFIG_CXXFLAGS += -gfull
 
-endif
+	else
+
+		WX_CONFIGURE_FLAGS += --disable-universal_binary
+
+	endif
 
 endif
 
@@ -181,9 +215,9 @@ endif
 
 ifeq "$(shell uname -s)" "FreeBSD"
 
-PLATFORM := FreeBSD
-PLATFORM_UNSUPPORTED := 1
-C_CXX_FLAGS += -DTC_UNIX -DTC_BSD -DTC_FREEBSD
+	PLATFORM := FreeBSD
+	PLATFORM_UNSUPPORTED := 1
+	C_CXX_FLAGS += -DTC_UNIX -DTC_BSD -DTC_FREEBSD
 
 endif
 
@@ -192,10 +226,10 @@ endif
 
 ifeq "$(shell uname -s)" "SunOS"
 
-PLATFORM := Solaris
-PLATFORM_UNSUPPORTED := 1
-C_CXX_FLAGS += -DTC_UNIX -DTC_SOLARIS
-WX_CONFIGURE_FLAGS += --with-gtk
+	PLATFORM := Solaris
+	PLATFORM_UNSUPPORTED := 1
+	C_CXX_FLAGS += -DTC_UNIX -DTC_SOLARIS
+	WX_CONFIGURE_FLAGS += --with-gtk
 
 endif
 
@@ -204,6 +238,7 @@ endif
 
 CFLAGS := $(C_CXX_FLAGS) $(CFLAGS) $(TC_EXTRA_CFLAGS)
 CXXFLAGS := $(C_CXX_FLAGS) $(CXXFLAGS) $(TC_EXTRA_CXXFLAGS)
+ASFLAGS += -f $(ASM_OBJ_FORMAT)
 LFLAGS := $(LFLAGS) $(TC_EXTRA_LFLAGS)
 
 WX_CONFIGURE_FLAGS += --enable-unicode -disable-shared --disable-dependency-tracking --disable-compat26 --enable-exceptions --enable-std_string --enable-dataobj --enable-mimetype \

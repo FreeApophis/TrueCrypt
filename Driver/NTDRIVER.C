@@ -4,8 +4,8 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
@@ -22,6 +22,7 @@
 #include "Ntdriver.h"
 #include "Ntvol.h"
 #include "DriveFilter.h"
+#include "DumpFilter.h"
 #include "Cache.h"
 #include "Volumes.h"
 #include "VolumeFilter.h"
@@ -48,24 +49,31 @@ BOOL PortableMode = FALSE;
 BOOL VolumeClassFilterRegistered = FALSE;
 BOOL CacheBootPassword = FALSE;
 BOOL NonAdminSystemFavoritesAccessDisabled = FALSE;
+static size_t EncryptionThreadPoolFreeCpuCountLimit = 0;
 static BOOL SystemFavoriteVolumeDirty = FALSE;
+static BOOL PagingFileCreationPrevented = FALSE;
 
 
 NTSTATUS DriverEntry (PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
 	PKEY_VALUE_PARTIAL_INFORMATION startKeyValue;
+	LONG version;
 	int i;
 
 	Dump ("DriverEntry " TC_APP_NAME " " VERSION_STRING "\n");
 
+	PsGetVersion (&OsMajorVersion, &OsMinorVersion, NULL, NULL);
+
+	// Load dump filter if the main driver is already loaded
+	if (NT_SUCCESS (TCDeviceIoControl (NT_ROOT_PREFIX, TC_IOCTL_GET_DRIVER_VERSION, NULL, 0, &version, sizeof (version))))
+		return DumpFilterEntry ((PFILTER_EXTENSION) DriverObject, (PFILTER_INITIALIZATION_DATA) RegistryPath);
+
 	TCDriverObject = DriverObject;
 	KeInitializeMutex (&driverMutex, 0);
 
-	EncryptionThreadPoolStart();
-	SelfTestsPassed = AutoTestAlgorithms ();
-	PsGetVersion (&OsMajorVersion, &OsMinorVersion, NULL, NULL);
-
-	ReadRegistryConfigFlags();
+	ReadRegistryConfigFlags (TRUE);
+	EncryptionThreadPoolStart (EncryptionThreadPoolFreeCpuCountLimit);
+	SelfTestsPassed = AutoTestAlgorithms();
 
 	// Enable device class filters and load boot arguments if the driver is set to start at system boot
 		
@@ -193,10 +201,12 @@ NTSTATUS TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 		case TC_IOCTL_SET_PORTABLE_MODE_STATUS:
 		case TC_IOCTL_OPEN_TEST:
 		case TC_IOCTL_GET_RESOLVED_SYMLINK:
+		case TC_IOCTL_GET_DEVICE_REFCOUNT:
 		case TC_IOCTL_GET_DRIVE_PARTITION_INFO:
 		case TC_IOCTL_GET_BOOT_DRIVE_VOLUME_PROPERTIES:
 		case TC_IOCTL_GET_BOOT_ENCRYPTION_STATUS:
 		case TC_IOCTL_GET_DECOY_SYSTEM_WIPE_STATUS:
+		case TC_IOCTL_GET_WARNING_FLAGS:
 		case TC_IOCTL_IS_HIDDEN_SYSTEM_RUNNING:
 		case IOCTL_DISK_CHECK_VERIFY:
 			break;
@@ -298,6 +308,20 @@ NTSTATUS TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 		case IRP_MJ_FLUSH_BUFFERS:
 			return TCCompleteDiskIrp (Irp, STATUS_SUCCESS, 0);
 		}
+
+		break;
+
+	case IRP_MJ_PNP:
+		if (!Extension->bRootDevice
+			&& Extension->IsVolumeDevice
+			&& irpSp->MinorFunction == IRP_MN_DEVICE_USAGE_NOTIFICATION
+			&& irpSp->Parameters.UsageNotification.Type == DeviceUsageTypePaging
+			&& irpSp->Parameters.UsageNotification.InPath)
+		{
+			PagingFileCreationPrevented = TRUE;
+			return TCCompleteIrp (Irp, STATUS_UNSUCCESSFUL, 0);
+		}
+		break;
 	}
 
 	return TCCompleteIrp (Irp, STATUS_INVALID_DEVICE_REQUEST, 0);
@@ -399,7 +423,7 @@ NTSTATUS TCCreateDeviceObject (PDRIVER_OBJECT DriverObject,
 	/* Initialize device object and extension. */
 
 	(*ppDeviceObject)->Flags |= DO_DIRECT_IO;
-	(*ppDeviceObject)->StackSize += 2;		// Reduce occurrence of NO_MORE_IRP_STACK_LOCATIONS bug check caused by buggy drivers
+	(*ppDeviceObject)->StackSize += 4;		// Reduce occurrence of NO_MORE_IRP_STACK_LOCATIONS bug check caused by buggy drivers
 
 	/* Setup the device extension */
 	Extension = (PEXTENSION) (*ppDeviceObject)->DeviceExtension;
@@ -595,7 +619,7 @@ NTSTATUS ProcessVolumeDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION 
 			outputBuffer->BootIndicator = FALSE;
 			outputBuffer->RecognizedPartition = TRUE;
 			outputBuffer->RewritePartition = FALSE;
-			outputBuffer->StartingOffset.QuadPart = SECTOR_SIZE;
+			outputBuffer->StartingOffset.QuadPart = Extension->BytesPerSector;
 			outputBuffer->PartitionLength.QuadPart= Extension->DiskLength;
 			outputBuffer->HiddenSectors = 0;
 			Irp->IoStatus.Status = STATUS_SUCCESS;
@@ -610,7 +634,7 @@ NTSTATUS ProcessVolumeDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION 
 
 			outputBuffer->PartitionStyle = PARTITION_STYLE_MBR;
 			outputBuffer->RewritePartition = FALSE;
-			outputBuffer->StartingOffset.QuadPart = SECTOR_SIZE;
+			outputBuffer->StartingOffset.QuadPart = Extension->BytesPerSector;
 			outputBuffer->PartitionLength.QuadPart= Extension->DiskLength;
 			outputBuffer->Mbr.PartitionType = Extension->PartitionType;
 			outputBuffer->Mbr.BootIndicator = FALSE;
@@ -634,7 +658,7 @@ NTSTATUS ProcessVolumeDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION 
 			outputBuffer->PartitionEntry->BootIndicator = FALSE;
 			outputBuffer->PartitionEntry->RecognizedPartition = TRUE;
 			outputBuffer->PartitionEntry->RewritePartition = FALSE;
-			outputBuffer->PartitionEntry->StartingOffset.QuadPart = SECTOR_SIZE;
+			outputBuffer->PartitionEntry->StartingOffset.QuadPart = Extension->BytesPerSector;
 			outputBuffer->PartitionEntry->PartitionLength.QuadPart = Extension->DiskLength;
 			outputBuffer->PartitionEntry->HiddenSectors = 0;
 
@@ -837,7 +861,6 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 			UNICODE_STRING FullFileName;
 			IO_STATUS_BLOCK IoStatus;
 			LARGE_INTEGER offset;
-			unsigned char readBuffer [SECTOR_SIZE];
 			ACCESS_MASK access = FILE_READ_ATTRIBUTES;
 
 			if (!ValidateIOBufferSize (Irp, sizeof (OPEN_TEST_STRUCT), ValidateInputOutput))
@@ -862,50 +885,60 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 
 				if (opentest->bDetectTCBootLoader || opentest->DetectFilesystem)
 				{
-					// Determine if the first sector contains a portion of the TrueCrypt Boot Loader
-
-					offset.QuadPart = 0;	// MBR
-
-					ntStatus = ZwReadFile (NtFileHandle,
-						NULL,
-						NULL,
-						NULL,
-						&IoStatus,
-						readBuffer,
-						sizeof(readBuffer),
-						&offset,
-						NULL);
-
-					if (NT_SUCCESS (ntStatus))
+					byte *readBuffer = TCalloc (TC_MAX_VOLUME_SECTOR_SIZE);
+					if (!readBuffer)
 					{
-						size_t i;
+						ntStatus = STATUS_INSUFFICIENT_RESOURCES;
+					}
+					else
+					{
+						// Determine if the first sector contains a portion of the TrueCrypt Boot Loader
 
-						if (opentest->bDetectTCBootLoader)
+						offset.QuadPart = 0;
+
+						ntStatus = ZwReadFile (NtFileHandle,
+							NULL,
+							NULL,
+							NULL,
+							&IoStatus,
+							readBuffer,
+							TC_MAX_VOLUME_SECTOR_SIZE,
+							&offset,
+							NULL);
+
+						if (NT_SUCCESS (ntStatus))
 						{
-							// Search for the string "TrueCrypt"
-							for (i = 0; i < sizeof (readBuffer) - strlen (TC_APP_NAME); ++i)
+							size_t i;
+
+							if (opentest->bDetectTCBootLoader && IoStatus.Information >= TC_SECTOR_SIZE_BIOS)
 							{
-								if (memcmp (readBuffer + i, TC_APP_NAME, strlen (TC_APP_NAME)) == 0)
+								// Search for the string "TrueCrypt"
+								for (i = 0; i < TC_SECTOR_SIZE_BIOS - strlen (TC_APP_NAME); ++i)
 								{
-									opentest->TCBootLoaderDetected = TRUE;
+									if (memcmp (readBuffer + i, TC_APP_NAME, strlen (TC_APP_NAME)) == 0)
+									{
+										opentest->TCBootLoaderDetected = TRUE;
+										break;
+									}
+								}
+							}
+
+							if (opentest->DetectFilesystem && IoStatus.Information >= sizeof (int64))
+							{
+								switch (BE64 (*(uint64 *) readBuffer))
+								{
+								case 0xEB52904E54465320: // NTFS
+								case 0xEB3C904D53444F53: // FAT16
+								case 0xEB58904D53444F53: // FAT32
+								case 0xEB76904558464154: // exFAT
+
+									opentest->FilesystemDetected = TRUE;
 									break;
 								}
 							}
 						}
 
-						if (opentest->DetectFilesystem)
-						{
-							switch (BE64 (*(uint64 *) readBuffer))
-							{
-							case 0xEB52904E54465320: // NTFS
-							case 0xEB3C904D53444F53: // FAT16
-							case 0xEB58904D53444F53: // FAT32
-							case 0xEB76904558464154: // exFAT
-
-								opentest->FilesystemDetected = TRUE;
-								break;
-							}
-						}
+						TCfree (readBuffer);
 					}
 				}
 
@@ -932,7 +965,7 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 			UNICODE_STRING FullFileName;
 			IO_STATUS_BLOCK IoStatus;
 			LARGE_INTEGER offset;
-			byte readBuffer [SECTOR_SIZE];
+			byte readBuffer [TC_SECTOR_SIZE_BIOS];
 
 			if (!ValidateIOBufferSize (Irp, sizeof (GetSystemDriveConfigurationRequest), ValidateInputOutput))
 				break;
@@ -940,7 +973,7 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 			EnsureNullTerminatedString (request->DevicePath, sizeof (request->DevicePath));
 			RtlInitUnicodeString (&FullFileName, request->DevicePath);
 
-			InitializeObjectAttributes (&ObjectAttributes, &FullFileName, OBJ_CASE_INSENSITIVE, NULL, NULL);
+			InitializeObjectAttributes (&ObjectAttributes, &FullFileName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
 
 			ntStatus = ZwCreateFile (&NtFileHandle,
 				SYNCHRONIZE | GENERIC_READ, &ObjectAttributes, &IoStatus, NULL,
@@ -1480,14 +1513,18 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		Irp->IoStatus.Information = 0;
 		break;
 
-	case TC_IOCTL_IS_SYSTEM_FAVORITE_VOLUME_DIRTY:
-		if (ValidateIOBufferSize (Irp, sizeof (int), ValidateOutput))
+	case TC_IOCTL_GET_WARNING_FLAGS:
+		if (ValidateIOBufferSize (Irp, sizeof (GetWarningFlagsRequest), ValidateOutput))
 		{
-			*(int *) Irp->AssociatedIrp.SystemBuffer = SystemFavoriteVolumeDirty ? 1 : 0;
-			Irp->IoStatus.Information = sizeof (int);
-			Irp->IoStatus.Status = STATUS_SUCCESS;
+			GetWarningFlagsRequest *flags = (GetWarningFlagsRequest *) Irp->AssociatedIrp.SystemBuffer;
 
+			flags->PagingFileCreationPrevented = PagingFileCreationPrevented;
+			PagingFileCreationPrevented = FALSE;
+			flags->SystemFavoriteVolumeDirty = SystemFavoriteVolumeDirty;
 			SystemFavoriteVolumeDirty = FALSE;
+
+			Irp->IoStatus.Information = sizeof (GetWarningFlagsRequest);
+			Irp->IoStatus.Status = STATUS_SUCCESS;
 		}
 		break;
 
@@ -1501,6 +1538,35 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 			Irp->IoStatus.Status = STATUS_ACCESS_DENIED;
 
 		Irp->IoStatus.Information = 0;
+		break;
+
+	case TC_IOCTL_REREAD_DRIVER_CONFIG:
+		DriverMutexWait();
+
+		Irp->IoStatus.Status = ReadRegistryConfigFlags (FALSE);
+		Irp->IoStatus.Information = 0;
+
+		DriverMutexRelease();
+		break;
+
+	case TC_IOCTL_GET_SYSTEM_DRIVE_DUMP_CONFIG:
+		if (ValidateIOBufferSize (Irp, sizeof (GetSystemDriveDumpConfigRequest), ValidateOutput))
+		{
+			GetSystemDriveDumpConfigRequest *request = (GetSystemDriveDumpConfigRequest *) Irp->AssociatedIrp.SystemBuffer;
+
+			request->BootDriveFilterExtension = GetBootDriveFilterExtension();
+			if (IsBootDriveMounted() && request->BootDriveFilterExtension)
+			{
+				request->HwEncryptionEnabled = IsHwEncryptionEnabled();
+				Irp->IoStatus.Status = STATUS_SUCCESS;
+				Irp->IoStatus.Information = sizeof (*request);
+			}
+			else
+			{
+				Irp->IoStatus.Status = STATUS_INVALID_PARAMETER;
+				Irp->IoStatus.Information = 0;
+			}
+		}
 		break;
 
 	default:
@@ -1871,15 +1937,17 @@ LPWSTR TCTranslateCode (ULONG ulCode)
 		TC_CASE_RET_NAME (TC_IOCTL_GET_PORTABLE_MODE_STATUS);
 		TC_CASE_RET_NAME (TC_IOCTL_SET_PORTABLE_MODE_STATUS);
 		TC_CASE_RET_NAME (TC_IOCTL_GET_RESOLVED_SYMLINK);
+		TC_CASE_RET_NAME (TC_IOCTL_GET_SYSTEM_DRIVE_DUMP_CONFIG);
 		TC_CASE_RET_NAME (TC_IOCTL_GET_VOLUME_PROPERTIES);
+		TC_CASE_RET_NAME (TC_IOCTL_GET_WARNING_FLAGS);
 		TC_CASE_RET_NAME (TC_IOCTL_DISK_IS_WRITABLE);
 		TC_CASE_RET_NAME (TC_IOCTL_IS_ANY_VOLUME_MOUNTED);
 		TC_CASE_RET_NAME (TC_IOCTL_IS_HIDDEN_SYSTEM_RUNNING);
-		TC_CASE_RET_NAME (TC_IOCTL_IS_SYSTEM_FAVORITE_VOLUME_DIRTY);
 		TC_CASE_RET_NAME (TC_IOCTL_MOUNT_VOLUME);
 		TC_CASE_RET_NAME (TC_IOCTL_OPEN_TEST);
 		TC_CASE_RET_NAME (TC_IOCTL_PROBE_REAL_DRIVE_SIZE);
 		TC_CASE_RET_NAME (TC_IOCTL_REOPEN_BOOT_VOLUME_HEADER);
+		TC_CASE_RET_NAME (TC_IOCTL_REREAD_DRIVER_CONFIG);
 		TC_CASE_RET_NAME (TC_IOCTL_SET_SYSTEM_FAVORITE_VOLUME_DIRTY);
 		TC_CASE_RET_NAME (TC_IOCTL_START_DECOY_SYSTEM_WIPE);
 		TC_CASE_RET_NAME (TC_IOCTL_WAS_REFERENCED_DEVICE_DELETED);
@@ -2191,7 +2259,7 @@ NTSTATUS ProbeRealDriveSize (PDEVICE_OBJECT driveDeviceObject, LARGE_INTEGER *dr
 	if (!UserCanAccessDriveDevice())
 		return STATUS_ACCESS_DENIED;
 
-	sectorBuffer = TCalloc (SECTOR_SIZE);
+	sectorBuffer = TCalloc (TC_SECTOR_SIZE_BIOS);
 	if (!sectorBuffer)
 		return STATUS_INSUFFICIENT_RESOURCES;
 
@@ -2206,12 +2274,12 @@ NTSTATUS ProbeRealDriveSize (PDEVICE_OBJECT driveDeviceObject, LARGE_INTEGER *dr
 	}
 
 	startTime = KeQueryInterruptTime ();
-	for (offset.QuadPart = sysLength.QuadPart; ; offset.QuadPart += SECTOR_SIZE)
+	for (offset.QuadPart = sysLength.QuadPart; ; offset.QuadPart += TC_SECTOR_SIZE_BIOS)
 	{
-		status = TCReadDevice (driveDeviceObject, sectorBuffer, offset, SECTOR_SIZE);
+		status = TCReadDevice (driveDeviceObject, sectorBuffer, offset, TC_SECTOR_SIZE_BIOS);
 		
 		if (NT_SUCCESS (status))
-			status = TCWriteDevice (driveDeviceObject, sectorBuffer, offset, SECTOR_SIZE);
+			status = TCWriteDevice (driveDeviceObject, sectorBuffer, offset, TC_SECTOR_SIZE_BIOS);
 
 		if (!NT_SUCCESS (status))
 		{
@@ -2242,7 +2310,7 @@ NTSTATUS TCOpenFsVolume (PEXTENSION Extension, PHANDLE volumeHandle, PFILE_OBJEC
 
 	TCGetNTNameFromNumber (volumeName, Extension->nDosDriveNo);
 	RtlInitUnicodeString (&fullFileName, volumeName);
-	InitializeObjectAttributes (&objectAttributes, &fullFileName, OBJ_CASE_INSENSITIVE, NULL, NULL);
+	InitializeObjectAttributes (&objectAttributes, &fullFileName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
 
 	ntStatus = ZwCreateFile (volumeHandle,
 		SYNCHRONIZE | GENERIC_READ,
@@ -2513,6 +2581,8 @@ NTSTATUS MountDevice (PDEVICE_OBJECT DeviceObject, MOUNT_STRUCT *mount)
 					ntStatus = STATUS_INSUFFICIENT_RESOURCES;
 				else
 					ntStatus = RtlCopySid (sidLength, NewExtension->UserSid, tokenUser->User.Sid);
+
+				ExFreePool (tokenUser);		// Documented in newer versions of WDK
 			}
 		}
 
@@ -2776,7 +2846,7 @@ BOOL IsAccessibleByUser (PUNICODE_STRING objectFileName, BOOL readOnly)
 
 	ASSERT (!IoIsSystemThread (PsGetCurrentThread()));
 
-	InitializeObjectAttributes (&fileObjAttributes, objectFileName, OBJ_CASE_INSENSITIVE | OBJ_FORCE_ACCESS_CHECK, NULL, NULL);
+	InitializeObjectAttributes (&fileObjAttributes, objectFileName, OBJ_CASE_INSENSITIVE | OBJ_FORCE_ACCESS_CHECK | OBJ_KERNEL_HANDLE, NULL, NULL);
 	
 	status = ZwCreateFile (&fileHandle,
 		readOnly ? GENERIC_READ : GENERIC_READ | GENERIC_WRITE,
@@ -2958,7 +3028,7 @@ NTSTATUS TCWriteRegistryKey (PUNICODE_STRING keyPath, wchar_t *keyValueName, ULO
 
 	RtlInitUnicodeString (&valName, keyValueName);
 
-	status = ZwSetValueKey (regKeyHandle, &valName, keyValueType, keyValueType, valueData, valueSize);
+	status = ZwSetValueKey (regKeyHandle, &valName, 0, keyValueType, valueData, valueSize);
 
 	ZwClose (regKeyHandle);
 	return status;
@@ -3000,7 +3070,7 @@ BOOL IsVolumeClassFilterRegistered ()
 }
 
 
-uint32 ReadRegistryConfigFlags ()
+NTSTATUS ReadRegistryConfigFlags (BOOL driverEntry)
 {
 	PKEY_VALUE_PARTIAL_INFORMATION data;
 	UNICODE_STRING name;
@@ -3017,17 +3087,32 @@ uint32 ReadRegistryConfigFlags ()
 			flags = *(uint32 *) data->Data;
 			Dump ("Configuration flags = 0x%x\n", flags);
 
-			if (flags & (TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD | TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD_FOR_SYS_FAVORITES))
-				CacheBootPassword = TRUE;
+			if (driverEntry)
+			{
+				if (flags & (TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD | TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD_FOR_SYS_FAVORITES))
+					CacheBootPassword = TRUE;
 
-			if (flags & TC_DRIVER_CONFIG_DISABLE_NONADMIN_SYS_FAVORITES_ACCESS)
-				NonAdminSystemFavoritesAccessDisabled = TRUE;
+				if (flags & TC_DRIVER_CONFIG_DISABLE_NONADMIN_SYS_FAVORITES_ACCESS)
+					NonAdminSystemFavoritesAccessDisabled = TRUE;
+			}
+
+			EnableHwEncryption ((flags & TC_DRIVER_CONFIG_DISABLE_HARDWARE_ENCRYPTION) ? FALSE : TRUE);
 		}
+		else
+			status = STATUS_INVALID_PARAMETER;
 
 		TCfree (data);
 	}
 
-	return flags;
+	if (driverEntry && NT_SUCCESS (TCReadRegistryKey (&name, TC_ENCRYPTION_FREE_CPU_COUNT_REG_VALUE_NAME, &data)))
+	{
+		if (data->Type == REG_DWORD)
+			EncryptionThreadPoolFreeCpuCountLimit = *(uint32 *) data->Data;
+
+		TCfree (data);
+	}
+
+	return status;
 }
 
 
@@ -3156,6 +3241,7 @@ BOOL IsVolumeAccessibleByCurrentUser (PEXTENSION volumeDeviceExtension)
 		goto ret;
 
 	result = RtlEqualSid (volumeDeviceExtension->UserSid, tokenUser->User.Sid);
+	ExFreePool (tokenUser);		// Documented in newer versions of WDK
 
 ret:
 	SeReleaseSubjectContext (&subContext);

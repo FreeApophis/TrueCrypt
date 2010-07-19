@@ -8,6 +8,7 @@ INCLUDES = ../Common;../Crypto
 
 SOURCES = \
 	DriveFilter.c \
+	DumpFilter.c \
 	EncryptedIoQueue.c \
 	Ntdriver.c \
 	Ntvol.c \

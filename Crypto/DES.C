@@ -1,4 +1,6 @@
 /* Deprecated/legacy */
+
+
 // des.cpp - modified by Wei Dai from Phil Karn's des.c
 // The original code and all modifications are in the public domain.
 

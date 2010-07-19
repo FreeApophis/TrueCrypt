@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -173,6 +173,13 @@ static NTSTATUS DispatchControl (PDEVICE_OBJECT DeviceObject, PIRP Irp, VolumeFi
 
 			IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
 			return TCCompleteDiskIrp (Irp, status, 0);
+
+		case IOCTL_STORAGE_MANAGE_DATA_SET_ATTRIBUTES:
+
+			// Filter IOCTL_STORAGE_MANAGE_DATA_SET_ATTRIBUTES to enable potential future use of hidden systems on drives that use the trim operation but not wear-leveling (if any appear in future). The documentation forbids users to create hidden volumes/systems on drives that use wear-leveling and consequently also on drives that use trim (as trim is used only by drives that use wear-leveling, as of 2010).
+
+			IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
+			return TCCompleteDiskIrp (Irp, STATUS_SUCCESS, 0);
 		}
 	}
 

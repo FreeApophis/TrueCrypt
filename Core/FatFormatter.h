@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -22,7 +22,7 @@ namespace TrueCrypt
 			virtual bool operator() (const BufferPtr &sector) = 0;
 		};
 
-		static void Format (WriteSectorCallback &writeSector, uint64 deviceSize, uint32 clusterSize);
+		static void Format (WriteSectorCallback &writeSector, uint64 deviceSize, uint32 clusterSize, uint32 sectorSize);
 	};
 }
 

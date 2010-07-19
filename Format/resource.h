@@ -56,7 +56,7 @@
 #define IDC_DISK_KEY                    1019
 #define IDC_RANDOM_BYTES                1020
 #define IDC_CIPHER_TEST                 1021
-#define IDC_WIZ_BENCHMARK               1022
+#define IDC_BENCHMARK                   1022
 #define IDC_QUICKFORMAT                 1023
 #define IDC_BYTESWRITTEN                1024
 #define IDC_WRITESPEED                  1025

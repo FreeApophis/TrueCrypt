@@ -145,6 +145,10 @@
 				Name="Crypto"
 				>
 				<File
+					RelativePath="..\..\Crypto\Aes_hw_cpu.asm"
+					>
+				</File>
+				<File
 					RelativePath="..\..\Crypto\AesSmall.c"
 					>
 				</File>

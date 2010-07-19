@@ -4,8 +4,8 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
@@ -21,30 +21,54 @@
 #include "Fat.h"
 #include "Progress.h"
 #include "Random.h"
+#include "Volumes.h"
 
 void
 GetFatParams (fatparams * ft)
 {
+	uint64 volumeSize = (uint64) ft->num_sectors * ft->sector_size;
 	unsigned int fatsecs;
+
 	if(ft->cluster_size == 0)	// 'Default' cluster size
 	{
-		if (ft->num_sectors * 512LL >= 256*BYTES_PER_GB)
-			ft->cluster_size = 128;
-		else if (ft->num_sectors * 512LL >= 64*BYTES_PER_GB)
-			ft->cluster_size = 64;
-		else if (ft->num_sectors * 512LL >= 16*BYTES_PER_GB)
-			ft->cluster_size = 32;
-		else if (ft->num_sectors * 512LL >= 8*BYTES_PER_GB)
-			ft->cluster_size = 16;
-		else if (ft->num_sectors * 512LL >= 128*BYTES_PER_MB)
-			ft->cluster_size = 8;
-		else if (ft->num_sectors * 512LL >= 64*BYTES_PER_MB)
-			ft->cluster_size = 4;
-		else if (ft->num_sectors * 512LL >= 32*BYTES_PER_MB)
-			ft->cluster_size = 2;
+		uint32 clusterSize;
+
+		// Determine optimal cluster size to minimize FAT size (mounting delay), maximize number of files, keep 4 KB alignment, etc.
+		if (volumeSize >= 2 * BYTES_PER_TB)
+			clusterSize = 256 * BYTES_PER_KB;
+		else if (volumeSize >= 512 * BYTES_PER_GB)
+			clusterSize = 128 * BYTES_PER_KB;
+		else if (volumeSize >= 128 * BYTES_PER_GB)
+			clusterSize = 64 * BYTES_PER_KB;
+		else if (volumeSize >= 64 * BYTES_PER_GB)
+			clusterSize = 32 * BYTES_PER_KB;
+		else if (volumeSize >= 32 * BYTES_PER_GB)
+			clusterSize = 16 * BYTES_PER_KB;
+		else if (volumeSize >= 16 * BYTES_PER_GB)
+			clusterSize = 8 * BYTES_PER_KB;
+		else if (volumeSize >= 512 * BYTES_PER_MB)
+			clusterSize = 4 * BYTES_PER_KB;
+		else if (volumeSize >= 256 * BYTES_PER_MB)
+			clusterSize = 2 * BYTES_PER_KB;
+		else if (volumeSize >= 1 * BYTES_PER_MB)
+			clusterSize = 1 * BYTES_PER_KB;
 		else
+			clusterSize = 512;
+
+		ft->cluster_size = clusterSize / ft->sector_size;
+		
+		if (ft->cluster_size == 0)
 			ft->cluster_size = 1;
+
+		if (ft->cluster_size * ft->sector_size > TC_MAX_FAT_CLUSTER_SIZE)
+			ft->cluster_size = TC_MAX_FAT_CLUSTER_SIZE / ft->sector_size;
+
+		if (ft->cluster_size > 128)
+			ft->cluster_size = 128;
 	}
+
+	if (volumeSize <= TC_MAX_FAT_CLUSTER_SIZE * 4)
+		ft->cluster_size = 1;
 
 	// Geometry always set to SECTORS/1/1
 	ft->secs_track = 1; 
@@ -53,7 +77,6 @@ GetFatParams (fatparams * ft)
 	ft->dir_entries = 512;
 	ft->fats = 2;
 	ft->media = 0xf8;
-	ft->sector_size = SECTOR_SIZE;
 	ft->hidden = 0;
 
 	ft->size_root_dir = ft->dir_entries * 32;
@@ -61,27 +84,37 @@ GetFatParams (fatparams * ft)
 	// FAT12
 	ft->size_fat = 12;
 	ft->reserved = 2;
-	fatsecs = ft->num_sectors - (ft->size_root_dir + SECTOR_SIZE - 1) / SECTOR_SIZE - ft->reserved;
-	ft->cluster_count = (int) (((__int64) fatsecs * SECTOR_SIZE) / (ft->cluster_size * SECTOR_SIZE + 3));
-	ft->fat_length = (((ft->cluster_count * 3 + 1) >> 1) + SECTOR_SIZE - 1) / SECTOR_SIZE;
+	fatsecs = ft->num_sectors - (ft->size_root_dir + ft->sector_size - 1) / ft->sector_size - ft->reserved;
+	ft->cluster_count = (int) (((__int64) fatsecs * ft->sector_size) / (ft->cluster_size * ft->sector_size + 3));
+	ft->fat_length = (((ft->cluster_count * 3 + 1) >> 1) + ft->sector_size - 1) / ft->sector_size;
 
 	if (ft->cluster_count >= 4085) // FAT16
 	{
 		ft->size_fat = 16;
 		ft->reserved = 2;
-		fatsecs = ft->num_sectors - (ft->size_root_dir + SECTOR_SIZE - 1) / SECTOR_SIZE - ft->reserved;
-		ft->cluster_count = (int) (((__int64) fatsecs * SECTOR_SIZE) / (ft->cluster_size * SECTOR_SIZE + 4));
-		ft->fat_length = (ft->cluster_count * 2 + SECTOR_SIZE - 1) / SECTOR_SIZE;
+		fatsecs = ft->num_sectors - (ft->size_root_dir + ft->sector_size - 1) / ft->sector_size - ft->reserved;
+		ft->cluster_count = (int) (((__int64) fatsecs * ft->sector_size) / (ft->cluster_size * ft->sector_size + 4));
+		ft->fat_length = (ft->cluster_count * 2 + ft->sector_size - 1) / ft->sector_size;
 	}
 	
 	if(ft->cluster_count >= 65525) // FAT32
 	{
 		ft->size_fat = 32;
-		ft->reserved = 32;
-		fatsecs = ft->num_sectors - ft->reserved;
-		ft->size_root_dir = ft->cluster_size * SECTOR_SIZE;
-		ft->cluster_count = (int) (((__int64) fatsecs * SECTOR_SIZE) / (ft->cluster_size * SECTOR_SIZE + 8));
-		ft->fat_length = (ft->cluster_count * 4 + SECTOR_SIZE - 1) / SECTOR_SIZE;
+		ft->reserved = 32 - 1;
+
+		do
+		{
+			ft->reserved++;
+
+			fatsecs = ft->num_sectors - ft->reserved;
+			ft->size_root_dir = ft->cluster_size * ft->sector_size;
+			ft->cluster_count = (int) (((__int64) fatsecs * ft->sector_size) / (ft->cluster_size * ft->sector_size + 8));
+			ft->fat_length = (ft->cluster_count * 4 + ft->sector_size - 1) / ft->sector_size;
+
+		// Align data area on TC_MAX_VOLUME_SECTOR_SIZE
+
+		} while (ft->sector_size == TC_SECTOR_SIZE_LEGACY
+				&& (ft->reserved * ft->sector_size + ft->fat_length * ft->fats * ft->sector_size) % TC_MAX_VOLUME_SECTOR_SIZE != 0);
 	}
 
 	if (ft->num_sectors >= 65536 || ft->size_fat == 32)
@@ -170,7 +203,7 @@ PutBoot (fatparams * ft, unsigned char *boot)
 	boot[cnt++] = 0x00;	/* reserved */
 	boot[cnt++] = 0x29;	/* boot sig */
 
-	RandgetBytes (boot + cnt, 4, FALSE);		/* vol id */
+	memcpy (boot + cnt, ft->volume_id, 4);		/* vol id */
 	cnt += 4;
 
 	memcpy (boot + cnt, ft->volume_name, 11);	/* vol title */
@@ -194,7 +227,7 @@ PutBoot (fatparams * ft, unsigned char *boot)
 /* FAT32 FSInfo */
 static void PutFSInfo (unsigned char *sector, fatparams *ft)
 {
-	memset (sector, 0, 512);
+	memset (sector, 0, ft->sector_size);
 	sector[3]=0x41; /* LeadSig */
 	sector[2]=0x61; 
 	sector[1]=0x52; 
@@ -205,7 +238,7 @@ static void PutFSInfo (unsigned char *sector, fatparams *ft)
 	sector[484+0]=0x72; 
 
 	// Free cluster count
-	*(uint32 *)(sector + 488) = LE32 (ft->cluster_count - ft->size_root_dir / SECTOR_SIZE / ft->cluster_size);
+	*(uint32 *)(sector + 488) = LE32 (ft->cluster_count - ft->size_root_dir / ft->sector_size / ft->cluster_size);
 
 	// Next free cluster
 	*(uint32 *)(sector + 492) = LE32 (2);
@@ -221,7 +254,7 @@ int
 FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INFO cryptoInfo, BOOL quickFormat)
 {
 	int write_buf_cnt = 0;
-	char sector[SECTOR_SIZE], *write_buf;
+	char sector[TC_MAX_VOLUME_SECTOR_SIZE], *write_buf;
 	unsigned __int64 nSecNo = startSector;
 	int x, n;
 	int retVal;
@@ -231,7 +264,7 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INF
 	LARGE_INTEGER newOffset;
 
 	// Seek to start sector
-	startOffset.QuadPart = startSector * SECTOR_SIZE;
+	startOffset.QuadPart = startSector * ft->sector_size;
 	if (!SetFilePointerEx ((HANDLE) dev, startOffset, &newOffset, FILE_BEGIN)
 		|| newOffset.QuadPart != startOffset.QuadPart)
 	{
@@ -244,7 +277,9 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INF
 	if (!write_buf)
 		return ERR_OUTOFMEMORY;
 
-	memset (sector, 0, sizeof (sector));
+	memset (sector, 0, ft->sector_size);
+
+	RandgetBytes (ft->volume_id, sizeof (ft->volume_id), FALSE);
 
 	PutBoot (ft, (unsigned char *) sector);
 	if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo,
@@ -263,7 +298,7 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INF
 		/* reserved */
 		while (nSecNo - startSector < 6)
 		{
-			memset (sector, 0, sizeof (sector));
+			memset (sector, 0, ft->sector_size);
 			sector[508+3]=0xaa; /* TrailSig */
 			sector[508+2]=0x55;
 			if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo,
@@ -272,7 +307,7 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INF
 		}
 		
 		/* bootsector backup */
-		memset (sector, 0, sizeof (sector));
+		memset (sector, 0, ft->sector_size);
 		PutBoot (ft, (unsigned char *) sector);
 		if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo,
 				 cryptoInfo) == FALSE)
@@ -287,7 +322,7 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INF
 	/* reserved */
 	while (nSecNo - startSector < (unsigned int)ft->reserved)
 	{
-		memset (sector, 0, sizeof (sector));
+		memset (sector, 0, ft->sector_size);
 		if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo,
 			cryptoInfo) == FALSE)
 			goto fail;
@@ -298,7 +333,7 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INF
 	{
 		for (n = 0; n < ft->fat_length; n++)
 		{
-			memset (sector, 0, SECTOR_SIZE);
+			memset (sector, 0, ft->sector_size);
 
 			if (n == 0)
 			{
@@ -340,9 +375,9 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INF
 
 
 	/* write rootdir */
-	for (x = 0; x < ft->size_root_dir / SECTOR_SIZE; x++)
+	for (x = 0; x < ft->size_root_dir / ft->sector_size; x++)
 	{
-		memset (sector, 0, SECTOR_SIZE);
+		memset (sector, 0, ft->sector_size);
 		if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo,
 				 cryptoInfo) == FALSE)
 			goto fail;
@@ -381,29 +416,17 @@ FormatFat (unsigned __int64 startSector, fatparams * ft, void * dev, PCRYPTO_INF
 			return ERR_MODE_INIT_FAILED;
 		}
 
-		x = ft->num_sectors - ft->reserved - ft->size_root_dir / SECTOR_SIZE - ft->fat_length * 2;
+		x = ft->num_sectors - ft->reserved - ft->size_root_dir / ft->sector_size - ft->fat_length * 2;
 		while (x--)
 		{
-			/* Generate random plaintext. Note that reused plaintext blocks are not a concern here
-			since XTS mode is designed to hide patterns. Furthermore, patterns in plaintext do 
-			occur commonly on media in the "real world", so it might actually be a fatal mistake
-			to try to avoid them completely. */
-
-#if RNG_POOL_SIZE < SECTOR_SIZE
-#error RNG_POOL_SIZE < SECTOR_SIZE
-#endif
-			if (!RandpeekBytes (sector, SECTOR_SIZE))
-				goto fail;
-
-			// Encrypt the random plaintext and write it to the disk
 			if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo,
 				cryptoInfo) == FALSE)
 				goto fail;
 		}
-		UpdateProgressBar (nSecNo);
+		UpdateProgressBar (nSecNo * ft->sector_size);
 	}
 	else
-		UpdateProgressBar (ft->num_sectors);
+		UpdateProgressBar ((uint64) ft->num_sectors * ft->sector_size);
 
 	if (!FlushFormatWriteBuffer (dev, write_buf, &write_buf_cnt, &nSecNo, cryptoInfo))
 		goto fail;

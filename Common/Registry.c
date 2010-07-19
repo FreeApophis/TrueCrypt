@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2004-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2004-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -46,12 +46,30 @@ BOOL ReadLocalMachineRegistryMultiString (char *subKey, char *name, char *value,
 	return type == REG_MULTI_SZ;
 }
 
-BOOL ReadLocalMachineRegistryString (char *subKey, char *name, char *str, DWORD *size)
+BOOL ReadLocalMachineRegistryString (const char *subKey, char *name, char *str, DWORD *size)
 {
 	HKEY hkey = 0;
 	DWORD type;
 
 	if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, subKey, 0, KEY_READ, &hkey) != ERROR_SUCCESS)
+		return FALSE;
+
+	if (RegQueryValueEx (hkey, name, NULL, &type, (BYTE *) str, size) != ERROR_SUCCESS)
+	{
+		RegCloseKey (hkey);
+		return FALSE;
+	}
+
+	RegCloseKey (hkey);
+	return type == REG_SZ;
+}
+
+BOOL ReadLocalMachineRegistryStringNonReflected (const char *subKey, char *name, char *str, DWORD *size)
+{
+	HKEY hkey = 0;
+	DWORD type;
+
+	if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, subKey, 0, KEY_READ | KEY_WOW64_64KEY, &hkey) != ERROR_SUCCESS)
 		return FALSE;
 
 	if (RegQueryValueEx (hkey, name, NULL, &type, (BYTE *) str, size) != ERROR_SUCCESS)
@@ -174,7 +192,7 @@ BOOL WriteLocalMachineRegistryMultiString (char *subKey, char *name, char *multi
 	return TRUE;
 }
 
-BOOL WriteLocalMachineRegistryString (char *subKey, char *name, char *str, DWORD size)
+BOOL WriteLocalMachineRegistryString (char *subKey, char *name, char *str, BOOL expandable)
 {
 	HKEY hkey = 0;
 	DWORD disp;
@@ -187,7 +205,7 @@ BOOL WriteLocalMachineRegistryString (char *subKey, char *name, char *str, DWORD
 		return FALSE;
 	}
 
-	if ((status = RegSetValueEx (hkey, name, 0, REG_SZ, (BYTE *) str, size)) != ERROR_SUCCESS)
+	if ((status = RegSetValueEx (hkey, name, 0, expandable ? REG_EXPAND_SZ : REG_SZ, (BYTE *) str, strlen (str) + 1)) != ERROR_SUCCESS)
 	{
 		RegCloseKey (hkey);
 		SetLastError (status);
@@ -226,6 +244,28 @@ BOOL WriteRegistryBytes (char *path, char *name, char *str, DWORD size)
 	return res == ERROR_SUCCESS;
 }
 
+BOOL DeleteLocalMachineRegistryKey (char *parentKey, char *subKeyToDelete)
+{
+	LONG status;
+	HKEY hkey = 0;
+
+	if ((status = RegOpenKeyEx (HKEY_LOCAL_MACHINE, parentKey, 0, KEY_WRITE, &hkey)) != ERROR_SUCCESS)
+	{
+		SetLastError (status);
+		return FALSE;
+	}
+
+	if ((status = RegDeleteKey (hkey, subKeyToDelete)) != ERROR_SUCCESS)
+	{
+		RegCloseKey (hkey);
+		SetLastError (status);
+		return FALSE;
+	}
+
+	RegCloseKey (hkey);
+	return TRUE;
+}
+
 void DeleteRegistryValue (char *subKey, char *name)
 {
 	HKEY hkey = 0;
@@ -235,4 +275,12 @@ void DeleteRegistryValue (char *subKey, char *name)
 
 	RegDeleteValue (hkey, name);
 	RegCloseKey (hkey);
+}
+
+
+void GetStartupRegKeyName (char *regk)
+{
+	// The string is split in order to prevent some antivirus packages from falsely reporting  
+	// TrueCrypt.exe to contain a possible Trojan horse because of this string (heuristic scan).
+	sprintf (regk, "%s%s", "Software\\Microsoft\\Windows\\Curren", "tVersion\\Run");
 }

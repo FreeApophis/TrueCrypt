@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
  of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
@@ -63,10 +63,13 @@ HCRYPTPROV hCryptProv;
 
 
 /* Init the random number generator, setup the hooks, and start the thread */
-int
-Randinit ()
+int Randinit ()
 {
-	if(bRandDidInit) return 0;
+	if (GetMaxPkcs5OutSize() > RNG_POOL_SIZE)
+		TC_THROW_FATAL_EXCEPTION;
+
+	if(bRandDidInit) 
+		return 0;
 
 	InitializeCriticalSection (&critRandProt);
 
@@ -289,8 +292,7 @@ BOOL Randmix ()
 }
 
 /* Add a buffer to the pool */
-void
-RandaddBuf (void *buf, int len)
+void RandaddBuf (void *buf, int len)
 {
 	int i;
 	for (i = 0; i < len; i++)
@@ -299,8 +301,7 @@ RandaddBuf (void *buf, int len)
 	}
 }
 
-BOOL
-RandpeekBytes (unsigned char *buf, int len)
+BOOL RandpeekBytes (unsigned char *buf, int len)
 {
 	if (!bRandDidInit)
 		return FALSE;
@@ -320,8 +321,7 @@ RandpeekBytes (unsigned char *buf, int len)
 
 
 /* Get len random bytes from the pool (max. RNG_POOL_SIZE bytes per a single call) */
-BOOL
-RandgetBytes (unsigned char *buf, int len, BOOL forceSlowPoll)
+BOOL RandgetBytes (unsigned char *buf, int len, BOOL forceSlowPoll)
 {
 	int i;
 	BOOL ret = TRUE;
@@ -389,8 +389,7 @@ RandgetBytes (unsigned char *buf, int len, BOOL forceSlowPoll)
    The role of CRC-32 is merely to perform diffusion. Note that the output
    of CRC-32 is subsequently processed using a cryptographically secure hash
    algorithm. */
-LRESULT CALLBACK
-MouseProc (int nCode, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK MouseProc (int nCode, WPARAM wParam, LPARAM lParam)
 {
 	static DWORD dwLastTimer;
 	static unsigned __int32 lastCrc, lastCrc2;
@@ -442,8 +441,7 @@ MouseProc (int nCode, WPARAM wParam, LPARAM lParam)
    difference between this event and the last. The role of CRC-32 is merely to
    perform diffusion. Note that the output of CRC-32 is subsequently processed
    using a cryptographically secure hash algorithm.  */
-LRESULT CALLBACK
-KeyboardProc (int nCode, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK KeyboardProc (int nCode, WPARAM wParam, LPARAM lParam)
 {
 	static int lLastKey, lLastKey2;
 	static DWORD dwLastTimer;

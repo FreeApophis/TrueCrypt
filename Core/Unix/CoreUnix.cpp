@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -218,6 +218,13 @@ namespace TrueCrypt
 		return GetTempDirectory() + "/truecrypt_mnt";
 	}
 
+	uint32 CoreUnix::GetDeviceSectorSize (const DevicePath &devicePath) const
+	{
+		File dev;
+		dev.Open (devicePath);
+		return dev.GetDeviceSectorSize();
+	}
+
 	uint64 CoreUnix::GetDeviceSize (const DevicePath &devicePath) const
 	{
 		File dev;
@@ -390,6 +397,8 @@ namespace TrueCrypt
 		if (IsVolumeMounted (*options.Path))
 			throw VolumeAlreadyMounted (SRC_POS);
 
+		Cipher::EnableHwSupport (!options.NoHardwareCrypto);
+
 		shared_ptr <Volume> volume;
 
 		while (true)
@@ -426,6 +435,23 @@ namespace TrueCrypt
 			}
 
 			break;
+		}
+
+		if (options.Path->IsDevice())
+		{
+			if (volume->GetFile()->GetDeviceSectorSize() != volume->GetSectorSize())
+				throw ParameterIncorrect (SRC_POS);
+
+#if defined (TC_LINUX)
+			if (volume->GetSectorSize() != TC_SECTOR_SIZE_LEGACY)
+			{
+				if (options.Protection == VolumeProtection::HiddenVolumeReadOnly)
+					throw UnsupportedSectorSizeHiddenVolumeProtection();
+
+				if (options.NoKernelCrypto)
+					throw UnsupportedSectorSizeNoKernelCrypto();
+			}
+#endif
 		}
 
 		// Find a free mount point for FUSE service

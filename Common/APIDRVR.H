@@ -4,8 +4,8 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
@@ -15,6 +15,7 @@
 #include "Boot/Windows/BootDefs.h"
 #include "Common.h"
 #include "Crypto.h"
+#include "Volumes.h"
 #include "Wipe.h"
 
 #ifdef _WIN32
@@ -57,8 +58,10 @@
 #define TC_IOCTL_GET_DECOY_SYSTEM_WIPE_STATUS			TC_IOCTL (32)
 #define TC_IOCTL_GET_DECOY_SYSTEM_WIPE_RESULT			TC_IOCTL (33)
 #define TC_IOCTL_WRITE_BOOT_DRIVE_SECTOR				TC_IOCTL (34)
-#define TC_IOCTL_IS_SYSTEM_FAVORITE_VOLUME_DIRTY		TC_IOCTL (35)
+#define TC_IOCTL_GET_WARNING_FLAGS						TC_IOCTL (35)
 #define TC_IOCTL_SET_SYSTEM_FAVORITE_VOLUME_DIRTY		TC_IOCTL (36)
+#define TC_IOCTL_REREAD_DRIVER_CONFIG					TC_IOCTL (37)
+#define TC_IOCTL_GET_SYSTEM_DRIVE_DUMP_CONFIG			TC_IOCTL (38)
 
 // Legacy IOCTLs used before version 5.0
 #define TC_IOCTL_LEGACY_GET_DRIVER_VERSION		466968
@@ -79,11 +82,11 @@ typedef struct
 	BOOL VolumeMountedReadOnlyAfterAccessDenied;
 	BOOL VolumeMountedReadOnlyAfterDeviceWriteProtected;
 
-	short wszVolume[TC_MAX_PATH];		/* Volume to be mounted */
+	wchar_t wszVolume[TC_MAX_PATH];		/* Volume to be mounted */
 	Password VolumePassword;			/* User password */
 	BOOL bCache;						/* Cache passwords in driver */
 	int nDosDriveNo;					/* Drive number to mount */
-	int BytesPerSector;
+	uint32 BytesPerSector;
 	BOOL bMountReadOnly;				/* Mount volume in read-only mode */
 	BOOL bMountRemovable;				/* Mount volume as removable media */
 	BOOL bExclusiveAccess;				/* Open host file/device in exclusive access mode */
@@ -110,7 +113,7 @@ typedef struct
 typedef struct
 {
 	unsigned __int32 ulMountedDrives;	/* Bitfield of all mounted drive letters */
-	short wszVolume[26][TC_MAX_PATH];	/* Volume names of mounted volumes */
+	wchar_t wszVolume[26][TC_MAX_PATH];	/* Volume names of mounted volumes */
 	unsigned __int64 diskLength[26];
 	int ea[26];
 	int volumeType[26];	/* Volume type (e.g. PROP_VOL_TYPE_OUTER, PROP_VOL_TYPE_OUTER_VOL_WRITE_PREVENTED, etc.) */
@@ -120,7 +123,7 @@ typedef struct
 {
 	int driveNo;
 	int uniqueId;
-	short wszVolume[TC_MAX_PATH];
+	wchar_t wszVolume[TC_MAX_PATH];
 	unsigned __int64 diskLength;
 	int ea;
 	int mode;
@@ -172,7 +175,7 @@ typedef struct
 
 typedef struct
 {
-	short wszFileName[TC_MAX_PATH];		// Volume to be "open tested"
+	wchar_t wszFileName[TC_MAX_PATH];		// Volume to be "open tested"
 	BOOL bDetectTCBootLoader;			// Whether the driver is to determine if the first sector contains a portion of the TrueCrypt Boot Loader
 	BOOL TCBootLoaderDetected;
 	BOOL DetectFilesystem;
@@ -270,18 +273,28 @@ typedef struct
 typedef struct
 {
 	LARGE_INTEGER Offset;
-	byte Data[SECTOR_SIZE];
+	byte Data[TC_SECTOR_SIZE_BIOS];
 } WriteBootDriveSectorRequest;
+
+typedef struct
+{
+	BOOL PagingFileCreationPrevented;
+	BOOL SystemFavoriteVolumeDirty;
+} GetWarningFlagsRequest;
+
+typedef struct
+{
+	struct _DriveFilterExtension *BootDriveFilterExtension;
+	BOOL HwEncryptionEnabled;
+} GetSystemDriveDumpConfigRequest;
 
 #pragma pack (pop)
 
-#ifdef NT4_DRIVER
+#ifdef TC_WINDOWS_DRIVER
 #define DRIVER_STR WIDE
 #else
 #define DRIVER_STR
 #endif
-
-/* NT only */
 
 #define TC_UNIQUE_ID_PREFIX "TrueCryptVolume"
 #define TC_MOUNT_PREFIX L"\\Device\\TrueCryptVolume"
@@ -293,9 +306,12 @@ typedef struct
 #define WIN32_ROOT_PREFIX DRIVER_STR("\\\\.\\TrueCrypt")
 
 #define TC_DRIVER_CONFIG_REG_VALUE_NAME DRIVER_STR("TrueCryptConfig")
+#define TC_ENCRYPTION_FREE_CPU_COUNT_REG_VALUE_NAME DRIVER_STR("TrueCryptEncryptionFreeCpuCount")
 
+// WARNING: Modifying the following values can introduce incompatibility with previous versions.
 #define TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD						0x1
 #define TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD_FOR_SYS_FAVORITES		0x2
 #define TC_DRIVER_CONFIG_DISABLE_NONADMIN_SYS_FAVORITES_ACCESS		0x4
+#define TC_DRIVER_CONFIG_DISABLE_HARDWARE_ENCRYPTION				0x8
 
 #endif		/* _WIN32 */

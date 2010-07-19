@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -43,6 +43,11 @@ void ReadBootSectorUserConfiguration ()
 		goto ret;
 
 	userConfig = SectorBuffer[TC_BOOT_SECTOR_USER_CONFIG_OFFSET];
+
+#ifdef TC_WINDOWS_BOOT_AES
+	EnableHwEncryption (!(userConfig & TC_BOOT_USER_CFG_FLAG_DISABLE_HW_ENCRYPTION));
+#endif
+
 	PreventBootMenu = (userConfig & TC_BOOT_USER_CFG_FLAG_DISABLE_ESC);
 
 	memcpy (CustomUserMessage, SectorBuffer + TC_BOOT_SECTOR_USER_MESSAGE_OFFSET, TC_BOOT_SECTOR_USER_MESSAGE_MAX_LENGTH);
@@ -55,7 +60,7 @@ void ReadBootSectorUserConfiguration ()
 		
 		DisableScreenOutput();
 	}
-	
+
 	OuterVolumeBackupHeaderCrc = *(uint32 *) (SectorBuffer + TC_BOOT_SECTOR_OUTER_VOLUME_BAK_HEADER_CRC_OFFSET);
 
 ret:

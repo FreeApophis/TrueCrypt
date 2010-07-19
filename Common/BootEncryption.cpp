@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -135,11 +135,11 @@ namespace TrueCrypt
 			}
 		}
 
-		static void RegisterFilterDriver (bool registerDriver, bool volumeClass)
+		static void RegisterFilterDriver (bool registerDriver, BootEncryption::FilterType filterType)
 		{
 			Elevate();
 
-			DWORD result = ElevatedComInstance->RegisterFilterDriver (registerDriver ? TRUE : FALSE, volumeClass ? TRUE : FALSE);
+			DWORD result = ElevatedComInstance->RegisterFilterDriver (registerDriver ? TRUE : FALSE, filterType);
 			if (result != ERROR_SUCCESS)
 			{
 				SetLastError (result);
@@ -223,7 +223,7 @@ namespace TrueCrypt
 		static void AddReference () { }
 		static void CallDriver (DWORD ioctl, void *input, DWORD inputSize, void *output, DWORD outputSize) { throw ParameterIncorrect (SRC_POS); }
 		static void ReadWriteFile (BOOL write, BOOL device, const string &filePath, byte *buffer, uint64 offset, uint32 size, DWORD *sizeDone) { throw ParameterIncorrect (SRC_POS); }
-		static void RegisterFilterDriver (bool registerDriver, bool volumeClass) { throw ParameterIncorrect (SRC_POS); }
+		static void RegisterFilterDriver (bool registerDriver, BootEncryption::FilterType filterType) { throw ParameterIncorrect (SRC_POS); }
 		static void Release () { }
 		static void SetDriverServiceStartType (DWORD startType) { throw ParameterIncorrect (SRC_POS); }
 	};
@@ -320,13 +320,13 @@ namespace TrueCrypt
 
 			BootEncryption bootEnc (NULL);
 
-			while (size >= SECTOR_SIZE)
+			while (size >= TC_SECTOR_SIZE_BIOS)
 			{
 				bootEnc.WriteBootDriveSector (FilePointerPosition, buffer);
 
-				FilePointerPosition += SECTOR_SIZE;
-				buffer += SECTOR_SIZE;
-				size -= SECTOR_SIZE;
+				FilePointerPosition += TC_SECTOR_SIZE_BIOS;
+				buffer += TC_SECTOR_SIZE_BIOS;
+				size -= TC_SECTOR_SIZE_BIOS;
 			}
 		}
 	}
@@ -382,7 +382,7 @@ namespace TrueCrypt
 	BootEncryption::~BootEncryption ()
 	{
 		if (RescueIsoImage)
-			delete RescueIsoImage;
+			delete[] RescueIsoImage;
 
 		Elevator::Release();
 	}
@@ -493,7 +493,7 @@ namespace TrueCrypt
 					+ GetRemarksOnHiddenOS());
 			}
 
-			if (config.SystemPartition.Info.PartitionLength.QuadPart > TC_MAX_FAT_FS_SIZE)
+			if (config.SystemPartition.Info.PartitionLength.QuadPart > TC_MAX_FAT_SECTOR_COUNT * TC_SECTOR_SIZE_BIOS)
 			{
 				if ((double) candidatePartition.Info.PartitionLength.QuadPart / config.SystemPartition.Info.PartitionLength.QuadPart < MIN_HIDDENOS_DECOY_PARTITION_SIZE_RATIO_NTFS)
 				{
@@ -575,9 +575,6 @@ namespace TrueCrypt
 				// Convert absolute path to relative to the Windows directory
 				driverPath = pathBuf;
 				driverPath = driverPath.substr (driverPath.rfind ("\\", driverPath.rfind ("\\", driverPath.rfind ("\\") - 1) - 1) + 1);
-
-				if (Is64BitOs())
-					driverPath = "SysWOW64" + driverPath.substr (driverPath.find ("\\"));
 			}
 		}
 
@@ -787,7 +784,7 @@ namespace TrueCrypt
 	{
 		Device device (GetSystemDriveConfiguration().DevicePath, true);
 
-		byte mbrBuf[SECTOR_SIZE];
+		byte mbrBuf[TC_SECTOR_SIZE_BIOS];
 		device.SeekAt (0);
 		device.Read (mbrBuf, sizeof (mbrBuf));
 
@@ -1000,7 +997,7 @@ namespace TrueCrypt
 		// Boot sector
 		DWORD size;
 		byte *bootSecResourceImg = MapResource ("BIN", bootSectorId, &size);
-		if (!bootSecResourceImg || size != SECTOR_SIZE)
+		if (!bootSecResourceImg || size != TC_SECTOR_SIZE_BIOS)
 			throw ParameterIncorrect (SRC_POS);
 
 		memcpy (buffer, bootSecResourceImg, size);
@@ -1010,11 +1007,14 @@ namespace TrueCrypt
 		if (IsOSAtLeast (WIN_VISTA))
 			buffer[TC_BOOT_SECTOR_CONFIG_OFFSET] |= TC_BOOT_CFG_FLAG_WINDOWS_VISTA_OR_LATER;
 
+		if (rescueDisk && (ReadDriverConfigurationFlags() & TC_DRIVER_CONFIG_DISABLE_HARDWARE_ENCRYPTION))
+			buffer[TC_BOOT_SECTOR_CONFIG_OFFSET] |= TC_BOOT_CFG_FLAG_RESCUE_DISABLE_HW_ENCRYPTION;
+
 		// Checksum of the backup header of the outer volume for the hidden system
 		if (hiddenOSCreation)
 		{
 			Device device (GetSystemDriveConfiguration().DevicePath);
-			byte headerSector[SECTOR_SIZE];
+			byte headerSector[TC_SECTOR_SIZE_BIOS];
 
 			device.SeekAt (HiddenOSCandidatePartition.Info.StartingOffset.QuadPart + HiddenOSCandidatePartition.Info.PartitionLength.QuadPart - TC_VOLUME_HEADER_GROUP_SIZE + TC_VOLUME_HEADER_EFFECTIVE_SIZE);
 			device.Read (headerSector, sizeof (headerSector));
@@ -1024,28 +1024,28 @@ namespace TrueCrypt
 
 		// Decompressor
 		byte *decompressor = MapResource ("BIN", IDR_BOOT_LOADER_DECOMPRESSOR, &size);
-		if (!decompressor || size > TC_BOOT_LOADER_DECOMPRESSOR_SECTOR_COUNT * SECTOR_SIZE)
+		if (!decompressor || size > TC_BOOT_LOADER_DECOMPRESSOR_SECTOR_COUNT * TC_SECTOR_SIZE_BIOS)
 			throw ParameterIncorrect (SRC_POS);
 
-		memcpy (buffer + SECTOR_SIZE, decompressor, size);
+		memcpy (buffer + TC_SECTOR_SIZE_BIOS, decompressor, size);
 
 		// Compressed boot loader
 		byte *bootLoader = MapResource ("BIN", bootLoaderId, &size);
-		if (!bootLoader || size > TC_MAX_BOOT_LOADER_SECTOR_COUNT * SECTOR_SIZE)
+		if (!bootLoader || size > TC_MAX_BOOT_LOADER_SECTOR_COUNT * TC_SECTOR_SIZE_BIOS)
 			throw ParameterIncorrect (SRC_POS);
 
-		memcpy (buffer + SECTOR_SIZE + TC_BOOT_LOADER_DECOMPRESSOR_SECTOR_COUNT * SECTOR_SIZE, bootLoader, size);
+		memcpy (buffer + TC_SECTOR_SIZE_BIOS + TC_BOOT_LOADER_DECOMPRESSOR_SECTOR_COUNT * TC_SECTOR_SIZE_BIOS, bootLoader, size);
 
 		// Boot loader and decompressor checksum
 		*(uint16 *) (buffer + TC_BOOT_SECTOR_LOADER_LENGTH_OFFSET) = static_cast <uint16> (size);
-		*(uint32 *) (buffer + TC_BOOT_SECTOR_LOADER_CHECKSUM_OFFSET) = GetChecksum (buffer + SECTOR_SIZE,
-			TC_BOOT_LOADER_DECOMPRESSOR_SECTOR_COUNT * SECTOR_SIZE + size);
+		*(uint32 *) (buffer + TC_BOOT_SECTOR_LOADER_CHECKSUM_OFFSET) = GetChecksum (buffer + TC_SECTOR_SIZE_BIOS,
+			TC_BOOT_LOADER_DECOMPRESSOR_SECTOR_COUNT * TC_SECTOR_SIZE_BIOS + size);
 
 		// Backup of decompressor and boot loader
-		if (size + TC_BOOT_LOADER_DECOMPRESSOR_SECTOR_COUNT * SECTOR_SIZE <= TC_BOOT_LOADER_BACKUP_SECTOR_COUNT * SECTOR_SIZE)
+		if (size + TC_BOOT_LOADER_DECOMPRESSOR_SECTOR_COUNT * TC_SECTOR_SIZE_BIOS <= TC_BOOT_LOADER_BACKUP_SECTOR_COUNT * TC_SECTOR_SIZE_BIOS)
 		{
-			memcpy (buffer + SECTOR_SIZE + TC_BOOT_LOADER_BACKUP_SECTOR_COUNT * SECTOR_SIZE,
-				buffer + SECTOR_SIZE, TC_BOOT_LOADER_BACKUP_SECTOR_COUNT * SECTOR_SIZE);
+			memcpy (buffer + TC_SECTOR_SIZE_BIOS + TC_BOOT_LOADER_BACKUP_SECTOR_COUNT * TC_SECTOR_SIZE_BIOS,
+				buffer + TC_SECTOR_SIZE_BIOS, TC_BOOT_LOADER_BACKUP_SECTOR_COUNT * TC_SECTOR_SIZE_BIOS);
 
 			buffer[TC_BOOT_SECTOR_CONFIG_OFFSET] |= TC_BOOT_CFG_FLAG_BACKUP_LOADER_AVAILABLE;
 		}
@@ -1102,7 +1102,7 @@ namespace TrueCrypt
 	void BootEncryption::WriteBootSectorConfig (const byte newConfig[])
 	{
 		Device device (GetSystemDriveConfiguration().DevicePath);
-		byte mbr[SECTOR_SIZE];
+		byte mbr[TC_SECTOR_SIZE_BIOS];
 
 		device.SeekAt (0);
 		device.Read (mbr, sizeof (mbr));
@@ -1112,7 +1112,7 @@ namespace TrueCrypt
 		device.SeekAt (0);
 		device.Write (mbr, sizeof (mbr));
 
-		byte mbrVerificationBuf[SECTOR_SIZE];
+		byte mbrVerificationBuf[TC_SECTOR_SIZE_BIOS];
 		device.SeekAt (0);
 		device.Read (mbrVerificationBuf, sizeof (mbr));
 
@@ -1124,13 +1124,13 @@ namespace TrueCrypt
 	void BootEncryption::WriteBootSectorUserConfig (byte userConfig, const string &customUserMessage)
 	{
 		Device device (GetSystemDriveConfiguration().DevicePath);
-		byte mbr[SECTOR_SIZE];
+		byte mbr[TC_SECTOR_SIZE_BIOS];
 
 		device.SeekAt (0);
 		device.Read (mbr, sizeof (mbr));
 
 		if (!BufferContainsString (mbr, sizeof (mbr), TC_APP_NAME)
-			|| BE16 (*(uint16 *) (mbr + TC_BOOT_SECTOR_VERSION_OFFSET)) > VERSION_NUM)
+			|| BE16 (*(uint16 *) (mbr + TC_BOOT_SECTOR_VERSION_OFFSET)) != VERSION_NUM)
 		{
 			return;
 		}
@@ -1150,7 +1150,7 @@ namespace TrueCrypt
 		device.SeekAt (0);
 		device.Write (mbr, sizeof (mbr));
 
-		byte mbrVerificationBuf[SECTOR_SIZE];
+		byte mbrVerificationBuf[TC_SECTOR_SIZE_BIOS];
 		device.SeekAt (0);
 		device.Read (mbrVerificationBuf, sizeof (mbr));
 
@@ -1238,7 +1238,7 @@ namespace TrueCrypt
 			throw ParameterIncorrect (SRC_POS);
 
 		Device device (GetSystemDriveConfiguration().DevicePath);
-		byte mbr[SECTOR_SIZE];
+		byte mbr[TC_SECTOR_SIZE_BIOS];
 
 		device.SeekAt (0);
 		device.Read (mbr, sizeof (mbr));
@@ -1296,7 +1296,7 @@ namespace TrueCrypt
 
 		// Write MBR
 		Device device (GetSystemDriveConfiguration().DevicePath);
-		byte mbr[SECTOR_SIZE];
+		byte mbr[TC_SECTOR_SIZE_BIOS];
 
 		device.SeekAt (0);
 		device.Read (mbr, sizeof (mbr));
@@ -1316,7 +1316,7 @@ namespace TrueCrypt
 		device.SeekAt (0);
 		device.Write (mbr, sizeof (mbr));
 
-		byte mbrVerificationBuf[SECTOR_SIZE];
+		byte mbrVerificationBuf[TC_SECTOR_SIZE_BIOS];
 		device.SeekAt (0);
 		device.Read (mbrVerificationBuf, sizeof (mbr));
 
@@ -1324,8 +1324,8 @@ namespace TrueCrypt
 			throw ErrorException ("ERROR_MBR_PROTECTED");
 
 		// Write boot loader
-		device.SeekAt (SECTOR_SIZE);
-		device.Write (bootLoaderBuf + SECTOR_SIZE, sizeof (bootLoaderBuf) - SECTOR_SIZE);
+		device.SeekAt (TC_SECTOR_SIZE_BIOS);
+		device.Write (bootLoaderBuf + TC_SECTOR_SIZE_BIOS, sizeof (bootLoaderBuf) - TC_SECTOR_SIZE_BIOS);
 	}
 
 
@@ -1480,12 +1480,28 @@ namespace TrueCrypt
 	}
 #endif
 
+
+	bool BootEncryption::IsCDDrivePresent ()
+	{
+		for (char drive = 'Z'; drive >= 'C'; --drive)
+		{
+			string path = "X:\\";
+			path[0] = drive;
+
+			if (GetDriveType (path.c_str()) == DRIVE_CDROM)
+				return true;
+		}
+
+		return false;
+	}
+
+
 	bool BootEncryption::VerifyRescueDisk ()
 	{
 		if (!RescueIsoImage)
 			throw ParameterIncorrect (SRC_POS);
 
-		for (char drive = 'Z'; drive >= 'D'; --drive)
+		for (char drive = 'Z'; drive >= 'C'; --drive)
 		{
 			try
 			{
@@ -1520,7 +1536,7 @@ namespace TrueCrypt
 			throw ParameterIncorrect (SRC_POS);
 
 		throw_sys_if (CreateVolumeHeaderInMemory (TRUE, (char *) VolumeHeader, ea, mode, password, pkcs5, NULL, &cryptoInfo,
-			volumeSize, 0, encryptedAreaStart, 0, TC_SYSENC_KEYSCOPE_MIN_REQ_PROG_VERSION, TC_HEADER_FLAG_ENCRYPTED_SYSTEM, FALSE) != 0);
+			volumeSize, 0, encryptedAreaStart, 0, TC_SYSENC_KEYSCOPE_MIN_REQ_PROG_VERSION, TC_HEADER_FLAG_ENCRYPTED_SYSTEM, TC_SECTOR_SIZE_BIOS, FALSE) != 0);
 
 		finally_do_arg (PCRYPTO_INFO*, &cryptoInfo, { crypto_close (*finally_arg); });
 
@@ -1586,7 +1602,7 @@ namespace TrueCrypt
 	{
 		Device device (GetSystemDriveConfiguration().DevicePath, true);
 	
-		byte bootLoaderBuf[TC_BOOT_LOADER_AREA_SECTOR_COUNT * SECTOR_SIZE];
+		byte bootLoaderBuf[TC_BOOT_LOADER_AREA_SECTOR_COUNT * TC_SECTOR_SIZE_BIOS];
 
 		device.SeekAt (0);
 		device.Read (bootLoaderBuf, sizeof (bootLoaderBuf));
@@ -1609,7 +1625,7 @@ namespace TrueCrypt
 
 	void BootEncryption::RestoreSystemLoader ()
 	{
-		byte bootLoaderBuf[TC_BOOT_LOADER_AREA_SECTOR_COUNT * SECTOR_SIZE];
+		byte bootLoaderBuf[TC_BOOT_LOADER_AREA_SECTOR_COUNT * TC_SECTOR_SIZE_BIOS];
 
 		File backupFile (GetSystemLoaderBackupPath(), true);
 		
@@ -1619,7 +1635,7 @@ namespace TrueCrypt
 		Device device (GetSystemDriveConfiguration().DevicePath);
 
 		// Preserve current partition table
-		byte mbr[SECTOR_SIZE];
+		byte mbr[TC_SECTOR_SIZE_BIOS];
 		device.SeekAt (0);
 		device.Read (mbr, sizeof (mbr));
 		memcpy (bootLoaderBuf + TC_MAX_MBR_BOOT_CODE_SIZE, mbr + TC_MAX_MBR_BOOT_CODE_SIZE, sizeof (mbr) - TC_MAX_MBR_BOOT_CODE_SIZE);
@@ -1630,40 +1646,68 @@ namespace TrueCrypt
 
 #endif // SETUP
 
-	void BootEncryption::RegisterDeviceClassFilter (bool registerFilter, const GUID *deviceClassGuid)
+	void BootEncryption::RegisterFilter (bool registerFilter, FilterType filterType, const GUID *deviceClassGuid)
 	{
-		HKEY classRegKey = SetupDiOpenClassRegKey (deviceClassGuid, KEY_READ | KEY_WRITE);
-		throw_sys_if (classRegKey == INVALID_HANDLE_VALUE);
-		finally_do_arg (HKEY, classRegKey, { RegCloseKey (finally_arg); });
+		string filter;
+		string filterReg;
+		HKEY regKey;
 
-		if (registerFilter)
+		switch (filterType)
+		{
+		case DriveFilter:
+		case VolumeFilter:
+			filter = "truecrypt";
+			filterReg = "UpperFilters";
+			regKey = SetupDiOpenClassRegKey (deviceClassGuid, KEY_READ | KEY_WRITE);
+			throw_sys_if (regKey == INVALID_HANDLE_VALUE);
+
+			break;
+
+		case DumpFilter:
+			if (!IsOSAtLeast (WIN_VISTA))
+				return;
+
+			filter = "truecrypt.sys";
+			filterReg = "DumpFilters";
+			SetLastError (RegOpenKeyEx (HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\CrashControl", 0, KEY_READ | KEY_WRITE, &regKey));
+			throw_sys_if (GetLastError() != ERROR_SUCCESS);
+
+			break;
+
+		default:
+			throw ParameterIncorrect (SRC_POS);
+		}
+
+		finally_do_arg (HKEY, regKey, { RegCloseKey (finally_arg); });
+
+		if (registerFilter && filterType != DumpFilter)
 		{
 			// Register class filter below all other filters in the stack
 
-			size_t strSize = strlen ("truecrypt") + 1;
+			size_t strSize = filter.size() + 1;
 			byte regKeyBuf[65536];
 			DWORD size = sizeof (regKeyBuf) - strSize;
 
 			// SetupInstallFromInfSection() does not support prepending of values so we have to modify the registry directly
-			strncpy ((char *) regKeyBuf, "truecrypt", sizeof (regKeyBuf));
+			strncpy ((char *) regKeyBuf, filter.c_str(), sizeof (regKeyBuf));
 
-			if (RegQueryValueEx (classRegKey, "UpperFilters", NULL, NULL, regKeyBuf + strSize, &size) != ERROR_SUCCESS)
+			if (RegQueryValueEx (regKey, filterReg.c_str(), NULL, NULL, regKeyBuf + strSize, &size) != ERROR_SUCCESS)
 				size = 1;
 
-			throw_sys_if (RegSetValueEx (classRegKey, "UpperFilters", 0, REG_MULTI_SZ, regKeyBuf, strSize + size) != ERROR_SUCCESS);
+			SetLastError (RegSetValueEx (regKey, filterReg.c_str(), 0, REG_MULTI_SZ, regKeyBuf, strSize + size));
+			throw_sys_if (GetLastError() != ERROR_SUCCESS);
 		}
 		else
 		{
-			// Unregister a class filter
-			string infFileName = GetTempPath() + "\\truecrypt_device_filter.inf";
+			string infFileName = GetTempPath() + "\\truecrypt_driver_setup.inf";
 
 			File infFile (infFileName, false, true);
 			finally_do_arg (string, infFileName, { DeleteFile (finally_arg.c_str()); });
 
 			string infTxt = "[truecrypt]\r\n"
-							"DelReg=truecrypt_reg\r\n\r\n"
+							+ string (registerFilter ? "Add" : "Del") + "Reg=truecrypt_reg\r\n\r\n"
 							"[truecrypt_reg]\r\n"
-							"HKR,,\"UpperFilters\",0x00018002,\"truecrypt\"\r\n";
+							"HKR,,\"" + filterReg + "\",0x0001" + string (registerFilter ? "0008" : "8002") + ",\"" + filter + "\"\r\n";
 
 			infFile.Write ((byte *) infTxt.c_str(), infTxt.size());
 			infFile.Close();
@@ -1672,26 +1716,35 @@ namespace TrueCrypt
 			throw_sys_if (hInf == INVALID_HANDLE_VALUE);
 			finally_do_arg (HINF, hInf, { SetupCloseInfFile (finally_arg); });
 
-			throw_sys_if (!SetupInstallFromInfSection (ParentWindow, hInf, "truecrypt", SPINST_REGISTRY, classRegKey, NULL, 0, NULL, NULL, NULL, NULL));
+			throw_sys_if (!SetupInstallFromInfSection (ParentWindow, hInf, "truecrypt", SPINST_REGISTRY, regKey, NULL, 0, NULL, NULL, NULL, NULL));
 		}
 	}
-	
-	void BootEncryption::RegisterFilterDriver (bool registerDriver, bool volumeClass)
+
+	void BootEncryption::RegisterFilterDriver (bool registerDriver, FilterType filterType)
 	{
 		if (!IsAdmin() && IsUacSupported())
 		{
-			Elevator::RegisterFilterDriver (registerDriver, volumeClass);
+			Elevator::RegisterFilterDriver (registerDriver, filterType);
 			return;
 		}
 
-		if (volumeClass)
+		switch (filterType)
 		{
-			RegisterDeviceClassFilter (registerDriver, &GUID_DEVCLASS_VOLUME);
-			RegisterDeviceClassFilter (registerDriver, &GUID_DEVCLASS_FLOPPYDISK);
-		}
-		else
-		{
-			RegisterDeviceClassFilter (registerDriver, &GUID_DEVCLASS_DISKDRIVE);
+		case DriveFilter:
+			RegisterFilter (registerDriver, filterType, &GUID_DEVCLASS_DISKDRIVE);
+			break;
+
+		case VolumeFilter:
+			RegisterFilter (registerDriver, filterType, &GUID_DEVCLASS_VOLUME);
+			RegisterFilter (registerDriver, filterType, &GUID_DEVCLASS_FLOPPYDISK);
+			break;
+
+		case DumpFilter:
+			RegisterFilter (registerDriver, filterType);
+			break;
+
+		default:
+			throw ParameterIncorrect (SRC_POS);
 		}
 	}
 
@@ -1712,6 +1765,12 @@ namespace TrueCrypt
 
 		if (registerService)
 		{
+			try
+			{
+				RegisterSystemFavoritesService (FALSE);
+			}
+			catch (...) { }
+
 			char appPath[TC_MAX_PATH];
 			throw_sys_if (!GetModuleFileName (NULL, appPath, sizeof (appPath)));
 
@@ -1741,6 +1800,9 @@ namespace TrueCrypt
 
 			try
 			{
+				WriteLocalMachineRegistryString ("SYSTEM\\CurrentControlSet\\Control\\SafeBoot\\Minimal\\" TC_SYSTEM_FAVORITES_SERVICE_NAME, NULL, "Service", FALSE);
+				WriteLocalMachineRegistryString ("SYSTEM\\CurrentControlSet\\Control\\SafeBoot\\Network\\" TC_SYSTEM_FAVORITES_SERVICE_NAME, NULL, "Service", FALSE);
+
 				SetDriverConfigurationFlag (TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD_FOR_SYS_FAVORITES, true);
 			}
 			catch (...)
@@ -1757,6 +1819,9 @@ namespace TrueCrypt
 		else
 		{
 			SetDriverConfigurationFlag (TC_DRIVER_CONFIG_CACHE_BOOT_PASSWORD_FOR_SYS_FAVORITES, false);
+
+			DeleteLocalMachineRegistryKey ("SYSTEM\\CurrentControlSet\\Control\\SafeBoot\\Minimal", TC_SYSTEM_FAVORITES_SERVICE_NAME);
+			DeleteLocalMachineRegistryKey ("SYSTEM\\CurrentControlSet\\Control\\SafeBoot\\Network", TC_SYSTEM_FAVORITES_SERVICE_NAME);
 
 			SC_HANDLE service = OpenService (scm, TC_SYSTEM_FAVORITES_SERVICE_NAME, SERVICE_ALL_ACCESS);
 			throw_sys_if (!service);
@@ -1792,8 +1857,8 @@ namespace TrueCrypt
 
 		DISK_GEOMETRY geometry = GetDriveGeometry (config.DriveNumber);
 
-		if (geometry.BytesPerSector != SECTOR_SIZE)
-			throw ErrorException ("LARGE_SECTOR_UNSUPPORTED");
+		if (geometry.BytesPerSector != TC_SECTOR_SIZE_BIOS)
+			throw ErrorException ("SYSENC_UNSUPPORTED_SECTOR_SIZE_BIOS");
 
 		bool activePartitionFound = false;
 		if (!config.SystemPartition.IsGPT)
@@ -1911,9 +1976,23 @@ namespace TrueCrypt
 				throw ParameterIncorrect (SRC_POS);
 		}
 
-		RegisterFilterDriver (false, false);
-		RegisterFilterDriver (false, true);
-		SetDriverServiceStartType (SERVICE_SYSTEM_START);
+		try
+		{
+			RegisterFilterDriver (false, DriveFilter);
+			RegisterFilterDriver (false, VolumeFilter);
+			RegisterFilterDriver (false, DumpFilter);
+			SetDriverServiceStartType (SERVICE_SYSTEM_START);
+		}
+		catch (...)
+		{
+			try
+			{
+				RegisterBootDriver (IsHiddenSystemRunning());
+			}
+			catch (...) { }
+
+			throw;
+		}
 
 		SetHiddenOSCreationPhase (TC_HIDDEN_OS_CREATION_PHASE_NONE);	// In case RestoreSystemLoader() fails
 
@@ -2039,6 +2118,7 @@ namespace TrueCrypt
 						cryptoInfo->EncryptedAreaLength.Value,
 						cryptoInfo->RequiredProgramVersion,
 						cryptoInfo->HeaderFlags | TC_HEADER_FLAG_ENCRYPTED_SYSTEM,
+						cryptoInfo->SectorSize,
 						wipePass < PRAND_DISK_WIPE_PASSES - 1);
 
 					if (tmpCryptoInfo)
@@ -2216,16 +2296,6 @@ namespace TrueCrypt
 		throw_sys_if (!WriteLocalMachineRegistryDword (keyPath, valueName, value));
 	}
 
-	uint32 BootEncryption::ReadDriverConfigurationFlags ()
-	{
-		DWORD configMap;
-
-		if (!ReadLocalMachineRegistryDword ("SYSTEM\\CurrentControlSet\\Services\\truecrypt", TC_DRIVER_CONFIG_REG_VALUE_NAME, &configMap))
-			configMap = 0;
-
-		return configMap;
-	}
-
 	void BootEncryption::SetDriverConfigurationFlag (uint32 flag, bool state)
 	{
 		DWORD configMap = ReadDriverConfigurationFlags();
@@ -2297,6 +2367,15 @@ namespace TrueCrypt
 
 #endif // !SETUP
 
+	uint32 BootEncryption::ReadDriverConfigurationFlags ()
+	{
+		DWORD configMap;
+
+		if (!ReadLocalMachineRegistryDword ("SYSTEM\\CurrentControlSet\\Services\\truecrypt", TC_DRIVER_CONFIG_REG_VALUE_NAME, &configMap))
+			configMap = 0;
+
+		return configMap;
+	}
 
 	void BootEncryption::WriteBootDriveSector (uint64 offset, byte *data)
 	{
@@ -2307,24 +2386,37 @@ namespace TrueCrypt
 		CallDriver (TC_IOCTL_WRITE_BOOT_DRIVE_SECTOR, &request, sizeof (request), NULL, 0);
 	}
 
-
 	void BootEncryption::RegisterBootDriver (bool hiddenSystem)
 	{
 		SetDriverServiceStartType (SERVICE_BOOT_START);
 
 		try
 		{
-			RegisterFilterDriver (false, false);
-			RegisterFilterDriver (false, true);
+			RegisterFilterDriver (false, DriveFilter);
+			RegisterFilterDriver (false, VolumeFilter);
+			RegisterFilterDriver (false, DumpFilter);
 		}
 		catch (...) { }
 
-		RegisterFilterDriver (true, false);
+		try
+		{
+			RegisterFilterDriver (true, DriveFilter);
 
-		if (hiddenSystem)
-			RegisterFilterDriver (true, true);
+			if (hiddenSystem)
+				RegisterFilterDriver (true, VolumeFilter);
+
+			RegisterFilterDriver (true, DumpFilter);
+		}
+		catch (...)
+		{
+			try { RegisterFilterDriver (false, DriveFilter); } catch (...) { }
+			try { RegisterFilterDriver (false, VolumeFilter); } catch (...) { }
+			try { RegisterFilterDriver (false, DumpFilter); } catch (...) { }
+			try { SetDriverServiceStartType (SERVICE_SYSTEM_START); } catch (...) { }
+
+			throw;
+		}
 	}
-
 
 	bool BootEncryption::RestartComputer (void)
 	{

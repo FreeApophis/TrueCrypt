@@ -1,7 +1,7 @@
 #
-# Copyright (c) 2008 TrueCrypt Developers Association. All rights reserved.
+# Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 #
-# Governed by the TrueCrypt License 2.8 the full text of which is contained in
+# Governed by the TrueCrypt License 3.0 the full text of which is contained in
 # the file License.txt included in TrueCrypt binary and source code distribution
 # packages.
 #
@@ -26,7 +26,19 @@ OBJS += VolumeLayout.o
 OBJS += VolumePassword.o
 OBJS += VolumePasswordCache.o
 
-OBJS += ../Crypto/Aescrypt.o
+ifeq "$(CPU_ARCH)" "x86"
+	OBJS += ../Crypto/Aes_x86.o
+	OBJS += ../Crypto/Aes_hw_cpu.o
+	ifeq "$(PLATFORM)" "MacOSX"
+		OBJS += ../Crypto/Aescrypt.o
+	endif
+else ifeq "$(CPU_ARCH)" "x64"
+	OBJS += ../Crypto/Aes_x64.o
+	OBJS += ../Crypto/Aes_hw_cpu.o
+else
+	OBJS += ../Crypto/Aescrypt.o
+endif
+
 OBJS += ../Crypto/Aeskey.o
 OBJS += ../Crypto/Aestab.o
 OBJS += ../Crypto/Blowfish.o

@@ -160,14 +160,14 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath=".\Aes_x86.asm"
+				RelativePath=".\Aes_hw_cpu.asm"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
 					>
 					<Tool
 						Name="VCCustomBuildTool"
-						CommandLine="nasm.exe -Xvc -f win32 -Ox -g -o &quot;$(TargetDir)\$(InputName).obj&quot; &quot;$(InputPath)&quot;&#x0D;&#x0A;"
+						CommandLine="echo $(InputFileName) &amp; nasm.exe -Xvc -f win32 -Ox -g --prefix _ -o &quot;$(TargetDir)\$(InputName).obj&quot; &quot;$(InputPath)&quot;&#x0D;&#x0A;"
 						Outputs="$(TargetDir)\$(InputName).obj"
 					/>
 				</FileConfiguration>
@@ -176,7 +176,29 @@
 					>
 					<Tool
 						Name="VCCustomBuildTool"
-						CommandLine="nasm.exe -Xvc -f win32 -Ox -o &quot;$(TargetDir)\$(InputName).obj&quot; -l &quot;$(TargetDir)\$(InputName).lst&quot; &quot;$(InputPath)&quot;&#x0D;&#x0A;"
+						CommandLine="echo $(InputFileName) &amp; nasm.exe -Xvc -f win32 -Ox --prefix _ -o &quot;$(TargetDir)\$(InputName).obj&quot; -l &quot;$(TargetDir)\$(InputName).lst&quot; &quot;$(InputPath)&quot;&#x0D;&#x0A;"
+						Outputs="$(TargetDir)\$(InputName).obj"
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\Aes_x86.asm"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine="echo $(InputFileName) &amp; nasm.exe -Xvc -f win32 -Ox -g --prefix _ -o &quot;$(TargetDir)\$(InputName).obj&quot; &quot;$(InputPath)&quot;&#x0D;&#x0A;"
+						Outputs="$(TargetDir)\$(InputName).obj"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCustomBuildTool"
+						CommandLine="echo $(InputFileName) &amp; nasm.exe -Xvc -f win32 -Ox --prefix _ -o &quot;$(TargetDir)\$(InputName).obj&quot; -l &quot;$(TargetDir)\$(InputName).lst&quot; &quot;$(InputPath)&quot;&#x0D;&#x0A;"
 						Outputs="$(TargetDir)\$(InputName).obj"
 					/>
 				</FileConfiguration>
@@ -233,6 +255,10 @@
 			>
 			<File
 				RelativePath=".\Aes.h"
+				>
+			</File>
+			<File
+				RelativePath=".\Aes_hw_cpu.h"
 				>
 			</File>
 			<File

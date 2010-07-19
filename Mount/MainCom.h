@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2007-2008 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2007-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -20,6 +20,7 @@ extern "C" {
 #endif
 
 BOOL ComServerMain ();
+void UacAnalyzeKernelMiniDump (HWND hwndDlg);
 int UacBackupVolumeHeader (HWND hwndDlg, BOOL bRequireConfirmation, char *lpszVolume);
 int UacRestoreVolumeHeader (HWND hwndDlg, char *lpszVolume);
 int UacChangePwd (char *lpszVolume, Password *oldPassword, Password *newPassword, int pkcs5, HWND hwndDlg);

@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -12,10 +12,12 @@
 
 namespace TrueCrypt
 {
-	VolumeSizeWizardPage::VolumeSizeWizardPage (wxPanel* parent, const VolumePath &volumePath, const wxString &freeSpaceText)
+	VolumeSizeWizardPage::VolumeSizeWizardPage (wxPanel* parent, const VolumePath &volumePath, uint32 sectorSize, const wxString &freeSpaceText)
 		: VolumeSizeWizardPageBase (parent),
 		MaxVolumeSize (0),
-		MinVolumeSize (1)
+		MaxVolumeSizeValid (false),
+		MinVolumeSize (1),
+		SectorSize (sectorSize)
 	{
 		VolumeSizePrefixChoice->Append (LangString["KB"], reinterpret_cast <void *> (1024));
 		VolumeSizePrefixChoice->Append (LangString["MB"], reinterpret_cast <void *> (1024 * 1024));
@@ -71,7 +73,16 @@ namespace TrueCrypt
 		
 		uint64 val = StringConverter::ToUInt64 (wstring (VolumeSizeTextCtrl->GetValue()));
 		if (val <= 0x7fffFFFFffffFFFFull / prefixMult)
-			return val * prefixMult;
+		{
+			val *= prefixMult;
+
+			uint32 sectorSizeRem = val % SectorSize;
+
+			if (sectorSizeRem != 0)
+				val += SectorSize - sectorSizeRem;
+
+			return val;
+		}
 		else
 			return 0;
 	}
@@ -82,7 +93,7 @@ namespace TrueCrypt
 		{
 			try
 			{
-				if (GetVolumeSize() >= MinVolumeSize && (MaxVolumeSize == 0 || GetVolumeSize() <= MaxVolumeSize))
+				if (GetVolumeSize() >= MinVolumeSize && (!MaxVolumeSizeValid || GetVolumeSize() <= MaxVolumeSize))
 					return true;
 			}
 			catch (...) { }

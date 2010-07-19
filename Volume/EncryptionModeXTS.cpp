@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -34,11 +34,15 @@ namespace TrueCrypt
 	void EncryptionModeXTS::EncryptBufferXTS (const Cipher &cipher, const Cipher &secondaryCipher, byte *buffer, uint64 length, uint64 startDataUnitNo, unsigned int startCipherBlockNo) const
 	{
 		byte finalCarry;
+		byte whiteningValues [ENCRYPTION_DATA_UNIT_SIZE];
 		byte whiteningValue [BYTES_PER_XTS_BLOCK];
 		byte byteBufUnitNo [BYTES_PER_XTS_BLOCK];
+		uint64 *whiteningValuesPtr64 = (uint64 *) whiteningValues;
 		uint64 *whiteningValuePtr64 = (uint64 *) whiteningValue;
 		uint64 *bufPtr = (uint64 *) buffer;
+		uint64 *dataUnitBufPtr;
 		unsigned int startBlock = startCipherBlockNo, endBlock, block;
+		uint64 *const finalInt64WhiteningValuesPtr = whiteningValuesPtr64 + sizeof (whiteningValues) / sizeof (*whiteningValuesPtr64) - 1;
 		uint64 blockCount, dataUnitNo;
 
 		startDataUnitNo += SectorOffset;
@@ -69,6 +73,7 @@ namespace TrueCrypt
 			else
 				endBlock = BLOCKS_PER_XTS_DATA_UNIT;
 
+			whiteningValuesPtr64 = finalInt64WhiteningValuesPtr;
 			whiteningValuePtr64 = (uint64 *) whiteningValue;
 
 			// Encrypt the data unit number using the secondary key (in order to generate the first 
@@ -77,22 +82,14 @@ namespace TrueCrypt
 			*(whiteningValuePtr64 + 1) = 0;
 			secondaryCipher.EncryptBlock (whiteningValue);
 
-			// Generate (and apply) subsequent whitening values for blocks in this data unit and
-			// encrypt all relevant blocks in this data unit
+			// Generate subsequent whitening values for blocks in this data unit. Note that all generated 128-bit
+			// whitening values are stored in memory as a sequence of 64-bit integers in reverse order.
 			for (block = 0; block < endBlock; block++)
 			{
 				if (block >= startBlock)
 				{
-					// Pre-whitening
-					*bufPtr++ ^= *whiteningValuePtr64++;
-					*bufPtr-- ^= *whiteningValuePtr64--;
-
-					// Actual encryption
-					cipher.EncryptBlock (reinterpret_cast <byte *> (bufPtr));
-
-					// Post-whitening
-					*bufPtr++ ^= *whiteningValuePtr64++;
-					*bufPtr++ ^= *whiteningValuePtr64;
+					*whiteningValuesPtr64-- = *whiteningValuePtr64++;
+					*whiteningValuesPtr64-- = *whiteningValuePtr64;
 				}
 				else
 					whiteningValuePtr64++;
@@ -134,6 +131,31 @@ namespace TrueCrypt
 				whiteningValue[0] ^= finalCarry;
 			}
 
+			dataUnitBufPtr = bufPtr;
+			whiteningValuesPtr64 = finalInt64WhiteningValuesPtr;
+
+			// Encrypt all blocks in this data unit
+
+			for (block = startBlock; block < endBlock; block++)
+			{
+				// Pre-whitening
+				*bufPtr++ ^= *whiteningValuesPtr64--;
+				*bufPtr++ ^= *whiteningValuesPtr64--;
+			}
+
+			// Actual encryption
+			cipher.EncryptBlocks ((byte *) dataUnitBufPtr, endBlock - startBlock);
+
+			bufPtr = dataUnitBufPtr;
+			whiteningValuesPtr64 = finalInt64WhiteningValuesPtr;
+
+			for (block = startBlock; block < endBlock; block++)
+			{
+				// Post-whitening
+				*bufPtr++ ^= *whiteningValuesPtr64--;
+				*bufPtr++ ^= *whiteningValuesPtr64--;
+			}
+
 			blockCount -= endBlock - startBlock;
 			startBlock = 0;
 			dataUnitNo++;
@@ -141,6 +163,7 @@ namespace TrueCrypt
 		}
 
 		FAST_ERASE64 (whiteningValue, sizeof (whiteningValue));
+		FAST_ERASE64 (whiteningValues, sizeof (whiteningValues));
 	}
 
 	void EncryptionModeXTS::EncryptSectorsCurrentThread (byte *data, uint64 sectorIndex, uint64 sectorCount, size_t sectorSize) const
@@ -185,11 +208,15 @@ namespace TrueCrypt
 	void EncryptionModeXTS::DecryptBufferXTS (const Cipher &cipher, const Cipher &secondaryCipher, byte *buffer, uint64 length, uint64 startDataUnitNo, unsigned int startCipherBlockNo) const
 	{
 		byte finalCarry;
+		byte whiteningValues [ENCRYPTION_DATA_UNIT_SIZE];
 		byte whiteningValue [BYTES_PER_XTS_BLOCK];
 		byte byteBufUnitNo [BYTES_PER_XTS_BLOCK];
+		uint64 *whiteningValuesPtr64 = (uint64 *) whiteningValues;
 		uint64 *whiteningValuePtr64 = (uint64 *) whiteningValue;
 		uint64 *bufPtr = (uint64 *) buffer;
+		uint64 *dataUnitBufPtr;
 		unsigned int startBlock = startCipherBlockNo, endBlock, block;
+		uint64 *const finalInt64WhiteningValuesPtr = whiteningValuesPtr64 + sizeof (whiteningValues) / sizeof (*whiteningValuesPtr64) - 1;
 		uint64 blockCount, dataUnitNo;
 
 		startDataUnitNo += SectorOffset;
@@ -213,6 +240,7 @@ namespace TrueCrypt
 			else
 				endBlock = BLOCKS_PER_XTS_DATA_UNIT;
 
+			whiteningValuesPtr64 = finalInt64WhiteningValuesPtr;
 			whiteningValuePtr64 = (uint64 *) whiteningValue;
 
 			// Encrypt the data unit number using the secondary key (in order to generate the first 
@@ -221,22 +249,14 @@ namespace TrueCrypt
 			*(whiteningValuePtr64 + 1) = 0;
 			secondaryCipher.EncryptBlock (whiteningValue);
 
-			// Generate (and apply) subsequent whitening values for blocks in this data unit and
-			// decrypt all relevant blocks in this data unit
+			// Generate subsequent whitening values for blocks in this data unit. Note that all generated 128-bit
+			// whitening values are stored in memory as a sequence of 64-bit integers in reverse order.
 			for (block = 0; block < endBlock; block++)
 			{
 				if (block >= startBlock)
 				{
-					// Post-whitening
-					*bufPtr++ ^= *whiteningValuePtr64++;
-					*bufPtr-- ^= *whiteningValuePtr64--;
-
-					// Actual decryption
-					cipher.DecryptBlock (reinterpret_cast <byte *> (bufPtr));
-
-					// Pre-whitening
-					*bufPtr++ ^= *whiteningValuePtr64++;
-					*bufPtr++ ^= *whiteningValuePtr64;
+					*whiteningValuesPtr64-- = *whiteningValuePtr64++;
+					*whiteningValuesPtr64-- = *whiteningValuePtr64;
 				}
 				else
 					whiteningValuePtr64++;
@@ -278,15 +298,39 @@ namespace TrueCrypt
 				whiteningValue[0] ^= finalCarry;
 			}
 
+			dataUnitBufPtr = bufPtr;
+			whiteningValuesPtr64 = finalInt64WhiteningValuesPtr;
+
+			// Decrypt blocks in this data unit
+
+			for (block = startBlock; block < endBlock; block++)
+			{
+				*bufPtr++ ^= *whiteningValuesPtr64--;
+				*bufPtr++ ^= *whiteningValuesPtr64--;
+			}
+
+			cipher.DecryptBlocks ((byte *) dataUnitBufPtr, endBlock - startBlock);
+
+			bufPtr = dataUnitBufPtr;
+			whiteningValuesPtr64 = finalInt64WhiteningValuesPtr;
+
+			for (block = startBlock; block < endBlock; block++)
+			{
+				*bufPtr++ ^= *whiteningValuesPtr64--;
+				*bufPtr++ ^= *whiteningValuesPtr64--;
+			}
+
 			blockCount -= endBlock - startBlock;
 			startBlock = 0;
 			dataUnitNo++;
+
 			*((uint64 *) byteBufUnitNo) = Endian::Little (dataUnitNo);
 		}
 
 		FAST_ERASE64 (whiteningValue, sizeof (whiteningValue));
+		FAST_ERASE64 (whiteningValues, sizeof (whiteningValues));
 	}
-	
+
 	void EncryptionModeXTS::DecryptSectorsCurrentThread (byte *data, uint64 sectorIndex, uint64 sectorCount, size_t sectorSize) const
 	{
 		DecryptBuffer (data, sectorCount * sectorSize, sectorIndex * sectorSize / ENCRYPTION_DATA_UNIT_SIZE);

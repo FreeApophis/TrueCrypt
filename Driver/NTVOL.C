@@ -4,8 +4,8 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
@@ -52,13 +52,14 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	char *readBuffer = 0;
 	NTSTATUS ntStatus = 0;
 	BOOL forceAccessCheck = (!bRawDevice && !(OsMajorVersion == 5 &&OsMinorVersion == 0)); // Windows 2000 does not support OBJ_FORCE_ACCESS_CHECK attribute
+	BOOL disableBuffering = TRUE;
 
 	Extension->pfoDeviceFile = NULL;
 	Extension->hDeviceFile = NULL;
 	Extension->bTimeStampValid = FALSE;
 
 	RtlInitUnicodeString (&FullFileName, pwszMountVolume);
-	InitializeObjectAttributes (&oaFileAttributes, &FullFileName, OBJ_CASE_INSENSITIVE | (forceAccessCheck ? OBJ_FORCE_ACCESS_CHECK : 0), NULL, NULL);
+	InitializeObjectAttributes (&oaFileAttributes, &FullFileName, OBJ_CASE_INSENSITIVE | (forceAccessCheck ? OBJ_FORCE_ACCESS_CHECK : 0) | OBJ_KERNEL_HANDLE, NULL, NULL);
 	KeInitializeEvent (&Extension->keVolumeEvent, NotificationEvent, FALSE);
 
 	if (Extension->SecurityClientContextValid)
@@ -86,13 +87,12 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		if (!NT_SUCCESS (ntStatus))
 			goto error;
 
-		if (NT_SUCCESS (TCSendHostDeviceIoControlRequest (DeviceObject, Extension, IOCTL_DISK_GET_DRIVE_GEOMETRY, (char *) &dg, sizeof (dg))))
-		{
-			lDiskLength.QuadPart = dg.Cylinders.QuadPart * dg.SectorsPerTrack * dg.TracksPerCylinder * dg.BytesPerSector;
-			mount->BytesPerSector = dg.BytesPerSector;
-		}
-		else
-			lDiskLength.QuadPart = 0;
+		ntStatus = TCSendHostDeviceIoControlRequest (DeviceObject, Extension, IOCTL_DISK_GET_DRIVE_GEOMETRY, (char *) &dg, sizeof (dg));
+		if (!NT_SUCCESS (ntStatus))
+			goto error;
+
+		lDiskLength.QuadPart = dg.Cylinders.QuadPart * dg.SectorsPerTrack * dg.TracksPerCylinder * dg.BytesPerSector;
+		Extension->HostBytesPerSector = dg.BytesPerSector;
 
 		// Drive geometry is used only when IOCTL_DISK_GET_PARTITION_INFO fails
 		if (NT_SUCCESS (TCSendHostDeviceIoControlRequest (DeviceObject, Extension, IOCTL_DISK_GET_PARTITION_INFO_EX, (char *) &pix, sizeof (pix))))
@@ -124,11 +124,20 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 
 		ProbingHostDeviceForWrite = FALSE;
 	}
+	else
+	{
+		// Limit the maximum required buffer size
+		if (mount->BytesPerSector > 128 * BYTES_PER_KB)
+		{
+			ntStatus = STATUS_INVALID_PARAMETER;
+			goto error;
+		}
 
-	if (mount->BytesPerSector == 0)
-		mount->BytesPerSector = SECTOR_SIZE;
+		Extension->HostBytesPerSector = mount->BytesPerSector;
 
-	Extension->HostBytesPerSector = mount->BytesPerSector;
+		if (Extension->HostBytesPerSector != TC_SECTOR_SIZE_FILE_HOSTED_VOLUME)
+			disableBuffering = FALSE;
+	}
 
 	// Open the volume hosting file/device
 	if (!mount->bMountReadOnly)
@@ -144,7 +153,7 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			FILE_OPEN,
 			FILE_RANDOM_ACCESS |
 			FILE_WRITE_THROUGH |
-			(Extension->HostBytesPerSector == SECTOR_SIZE ? FILE_NO_INTERMEDIATE_BUFFERING : 0) |
+			(disableBuffering ? FILE_NO_INTERMEDIATE_BUFFERING : 0) |
 			FILE_SYNCHRONOUS_IO_NONALERT,
 			NULL,
 			0);
@@ -169,7 +178,7 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			FILE_OPEN,
 			FILE_RANDOM_ACCESS |
 			FILE_WRITE_THROUGH |
-			(Extension->HostBytesPerSector == SECTOR_SIZE ? FILE_NO_INTERMEDIATE_BUFFERING : 0) |
+			(disableBuffering ? FILE_NO_INTERMEDIATE_BUFFERING : 0) |
 			FILE_SYNCHRONOUS_IO_NONALERT,
 			NULL,
 			0);
@@ -286,7 +295,7 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	Extension->DiskLength = lDiskLength.QuadPart;
 	Extension->HostLength = lDiskLength.QuadPart;
 
-	readBuffer = TCalloc (max (TC_VOLUME_HEADER_EFFECTIVE_SIZE, PAGE_SIZE));
+	readBuffer = TCalloc (max (max (TC_VOLUME_HEADER_EFFECTIVE_SIZE, PAGE_SIZE), Extension->HostBytesPerSector));
 	if (readBuffer == NULL)
 	{
 		ntStatus = STATUS_INSUFFICIENT_RESOURCES;
@@ -334,6 +343,9 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 				if (mount->UseBackupHeader)
 					continue;
 
+				if (bRawDevice && Extension->HostBytesPerSector != TC_SECTOR_SIZE_LEGACY)
+					continue;
+
 				headerOffset.QuadPart = lDiskLength.QuadPart - TC_HIDDEN_VOLUME_HEADER_OFFSET_LEGACY;
 				break;
 			}
@@ -346,7 +358,7 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			NULL,
 			&IoStatusBlock,
 			readBuffer,
-			TC_VOLUME_HEADER_EFFECTIVE_SIZE,
+			bRawDevice ? max (TC_VOLUME_HEADER_EFFECTIVE_SIZE, Extension->HostBytesPerSector) : TC_VOLUME_HEADER_EFFECTIVE_SIZE,
 			&headerOffset,
 			NULL);
 		}
@@ -368,7 +380,7 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			Dump ("Mounting partition within scope of system encryption (reading key data from: %ls)\n", parentDrivePath);
 
 			RtlInitUnicodeString (&FullParentPath, parentDrivePath);
-			InitializeObjectAttributes (&oaParentFileAttributes, &FullParentPath, OBJ_CASE_INSENSITIVE,	NULL, NULL);
+			InitializeObjectAttributes (&oaParentFileAttributes, &FullParentPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,	NULL, NULL);
 
 			ntStatus = ZwCreateFile (&hParentDeviceFile,
 				GENERIC_READ | SYNCHRONIZE,
@@ -381,7 +393,7 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 				FILE_OPEN,
 				FILE_RANDOM_ACCESS |
 				FILE_WRITE_THROUGH |
-				(Extension->HostBytesPerSector == SECTOR_SIZE ? FILE_NO_INTERMEDIATE_BUFFERING : 0) |
+				FILE_NO_INTERMEDIATE_BUFFERING |
 				FILE_SYNCHRONOUS_IO_NONALERT,
 				NULL,
 				0);
@@ -404,7 +416,7 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 				NULL,
 				&IoStatusBlock,
 				readBuffer,
-				TC_VOLUME_HEADER_EFFECTIVE_SIZE,
+				max (TC_VOLUME_HEADER_EFFECTIVE_SIZE, Extension->HostBytesPerSector),
 				&parentKeyDataOffset,
 				NULL);
 
@@ -418,7 +430,7 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			goto error;
 		}
 
-		if (ntStatus == STATUS_END_OF_FILE || IoStatusBlock.Information != TC_VOLUME_HEADER_EFFECTIVE_SIZE)
+		if (ntStatus == STATUS_END_OF_FILE || IoStatusBlock.Information < TC_VOLUME_HEADER_EFFECTIVE_SIZE)
 		{
 			Dump ("Read didn't read enough data\n");
 
@@ -604,11 +616,19 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			// mount it (i.e. not just to protect it)
 			if (volumeType == TC_VOLUME_TYPE_NORMAL || !mount->bProtectHiddenVolume)	
 			{
+				// Validate sector size
+				if (bRawDevice && Extension->cryptoInfo->SectorSize != Extension->HostBytesPerSector)
+				{
+					mount->nReturnCode = ERR_PARAMETER_INCORRECT;
+					ntStatus = STATUS_SUCCESS;
+					goto error;
+				}
+
 				// Calculate virtual volume geometry
 				Extension->TracksPerCylinder = 1;
 				Extension->SectorsPerTrack = 1;
-				Extension->BytesPerSector = SECTOR_SIZE;
-				Extension->NumberOfCylinders = Extension->DiskLength / SECTOR_SIZE;
+				Extension->BytesPerSector = Extension->cryptoInfo->SectorSize;
+				Extension->NumberOfCylinders = Extension->DiskLength / Extension->BytesPerSector;
 				Extension->PartitionType = 0;
 
 				Extension->bRawDevice = bRawDevice;

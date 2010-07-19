@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -47,9 +47,7 @@ namespace TrueCrypt
 #ifdef TC_LINUX
 		if (!Preferences.NonInteractive)
 		{
-			vector <int> osVersion = SystemInfo::GetVersion();
-
-			if (osVersion.size() >= 3 && osVersion[0] == 2 && osVersion[1] == 6 && osVersion[2] < 24)
+			if (!SystemInfo::IsVersionAtLeast (2, 6, 24))
 				ShowWarning (_("Your system uses an old version of the Linux kernel.\n\nDue to a bug in the Linux kernel, your system may stop responding when writing data to a TrueCrypt volume. This problem can be solved by upgrading the kernel to version 2.6.24 or later."));
 		}
 #endif // TC_LINUX
@@ -437,7 +435,7 @@ namespace TrueCrypt
 		EX2MSG (InsufficientData,					_("Not enough data available."));
 		EX2MSG (InvalidSecurityTokenKeyfilePath,	LangString["INVALID_TOKEN_KEYFILE_PATH"]);
 		EX2MSG (HigherVersionRequired,				LangString["NEW_VERSION_REQUIRED"]);
-		EX2MSG (KernelCryptoServiceTestFailed,		_("Kernel cryptographic service test failed. The cryptographic service of your kernel most likely does not support volumes larger than 2 TB.\n\nPossible solutions:\n- Try upgrading your kernel.\n- Disable use of the kernel cryptographic services (Settings > Preferences > System Integration) or use 'nokernelcrypto' mount option on the command line."));
+		EX2MSG (KernelCryptoServiceTestFailed,		_("Kernel cryptographic service test failed. The cryptographic service of your kernel most likely does not support volumes larger than 2 TB.\n\nPossible solutions:\n- Upgrade the Linux kernel to version 2.6.33 or later.\n- Disable use of the kernel cryptographic services (Settings > Preferences > System Integration) or use 'nokernelcrypto' mount option on the command line."));
 		EX2MSG (KeyfilePathEmpty,					LangString["ERR_KEYFILE_PATH_EMPTY"]);
 		EX2MSG (LoopDeviceSetupFailed,				_("Failed to set up a loop device."));
 		EX2MSG (MissingArgument,					_("A required argument is missing."));
@@ -462,7 +460,15 @@ namespace TrueCrypt
 		EX2MSG (StringFormatterException,			_("Error while parsing formatted string."));
 		EX2MSG (TemporaryDirectoryFailure,			_("Failed to create a file or directory in a temporary directory.\n\nPlease make sure that the temporary directory exists, its security permissions allow you to access it, and there is sufficient disk space."));
 		EX2MSG (UnportablePassword,					LangString["UNSUPPORTED_CHARS_IN_PWD"]);
-		EX2MSG (UnsupportedSectorSize,				LangString["LARGE_SECTOR_UNSUPPORTED"]);
+
+#if defined (TC_LINUX)
+		EX2MSG (UnsupportedSectorSize,				LangString["SECTOR_SIZE_UNSUPPORTED"]);
+		EX2MSG (UnsupportedSectorSizeHiddenVolumeProtection, _("Error: The drive uses a sector size other than 512 bytes.\n\nDue to limitations of components available on your platform, outer volumes hosted on the drive cannot be mounted using hidden volume protection.\n\nPossible solutions:\n- Use a drive with 512-byte sectors.\n- Create a file-hosted volume (container) on the drive.\n- Backup the contents of the hidden volume and then update the outer volume."));
+		EX2MSG (UnsupportedSectorSizeNoKernelCrypto, _("Error: The drive uses a sector size other than 512 bytes.\n\nDue to limitations of components available on your platform, partition/device-hosted volumes on the drive can only be mounted using kernel cryptographic services.\n\nPossible solutions:\n- Enable use of the kernel cryptographic services (Preferences > System Integration).\n- Use a drive with 512-byte sectors.\n- Create a file-hosted volume (container) on the drive."));
+#else
+		EX2MSG (UnsupportedSectorSize,				_("Error: The drive uses a sector size other than 512 bytes.\n\nDue to limitations of components available on your platform, partition/device-hosted volumes cannot be created/used on the drive.\n\nPossible solutions:\n- Create a file-hosted volume (container) on the drive.\n- Use a drive with 512-byte sectors.\n- Use TrueCrypt on another platform."));
+#endif
+
 		EX2MSG (VolumeAlreadyMounted,				LangString["VOL_ALREADY_MOUNTED"]);
 		EX2MSG (VolumeEncryptionNotCompleted,		LangString["ERR_ENCRYPTION_NOT_COMPLETED"]);
 		EX2MSG (VolumeHostInUse,					_("The host file/device is already in use."));
@@ -971,7 +977,7 @@ namespace TrueCrypt
 				options->Keyfiles = cmdLine.ArgKeyfiles;
 				options->Password = cmdLine.ArgPassword;
 				options->Quick = cmdLine.ArgQuick;
-				options->Size = (cmdLine.ArgSize + SECTOR_SIZE - 1) & ~(SECTOR_SIZE - 1);
+				options->Size = cmdLine.ArgSize;
 				options->Type = cmdLine.ArgVolumeType;
 
 				if (cmdLine.ArgVolumePath)
@@ -1072,6 +1078,9 @@ namespace TrueCrypt
 					" Restore volume headers from the embedded or an external backup. All required\n"
 					" options are requested from the user.\n"
 					"\n"
+					"--save-preferences\n"
+					" Save user preferences.\n"
+					"\n"
 					"--test\n"
 					" Test internal algorithms used in the process of encryption and decryption.\n"
 					"\n"
@@ -1090,6 +1099,9 @@ namespace TrueCrypt
 					"\n"
 					"\n"
 					"Options:\n"
+					"\n"
+					"--display-password\n"
+					" Display password characters while typing.\n"
 					"\n"
 					"--encryption=ENCRYPTION_ALGORITHM\n"
 					" Use specified encryption algorithm when creating a new volume.\n"
@@ -1114,7 +1126,7 @@ namespace TrueCrypt
 					" and/or keyfiles. This option also specifies the mixing PRF of the random\n"
 					" number generator.\n"
 					"\n"
-					"-k, --keyfiles=KEYFILE1,KEYFILE2,KEYFILE3,..\n"
+					"-k, --keyfiles=KEYFILE1[,KEYFILE2,KEYFILE3,...]\n"
 					" Use specified keyfiles when mounting a volume or when changing password\n"
 					" and/or keyfiles. When a directory is specified, all files inside it will be\n"
 					" used (non-recursively). Multiple keyfiles must be separated by comma.\n"
@@ -1124,8 +1136,11 @@ namespace TrueCrypt
 					" interactive requests for keyfiles. See also options --import-token-keyfiles,\n"
 					" --list-token-keyfiles, --new-keyfiles, --protection-keyfiles.\n"
 					"\n"
-					"-m, --mount-options=headerbak|nokernelcrypto|readonly|ro|system|timestamp|ts\n"
-					" Specify comma-separated mount options for a TrueCrypt volume:\n"
+					"--load-preferences\n"
+					" Load user preferences.\n"
+					"\n"
+					"-m, --mount-options=OPTION1[,OPTION2,OPTION3,...]\n"
+					" Specifies comma-separated mount options for a TrueCrypt volume:\n"
 					"  headerbak: Use backup headers when mounting a volume.\n"
 					"  nokernelcrypto: Do not use kernel cryptographic services.\n"
 					"  readonly|ro: Mount volume as read-only.\n"
@@ -1136,7 +1151,7 @@ namespace TrueCrypt
 					"   to mean that this option does not work).\n"
 					" See also option --fs-options.\n"
 					"\n"
-					"--new-keyfiles=KEYFILE1,KEYFILE2,KEYFILE3,..\n"
+					"--new-keyfiles=KEYFILE1[,KEYFILE2,KEYFILE3,...]\n"
 					" Add specified keyfiles to a volume. This option can only be used with command\n"
 					" -C.\n"
 					"\n"
@@ -1160,7 +1175,7 @@ namespace TrueCrypt
 					" Warning message is displayed when a volume switched to read-only is being\n"
 					" dismounted.\n"
 					"\n"
-					"--protection-keyfiles=KEYFILE1,KEYFILE2,KEYFILE3,..\n"
+					"--protection-keyfiles=KEYFILE1[,KEYFILE2,KEYFILE3,...]\n"
 					" Use specified keyfiles to open a hidden volume to be protected. This option\n"
 					" may be used only when mounting an outer volume with hidden volume protected.\n"
 					" See also options -k and --protect-hidden.\n"
@@ -1171,9 +1186,8 @@ namespace TrueCrypt
 					" See also options -p and --protect-hidden.\n"
 					"\n"
 					"--quick\n"
-					" Use quick format when creating a new volume. This option can be used only\n"
-					" when creating a device-hosted volume and must not be used when creating an\n"
-					" outer volume.\n"
+					" Do not encrypt free space when creating a device-hosted volume. This option\n"
+					" must not be used when creating an outer volume.\n"
 					"\n"
 					"--random-source=FILE\n"
 					" Use FILE as a source of random data (e.g., when creating a volume) instead\n"
@@ -1187,7 +1201,7 @@ namespace TrueCrypt
 					"\n"
 					"-t, --text\n"
 					" Use text user interface. Graphical user interface is used by default if\n"
-					" available.\n"
+					" available. This option must be specified as the first argument.\n"
 					"\n"
 					"--token-lib=LIB_PATH\n"
 					" Use specified PKCS #11 security token library.\n"
@@ -1198,6 +1212,13 @@ namespace TrueCrypt
 					"\n"
 					"-v, --verbose\n"
 					" Enable verbose output.\n"
+					"\n"
+					"\n"
+					"IMPORTANT:\n"
+					"\n"
+					"If you want to use TrueCrypt, you must follow the security requirements and\n"
+					"security precautions listed in chapter 'Security Requirements and Precautions'\n"
+					"in the TrueCrypt documentation (file 'TrueCrypt User Guide.pdf').\n"
 					"\n"
 					"\nExamples:\n\n"
 					"Create a new volume:\n"
@@ -1275,6 +1296,10 @@ namespace TrueCrypt
 			RestoreVolumeHeaders (cmdLine.ArgVolumePath);
 			return true;
 
+		case CommandId::SavePreferences:
+			Preferences.Save();
+			return true;
+
 		case CommandId::Test:
 			Test();
 			return true;
@@ -1289,6 +1314,9 @@ namespace TrueCrypt
 	void UserInterface::SetPreferences (const UserPreferences &preferences)
 	{
 		Preferences = preferences;
+
+		Cipher::EnableHwSupport (!preferences.DefaultMountOptions.NoHardwareCrypto);
+
 		PreferencesUpdatedEvent.Raise();
 	}
 

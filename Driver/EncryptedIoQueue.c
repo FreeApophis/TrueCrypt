@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -655,7 +655,7 @@ static VOID MainThreadProc (PVOID threadArg)
 				continue;
 			}
 			else if (item->Write && IsHiddenSystemRunning()
-				&& (RegionsOverlap (item->OriginalOffset.QuadPart, item->OriginalOffset.QuadPart + item->OriginalLength - 1, SECTOR_SIZE, TC_BOOT_LOADER_AREA_SECTOR_COUNT * SECTOR_SIZE - 1)
+				&& (RegionsOverlap (item->OriginalOffset.QuadPart, item->OriginalOffset.QuadPart + item->OriginalLength - 1, TC_SECTOR_SIZE_BIOS, TC_BOOT_LOADER_AREA_SECTOR_COUNT * TC_SECTOR_SIZE_BIOS - 1)
 				 || RegionsOverlap (item->OriginalOffset.QuadPart, item->OriginalOffset.QuadPart + item->OriginalLength - 1, GetBootDriveLength(), _I64_MAX)))
 			{
 				Dump ("Preventing write to boot loader or host protected area\n");

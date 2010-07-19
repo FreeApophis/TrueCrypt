@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -51,5 +51,19 @@ namespace TrueCrypt
 		}
 
 		return version;
+	}
+
+	bool SystemInfo::IsVersionAtLeast (int versionNumber1, int versionNumber2, int versionNumber3)
+	{
+		vector <int> osVersionNumbers = GetVersion();
+
+		if (osVersionNumbers.size() < 2)
+			throw ParameterIncorrect (SRC_POS);
+
+		if (osVersionNumbers.size() < 3)
+			osVersionNumbers[2] = 0;
+
+		return (osVersionNumbers[0] * 10000000 +  osVersionNumbers[1] * 10000 + osVersionNumbers[2]) >=
+			(versionNumber1 * 10000000 +  versionNumber2 * 10000 + versionNumber3);
 	}
 }

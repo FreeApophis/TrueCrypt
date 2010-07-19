@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -12,6 +12,7 @@
 #include "Pkcs5Kdf.h"
 #include "VolumeHeader.h"
 #include "VolumeException.h"
+#include "Common/Crypto.h"
 
 namespace TrueCrypt
 {
@@ -38,6 +39,7 @@ namespace TrueCrypt
 		EncryptedAreaStart = 0;
 		EncryptedAreaLength = 0;
 		Flags = 0;
+		SectorSize = 0;
 	}
 
 	void VolumeHeader::Create (const BufferPtr &headerBuffer, VolumeHeaderCreationOptions &options)
@@ -59,6 +61,15 @@ namespace TrueCrypt
 
 		EncryptedAreaStart = options.VolumeDataStart;
 		EncryptedAreaLength = options.VolumeDataSize;
+
+		SectorSize = options.SectorSize;
+
+		if (SectorSize < TC_MIN_VOLUME_SECTOR_SIZE
+			|| SectorSize > TC_MAX_VOLUME_SECTOR_SIZE
+			|| SectorSize % ENCRYPTION_DATA_UNIT_SIZE != 0)
+		{
+			throw ParameterIncorrect (SRC_POS);
+		}
 
 		EA = options.EA;
 		shared_ptr <EncryptionMode> mode (new EncryptionModeXTS ());
@@ -161,6 +172,22 @@ namespace TrueCrypt
 		EncryptedAreaStart = DeserializeEntry <uint64> (header, offset);
 		EncryptedAreaLength = DeserializeEntry <uint64> (header, offset);
 		Flags = DeserializeEntry <uint32> (header, offset);
+
+		SectorSize = DeserializeEntry <uint32> (header, offset);
+		if (HeaderVersion < 5)
+			SectorSize = TC_SECTOR_SIZE_LEGACY;
+
+		if (SectorSize < TC_MIN_VOLUME_SECTOR_SIZE
+			|| SectorSize > TC_MAX_VOLUME_SECTOR_SIZE
+			|| SectorSize % ENCRYPTION_DATA_UNIT_SIZE != 0)
+		{
+			throw ParameterIncorrect (SRC_POS);
+		}
+
+#if !(defined (TC_WINDOWS) || defined (TC_LINUX))
+		if (SectorSize != TC_SECTOR_SIZE_LEGACY)
+			throw UnsupportedSectorSize (SRC_POS);
+#endif
 
 		offset = DataAreaKeyOffset;
 
@@ -280,6 +307,15 @@ namespace TrueCrypt
 		SerializeEntry (EncryptedAreaStart, header, offset);
 		SerializeEntry (EncryptedAreaLength, header, offset);
 		SerializeEntry (Flags, header, offset);
+
+		if (SectorSize < TC_MIN_VOLUME_SECTOR_SIZE
+			|| SectorSize > TC_MAX_VOLUME_SECTOR_SIZE
+			|| SectorSize % ENCRYPTION_DATA_UNIT_SIZE != 0)
+		{
+			throw ParameterIncorrect (SRC_POS);
+		}
+
+		SerializeEntry (SectorSize, header, offset);
 
 		offset = TC_HEADER_OFFSET_HEADER_CRC - TC_HEADER_OFFSET_MAGIC;
 		SerializeEntry (Crc32::ProcessBuffer (header.GetRange (0, TC_HEADER_OFFSET_HEADER_CRC - TC_HEADER_OFFSET_MAGIC)), header, offset);

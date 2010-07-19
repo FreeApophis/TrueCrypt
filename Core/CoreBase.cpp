@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -125,6 +125,82 @@ namespace TrueCrypt
 #else
 		throw VolumeSlotUnavailable (SRC_POS);
 #endif
+	}
+
+	uint64 CoreBase::GetMaxHiddenVolumeSize (shared_ptr <Volume> outerVolume) const
+	{
+		uint32 sectorSize = outerVolume->GetSectorSize();
+
+		SecureBuffer bootSectorBuffer (sectorSize);
+		outerVolume->ReadSectors (bootSectorBuffer, 0);
+
+		int fatType;
+		byte *bootSector = bootSectorBuffer.Ptr(); 
+
+		if (memcmp (bootSector + 54, "FAT12", 5) == 0)
+			fatType = 12;
+		else if (memcmp (bootSector + 54, "FAT16", 5) == 0)
+			fatType = 16;
+		else if (memcmp (bootSector + 82, "FAT32", 5) == 0)
+			fatType = 32;
+		else
+			throw ParameterIncorrect (SRC_POS);
+
+		uint32 clusterSize = bootSector[13] * sectorSize;
+		uint32 reservedSectorCount = *(uint16 *) (bootSector + 14);
+		uint32 fatCount = bootSector[16];
+
+		uint64 fatSectorCount;
+		if (fatType == 32)
+			fatSectorCount = *(uint32 *) (bootSector + 36);
+		else
+			fatSectorCount = *(uint16 *) (bootSector + 22);
+		uint64 fatSize = fatSectorCount * sectorSize;
+
+		uint64 fatStartOffset = reservedSectorCount * sectorSize;
+		uint64 dataAreaOffset = reservedSectorCount * sectorSize + fatSize * fatCount;
+
+		if (fatType < 32)
+			dataAreaOffset += (*(uint16 *) (bootSector + 17)) * 32;
+
+		SecureBuffer sector (sectorSize);
+
+		// Find last used cluster
+		for (uint64 readOffset = fatStartOffset + fatSize - sectorSize;
+			readOffset >= fatStartOffset;
+			readOffset -= sectorSize)
+		{
+			outerVolume->ReadSectors (sector, readOffset);
+
+			for (int offset = sectorSize - 4; offset >= 0; offset -= 4)
+			{
+				if (*(uint32 *) (sector.Ptr() + offset))
+				{
+					uint64 clusterNumber = readOffset - fatStartOffset + offset;
+
+					if (fatType == 12)
+						clusterNumber = (clusterNumber * 8) / 12;
+					else if (fatType == 16)
+						clusterNumber /= 2;
+					else if (fatType == 32)
+						clusterNumber /= 4;
+
+					uint64 maxSize = outerVolume->GetSize() - dataAreaOffset;
+
+					// Some FAT entries may span over sector boundaries
+					if (maxSize >= clusterSize)
+						maxSize -= clusterSize;
+
+					uint64 clusterOffset = clusterNumber * clusterSize;
+					if (maxSize < clusterOffset)
+						return 0;
+
+					return maxSize - clusterOffset;
+				}
+			}
+		}
+
+		return 0;
 	}
 
 	shared_ptr <VolumeInfo> CoreBase::GetMountedVolume (const VolumePath &volumePath) const

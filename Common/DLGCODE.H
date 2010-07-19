@@ -4,8 +4,8 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
@@ -29,6 +29,8 @@ enum dynamic_gui_element_ids
 	IDPM_OPEN_VOLUME,
 	IDPM_SELECT_FILE_AND_MOUNT,
 	IDPM_SELECT_DEVICE_AND_MOUNT,
+	IDPM_ADD_TO_FAVORITES,
+	IDPM_ADD_TO_SYSTEM_FAVORITES,
 	IDM_SHOW_HIDE,
 	IDM_HOMEPAGE_SYSTRAY
 };
@@ -137,6 +139,7 @@ extern BOOL IgnoreWmDeviceChange;
 extern BOOL DeviceChangeBroadcastDisabled;
 extern BOOL LastMountedVolumeDirty;
 extern BOOL MountVolumesAsSystemFavorite;
+extern BOOL FavoriteMountOnArrivalInProgress;
 
 
 enum tc_app_msg_ids
@@ -271,11 +274,14 @@ BOOL CreateAppSetupMutex (void);
 BOOL InstanceHasAppSetupMutex (void);
 void CloseAppSetupMutex (void);
 BOOL IsTrueCryptInstallerRunning (void);
+uint32 ReadDriverConfigurationFlags ();
+uint32 ReadEncryptionThreadPoolFreeCpuCountLimit ();
 BOOL LoadSysEncSettings (HWND hwndDlg);
 int LoadNonSysInPlaceEncSettings (WipeAlgorithmId *wipeAlgorithm);
 void RemoveNonSysInPlaceEncNotifications (void);
 void SavePostInstallTasksSettings (int command);
 void DoPostInstallTasks (void);
+void InitOSVersionInfo ();
 void InitApp ( HINSTANCE hInstance, char *lpszCommandLine );
 void InitHelpFileName (void);
 BOOL OpenDevice (const char *lpszPath, OPEN_TEST_STRUCT *driver, BOOL detectFilesystem);
@@ -298,6 +304,7 @@ void ResetCurrentDirectory ();
 BOOL BrowseFiles (HWND hwndDlg, char *stringId, char *lpszFileName, BOOL keepHistory, BOOL saveMode, wchar_t *browseFilter);
 BOOL BrowseDirectories (HWND hWnd, char *lpszTitle, char *dirName);
 void handleError ( HWND hwndDlg , int code );
+BOOL CheckFileStreamWriteErrors (FILE *file, const char *fileName);
 void LocalizeDialog ( HWND hwnd, char *stringId );
 void OpenVolumeExplorerWindow (int driveNo);
 static BOOL CALLBACK CloseVolumeExplorerWindowsEnum( HWND hwnd, LPARAM driveNo);
@@ -331,7 +338,7 @@ int64 FindString (const char *buf, const char *str, int64 bufLen, size_t strLen,
 BOOL FileExists (const char *filePathPtr);
 __int64 FindStringInFile (const char *filePath, const char *str, int strLen);
 BOOL TCCopyFile (char *sourceFileName, char *destinationFile);
-BOOL SaveBufferToFile (char *inputBuffer, char *destinationFile, DWORD inputLength, BOOL bAppend);
+BOOL SaveBufferToFile (const char *inputBuffer, const char *destinationFile, DWORD inputLength, BOOL bAppend);
 BOOL TCFlushFile (FILE *f);
 BOOL PrintHardCopyTextUTF16 (wchar_t *text, char *title, int byteLen);
 void GetSpeedString (unsigned __int64 speed, wchar_t *str);
@@ -339,6 +346,7 @@ BOOL IsNonInstallMode ();
 BOOL DriverUnload ();
 LRESULT SetCheckBox (HWND hwndDlg, int dlgItem, BOOL state);
 BOOL GetCheckBox (HWND hwndDlg, int dlgItem);
+void SetListScrollHPos (HWND hList, int topMostVisibleItem);
 void ManageStartupSeq (void);
 void ManageStartupSeqWiz (BOOL bRemove, const char *arg);
 void CleanLastVisitedMRU (void);
@@ -397,6 +405,7 @@ BOOL IsOSVersionAtLeast (OSVersionEnum reqMinOS, int reqMinServicePack);
 BOOL Is64BitOs ();
 BOOL IsServerOS ();
 BOOL IsHiddenOSRunning (void);
+BOOL EnableWow64FsRedirection (BOOL enable);
 BOOL RestartComputer (void);
 void Applink (char *dest, BOOL bSendOS, char *extraOutput);
 char *RelativePath2Absolute (char *szFileName);
@@ -412,7 +421,7 @@ void OpenOnlineHelp ();
 BOOL GetPartitionInfo (const char *deviceName, PPARTITION_INFORMATION rpartInfo);
 BOOL GetDeviceInfo (const char *deviceName, DISK_PARTITION_INFO_STRUCT *info);
 BOOL GetDriveGeometry (const char *deviceName, PDISK_GEOMETRY diskGeometry);
-BOOL IsVolumeDeviceHosted (char *lpszDiskFile);
+BOOL IsVolumeDeviceHosted (const char *lpszDiskFile);
 int CompensateXDPI (int val);
 int CompensateYDPI (int val);
 int CompensateDPIFont (int val);
@@ -443,6 +452,7 @@ BOOL DisableFileCompression (HANDLE file);
 BOOL VolumePathExists (char *volumePath);
 BOOL IsWindowsIsoBurnerAvailable ();
 BOOL LaunchWindowsIsoBurner (HWND hwnd, const char *isoPath);
+BOOL IsApplicationInstalled (const char *appName);
 
 #ifdef __cplusplus
 }
@@ -490,12 +500,16 @@ std::wstring SingleStringToWide (const std::string &singleString);
 std::wstring Utf8StringToWide (const std::string &utf8String);
 std::string WideToSingleString (const std::wstring &wideString);
 std::string WideToUtf8String (const std::wstring &wideString);
+std::string StringToUpperCase (const std::string &str);
 std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties = false, bool singleList = false, bool noFloppy = true, bool detectUnencryptedFilesystems = false);
 std::string ToUpperCase (const std::string &str);
 std::wstring GetWrongPasswordErrorMessage (HWND hwndDlg);
 std::string GetWindowsEdition ();
 std::string FitPathInGfxWidth (HWND hwnd, HFONT hFont, LONG width, const std::string &path);
 std::string GetServiceConfigPath (const char *fileName);
+std::string VolumeGuidPathToDevicePath (std::string volumeGuidPath);
+std::string FindLatestFileOrDirectory (const std::string &directory, const char *namePattern, bool findDirectory, bool findFile);
+std::string GetUserFriendlyVersionString (int version);
 
 #endif // __cplusplus
 

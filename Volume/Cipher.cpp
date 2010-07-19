@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -14,6 +14,10 @@
 #include "Crypto/Cast.h"
 #include "Crypto/Serpent.h"
 #include "Crypto/Twofish.h"
+
+#ifdef TC_AES_HW_CPU
+#	include "Crypto/Aes_hw_cpu.h"
+#endif
 
 namespace TrueCrypt
 {
@@ -33,12 +37,36 @@ namespace TrueCrypt
 		Decrypt (data);
 	}
 
+	void Cipher::DecryptBlocks (byte *data, size_t blockCount) const
+	{
+		if (!Initialized)
+			throw NotInitialized (SRC_POS);
+
+		while (blockCount-- > 0)
+		{
+			Decrypt (data);
+			data += GetBlockSize();
+		}
+	}
+
 	void Cipher::EncryptBlock (byte *data) const
 	{
 		if (!Initialized)
 			throw NotInitialized (SRC_POS);
 
 		Encrypt (data);
+	}
+
+	void Cipher::EncryptBlocks (byte *data, size_t blockCount) const
+	{
+		if (!Initialized)
+			throw NotInitialized (SRC_POS);
+
+		while (blockCount-- > 0)
+		{
+			Encrypt (data);
+			data += GetBlockSize();
+		}
 	}
 
 	CipherList Cipher::GetAvailableCiphers ()
@@ -78,17 +106,88 @@ namespace TrueCrypt
 	// AES
 	void CipherAES::Decrypt (byte *data) const
 	{
-		aes_decrypt (data, data, (aes_decrypt_ctx *) (ScheduledKey.Ptr() + sizeof (aes_encrypt_ctx)));
+#ifdef TC_AES_HW_CPU
+		if (IsHwSupportAvailable())
+			aes_hw_cpu_decrypt (ScheduledKey.Ptr() + sizeof (aes_encrypt_ctx), data);
+		else
+#endif
+			aes_decrypt (data, data, (aes_decrypt_ctx *) (ScheduledKey.Ptr() + sizeof (aes_encrypt_ctx)));
+	}
+
+	void CipherAES::DecryptBlocks (byte *data, size_t blockCount) const
+	{
+		if (!Initialized)
+			throw NotInitialized (SRC_POS);
+
+#ifdef TC_AES_HW_CPU
+		if ((blockCount & (32 - 1)) == 0
+			&& IsHwSupportAvailable())
+		{
+			while (blockCount > 0)
+			{
+				aes_hw_cpu_decrypt_32_blocks (ScheduledKey.Ptr() + sizeof (aes_encrypt_ctx), data);
+
+				data += 32 * GetBlockSize();
+				blockCount -= 32;
+			}
+		}
+		else
+#endif
+			Cipher::DecryptBlocks (data, blockCount);
 	}
 
 	void CipherAES::Encrypt (byte *data) const
 	{
-		aes_encrypt (data, data, (aes_encrypt_ctx *) ScheduledKey.Ptr());
+#ifdef TC_AES_HW_CPU
+		if (IsHwSupportAvailable())
+			aes_hw_cpu_encrypt (ScheduledKey.Ptr(), data);
+		else
+#endif
+			aes_encrypt (data, data, (aes_encrypt_ctx *) ScheduledKey.Ptr());
+	}
+
+	void CipherAES::EncryptBlocks (byte *data, size_t blockCount) const
+	{
+		if (!Initialized)
+			throw NotInitialized (SRC_POS);
+
+#ifdef TC_AES_HW_CPU
+		if ((blockCount & (32 - 1)) == 0
+			&& IsHwSupportAvailable())
+		{
+			while (blockCount > 0)
+			{
+				aes_hw_cpu_encrypt_32_blocks (ScheduledKey.Ptr(), data);
+
+				data += 32 * GetBlockSize();
+				blockCount -= 32;
+			}
+		}
+		else
+#endif
+			Cipher::EncryptBlocks (data, blockCount);
 	}
 
 	size_t CipherAES::GetScheduledKeySize () const
 	{
 		return sizeof(aes_encrypt_ctx) + sizeof(aes_decrypt_ctx);
+	}
+
+	bool CipherAES::IsHwSupportAvailable () const
+	{
+#ifdef TC_AES_HW_CPU
+		static bool state = false;
+		static bool stateValid = false;
+
+		if (!stateValid)
+		{
+			state = is_aes_hw_cpu_supported() ? true : false;
+			stateValid = true;
+		}
+		return state && HwSupportEnabled;
+#else
+		return false;
+#endif
 	}
 
 	void CipherAES::SetCipherKey (const byte *key)
@@ -209,4 +308,7 @@ namespace TrueCrypt
 	{
 		twofish_set_key ((TwofishInstance *) ScheduledKey.Ptr(), (unsigned int *) key, static_cast<int> (GetKeySize ()) * 8);
 	}
+
+
+	bool Cipher::HwSupportEnabled = true;
 }

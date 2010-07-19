@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -287,7 +287,7 @@ BOOL CheckRequirementsForNonSysInPlaceEnc (const char *devicePath, BOOL silent)
 		|| ntfsVolData.BytesPerSector % ENCRYPTION_DATA_UNIT_SIZE != 0)
 	{
 		if (!silent)
-			ShowInPlaceEncErrMsgWAltSteps ("ERR_UNSUPPORTED_SECTOR_SIZE_GENERIC", TRUE);
+			ShowInPlaceEncErrMsgWAltSteps ("SECTOR_SIZE_UNSUPPORTED", TRUE);
 
 		CloseHandle (dev);
 		return FALSE;
@@ -515,6 +515,7 @@ int EncryptPartitionInPlaceBegin (volatile FORMAT_VOL_PARAMETERS *volParams, vol
 			0,	// No data is encrypted yet
 			0,
 			volParams->headerFlags | TC_HEADER_FLAG_NONSYS_INPLACE_ENC,
+			volParams->sectorSize,
 			wipeAlgorithm == TC_WIPE_NONE ? FALSE : (wipePass < PRAND_DISK_WIPE_PASSES - 1));
 
 		if (nStatus != 0)
@@ -529,7 +530,7 @@ int EncryptPartitionInPlaceBegin (volatile FORMAT_VOL_PARAMETERS *volParams, vol
 		}
 
 		// Write the backup header to the partition
-		if (_lwrite ((HFILE) dev, header, TC_VOLUME_HEADER_EFFECTIVE_SIZE) == HFILE_ERROR)
+		if (!WriteEffectiveVolumeHeader (TRUE, dev, (byte *) header))
 		{
 			nStatus = ERR_OS_ERROR;
 			goto closing_seq;
@@ -764,7 +765,7 @@ int EncryptPartitionInPlaceResume (HANDLE dev,
 	lastHeaderUpdateDistance = 0;
 
 
-	ExportProgressStats (masterCryptoInfo->EncryptedAreaLength.Value, masterCryptoInfo->VolumeSize.Value / SECTOR_SIZE);
+	ExportProgressStats (masterCryptoInfo->EncryptedAreaLength.Value, masterCryptoInfo->VolumeSize.Value);
 
 	SetNonSysInplaceEncUIStatus (NONSYS_INPLACE_ENC_STATUS_ENCRYPTING);
 
@@ -944,7 +945,7 @@ inplace_enc_read:
 			lastHeaderUpdateDistance = 0;
 		}
 
-		ExportProgressStats (masterCryptoInfo->EncryptedAreaLength.Value, masterCryptoInfo->VolumeSize.Value / SECTOR_SIZE);
+		ExportProgressStats (masterCryptoInfo->EncryptedAreaLength.Value, masterCryptoInfo->VolumeSize.Value);
 
 		if (bVolTransformThreadCancel)
 		{
@@ -982,6 +983,7 @@ inplace_enc_read:
 				masterCryptoInfo->EncryptedAreaLength.Value,
 				masterCryptoInfo->RequiredProgramVersion,
 				masterCryptoInfo->HeaderFlags | TC_HEADER_FLAG_NONSYS_INPLACE_ENC,
+				masterCryptoInfo->SectorSize,
 				wipeAlgorithm == TC_WIPE_NONE ? FALSE : (wipePass < PRAND_DISK_WIPE_PASSES - 1));
 
 			if (nStatus != ERR_SUCCESS)
@@ -991,7 +993,7 @@ inplace_enc_read:
 			offset.QuadPart = TC_VOLUME_HEADER_OFFSET;
 
 			if (SetFilePointerEx (dev, offset, NULL, FILE_BEGIN) == 0
-				|| WriteFile (dev, header, TC_VOLUME_HEADER_EFFECTIVE_SIZE, &n, NULL) == 0)
+				|| !WriteEffectiveVolumeHeader (TRUE, dev, (byte *) header))
 			{
 				nStatus = ERR_OS_ERROR;
 				goto closing_seq;
@@ -1123,7 +1125,7 @@ int FastVolumeHeaderUpdate (HANDLE dev, CRYPTO_INFO *headerCryptoInfo, CRYPTO_IN
 	offset.QuadPart = deviceSize - TC_VOLUME_HEADER_GROUP_SIZE;
 
 	if (SetFilePointerEx (dev, offset, NULL, FILE_BEGIN) == 0
-		|| ReadFile (dev, header, TC_VOLUME_HEADER_EFFECTIVE_SIZE, &n, NULL) == 0)
+		|| !ReadEffectiveVolumeHeader (TRUE, dev, header, &n) || n < TC_VOLUME_HEADER_EFFECTIVE_SIZE)
 	{
 		nStatus = ERR_OS_ERROR;
 		goto closing_seq;
@@ -1150,7 +1152,7 @@ int FastVolumeHeaderUpdate (HANDLE dev, CRYPTO_INFO *headerCryptoInfo, CRYPTO_IN
 
 
 	if (SetFilePointerEx (dev, offset, NULL, FILE_BEGIN) == 0
-		|| WriteFile (dev, header, TC_VOLUME_HEADER_EFFECTIVE_SIZE, &n, NULL) == 0)
+		|| !WriteEffectiveVolumeHeader (TRUE, dev, header))
 	{
 		nStatus = ERR_OS_ERROR;
 		goto closing_seq;
@@ -1379,10 +1381,10 @@ void ShowInPlaceEncErrMsgWAltSteps (char *iniStrId, BOOL bErr)
 }
 
 
-static void ExportProgressStats (__int64 bytesDone, __int64 totalSectors)
+static void ExportProgressStats (__int64 bytesDone, __int64 totalSize)
 {
 	NonSysInplaceEncBytesDone = bytesDone;
-	NonSysInplaceEncTotalSectors = totalSectors;
+	NonSysInplaceEncTotalSize = totalSize;
 }
 
 
@@ -1511,7 +1513,7 @@ static int OpenBackupHeader (HANDLE dev, const char *devicePath, Password *passw
 	offset.QuadPart = deviceSize - TC_VOLUME_HEADER_GROUP_SIZE;
 
 	if (SetFilePointerEx (dev, offset, NULL, FILE_BEGIN) == 0
-		|| ReadFile (dev, header, TC_VOLUME_HEADER_EFFECTIVE_SIZE, &n, NULL) == 0)
+		|| !ReadEffectiveVolumeHeader (TRUE, dev, (byte *) header, &n) || n < TC_VOLUME_HEADER_EFFECTIVE_SIZE)
 	{
 		nStatus = ERR_OS_ERROR;
 		goto closing_seq;

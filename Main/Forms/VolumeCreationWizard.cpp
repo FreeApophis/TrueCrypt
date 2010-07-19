@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -40,6 +40,7 @@ namespace TrueCrypt
 		SelectedFilesystemType (VolumeCreationOptions::FilesystemType::FAT),
 		SelectedVolumeHostType (VolumeHostType::File),
 		SelectedVolumeType (VolumeType::Normal),
+		SectorSize (0),
 		VolumeSize (0)
 	{
 		RandomNumberGenerator::Start();
@@ -160,7 +161,7 @@ namespace TrueCrypt
 					pageText = LangString["VOLUME_SIZE_HELP"];
 				}
 
-				VolumeSizeWizardPage *page = new VolumeSizeWizardPage (GetPageParent(), SelectedVolumePath, freeSpaceText);
+				VolumeSizeWizardPage *page = new VolumeSizeWizardPage (GetPageParent(), SelectedVolumePath, SectorSize, freeSpaceText);
 				
 				page->SetPageTitle (pageTitle);
 				page->SetPageText (pageText);
@@ -212,7 +213,7 @@ namespace TrueCrypt
 
 		case Step::FormatOptions:
 			{
-				VolumeFormatOptionsWizardPage *page = new VolumeFormatOptionsWizardPage (GetPageParent(), VolumeSize,
+				VolumeFormatOptionsWizardPage *page = new VolumeFormatOptionsWizardPage (GetPageParent(), VolumeSize, SectorSize,
 					SelectedVolumePath.IsDevice() && (OuterVolume || SelectedVolumeType != VolumeType::Hidden), OuterVolume, LargeFilesSupport);
 
 				page->SetPageTitle (_("Format Options"));
@@ -272,7 +273,6 @@ namespace TrueCrypt
 				ClearHistory();
 
 				MountOptions mountOptions;
-				mountOptions.NoKernelCrypto = true;
 				mountOptions.Keyfiles = Keyfiles;
 				mountOptions.Password = Password;
 				mountOptions.Path = make_shared <VolumePath> (SelectedVolumePath);
@@ -419,6 +419,7 @@ namespace TrueCrypt
 				{
 				case VolumeCreationOptions::FilesystemType::Ext2:		fsFormatter = "mkfs.ext2"; break;
 				case VolumeCreationOptions::FilesystemType::Ext3:		fsFormatter = "mkfs.ext3"; break;
+				case VolumeCreationOptions::FilesystemType::Ext4:		fsFormatter = "mkfs.ext4"; break;
 				case VolumeCreationOptions::FilesystemType::MacOsExt:	fsFormatter = "newfs_hfs"; break;
 				case VolumeCreationOptions::FilesystemType::UFS:		fsFormatter = "newfs" ; break;
 				default: break;
@@ -428,12 +429,12 @@ namespace TrueCrypt
 				{
 					wxBusyCursor busy;
 
-					MountOptions mountOptions;
+					MountOptions mountOptions (Gui->GetPreferences().DefaultMountOptions);
 					mountOptions.Path = make_shared <VolumePath> (SelectedVolumePath);
 					mountOptions.NoFilesystem = true;
+					mountOptions.Protection = VolumeProtection::None;
 					mountOptions.Password = Password;
 					mountOptions.Keyfiles = Keyfiles;
-					mountOptions.NoKernelCrypto = Gui->GetPreferences().DefaultMountOptions.NoKernelCrypto;
 
 					shared_ptr <VolumeInfo> volume = Core->MountVolume (mountOptions);
 					finally_do_arg (shared_ptr <VolumeInfo>, volume, { Core->DismountVolume (finally_arg, true); });
@@ -581,6 +582,7 @@ namespace TrueCrypt
 
 						try
 						{
+							SectorSize = Core->GetDeviceSectorSize (SelectedVolumePath);
 							VolumeSize = Core->GetDeviceSize (SelectedVolumePath);
 						}
 						catch (UserAbort&)
@@ -618,6 +620,8 @@ namespace TrueCrypt
 						}
 						catch (...) { }
 					}
+					else
+						SectorSize = TC_SECTOR_SIZE_FILE_HOSTED_VOLUME;
 				}
 
 				return Step::EncryptionOptions;
@@ -710,7 +714,7 @@ namespace TrueCrypt
 
 				if (VolumeSize > 4 * BYTES_PER_GB)
 				{
-					if (VolumeSize < TC_MAX_FAT_FS_SIZE)
+					if (VolumeSize <= TC_MAX_FAT_SECTOR_COUNT * SectorSize)
 						return Step::LargeFilesSupport;
 					else
 						SelectedFilesystemType = VolumeCreationOptions::FilesystemType::GetPlatformNative();
@@ -745,9 +749,6 @@ namespace TrueCrypt
 				VolumeFormatOptionsWizardPage *page = dynamic_cast <VolumeFormatOptionsWizardPage *> (GetCurrentPage());
 				SelectedFilesystemType = page->GetFilesystemType();
 				QuickFormatEnabled = page->IsQuickFormatEnabled();
-
-				if (OuterVolume && SelectedFilesystemType != VolumeCreationOptions::FilesystemType::FAT)
-					Gui->ShowInfo (_("Please note that the FAT filesystem usually offers the maximum free space available for the hidden volume."));
 
 				if (SelectedFilesystemType != VolumeCreationOptions::FilesystemType::None
 					&& SelectedFilesystemType != VolumeCreationOptions::FilesystemType::FAT)
@@ -785,6 +786,25 @@ namespace TrueCrypt
 				{
 					if (SelectedVolumeType != VolumeType::Hidden || OuterVolume)
 					{
+						if (OuterVolume && VolumeSize > TC_MAX_FAT_SECTOR_COUNT * SectorSize)
+						{
+							uint64 limit = TC_MAX_FAT_SECTOR_COUNT * SectorSize / BYTES_PER_TB;
+							wstring err = StringFormatter (_("Error: The hidden volume to be created is larger than {0} TB ({1} GB).\n\nPossible solutions:\n- Create a container/partition smaller than {0} TB.\n"), limit, limit * 1024);
+
+							if (SectorSize < 4096)
+							{
+								err += _("- Use a drive with 4096-byte sectors to be able to create partition/device-hosted hidden volumes up to 16 TB in size");
+#if defined (TC_LINUX)
+								err += _(".\n");
+#else
+								err += _(" (not supported by components available on this platform).\n");
+#endif
+							}
+
+							Gui->ShowError (err);
+							return GetCurrentStep();
+						}
+
 						if (SelectedVolumePath.IsDevice())
 						{
 							wxString confirmMsg = LangString["OVERWRITEPROMPT_DEVICE"];
@@ -817,7 +837,7 @@ namespace TrueCrypt
 
 						options->Filesystem = SelectedFilesystemType;
 						options->FilesystemClusterSize = SelectedFilesystemClusterSize;
-
+						options->SectorSize = SectorSize;
 						options->EA = SelectedEncryptionAlgorithm;
 						options->Password = Password;
 						options->Keyfiles = Keyfiles;
@@ -870,31 +890,45 @@ namespace TrueCrypt
 		case Step::OuterVolumeContents:
 			try
 			{
-				// Determine maximum size of the hidden volume
+				// Determine maximum size of the hidden volume. Scan cluster table offline as a live filesystem test would
+				// require using FUSE and loop device which cannot be used for devices with sectors larger than 512.
+
 				wxBusyCursor busy;
-#ifdef TC_UNIX
-				sync();
-#endif
-				VolumeInfoList ml = Core->GetMountedVolumes (MountedOuterVolume->Path);
 				MaxHiddenVolumeSize = 0;
 
-				if (ml.empty())
-					throw ParameterIncorrect (SRC_POS);
-
-				if (ml.front()->TopWriteOffset == 0)
-					throw_err (_("The outer volume does not contain any files."));
-
 				Gui->SetActiveFrame (this);
-				shared_ptr <VolumeInfo> dismountedOuterVolume = Core->DismountVolume (MountedOuterVolume, false, true);
 
-				if (dismountedOuterVolume->Size > dismountedOuterVolume->TopWriteOffset)
-					MaxHiddenVolumeSize = dismountedOuterVolume->Size - dismountedOuterVolume->TopWriteOffset;
+				if (MountedOuterVolume)
+				{
+					Core->DismountVolume (MountedOuterVolume);
+					MountedOuterVolume.reset();
+				}
+
+#ifdef TC_UNIX
+				// Temporarily take ownership of a device if the user is not an administrator
+				UserId origDeviceOwner ((uid_t) -1);
+
+				if (!Core->HasAdminPrivileges() && SelectedVolumePath.IsDevice())
+				{
+					origDeviceOwner = FilesystemPath (wstring (SelectedVolumePath)).GetOwner();
+					Core->SetFileOwner (SelectedVolumePath, UserId (getuid()));
+				}
+
+				finally_do_arg2 (FilesystemPath, SelectedVolumePath, UserId, origDeviceOwner,
+				{
+					if (finally_arg2.SystemId != (uid_t) -1)
+						Core->SetFileOwner (finally_arg, finally_arg2);
+				});
+#endif
+
+				shared_ptr <Volume> outerVolume = Core->OpenVolume (make_shared <VolumePath> (SelectedVolumePath), true, Password, Keyfiles, VolumeProtection::ReadOnly);
+				MaxHiddenVolumeSize = Core->GetMaxHiddenVolumeSize (outerVolume);
 
 				// Add a reserve (in case the user mounts the outer volume and creates new files
 				// on it by accident or OS writes some new data behind his or her back, such as
 				// System Restore etc.)
 
-				uint64 reservedSize = dismountedOuterVolume->Size / 200;
+				uint64 reservedSize = outerVolume->GetSize() / 200;
 				if (reservedSize > 10 * BYTES_PER_MB)
 					reservedSize = 10 * BYTES_PER_MB;
 	
@@ -903,7 +937,7 @@ namespace TrueCrypt
 				else
 					MaxHiddenVolumeSize -= reservedSize;
 
-				MaxHiddenVolumeSize -= MaxHiddenVolumeSize % SECTOR_SIZE;		// Must be a multiple of the sector size
+				MaxHiddenVolumeSize -= MaxHiddenVolumeSize % outerVolume->GetSectorSize();		// Must be a multiple of the sector size
 			}
 			catch (exception &e)
 			{

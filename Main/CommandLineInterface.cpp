@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -38,6 +38,7 @@ namespace TrueCrypt
 		parser.AddSwitch (L"",	L"create-keyfile",		_("Create new keyfile"));
 		parser.AddSwitch (L"",	L"delete-token-keyfiles", _("Delete security token keyfiles"));
 		parser.AddSwitch (L"d", L"dismount",			_("Dismount volume"));
+		parser.AddSwitch (L"",	L"display-password",	_("Display password while typing"));
 		parser.AddOption (L"",	L"encryption",			_("Encryption algorithm"));
 		parser.AddSwitch (L"",	L"explore",				_("Open explorer window for mounted volume"));
 		parser.AddSwitch (L"",	L"export-token-keyfile",_("Export keyfile from security token"));
@@ -64,6 +65,7 @@ namespace TrueCrypt
 		parser.AddOption (L"",	L"protection-password",	_("Password for protected hidden volume"));
 		parser.AddOption (L"",	L"random-source",		_("Use file as source of random data"));
 		parser.AddSwitch (L"",  L"restore-headers",		_("Restore volume headers"));
+		parser.AddSwitch (L"",	L"save-preferences",	_("Save user preferences"));
 		parser.AddSwitch (L"",	L"quick",				_("Enable quick format"));
 		parser.AddOption (L"",	L"size",				_("Size in bytes"));
 		parser.AddOption (L"",	L"slot",				_("Volume slot number"));
@@ -219,6 +221,12 @@ namespace TrueCrypt
 			param1IsVolume = true;
 		}
 
+		if (parser.Found (L"save-preferences"))
+		{
+			CheckCommandSingle();
+			ArgCommand = CommandId::SavePreferences;
+		}
+
 		if (parser.Found (L"test"))
 		{
 			CheckCommandSingle();
@@ -240,6 +248,7 @@ namespace TrueCrypt
 		if (parser.Found (L"cache"))
 			ArgMountOptions.CachePassword = true;
 #endif
+		ArgDisplayPassword = parser.Found (L"display-password");
 
 		if (parser.Found (L"encryption", &str))
 		{
@@ -271,6 +280,8 @@ namespace TrueCrypt
 				
 				if (str.IsSameAs (L"FAT", false))
 					ArgFilesystem = VolumeCreationOptions::FilesystemType::FAT;
+				else
+					throw_err (LangString["UNKNOWN_OPTION"] + L": " + str);
 			}
 		}
 
@@ -331,7 +342,12 @@ namespace TrueCrypt
 			ArgNewPassword.reset (new VolumePassword (wstring (str)));
 		
 		if (parser.Found (L"non-interactive"))
+		{
+			if (interfaceType != UserInterfaceType::Text)
+				throw_err (L"--non-interactive is supported only in text mode");
+
 			Preferences.NonInteractive = true;
+		}
 
 		if (parser.Found (L"password", &str))
 			ArgPassword.reset (new VolumePassword (wstring (str)));

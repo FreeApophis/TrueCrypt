@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -149,6 +149,16 @@ namespace TrueCrypt
 						continue;
 					}
 
+					// GetDeviceSectorSizeRequest
+					GetDeviceSectorSizeRequest *getDeviceSectorSizeRequest = dynamic_cast <GetDeviceSectorSizeRequest*> (request.get());
+					if (getDeviceSectorSizeRequest)
+					{
+						GetDeviceSectorSizeResponse response;
+						response.Size = Core->GetDeviceSectorSize (getDeviceSectorSizeRequest->Path);
+						response.Serialize (outputStream);
+						continue;
+					}
+
 					// GetDeviceSizeRequest
 					GetDeviceSizeRequest *getDeviceSizeRequest = dynamic_cast <GetDeviceSizeRequest*> (request.get());
 					if (getDeviceSizeRequest)
@@ -230,6 +240,12 @@ namespace TrueCrypt
 	{
 		DismountVolumeRequest request (mountedVolume, ignoreOpenFiles, syncVolumeInfo);
 		return SendRequest <DismountVolumeResponse> (request)->DismountedVolumeInfo;
+	}
+
+	uint32 CoreService::RequestGetDeviceSectorSize (const DevicePath &devicePath)
+	{
+		GetDeviceSectorSizeRequest request (devicePath);
+		return SendRequest <GetDeviceSectorSizeResponse> (request)->Size;
 	}
 
 	uint64 CoreService::RequestGetDeviceSize (const DevicePath &devicePath)
@@ -428,8 +444,6 @@ namespace TrueCrypt
 				}
 
 			} while ((waitRes = waitpid (forkedPid, &status, WNOHANG)) == 0);
-
-			errOutput.push_back (0);
 		}
 		catch (TimeOut&)
 		{
@@ -485,7 +499,14 @@ namespace TrueCrypt
 		if (exitCode != 0)
 		{
 			string strErrOutput;
-			strErrOutput.insert (strErrOutput.begin(), errOutput.begin(), errOutput.end());
+
+			if (!errOutput.empty())
+				strErrOutput.insert (strErrOutput.begin(), errOutput.begin(), errOutput.end());
+
+			// sudo may require a tty even if -S is used
+			if (strErrOutput.find (" tty") != string::npos)
+				strErrOutput += "\nTo enable use of 'sudo' by applications without a terminal window, please disable 'requiretty' option in '/etc/sudoers'. Newer versions of sudo automatically determine whether a terminal is required ('requiretty' option is obsolete).";
+
 			throw ElevationFailed (SRC_POS, "sudo", exitCode, strErrOutput);
 		}
 

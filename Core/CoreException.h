@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -39,7 +39,8 @@ namespace TrueCrypt
 	TC_EXCEPTION (MountPointUnavailable); \
 	TC_EXCEPTION (NoDriveLetterAvailable); \
 	TC_EXCEPTION (TemporaryDirectoryFailure); \
-	TC_EXCEPTION (UnsupportedSectorSize); \
+	TC_EXCEPTION (UnsupportedSectorSizeHiddenVolumeProtection); \
+	TC_EXCEPTION (UnsupportedSectorSizeNoKernelCrypto); \
 	TC_EXCEPTION (VolumeAlreadyMounted); \
 	TC_EXCEPTION (VolumeSlotUnavailable);
 

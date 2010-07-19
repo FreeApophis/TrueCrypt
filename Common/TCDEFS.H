@@ -4,8 +4,8 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
@@ -15,19 +15,15 @@
 #define TC_APP_NAME						"TrueCrypt"
 
 // Version displayed to user 
-#define VERSION_STRING					"6.3a"
+#define VERSION_STRING					"7.0"
 
 // Version number to compare against driver
-#define VERSION_NUM						0x063a
+#define VERSION_NUM						0x0700
 
 // Release date
-#define TC_STR_RELEASE_DATE				"November 23, 2009"
-
-// Sector size of encrypted filesystem, which may differ from sector size of host filesystem/device
-#define SECTOR_SIZE                     512
-
-// "Second generation standard" sector size
-#define SECTOR_SIZE_GEN2_STANDARD		4096
+#define TC_STR_RELEASE_DATE				"July 19, 2010"
+#define TC_RELEASE_DATE_YEAR			2010
+#define TC_RELEASE_DATE_MONTH			7
 
 #define BYTES_PER_KB                    1024LL
 #define BYTES_PER_MB                    1048576LL
@@ -126,13 +122,13 @@ extern "C"
 void ThrowFatalException (int line);
 
 #	define TC_THROW_FATAL_EXCEPTION	ThrowFatalException (__LINE__)
-#elif defined (NT4_DRIVER)
+#elif defined (TC_WINDOWS_DRIVER)
 #	define TC_THROW_FATAL_EXCEPTION KeBugCheckEx (SECURITY_SYSTEM, __LINE__, 0, 0, 'TC')
 #else
 #	define TC_THROW_FATAL_EXCEPTION	*(char *) 0 = 0
 #endif
 
-#ifdef NT4_DRIVER
+#ifdef TC_WINDOWS_DRIVER
 
 #include <ntifs.h>
 #include <ntddk.h>		/* Standard header file for nt drivers */
@@ -155,7 +151,7 @@ typedef int BOOL;
 #define FALSE !TRUE
 #endif
 
-#else				/* !NT4_DRIVER */
+#else				/* !TC_WINDOWS_DRIVER */
 
 #define TCalloc malloc
 #define TCfree free
@@ -175,7 +171,7 @@ typedef int BOOL;
 
 #endif				/* _WIN32 */
 
-#endif				/* !NT4_DRIVER */
+#endif				/* !TC_WINDOWS_DRIVER */
 
 #ifndef TC_TO_STRING
 #	define TC_TO_STRING2(n) #n
@@ -191,8 +187,8 @@ typedef int BOOL;
 #		endif
 #		define DumpMem(...) DumpMemory (__VA_ARGS__)
 #	else
-#		define Dump(...) ((void) 0)
-#		define DumpMem(...) ((void) 0)
+#		define Dump(...)
+#		define DumpMem(...)
 #	endif
 #endif
 

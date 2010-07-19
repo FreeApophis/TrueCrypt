@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -69,6 +69,9 @@ namespace TrueCrypt
 	{
 		if (!Running)
 			throw NotInitialized (SRC_POS);
+
+		if (buffer.Size() > PoolSize)
+			throw ParameterIncorrect (SRC_POS);
 
 		ScopeLock lock (AccessMutex);
 
@@ -186,14 +189,14 @@ namespace TrueCrypt
 			AddToPool (buffer);
 		}
 
-		if (Crc32::ProcessBuffer (Pool) != 0x10efc817)
+		if (Crc32::ProcessBuffer (Pool) != 0x2de46d17)
 			throw TestFailed (SRC_POS);
 
 		buffer.Allocate (PoolSize);
 		buffer.CopyFrom (PeekPool());
 		AddToPool (buffer);
 
-		if (Crc32::ProcessBuffer (Pool) != 0x1e3d0d72)
+		if (Crc32::ProcessBuffer (Pool) != 0xcb88e019)
 			throw TestFailed (SRC_POS);
 
 		PoolHash = origPoolHash;

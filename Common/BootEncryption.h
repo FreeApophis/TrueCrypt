@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -58,7 +58,7 @@ namespace TrueCrypt
 				throw bad_alloc();
 		}
 
-		~Buffer () { delete DataPtr; }
+		~Buffer () { delete[] DataPtr; }
 		byte *Ptr () const { return DataPtr; }
 		size_t Size () const { return DataSize; }
 
@@ -130,6 +130,13 @@ namespace TrueCrypt
 		BootEncryption (HWND parent);
 		~BootEncryption ();
 
+		enum FilterType
+		{
+			DriveFilter,
+			VolumeFilter,
+			DumpFilter
+		};
+
 		void AbortDecoyOSWipe ();
 		void AbortSetup ();
 		void AbortSetupWait ();
@@ -156,6 +163,7 @@ namespace TrueCrypt
 		void Install (bool hiddenSystem);
 		void InstallBootLoader (bool preserveUserConfig = false, bool hiddenOSCreation = false);
 		void InvalidateCachedSysDriveProperties ();
+		bool IsCDDrivePresent ();
 		bool IsHiddenSystemRunning ();
 		bool IsPagingFileActive (BOOL checkNonWindowsPartitionsOnly);
 		void PrepareHiddenOSCreation (int ea, int mode, int pkcs5);
@@ -164,7 +172,7 @@ namespace TrueCrypt
 		void ReadBootSectorConfig (byte *config, size_t bufLength, byte *userConfig = nullptr, string *customUserMessage = nullptr, uint16 *bootLoaderVersion = nullptr);
 		uint32 ReadDriverConfigurationFlags ();
 		void RegisterBootDriver (bool hiddenSystem);
-		void RegisterFilterDriver (bool registerDriver, bool volumeClass);
+		void RegisterFilterDriver (bool registerDriver, FilterType filterType);
 		void RegisterSystemFavoritesService (BOOL registerService);
 		void RenameDeprecatedSystemLoaderBackup ();
 		bool RestartComputer (void);
@@ -199,7 +207,7 @@ namespace TrueCrypt
 		PartitionList GetDrivePartitions (int driveNumber);
 		wstring GetRemarksOnHiddenOS ();
 		string GetWindowsDirectory ();
-		void RegisterDeviceClassFilter (bool registerFilter, const GUID *deviceClassGuid);
+		void RegisterFilter (bool registerFilter, FilterType filterType, const GUID *deviceClassGuid = nullptr);
 		void RestoreSystemLoader ();
 		void InstallVolumeHeader ();
 

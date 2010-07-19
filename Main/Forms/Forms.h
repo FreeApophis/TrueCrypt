@@ -60,7 +60,6 @@ namespace TrueCrypt
 			wxMenuItem* DismountVolumeMenuItem;
 			wxMenuItem* DismountAllMenuItem;
 			wxMenuItem* VolumePropertiesMenuItem;
-			wxMenu* KeyfilesMenu;
 			wxMenu* FavoritesMenu;
 			wxMenuItem* AddToFavoritesMenuItem;
 			wxMenuItem* AddAllMountedToFavoritesMenuItem;
@@ -97,29 +96,30 @@ namespace TrueCrypt
 			// Virtual event handlers, overide them in your derived class
 			virtual void OnActivate( wxActivateEvent& event ){ event.Skip(); }
 			virtual void OnClose( wxCloseEvent& event ){ event.Skip(); }
+			virtual void OnCreateVolumeButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnMountVolumeMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnMountAllDevicesButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnDismountVolumeMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnDismountAllButtonClick( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnCreateVolumeButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnChangePasswordMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnChangePkcs5PrfMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnVolumePropertiesButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnChangeKeyfilesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnRemoveKeyfilesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnCreateKeyfileMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnManageSecurityTokenKeyfilesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnCloseAllSecurityTokenSessionsMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnDefaultKeyfilesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnVolumePropertiesButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnAddToFavoritesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnAddAllMountedToFavoritesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnOrganizeFavoritesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnMountAllFavoritesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnBenchmarkMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnEncryptionTestMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnBackupVolumeHeadersMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnRestoreVolumeHeaderMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnCreateKeyfileMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnManageSecurityTokenKeyfilesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnCloseAllSecurityTokenSessionsMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnWipeCacheButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnHotkeysMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnDefaultKeyfilesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnSecurityTokenPreferencesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnPreferencesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnUserGuideMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
@@ -224,6 +224,31 @@ namespace TrueCrypt
 		public:
 			AboutDialogBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxEmptyString, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize, long style = wxDEFAULT_DIALOG_STYLE );
 			~AboutDialogBase();
+		
+	};
+	
+	///////////////////////////////////////////////////////////////////////////////
+	/// Class BenchmarkDialogBase
+	///////////////////////////////////////////////////////////////////////////////
+	class BenchmarkDialogBase : public wxDialog 
+	{
+		private:
+		
+		protected:
+			wxChoice* BufferSizeChoice;
+			wxListCtrl* BenchmarkListCtrl;
+			wxBoxSizer* RightSizer;
+			wxButton* BenchmarkButton;
+			
+			wxStaticText* BenchmarkNoteStaticText;
+			
+			// Virtual event handlers, overide them in your derived class
+			virtual void OnBenchmarkButtonClick( wxCommandEvent& event ){ event.Skip(); }
+			
+		
+		public:
+			BenchmarkDialogBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("TrueCrypt - Encryption Algorithm Benchmark"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize, long style = wxDEFAULT_DIALOG_STYLE );
+			~BenchmarkDialogBase();
 		
 	};
 	
@@ -544,6 +569,10 @@ namespace TrueCrypt
 			wxCheckBox* CloseExplorerWindowsOnDismountCheckBox;
 			wxStaticBoxSizer* KernelServicesSizer;
 			wxCheckBox* NoKernelCryptoCheckBox;
+			wxPanel* PerformanceOptionsPage;
+			wxStaticText* AesHwCpuSupportedStaticText;
+			
+			wxCheckBox* NoHardwareCryptoCheckBox;
 			wxBoxSizer* DefaultKeyfilesSizer;
 			wxCheckBox* UseKeyfilesCheckBox;
 			wxTextCtrl* Pkcs11ModulePathTextCtrl;
@@ -572,6 +601,7 @@ namespace TrueCrypt
 			virtual void OnPreserveTimestampsCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnBackgroundTaskEnabledCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnNoKernelCryptoCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnNoHardwareCryptoCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnSelectPkcs11ModuleButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnHotkeyListItemDeselected( wxListEvent& event ){ event.Skip(); }
 			virtual void OnHotkeyListItemSelected( wxListEvent& event ){ event.Skip(); }

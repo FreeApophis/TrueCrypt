@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -78,7 +78,7 @@ namespace TrueCrypt
 		Map["CHECKING_FS"] = _("Checking the file system on the TrueCrypt volume mounted as {0}...");
 		Map["REPAIRING_FS"] = _("Attempting to repair the file system on the TrueCrypt volume mounted as {0}...");
 		Map["UNMOUNT_LOCK_FAILED"] = _("Volume \"{0}\" contains files or folders being used by applications or system.\n\nForce dismount?");
-		Map["VOLUME_SIZE_HELP"] = _("Please specify the size of the container to create.\n\nIf you create a dynamic (sparse-file) container, this parameter will specify its maximum size.\n\nNote that the minimum possible size of a FAT volume is 275 KB. The minimum possible size of an NTFS volume is 2829 KB.");
+		Map["VOLUME_SIZE_HELP"] = _("Please specify the size of the container to create. Note that the minimum possible size of a volume is 292 KB.");
 		Map["ENCRYPTION_MODE_NOT_SUPPORTED_BY_KERNEL"] = _("The volume you have mounted uses a mode of operation that is not supported by the Linux kernel. You may experience slow performance when using this volume. To achieve full performance, you should move the data from this volume to a new volume created by TrueCrypt 5.0 or later.");
 	}
 

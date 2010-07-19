@@ -47,51 +47,49 @@ CAPTION "TrueCrypt - Preferences"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     CONTROL         "Mount volumes as read-only",IDC_PREF_MOUNT_READONLY,
-                    "Button",BS_AUTOCHECKBOX | BS_MULTILINE | WS_TABSTOP,11,10,150,16
+                    "Button",BS_AUTOCHECKBOX | BS_MULTILINE | WS_TABSTOP,11,11,150,16
     CONTROL         "Mount volumes as removable media",IDC_PREF_MOUNT_REMOVABLE,
-                    "Button",BS_AUTOCHECKBOX | BS_MULTILINE | WS_TABSTOP,162,10,165,16
-    CONTROL         "Enabled",IDC_PREF_BKG_TASK_ENABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,42,111,10
+                    "Button",BS_AUTOCHECKBOX | BS_MULTILINE | WS_TABSTOP,162,11,165,16
+    CONTROL         "Enabled",IDC_PREF_BKG_TASK_ENABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,44,111,10
     CONTROL         "Exit when there are no mounted volumes",IDC_CLOSE_BKG_TASK_WHEN_NOVOL,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,140,42,188,10
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,140,44,188,10
     CONTROL         "Start TrueCrypt Background Task",IDC_PREF_LOGON_START,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,76,126,10
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,75,126,10
     CONTROL         "Mount all device-hosted TrueCrypt volumes",IDC_PREF_LOGON_MOUNT_DEVICES,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,140,71,188,10
-    CONTROL         "Mount favorite volumes",IDC_PREF_LOGON_MOUNT_FAVORITES,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,140,82,188,10
-    CONTROL         "User logs off",IDC_PREF_DISMOUNT_LOGOFF,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,81,109,114,11
-    CONTROL         "Screen saver is launched",IDC_PREF_DISMOUNT_SCREENSAVER,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,81,120,114,10
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,140,75,188,10
+    CONTROL         "User logs off",IDC_PREF_DISMOUNT_LOGOFF,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,81,104,114,11
     CONTROL         "Entering power saving mode",IDC_PREF_DISMOUNT_POWERSAVING,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,197,114,130,11
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,197,109,130,11
+    CONTROL         "Screen saver is launched",IDC_PREF_DISMOUNT_SCREENSAVER,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,81,115,114,10
     CONTROL         "Auto-dismount volume after no data has been read/written to it for",IDC_PREF_DISMOUNT_INACTIVE,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,133,246,11
-    EDITTEXT        IDC_PREF_DISMOUNT_INACTIVE_TIME,258,132,27,12,ES_AUTOHSCROLL | ES_NUMBER,WS_EX_RIGHT
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,128,246,11
+    EDITTEXT        IDC_PREF_DISMOUNT_INACTIVE_TIME,258,127,27,12,ES_AUTOHSCROLL | ES_NUMBER,WS_EX_RIGHT
     CONTROL         "Force auto-dismount even if volume contains open files or directories",IDC_PREF_FORCE_AUTO_DISMOUNT,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,145,294,10
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,141,294,10
     CONTROL         "Open Explorer window for successfully mounted volume",IDC_PREF_OPEN_EXPLORER,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,175,316,11
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,171,316,11
     CONTROL         "Close all Explorer windows of volume being dismounted",IDC_PREF_CLOSE_DISMOUNTED_WINDOWS,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,187,316,10
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,184,316,10
     CONTROL         "Preserve modification timestamp of file containers",IDC_PRESERVE_TIMESTAMPS,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,199,316,10
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,196,316,10
     CONTROL         "Cache passwords in driver memory",IDC_PREF_CACHE_PASSWORDS,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,228,146,11
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,227,146,11
     CONTROL         "Wipe cached passwords on exit",IDC_PREF_WIPE_CACHE_ON_EXIT,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,162,228,165,11
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,162,227,165,11
     CONTROL         "Wipe cached passwords on auto-dismount",IDC_PREF_WIPE_CACHE_ON_AUTODISMOUNT,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,240,296,11
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,239,296,11
+    PUSHBUTTON      "More Settings...",IDC_MORE_SETTINGS,5,262,85,14
     DEFPUSHBUTTON   "OK",IDOK,225,262,50,14
     PUSHBUTTON      "Cancel",IDCANCEL,281,262,50,14
-    GROUPBOX        "Windows",IDT_WINDOWS_RELATED_SETTING,4,164,328,50
-    GROUPBOX        "Default Mount Options",IDT_DEFAULT_MOUNT_OPTIONS,4,2,328,26
-    GROUPBOX        "TrueCrypt Background Task",IDT_TASKBAR_ICON,4,31,328,27
-    GROUPBOX        "Auto-Dismount",IDT_AUTO_DISMOUNT,4,99,328,62
-    LTEXT           "minutes",IDT_MINUTES,289,134,39,10
-    LTEXT           "Dismount all when:",IDT_AUTO_DISMOUNT_ON,9,115,71,17
-    GROUPBOX        "Password Cache",IDT_PW_CACHE_OPTIONS,4,217,328,38
-    GROUPBOX        "Actions to perform upon log on to Windows",IDT_LOGON,4,61,328,35
-    PUSHBUTTON      "More Settings...",IDC_MORE_SETTINGS,5,262,85,14
+    GROUPBOX        "Windows",IDT_WINDOWS_RELATED_SETTING,4,160,328,52
+    GROUPBOX        "Default Mount Options",IDT_DEFAULT_MOUNT_OPTIONS,4,3,328,26
+    GROUPBOX        "TrueCrypt Background Task",IDT_TASKBAR_ICON,4,33,328,26
+    GROUPBOX        "Auto-Dismount",IDT_AUTO_DISMOUNT,4,94,328,62
+    LTEXT           "minutes",IDT_MINUTES,289,129,39,10
+    LTEXT           "Dismount all when:",IDT_AUTO_DISMOUNT_ON,9,110,71,17
+    GROUPBOX        "Password Cache",IDT_PW_CACHE_OPTIONS,4,216,328,39
+    GROUPBOX        "Actions to perform upon logon to Windows",IDT_LOGON,4,63,328,28
 END
 
 IDD_VOLUME_PROPERTIES DIALOGEX 60, 30, 284, 186
@@ -271,18 +269,56 @@ BEGIN
     LTEXT           "",IDC_CUSTOM_BOOT_LOADER_MESSAGE_HELP,18,74,337,73
 END
 
-IDD_SYS_FAVORITES_SETTINGS DIALOGEX 0, 0, 370, 87
+IDD_PERFORMANCE_SETTINGS DIALOGEX 0, 0, 370, 206
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "TrueCrypt - System Favorite Volumes - Options"
+CAPTION "TrueCrypt - Performance Options"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    CONTROL         "Mount system favorite volumes when Windows starts (in the initial phase of the start procedure)",IDC_MOUNT_SYSTEM_FAVORITES_ON_BOOT,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,18,23,339,10
-    CONTROL         "Allow only administrators to view and dismount system favorite volumes in TrueCrypt",IDC_DISABLE_NONADMIN_SYS_FAVORITES_ACCESS,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,18,39,339,10
-    DEFPUSHBUTTON   "OK",IDOK,257,66,50,14
-    PUSHBUTTON      "Cancel",IDCANCEL,313,66,50,14
-    GROUPBOX        "System Favorite Volumes Options",IDT_SYSTEM_FAVORITES_OPTIONS,7,6,355,53
+    CONTROL         "",IDC_HW_AES_SUPPORTED_BY_CPU,"Static",SS_LEFTNOWORDWRAP | WS_GROUP,294,21,57,12,WS_EX_CLIENTEDGE
+    CONTROL         "Accelerate AES encryption/decryption by using the AES instructions of the processor (if available)",IDC_ENABLE_HARDWARE_ENCRYPTION,
+                    "Button",BS_AUTOCHECKBOX | BS_MULTILINE | WS_TABSTOP,18,41,340,17
+    LTEXT           "More information",IDC_MORE_INFO_ON_HW_ACCELERATION,18,61,165,10,SS_NOTIFY
+    CONTROL         "Do not use the following number of processors for encryption/decryption:",IDC_LIMIT_ENC_THREAD_POOL,
+                    "Button",BS_AUTOCHECKBOX | BS_TOP | WS_TABSTOP,18,103,283,11
+    COMBOBOX        IDC_ENCRYPTION_FREE_CPU_COUNT,304,101,48,51,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "More information",IDC_MORE_INFO_ON_THREAD_BASED_PARALLELIZATION,18,159,165,10,SS_NOTIFY
+    PUSHBUTTON      "&Benchmark",IDC_BENCHMARK,7,185,59,14
+    DEFPUSHBUTTON   "OK",IDOK,257,185,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,313,185,50,14
+    LTEXT           "Processor (CPU) in this computer provides hardware acceleration for AES:",IDT_HW_AES_SUPPORTED_BY_CPU,18,23,263,9
+    GROUPBOX        "Hardware Acceleration",IDT_ACCELERATION_OPTIONS,7,6,355,74
+    GROUPBOX        "Thread-Based Parallelization",IDT_PARALLELIZATION_OPTIONS,7,84,355,93
+    LTEXT           "",IDT_LIMIT_ENC_THREAD_POOL_NOTE,18,126,334,33
+END
+
+IDD_FAVORITE_VOLUMES DIALOGEX 0, 0, 380, 276
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "TrueCrypt - Favorite Volumes"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    CONTROL         "",IDC_FAVORITE_VOLUMES_LIST,"SysListView32",LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_ALIGNLEFT | LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,7,366,92
+    PUSHBUTTON      "Move &Up",IDC_FAVORITE_MOVE_UP,7,104,63,14
+    PUSHBUTTON      "Move &Down",IDC_FAVORITE_MOVE_DOWN,74,104,63,14
+    PUSHBUTTON      "&Remove",IDC_FAVORITE_REMOVE,310,104,63,14
+    EDITTEXT        IDC_FAVORITE_LABEL,16,142,204,13,ES_AUTOHSCROLL
+    CONTROL         "Mount selected volume as read-o&nly",IDC_FAVORITE_MOUNT_READONLY,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,18,162,349,10
+    CONTROL         "Mount selected volume as remo&vable medium",IDC_FAVORITE_MOUNT_REMOVABLE,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,18,176,349,10
+    CONTROL         "Mount selected volume upon log&on",IDC_FAVORITE_MOUNT_ON_LOGON,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,18,190,349,10
+    CONTROL         "Mount selected volume when its host device gets &connected",IDC_FAVORITE_MOUNT_ON_ARRIVAL,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,18,204,349,10
+    CONTROL         "Open &Explorer window for selected volume when successfully mounted",IDC_FAVORITE_OPEN_EXPLORER_WIN_ON_MOUNT,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,18,218,349,11
+    CONTROL         "Do not mount selected volume when 'Mount Favorite Volumes' &hot key is pressed",IDC_FAVORITE_DISABLE_HOTKEY,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,18,232,349,11
+    LTEXT           "Help on favorite volumes",IDC_FAVORITES_HELP_LINK,17,259,237,10,SS_NOTIFY
+    DEFPUSHBUTTON   "OK",IDOK,269,257,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,323,257,50,14
+    GROUPBOX        "",IDC_FAV_VOL_OPTIONS_GROUP_BOX,7,121,366,130
+    LTEXT           "Label of selected favorite volume:",IDT_FAVORITE_LABEL,18,132,202,8
+    GROUPBOX        "Global Settings",IDC_FAV_VOL_OPTIONS_GLOBAL_SETTINGS_BOX,7,202,366,49
 END
 
 
@@ -360,12 +396,20 @@ BEGIN
         TOPMARGIN, 7
     END
 
-    IDD_SYS_FAVORITES_SETTINGS, DIALOG
+    IDD_PERFORMANCE_SETTINGS, DIALOG
     BEGIN
         LEFTMARGIN, 7
         RIGHTMARGIN, 363
         TOPMARGIN, 7
-        BOTTOMMARGIN, 80
+        BOTTOMMARGIN, 199
+    END
+
+    IDD_FAVORITE_VOLUMES, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 373
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 269
     END
 END
 #endif    // APSTUDIO_INVOKED
@@ -377,8 +421,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 6,3,1,0
- PRODUCTVERSION 6,3,1,0
+ FILEVERSION 7,0,0,0
+ PRODUCTVERSION 7,0,0,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -395,11 +439,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt"
-            VALUE "FileVersion", "6.3a"
+            VALUE "FileVersion", "7.0"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "6.3a"
+            VALUE "ProductVersion", "7.0"
         END
     END
     BLOCK "VarFileInfo"
@@ -460,10 +504,7 @@ BEGIN
         MENUITEM "Select File...",              IDM_SELECT_FILE
         MENUITEM "Select Device...",            IDM_SELECT_DEVICE
         MENUITEM SEPARATOR
-        MENUITEM "Mount Favorite Volumes",      IDM_MOUNT_FAVORITE_VOLUMES
-        MENUITEM "Save Currently Mounted Volumes as Favorites", IDM_SAVE_FAVORITE_VOLUMES
-        MENUITEM "Save Currently Mounted Volumes as System Favorites", IDM_SAVE_SYSTEM_FAVORITE_VOLUMES
-        MENUITEM SEPARATOR
+        MENUITEM "Create New Volume...",        IDM_CREATE_VOLUME
         MENUITEM "Resume Interrupted Process",  IDM_RESUME_INTERRUPTED_PROC
         MENUITEM SEPARATOR
         MENUITEM "Mount Volume",                IDM_MOUNT_VOLUME
@@ -473,8 +514,9 @@ BEGIN
         MENUITEM "Dismount Volume",             IDM_UNMOUNT_VOLUME
         MENUITEM "Dismount All Mounted Volumes", IDM_UNMOUNTALL
         MENUITEM SEPARATOR
-        MENUITEM "Create New Volume...",        IDM_CREATE_VOLUME
         MENUITEM "Change Volume Password...",   IDM_CHANGE_PASSWORD
+        MENUITEM "Add/Remove Keyfiles to/from Volume...", IDM_ADD_REMOVE_VOL_KEYFILES
+        MENUITEM "Remove All Keyfiles from Volume...", IDM_REMOVE_ALL_KEYFILES_FROM_VOL
         MENUITEM "Set Header Key Derivation Algorithm...", IDM_CHANGE_HEADER_KEY_DERIV_ALGO
         MENUITEM SEPARATOR
         MENUITEM "Volume Properties",           IDM_VOLUME_PROPERTIES
@@ -499,17 +541,15 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "Settings...",                 IDM_SYS_ENC_SETTINGS
     END
-    POPUP "&Keyfiles"
+    POPUP "Favor&ites"
     BEGIN
-        MENUITEM "Add/Remove Keyfiles to/from Volume...", IDM_ADD_REMOVE_VOL_KEYFILES
-        MENUITEM "Remove All Keyfiles from Volume...", IDM_REMOVE_ALL_KEYFILES_FROM_VOL
+        MENUITEM "Add Mounted Volume to Favorites...", IDM_ADD_VOLUME_TO_FAVORITES
+        MENUITEM "Add Mounted Volume to System Favorites...", IDM_ADD_VOLUME_TO_SYSTEM_FAVORITES
         MENUITEM SEPARATOR
-        MENUITEM "Generate Random Keyfile...",  IDM_GENERATE_KEYFILE
+        MENUITEM "Organize Favorite Volumes...", IDM_ORGANIZE_FAVORITES
+        MENUITEM "Organize System Favorite Volumes...", IDM_ORGANIZE_SYSTEM_FAVORITES
         MENUITEM SEPARATOR
-        MENUITEM "Manage Security Token Keyfiles...", IDM_MANAGE_TOKEN_KEYFILES
-        MENUITEM "Close All Security Token Sessions", IDM_CLOSE_ALL_TOKEN_SESSIONS
-        MENUITEM SEPARATOR
-        MENUITEM "Set Default Keyfiles/Paths...", IDM_SET_DEFAULT_KEYFILES
+        MENUITEM "Mount Favorite Volumes",      IDM_MOUNT_FAVORITE_VOLUMES
     END
     POPUP "T&ools"
     BEGIN
@@ -517,13 +557,16 @@ BEGIN
         MENUITEM "Test Vectors...",             IDM_TEST_VECTORS
         MENUITEM SEPARATOR
         MENUITEM "Traveler Disk Setup...",      IDM_TRAVELER
-        MENUITEM "Keyfile Generator",           IDM_KEYFILE_GENERATOR
         MENUITEM "Volume Creation Wizard",      IDM_VOLUME_WIZARD
         MENUITEM SEPARATOR
-        MENUITEM "Refresh Drive Letters",       IDM_REFRESH_DRIVE_LETTERS
+        MENUITEM "Keyfile Generator",           IDM_KEYFILE_GENERATOR
+        MENUITEM "Manage Security Token Keyfiles...", IDM_MANAGE_TOKEN_KEYFILES
+        MENUITEM "Close All Security Token Sessions", IDM_CLOSE_ALL_TOKEN_SESSIONS
         MENUITEM SEPARATOR
         MENUITEM "Backup Volume Header...",     IDM_BACKUP_VOL_HEADER
         MENUITEM "Restore Volume Header...",    IDM_RESTORE_VOL_HEADER
+        MENUITEM SEPARATOR
+        MENUITEM "Refresh Drive Letters",       IDM_REFRESH_DRIVE_LETTERS
         MENUITEM SEPARATOR
         MENUITEM "Clear Volume History",        IDM_CLEAR_HISTORY
         MENUITEM "Wipe Cached Passwords",       IDM_WIPE_CACHE
@@ -535,6 +578,8 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "System Encryption...",        IDM_SYSENC_SETTINGS
         MENUITEM "System Favorite Volumes...",  IDM_SYS_FAVORITES_SETTINGS
+        MENUITEM SEPARATOR
+        MENUITEM "Performance...",              IDM_PERFORMANCE_SETTINGS
         MENUITEM SEPARATOR
         MENUITEM "Default Keyfiles...",         IDM_DEFAULT_KEYFILES
         MENUITEM "Security Tokens...",          IDM_TOKEN_PREFERENCES
@@ -556,6 +601,8 @@ BEGIN
         MENUITEM "Legal Notices",               IDM_LICENSE
         MENUITEM SEPARATOR
         MENUITEM "Report a Bug...",             IDM_BUGREPORT
+        MENUITEM "Analyze a System Crash...",   IDM_ANALYZE_SYSTEM_CRASH
+        MENUITEM SEPARATOR
         MENUITEM "Forums",                      IDM_FORUMS
         MENUITEM "Contact...",                  IDM_CONTACT
         MENUITEM SEPARATOR

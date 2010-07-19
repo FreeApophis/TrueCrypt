@@ -4,14 +4,14 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2008 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
-#include <time.h>
 #include "Common/Tcdefs.h"
 #include "Platform/Platform.h"
+#include "Volume/VolumeHeader.h"
 #include "FatFormatter.h"
 #include "RandomNumberGenerator.h"
 
@@ -42,26 +42,49 @@ namespace TrueCrypt
 
 	static void GetFatParams (fatparams * ft)
 	{
-		uint32 fatsecs;
+		uint64 volumeSize = (uint64) ft->num_sectors * ft->sector_size;
+		unsigned int fatsecs;
+
 		if(ft->cluster_size == 0)	// 'Default' cluster size
 		{
-			if (ft->num_sectors * 512LL >= 256*BYTES_PER_GB)
-				ft->cluster_size = 128;
-			else if (ft->num_sectors * 512LL >= 64*BYTES_PER_GB)
-				ft->cluster_size = 64;
-			else if (ft->num_sectors * 512LL >= 16*BYTES_PER_GB)
-				ft->cluster_size = 32;
-			else if (ft->num_sectors * 512LL >= 8*BYTES_PER_GB)
-				ft->cluster_size = 16;
-			else if (ft->num_sectors * 512LL >= 128*BYTES_PER_MB)
-				ft->cluster_size = 8;
-			else if (ft->num_sectors * 512LL >= 64*BYTES_PER_MB)
-				ft->cluster_size = 4;
-			else if (ft->num_sectors * 512LL >= 32*BYTES_PER_MB)
-				ft->cluster_size = 2;
+			uint32 clusterSize;
+
+			// Determine optimal cluster size to minimize FAT size (mounting delay), maximize number of files, keep 4 KB alignment, etc.
+			if (volumeSize >= 2 * BYTES_PER_TB)
+				clusterSize = 256 * BYTES_PER_KB;
+			else if (volumeSize >= 512 * BYTES_PER_GB)
+				clusterSize = 128 * BYTES_PER_KB;
+			else if (volumeSize >= 128 * BYTES_PER_GB)
+				clusterSize = 64 * BYTES_PER_KB;
+			else if (volumeSize >= 64 * BYTES_PER_GB)
+				clusterSize = 32 * BYTES_PER_KB;
+			else if (volumeSize >= 32 * BYTES_PER_GB)
+				clusterSize = 16 * BYTES_PER_KB;
+			else if (volumeSize >= 16 * BYTES_PER_GB)
+				clusterSize = 8 * BYTES_PER_KB;
+			else if (volumeSize >= 512 * BYTES_PER_MB)
+				clusterSize = 4 * BYTES_PER_KB;
+			else if (volumeSize >= 256 * BYTES_PER_MB)
+				clusterSize = 2 * BYTES_PER_KB;
+			else if (volumeSize >= 1 * BYTES_PER_MB)
+				clusterSize = 1 * BYTES_PER_KB;
 			else
+				clusterSize = 512;
+
+			ft->cluster_size = clusterSize / ft->sector_size;
+
+			if (ft->cluster_size == 0)
 				ft->cluster_size = 1;
+
+			if (ft->cluster_size * ft->sector_size > TC_MAX_FAT_CLUSTER_SIZE)
+				ft->cluster_size = TC_MAX_FAT_CLUSTER_SIZE / ft->sector_size;
+
+			if (ft->cluster_size > 128)
+				ft->cluster_size = 128;
 		}
+
+		if (volumeSize <= TC_MAX_FAT_CLUSTER_SIZE * 4)
+			ft->cluster_size = 1;
 
 		// Geometry always set to SECTORS/1/1
 		ft->secs_track = 1; 
@@ -70,7 +93,6 @@ namespace TrueCrypt
 		ft->dir_entries = 512;
 		ft->fats = 2;
 		ft->media = 0xf8;
-		ft->sector_size = SECTOR_SIZE;
 		ft->hidden = 0;
 
 		ft->size_root_dir = ft->dir_entries * 32;
@@ -78,27 +100,37 @@ namespace TrueCrypt
 		// FAT12
 		ft->size_fat = 12;
 		ft->reserved = 2;
-		fatsecs = ft->num_sectors - (ft->size_root_dir + SECTOR_SIZE - 1) / SECTOR_SIZE - ft->reserved;
-		ft->cluster_count = (int) (((int64) fatsecs * SECTOR_SIZE) / (ft->cluster_size * SECTOR_SIZE + 3));
-		ft->fat_length = (((ft->cluster_count * 3 + 1) >> 1) + SECTOR_SIZE - 1) / SECTOR_SIZE;
+		fatsecs = ft->num_sectors - (ft->size_root_dir + ft->sector_size - 1) / ft->sector_size - ft->reserved;
+		ft->cluster_count = (int) (((int64) fatsecs * ft->sector_size) / (ft->cluster_size * ft->sector_size + 3));
+		ft->fat_length = (((ft->cluster_count * 3 + 1) >> 1) + ft->sector_size - 1) / ft->sector_size;
 
 		if (ft->cluster_count >= 4085) // FAT16
 		{
 			ft->size_fat = 16;
 			ft->reserved = 2;
-			fatsecs = ft->num_sectors - (ft->size_root_dir + SECTOR_SIZE - 1) / SECTOR_SIZE - ft->reserved;
-			ft->cluster_count = (int) (((int64) fatsecs * SECTOR_SIZE) / (ft->cluster_size * SECTOR_SIZE + 4));
-			ft->fat_length = (ft->cluster_count * 2 + SECTOR_SIZE - 1) / SECTOR_SIZE;
+			fatsecs = ft->num_sectors - (ft->size_root_dir + ft->sector_size - 1) / ft->sector_size - ft->reserved;
+			ft->cluster_count = (int) (((int64) fatsecs * ft->sector_size) / (ft->cluster_size * ft->sector_size + 4));
+			ft->fat_length = (ft->cluster_count * 2 + ft->sector_size - 1) / ft->sector_size;
 		}
 
 		if(ft->cluster_count >= 65525) // FAT32
 		{
 			ft->size_fat = 32;
-			ft->reserved = 32;
-			fatsecs = ft->num_sectors - ft->reserved;
-			ft->size_root_dir = ft->cluster_size * SECTOR_SIZE;
-			ft->cluster_count = (int) (((int64) fatsecs * SECTOR_SIZE) / (ft->cluster_size * SECTOR_SIZE + 8));
-			ft->fat_length = (ft->cluster_count * 4 + SECTOR_SIZE - 1) / SECTOR_SIZE;
+			ft->reserved = 32 - 1;
+
+			do
+			{
+				ft->reserved++;
+
+				fatsecs = ft->num_sectors - ft->reserved;
+				ft->size_root_dir = ft->cluster_size * ft->sector_size;
+				ft->cluster_count = (int) (((int64) fatsecs * ft->sector_size) / (ft->cluster_size * ft->sector_size + 8));
+				ft->fat_length = (ft->cluster_count * 4 + ft->sector_size - 1) / ft->sector_size;
+
+				// Align data area on TC_MAX_VOLUME_SECTOR_SIZE
+
+			} while (ft->sector_size == TC_SECTOR_SIZE_LEGACY
+				&& (ft->reserved * ft->sector_size + ft->fat_length * ft->fats * ft->sector_size) % TC_MAX_VOLUME_SECTOR_SIZE != 0);
 		}
 
 		if (ft->num_sectors >= 65536 || ft->size_fat == 32)
@@ -210,7 +242,7 @@ namespace TrueCrypt
 	/* FAT32 FSInfo */
 	static void PutFSInfo (byte *sector, fatparams *ft)
 	{
-		memset (sector, 0, 512);
+		memset (sector, 0, ft->sector_size);
 		sector[3] = 0x41; /* LeadSig */
 		sector[2] = 0x61; 
 		sector[1] = 0x52; 
@@ -221,7 +253,7 @@ namespace TrueCrypt
 		sector[484+0] = 0x72; 
 
 		// Free cluster count
-		*(uint32 *)(sector + 488) = Endian::Little (ft->cluster_count - ft->size_root_dir / SECTOR_SIZE / ft->cluster_size);
+		*(uint32 *)(sector + 488) = Endian::Little (ft->cluster_count - ft->size_root_dir / ft->sector_size / ft->cluster_size);
 
 		// Next free cluster
 		*(uint32 *)(sector + 492) = Endian::Little ((uint32) 2);
@@ -232,20 +264,25 @@ namespace TrueCrypt
 		sector[508+0] = 0x00;
 	}
 
-	void FatFormatter::Format (WriteSectorCallback &writeSector, uint64 deviceSize, uint32 clusterSize)
+	void FatFormatter::Format (WriteSectorCallback &writeSector, uint64 deviceSize, uint32 clusterSize, uint32 sectorSize)
 	{
 		fatparams fatParams;
 
-		if (deviceSize / SECTOR_SIZE > 0xffffFFFF)
+#if TC_MAX_VOLUME_SECTOR_SIZE > 0xFFFF
+#error TC_MAX_VOLUME_SECTOR_SIZE > 0xFFFF
+#endif
+		fatParams.sector_size = (uint16) sectorSize;
+
+		if (deviceSize / fatParams.sector_size > 0xffffFFFF)
 			throw ParameterIncorrect (SRC_POS);
 
-		fatParams.num_sectors = (uint32) (deviceSize / SECTOR_SIZE);
-		fatParams.cluster_size = clusterSize / SECTOR_SIZE;
+		fatParams.num_sectors = (uint32) (deviceSize / fatParams.sector_size);
+		fatParams.cluster_size = clusterSize / fatParams.sector_size;
 		memcpy (fatParams.volume_name, "NO NAME    ", 11);
 		GetFatParams (&fatParams); 
 		fatparams *ft = &fatParams;
 
-		SecureBuffer sector (SECTOR_SIZE);
+		SecureBuffer sector (ft->sector_size);
 		uint32 sectorNumber = 0;
 
 		/* Write the data area */
@@ -335,7 +372,7 @@ namespace TrueCrypt
 		}
 
 		/* write rootdir */
-		for (uint32 x = 0; x < ft->size_root_dir / SECTOR_SIZE; x++)
+		for (uint32 x = 0; x < ft->size_root_dir / ft->sector_size; x++)
 		{
 			sector.Zero();
 			if (!writeSector (sector))

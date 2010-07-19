@@ -29,7 +29,7 @@
 
 ;
 ; Adapted for TrueCrypt:
-; - Compatibility with NASM
+; - Compatibility with NASM and GCC
 ;
 
 ; An AES implementation for x86 processors using the YASM (or NASM) assembler.
@@ -182,7 +182,7 @@ stk_spc equ    20   ; stack space
 %else
     align 32
     global  %1@%2
-    export  %1@%2
+    export  _%1@%2
 %1@%2:
 %endif
 %endmacro
@@ -206,25 +206,25 @@ stk_spc equ    20   ; stack space
 
 %ifdef  ENCRYPTION
 
-    extern  _t_fn
+    extern  t_fn
 
-%define etab_0(x)   [_t_fn+4*x]
-%define etab_1(x)   [_t_fn+1024+4*x]
-%define etab_2(x)   [_t_fn+2048+4*x]
-%define etab_3(x)   [_t_fn+3072+4*x]
+%define etab_0(x)   [t_fn+4*x]
+%define etab_1(x)   [t_fn+1024+4*x]
+%define etab_2(x)   [t_fn+2048+4*x]
+%define etab_3(x)   [t_fn+3072+4*x]
 
 %ifdef LAST_ROUND_TABLES
 
-    extern  _t_fl
+    extern  t_fl
 
-%define eltab_0(x)  [_t_fl+4*x]
-%define eltab_1(x)  [_t_fl+1024+4*x]
-%define eltab_2(x)  [_t_fl+2048+4*x]
-%define eltab_3(x)  [_t_fl+3072+4*x]
+%define eltab_0(x)  [t_fl+4*x]
+%define eltab_1(x)  [t_fl+1024+4*x]
+%define eltab_2(x)  [t_fl+2048+4*x]
+%define eltab_3(x)  [t_fl+3072+4*x]
 
 %else
 
-%define etab_b(x)   byte [_t_fn+3072+4*x]
+%define etab_b(x)   byte [t_fn+3072+4*x]
 
 %endif
 
@@ -364,7 +364,7 @@ stk_spc equ    20   ; stack space
 
 ; AES Encryption Subroutine
 
-    do_name _aes_encrypt
+    do_name aes_encrypt
 
     sub     esp,stk_spc
     mov     [esp+16],ebp
@@ -429,21 +429,21 @@ stk_spc equ    20   ; stack space
 
 %ifdef  DECRYPTION
 
-    extern  _t_in
+    extern  t_in
 
-%define dtab_0(x)   [_t_in+4*x]
-%define dtab_1(x)   [_t_in+1024+4*x]
-%define dtab_2(x)   [_t_in+2048+4*x]
-%define dtab_3(x)   [_t_in+3072+4*x]
+%define dtab_0(x)   [t_in+4*x]
+%define dtab_1(x)   [t_in+1024+4*x]
+%define dtab_2(x)   [t_in+2048+4*x]
+%define dtab_3(x)   [t_in+3072+4*x]
 
 %ifdef LAST_ROUND_TABLES
 
-    extern  _t_il
+    extern  t_il
 
-%define dltab_0(x)  [_t_il+4*x]
-%define dltab_1(x)  [_t_il+1024+4*x]
-%define dltab_2(x)  [_t_il+2048+4*x]
-%define dltab_3(x)  [_t_il+3072+4*x]
+%define dltab_0(x)  [t_il+4*x]
+%define dltab_1(x)  [t_il+1024+4*x]
+%define dltab_2(x)  [t_il+2048+4*x]
+%define dltab_3(x)  [t_il+3072+4*x]
 
 %else
 
@@ -574,7 +574,7 @@ stk_spc equ    20   ; stack space
 
 ; AES Decryption Subroutine
 
-    do_name _aes_decrypt
+    do_name aes_decrypt
 
     sub     esp,stk_spc
     mov     [esp+16],ebp

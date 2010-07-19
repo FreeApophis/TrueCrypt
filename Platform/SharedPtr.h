@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -11,6 +11,8 @@
 
 #include <stdexcept>
 #include "SharedVal.h"
+
+#ifdef nullptr
 
 namespace TrueCrypt
 {
@@ -135,7 +137,9 @@ namespace TrueCrypt
 #endif
 #define shared_ptr TrueCrypt::SharedPtr
 
-#define make_shared_auto(typeName,instanceName) shared_ptr <typeName> instanceName (new typeName ())
+#ifdef make_shared
+#undef make_shared
+#endif
 
 	template <class T> shared_ptr <T> make_shared ()
 	{
@@ -146,6 +150,13 @@ namespace TrueCrypt
 	{
 		return shared_ptr <T> (new T (arg));
 	}
+
+#define make_shared TrueCrypt::make_shared
+
 }
 
-#endif
+#endif // nullptr
+
+#define make_shared_auto(typeName,instanceName) shared_ptr <typeName> instanceName (new typeName ())
+
+#endif // TC_HEADER_Platform_SharedPtr

@@ -1,13 +1,14 @@
 /*
- Copyright (c) 2008 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
 
 #include "Cipher.h"
 #include "Common/Crc.h"
+#include "Crc32.h"
 #include "EncryptionAlgorithm.h"
 #include "EncryptionMode.h"
 #include "EncryptionModeCBC.h"
@@ -20,6 +21,17 @@ namespace TrueCrypt
 {
 	void EncryptionTest::TestAll ()
 	{
+		TestAll (false);
+		TestAll (true);
+	}
+
+	void EncryptionTest::TestAll (bool enableCpuEncryptionSupport)
+	{
+		bool hwSupportEnabled = Cipher::IsHwSupportEnabled();
+		finally_do_arg (bool, hwSupportEnabled, { Cipher::EnableHwSupport (finally_arg); });
+
+		Cipher::EnableHwSupport (enableCpuEncryptionSupport);
+
 		TestCiphers();
 		TestXtsAES();
 		TestXts();
@@ -29,7 +41,7 @@ namespace TrueCrypt
 
 	void EncryptionTest::TestLegacyModes ()
 	{
-		byte buf[SECTOR_SIZE * 2];
+		byte buf[ENCRYPTION_DATA_UNIT_SIZE * 2];
 		byte iv[32];
 		unsigned int i;
 		uint32 crc;
@@ -61,9 +73,9 @@ namespace TrueCrypt
 					ea.SetMode (mode);
 					ea.SetKey (ConstBufferPtr (buf, ea.GetKeySize()));
 
-					ea.EncryptSectors (buf, secNo, sizeof (buf) / SECTOR_SIZE, SECTOR_SIZE);
-					ea.DecryptSectors (buf, secNo, sizeof (buf) / SECTOR_SIZE, SECTOR_SIZE);
-					ea.EncryptSectors (buf, secNo, sizeof (buf) / SECTOR_SIZE, SECTOR_SIZE);
+					ea.EncryptSectors (buf, secNo, sizeof (buf) / ENCRYPTION_DATA_UNIT_SIZE, ENCRYPTION_DATA_UNIT_SIZE);
+					ea.DecryptSectors (buf, secNo, sizeof (buf) / ENCRYPTION_DATA_UNIT_SIZE, ENCRYPTION_DATA_UNIT_SIZE);
+					ea.EncryptSectors (buf, secNo, sizeof (buf) / ENCRYPTION_DATA_UNIT_SIZE, ENCRYPTION_DATA_UNIT_SIZE);
 
 					crc = ::GetCrc32 (buf, sizeof (buf));
 
@@ -94,7 +106,7 @@ namespace TrueCrypt
 						if (typeid (ea) == typeid (TwofishSerpent)		&& crc != 0xa7b659f3) throw TestFailed (SRC_POS);
 					}
 
-					ea.DecryptSectors (buf, secNo, sizeof (buf) / SECTOR_SIZE, SECTOR_SIZE);
+					ea.DecryptSectors (buf, secNo, sizeof (buf) / ENCRYPTION_DATA_UNIT_SIZE, ENCRYPTION_DATA_UNIT_SIZE);
 				}
 			}
 		}
@@ -170,18 +182,35 @@ namespace TrueCrypt
 		}
 	}
 
-
 	void EncryptionTest::TestCiphers ()
 	{
 			CipherAES aes;
 			TestCipher (aes, AESTestVectors, array_capacity (AESTestVectors));
-			
+
+			Buffer testData (1024);
+			for (size_t i = 0; i < testData.Size(); ++i)
+			{
+				testData[i] = (byte) i;
+			}
+
+			uint32 origCrc = Crc32::ProcessBuffer (testData);
+
+			aes.SetKey (ConstBufferPtr (testData, aes.GetKeySize()));
+			aes.EncryptBlocks (testData, testData.Size() / aes.GetBlockSize());
+
+			if (Crc32::ProcessBuffer (testData) != 0xb5cd5631)
+				throw TestFailed (SRC_POS);
+
+			aes.DecryptBlocks (testData, testData.Size() / aes.GetBlockSize());
+
+			if (origCrc != Crc32::ProcessBuffer (testData))
+				throw TestFailed (SRC_POS);
+
 			CipherSerpent serpent;
 			TestCipher (serpent, SerpentTestVectors, array_capacity (SerpentTestVectors));
 
 			CipherTwofish twofish;
 			TestCipher (twofish, TwofishTestVectors, array_capacity (TwofishTestVectors));
-
 	}
 
 	const EncryptionTest::XtsTestVector EncryptionTest::XtsTestVectors[] =

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -65,6 +65,7 @@ namespace TrueCrypt
 		void OnAddToFavoritesMenuItemSelected (wxCommandEvent& event);
 		void OnBackupVolumeHeadersMenuItemSelected (wxCommandEvent& event);
 		void OnBeginnersTutorialMenuItemSelected (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"tutorial"); }
+		void OnBenchmarkMenuItemSelected (wxCommandEvent& event);
 		void OnChangeKeyfilesMenuItemSelected (wxCommandEvent& event) { ChangePassword (ChangePasswordDialog::Mode::ChangeKeyfiles); }
 		void OnChangePasswordMenuItemSelected (wxCommandEvent& event) { ChangePassword (); }
 		void OnChangePkcs5PrfMenuItemSelected (wxCommandEvent& event) { ChangePassword (ChangePasswordDialog::Mode::ChangePkcs5Prf); }

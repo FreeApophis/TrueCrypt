@@ -1,3 +1,6 @@
+/* Deprecated/legacy */
+
+
 // cast.cpp - written and placed in the public domain by Wei Dai and Leonard Janke
 // based on Steve Reid's public domain cast.c
 

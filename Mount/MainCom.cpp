@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2007-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2007-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -66,7 +66,13 @@ public:
 		AddRef ();
 		return S_OK;
 	}
-	
+
+	virtual void STDMETHODCALLTYPE AnalyzeKernelMiniDump (LONG_PTR hwndDlg)
+	{
+		MainDlg = (HWND) hwndDlg;
+		::AnalyzeKernelMiniDump ((HWND) hwndDlg);
+	}
+
 	virtual int STDMETHODCALLTYPE BackupVolumeHeader (LONG_PTR hwndDlg, BOOL bRequireConfirmation, BSTR lpszVolume)
 	{
 		USES_CONVERSION;
@@ -113,9 +119,9 @@ public:
 		return BaseCom::ReadWriteFile (write, device, filePath, bufferBstr, offset, size, sizeDone);
 	}
 
-	virtual DWORD STDMETHODCALLTYPE RegisterFilterDriver (BOOL registerDriver, BOOL volumeClass)
+	virtual DWORD STDMETHODCALLTYPE RegisterFilterDriver (BOOL registerDriver, int filterType)
 	{
-		return BaseCom::RegisterFilterDriver (registerDriver, volumeClass);
+		return BaseCom::RegisterFilterDriver (registerDriver, filterType);
 	}
 
 	virtual DWORD STDMETHODCALLTYPE RegisterSystemFavoritesService (BOOL registerService)
@@ -187,6 +193,23 @@ ITrueCryptMainCom *GetElevatedInstance (HWND parent)
 		throw UserAbort (SRC_POS);
 
 	return instance;
+}
+
+
+extern "C" void UacAnalyzeKernelMiniDump (HWND hwndDlg)
+{
+	CComPtr<ITrueCryptMainCom> tc;
+
+	CoInitialize (NULL);
+
+	if (ComGetInstance (hwndDlg, &tc))
+	{
+		WaitCursor();
+		tc->AnalyzeKernelMiniDump ((LONG_PTR) hwndDlg);
+		NormalCursor();
+	}
+
+	CoUninitialize ();
 }
 
 

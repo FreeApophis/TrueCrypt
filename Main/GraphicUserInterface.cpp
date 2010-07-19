@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -673,6 +673,9 @@ namespace TrueCrypt
 				catch (PasswordException&) { }
 			}
 
+			if (!options.Keyfiles && GetPreferences().UseKeyfiles && !GetPreferences().DefaultKeyfiles.empty())
+				options.Keyfiles = make_shared <KeyfileList> (GetPreferences().DefaultKeyfiles);
+
 			if ((options.Password && !options.Password->IsEmpty())
 				|| (options.Keyfiles && !options.Keyfiles->empty()))
 			{
@@ -799,8 +802,13 @@ namespace TrueCrypt
 			};
 #endif
 
+			wxLogLevel logLevel = wxLog::GetLogLevel();
+			wxLog::SetLogLevel (wxLOG_Error);
+
 			SingleInstanceChecker.reset (new wxSingleInstanceChecker (wxString (L".") + Application::GetName() + L"-lock-" + wxGetUserId()));
-			
+
+			wxLog::SetLogLevel (logLevel);
+
 			if (SingleInstanceChecker->IsAnotherRunning())
 			{
 #ifdef TC_WINDOWS

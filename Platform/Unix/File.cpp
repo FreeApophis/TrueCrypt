@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -113,10 +113,13 @@ namespace TrueCrypt
 			struct dk_minfo mediaInfo;
 			throw_sys_sub_if (ioctl (FileHandle, DKIOCGMEDIAINFO, &mediaInfo) == -1, wstring (Path));
 			return mediaInfo.dki_lbsize;
+
+#else
+#	error GetDeviceSectorSize()
 #endif
 		}
-
-		return 512;
+		else
+			throw ParameterIncorrect (SRC_POS);
 	}
 
 	uint64 File::GetPartitionDeviceStartOffset () const

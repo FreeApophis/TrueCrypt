@@ -4,8 +4,8 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
@@ -151,7 +151,7 @@ volatile BOOL bInPlaceEncNonSys = FALSE;		/* If TRUE, existing data on a non-sys
 volatile BOOL bInPlaceEncNonSysResumed = FALSE;	/* If TRUE, the wizard is supposed to resume (or has resumed) process of non-system in-place encryption. */
 volatile BOOL bFirstNonSysInPlaceEncResumeDone = FALSE;
 __int64 NonSysInplaceEncBytesDone = 0;
-__int64 NonSysInplaceEncTotalSectors = 0;
+__int64 NonSysInplaceEncTotalSize = 0;
 BOOL bDeviceTransformModeChoiceMade = FALSE;		/* TRUE if the user has at least once manually selected the 'in-place' or 'format' option (on the 'device transform mode' page). */
 int nNeedToStoreFilesOver4GB = 0;		/* Whether the user wants to be able to store files larger than 4GB on the volume: -1 = Undecided or error, 0 = No, 1 = Yes */
 int nVolumeEA = 1;			/* Default encryption algorithm */
@@ -173,7 +173,7 @@ int hiddenVolHostDriveNo = -1;	/* Drive letter for the volume intended to host a
 BOOL bRemovableHostDevice = FALSE;	/* TRUE when creating a device/partition-hosted volume on a removable device. State undefined when creating file-hosted volumes. */
 int realClusterSize;		/* Parameter used when determining the maximum possible size of a hidden volume. */
 int hash_algo = DEFAULT_HASH_ALGORITHM;	/* Which PRF to use in header key derivation (PKCS #5) and in the RNG. */
-unsigned __int64 nUIVolumeSize = 0;		/* The volume size. Important: This value is not in bytes. It has to be multiplied by nMultiplier. Do not use this value when actually creating the volume (it may chop off 512 bytes, if it is not a multiple of 1024 bytes). */
+unsigned __int64 nUIVolumeSize = 0;		/* The volume size. Important: This value is not in bytes. It has to be multiplied by nMultiplier. Do not use this value when actually creating the volume (it may chop off sector size, if it is not a multiple of 1024 bytes). */
 unsigned __int64 nVolumeSize = 0;		/* The volume size, in bytes. */
 unsigned __int64 nHiddenVolHostSize = 0;	/* Size of the hidden volume host, in bytes */
 __int64 nMaximumHiddenVolSize = 0;		/* Maximum possible size of the hidden volume, in bytes */
@@ -612,6 +612,8 @@ static BOOL CreatingHiddenSysVol (void)
 
 static void LoadSettings (HWND hwndDlg)
 {
+	EnableHwEncryption ((ReadDriverConfigurationFlags() & TC_DRIVER_CONFIG_DISABLE_HARDWARE_ENCRYPTION) ? FALSE : TRUE);
+
 	WipeAlgorithmId savedWipeAlgorithm = TC_WIPE_NONE;
 
 	LoadSysEncSettings (hwndDlg);
@@ -1281,6 +1283,12 @@ static void VerifySizeAndUpdate (HWND hwndDlg, BOOL bUpdate)
 	{
 		i = nMultiplier;
 		lTmp = _atoi64 (szTmp);
+
+		int sectorSize = GetFormatSectorSize();
+		uint32 sectorSizeRem = (lTmp * nMultiplier) % sectorSize;
+
+		if (sectorSizeRem != 0)
+			lTmp = (lTmp * nMultiplier + (sectorSize - sectorSizeRem)) / nMultiplier;
 	}
 
 	if (bEnable)
@@ -1298,9 +1306,6 @@ static void VerifySizeAndUpdate (HWND hwndDlg, BOOL bUpdate)
 			if (lTmp * i > (bHiddenVolHost ? TC_MAX_HIDDEN_VOLUME_HOST_SIZE : TC_MAX_VOLUME_SIZE))
 				bEnable = FALSE;
 		}
-
-		if (lTmp * i % SECTOR_SIZE != 0)
-			bEnable = FALSE;
 	}
 
 	if (bUpdate)
@@ -1434,7 +1439,7 @@ static void UpdateSysEncProgressBar (void)
 	}
 	else
 	{
-		UpdateProgressBarProc ((locBootEncStatus.EncryptedAreaEnd - locBootEncStatus.EncryptedAreaStart + 1) / SECTOR_SIZE);
+		UpdateProgressBarProc (locBootEncStatus.EncryptedAreaEnd - locBootEncStatus.EncryptedAreaStart + 1);
 
 		if (locBootEncStatus.SetupInProgress)
 		{
@@ -1471,8 +1476,8 @@ static void InitSysEncProgressBar (void)
 		|| locBootEncStatus.ConfiguredEncryptedAreaStart == -1)
 		return;
 
-	InitProgressBar ((locBootEncStatus.ConfiguredEncryptedAreaEnd 
-		- locBootEncStatus.ConfiguredEncryptedAreaStart + 1) / SECTOR_SIZE,
+	InitProgressBar (locBootEncStatus.ConfiguredEncryptedAreaEnd 
+		- locBootEncStatus.ConfiguredEncryptedAreaStart + 1,
 		(locBootEncStatus.EncryptedAreaEnd == locBootEncStatus.EncryptedAreaStart || locBootEncStatus.EncryptedAreaEnd == -1) ?
 		0 :	locBootEncStatus.EncryptedAreaEnd - locBootEncStatus.EncryptedAreaStart + 1,
 		SystemEncryptionStatus == SYSENC_STATUS_DECRYPTING,
@@ -1880,9 +1885,7 @@ static void UpdateNonSysInplaceEncProgressBar (void)
 {
 	static int lastNonSysInplaceEncStatus = NONSYS_INPLACE_ENC_STATUS_NONE;
 	int nonSysInplaceEncStatus = NonSysInplaceEncStatus;
-	__int64 totalSectors;
-
-	totalSectors = NonSysInplaceEncTotalSectors;
+	__int64 totalSize = NonSysInplaceEncTotalSize;
 
 	if (bVolTransformThreadRunning 
 		&& (nonSysInplaceEncStatus == NONSYS_INPLACE_ENC_STATUS_ENCRYPTING
@@ -1896,11 +1899,11 @@ static void UpdateNonSysInplaceEncProgressBar (void)
 		}
 		else
 		{
-			if (totalSectors <= 0 && nVolumeSize > 0)
-				totalSectors = nVolumeSize / SECTOR_SIZE;
+			if (totalSize <= 0 && nVolumeSize > 0)
+				totalSize = nVolumeSize;
 
-			if (totalSectors > 0)
-				UpdateProgressBarProc (NonSysInplaceEncBytesDone / SECTOR_SIZE);
+			if (totalSize > 0)
+				UpdateProgressBarProc (NonSysInplaceEncBytesDone);
 		}
 	}
 
@@ -1912,17 +1915,17 @@ static void UpdateNonSysInplaceEncProgressBar (void)
 
 static void InitNonSysInplaceEncProgressBar (void)
 {
-	__int64 totalSectors = NonSysInplaceEncTotalSectors;
+	__int64 totalSize = NonSysInplaceEncTotalSize;
 
-	if (totalSectors <= 0)
+	if (totalSize <= 0)
 	{
 		if (nVolumeSize <= 0)
 			return;
 
-		totalSectors = nVolumeSize / SECTOR_SIZE;
+		totalSize = nVolumeSize;
 	}
 
-	InitProgressBar (totalSectors,
+	InitProgressBar (totalSize,
 		NonSysInplaceEncBytesDone,
 		FALSE,
 		TRUE,
@@ -2106,7 +2109,7 @@ static void UpdateWipeProgressBar (void)
 		if (decoySysPartitionWipeStatus.WipedAreaEnd == -1)
 			UpdateProgressBarProc (0);
 		else
-			UpdateProgressBarProc ((decoySysPartitionWipeStatus.WipedAreaEnd - BootEncStatus.ConfiguredEncryptedAreaStart + 1) / SECTOR_SIZE);
+			UpdateProgressBarProc (decoySysPartitionWipeStatus.WipedAreaEnd - BootEncStatus.ConfiguredEncryptedAreaStart + 1);
 	}
 	else
 	{
@@ -2137,7 +2140,7 @@ static void InitWipeProgressBar (void)
 			|| BootEncStatus.ConfiguredEncryptedAreaStart == -1)
 			return;
 
-		InitProgressBar ((BootEncStatus.ConfiguredEncryptedAreaEnd - BootEncStatus.ConfiguredEncryptedAreaStart + 1) / SECTOR_SIZE,
+		InitProgressBar (BootEncStatus.ConfiguredEncryptedAreaEnd - BootEncStatus.ConfiguredEncryptedAreaStart + 1,
 			(decoySysPartitionWipeStatus.WipedAreaEnd == BootEncStatus.ConfiguredEncryptedAreaStart || decoySysPartitionWipeStatus.WipedAreaEnd == -1) ?
 			0 :	decoySysPartitionWipeStatus.WipedAreaEnd - BootEncStatus.ConfiguredEncryptedAreaStart + 1,
 			FALSE,
@@ -2320,6 +2323,7 @@ static void __cdecl volTransformThreadFunction (void *hwndDlgArg)
 	volParams->clusterSize = clusterSize;
 	volParams->sparseFileSwitch = bSparseFileSwitch;
 	volParams->quickFormat = quickFormat;
+	volParams->sectorSize = GetFormatSectorSize();
 	volParams->realClusterSize = &realClusterSize;
 	volParams->password = &volumePassword;
 	volParams->hwndDlg = hwndDlg;
@@ -2353,7 +2357,7 @@ static void __cdecl volTransformThreadFunction (void *hwndDlgArg)
 	}
 	else
 	{
-		InitProgressBar (GetVolumeDataAreaSize (bHidden, nVolumeSize) / SECTOR_SIZE, 0, FALSE, FALSE, FALSE, TRUE);
+		InitProgressBar (GetVolumeDataAreaSize (bHidden, nVolumeSize), 0, FALSE, FALSE, FALSE, TRUE);
 
 		nStatus = TCFormatVolume (volParams);
 	}
@@ -3059,9 +3063,13 @@ BOOL QueryFreeSpace (HWND hwndDlg, HWND hwndTextBox, BOOL display)
 			return FALSE;
 		}
 
-		if (gValid && driveInfo.BytesPerSector != 512)
+		int sectorSize = GetFormatSectorSize();
+
+		if (sectorSize < TC_MIN_VOLUME_SECTOR_SIZE
+			|| sectorSize > TC_MAX_VOLUME_SECTOR_SIZE
+			|| sectorSize % ENCRYPTION_DATA_UNIT_SIZE != 0)
 		{
-			Error ("LARGE_SECTOR_UNSUPPORTED");
+			Error ("SECTOR_SIZE_UNSUPPORTED");
 			return FALSE;
 		}
 
@@ -3240,7 +3248,7 @@ static BOOL FileSize4GBLimitQuestionNeeded (void)
 	uint64 dataAreaSize = GetVolumeDataAreaSize (bHiddenVol && !bHiddenVolHost, nVolumeSize);
 
 	return (dataAreaSize > 4 * BYTES_PER_GB + TC_MIN_FAT_FS_SIZE
-		&& dataAreaSize <= TC_MAX_FAT_FS_SIZE);
+		&& dataAreaSize <= TC_MAX_FAT_SECTOR_COUNT * GetFormatSectorSize());
 }
 
 
@@ -4334,14 +4342,25 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 				SendMessage (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), CB_RESETCONTENT, 0, 0);
 				AddComboPairW (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), GetString ("DEFAULT"), 0);
-				AddComboPair (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), "0.5 KB", 1);
-				AddComboPair (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), "1 KB", 2);
-				AddComboPair (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), "2 KB", 4);
-				AddComboPair (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), "4 KB", 8);
-				AddComboPair (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), "8 KB", 16);
-				AddComboPair (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), "16 KB", 32);
-				AddComboPair (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), "32 KB", 64);
-				AddComboPair (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), "64 KB", 128);
+
+				for (int i = 1; i <= 128; i *= 2)
+				{
+					wstringstream s;
+					int size = GetFormatSectorSize() * i;
+
+					if (size > TC_MAX_FAT_CLUSTER_SIZE)
+						break;
+
+					if (size == 512)
+						s << L"0.5";
+					else
+						s << size / BYTES_PER_KB;
+
+					s << L" " << GetString ("KB");
+
+					AddComboPairW (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), s.str().c_str(), i);
+				}
+
 				SendMessage (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), CB_SETCURSEL, 0, 0);
 
 				EnableWindow (GetDlgItem (hwndDlg, IDC_CLUSTERSIZE), TRUE);
@@ -4366,7 +4385,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						bNTFSallowed = TRUE;
 					}
 
-					if (dataAreaSize >= TC_MIN_FAT_FS_SIZE && dataAreaSize <= TC_MAX_FAT_FS_SIZE)
+					if (dataAreaSize >= TC_MIN_FAT_FS_SIZE && dataAreaSize <= TC_MAX_FAT_SECTOR_COUNT * GetFormatSectorSize())
 					{
 						AddComboPair (GetDlgItem (hwndDlg, IDC_FILESYS), "FAT", FILESYS_FAT);
 						bFATallowed = TRUE;
@@ -4869,7 +4888,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			return 1;
 		}
 
-		if (lw == IDC_WIZ_BENCHMARK && nCurPageNo == CIPHER_PAGE)
+		if (lw == IDC_BENCHMARK && nCurPageNo == CIPHER_PAGE)
 		{
 			// Reduce CPU load
 			bFastPollEnabled = FALSE;	
@@ -5580,6 +5599,21 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 								EnableWindow (GetDlgItem (hCurPage, IDC_PAUSE), FALSE);
 
 								Info ("SYSTEM_DECRYPTION_FINISHED");
+
+								// Reboot is required to enable uninstallation and hibernation
+								if (AskWarnYesNo ("CONFIRM_RESTART") == IDYES)
+								{
+									EndMainDlg (MainDlg);
+
+									try
+									{
+										BootEncObj->RestartComputer();
+									}
+									catch (Exception &e)
+									{
+										e.Show (hwndDlg);
+									}
+								}
 
 								return 1;
 							}
@@ -6340,6 +6374,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				WaitCursor();
 
 				GetWindowText (GetDlgItem (hCurPage, IDC_COMBO_BOX), szFileName, sizeof (szFileName));
+				RelativePath2Absolute (szFileName);
 				CreateFullVolumePath (szDiskFile, szFileName, &tmpbDevice);
 
 				if (tmpbDevice != bDevice)
@@ -6534,6 +6569,14 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 							Error ("VOLUME_TOO_LARGE_FOR_FAT32");
 							return 1;
 						}
+					}
+
+					/* Verify that the volume would not be too large for the operating system */
+
+					if (!IsOSAtLeast (WIN_VISTA)
+						&& nUIVolumeSize * nMultiplier > 2 * BYTES_PER_TB)
+					{
+						Warning ("VOLUME_TOO_LARGE_FOR_WINXP");
 					}
 				}
 
@@ -6893,6 +6936,38 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					return 1;
 				}
 
+retryCDDriveCheck:
+				if (!bDontVerifyRescueDisk && !BootEncObj->IsCDDrivePresent())
+				{
+					char *multiChoiceStr[] = { 0, "CD_BURNER_NOT_PRESENT",
+						"CD_BURNER_NOT_PRESENT_WILL_STORE_ISO",
+						"CD_BURNER_NOT_PRESENT_WILL_CONNECT_LATER",
+						"CD_BURNER_NOT_PRESENT_CONNECTED_NOW",
+						0 };
+
+					switch (AskMultiChoice ((void **) multiChoiceStr, FALSE))
+					{
+					case 1:
+						wchar_t msg[8192];
+						swprintf_s (msg, array_capacity (msg), GetString ("CD_BURNER_NOT_PRESENT_WILL_STORE_ISO_INFO"), SingleStringToWide (szRescueDiskISO).c_str());
+						WarningDirect (msg);
+
+						Warning ("RESCUE_DISK_BURN_NO_CHECK_WARN");
+						bDontVerifyRescueDisk = TRUE;
+						nNewPageNo = SYSENC_RESCUE_DISK_VERIFIED_PAGE;
+						break;
+
+					case 2:
+						AbortProcessSilent();
+
+					case 3:
+						break;
+
+					default:
+						goto retryCDDriveCheck;
+					}
+				}
+
 				if (IsWindowsIsoBurnerAvailable() && !bDontVerifyRescueDisk)
 					Info ("RESCUE_DISK_WIN_ISOBURN_PRELAUNCH_NOTE");
 
@@ -7120,7 +7195,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						{
 							Error("OUTER_VOLUME_TOO_SMALL_FOR_HIDDEN_OS_NTFS");
 
-							if (GetVolumeDataAreaSize (FALSE, nVolumeSize) <= TC_MAX_FAT_FS_SIZE
+							if (GetVolumeDataAreaSize (FALSE, nVolumeSize) <= TC_MAX_FAT_SECTOR_COUNT * GetFormatSectorSize()
 								&& AskYesNo("OFFER_FAT_FORMAT_ALTERNATIVE") == IDYES)
 							{
 								fileSystem = FILESYS_FAT;
@@ -7141,7 +7216,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 								bVolTransformThreadToRun = FALSE;
 								return 1;
 							}
-							else if (GetVolumeDataAreaSize (FALSE, nVolumeSize) <= TC_MAX_FAT_FS_SIZE
+							else if (GetVolumeDataAreaSize (FALSE, nVolumeSize) <= TC_MAX_FAT_SECTOR_COUNT * GetFormatSectorSize()
 								&& AskYesNo("HIDDEN_VOL_HOST_NTFS_ASK") == IDNO)
 							{
 								bVolTransformThreadToRun = FALSE;
@@ -7175,13 +7250,15 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				EnableWindow (GetDlgItem (hCurPage, IDC_FILESYS), FALSE);
 				EnableWindow (GetDlgItem (hCurPage, IDC_ABORT_BUTTON), TRUE);
 				SetFocus (GetDlgItem (hCurPage, IDC_ABORT_BUTTON));
- 
-				// Increase cluster size if it's too small for this volume size
+
+				// Increase cluster size if it's too small for this volume size (causes size of
+				// free space to be 0). Note that the below constant 0x2000000 is based on
+				// results of tests performed under Windows XP.
 				if (fileSystem == FILESYS_FAT && clusterSize > 0)
 				{
 					BOOL fixed = FALSE;
 					while (clusterSize < 128 
-						&& nVolumeSize / clusterSize > 17179869184I64)
+						&& nVolumeSize / (clusterSize * GetFormatSectorSize()) > 0x2000000)
 					{
 						clusterSize *= 2;
 						fixed = TRUE;
@@ -7872,7 +7949,7 @@ int DetermineMaxHiddenVolSize (HWND hwndDlg)
 	// Compute the final value
 
 	nMaximumHiddenVolSize = nbrFreeClusters * realClusterSize - TC_HIDDEN_VOLUME_HOST_FS_RESERVED_END_AREA_SIZE - nbrReserveBytes;
-	nMaximumHiddenVolSize -= nMaximumHiddenVolSize % SECTOR_SIZE;		// Must be a multiple of the sector size
+	nMaximumHiddenVolSize -= nMaximumHiddenVolSize % realClusterSize;		// Must be a multiple of the sector size
 
 	if (nMaximumHiddenVolSize < TC_MIN_HIDDEN_VOLUME_SIZE)
 	{
@@ -7909,7 +7986,7 @@ int AnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, __int64 hiddenVolHostSi
 	char szFileSystemNameBuffer[256];
 	char tmpPath[7] = {'\\','\\','.','\\',(char) *driveNo + 'A',':',0};
 	char szRootPathName[4] = {(char) *driveNo + 'A', ':', '\\', 0};
-	BYTE readBuffer[SECTOR_SIZE*2];
+	BYTE readBuffer[TC_MAX_VOLUME_SECTOR_SIZE * 2];
 	LARGE_INTEGER offset, offsetNew;
 	VOLUME_PROPERTIES_STRUCT volProp;
 
@@ -7959,7 +8036,7 @@ int AnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, __int64 hiddenVolHostSi
 		goto efs_error;
 	}
 
-	result = ReadFile(hDevice, &readBuffer, (DWORD) SECTOR_SIZE, &bytesReturned, NULL);
+	result = ReadFile (hDevice, &readBuffer, TC_MAX_VOLUME_SECTOR_SIZE, &bytesReturned, NULL);
 
 	if (result == 0)
 	{
@@ -8005,7 +8082,7 @@ int AnalyzeHiddenVolumeHost (HWND hwndDlg, int *driveNo, __int64 hiddenVolHostSi
 			return 0;
 		}
 
-		if (bHiddenVolDirect && GetVolumeDataAreaSize (FALSE, hiddenVolHostSize) <= TC_MAX_FAT_FS_SIZE)
+		if (bHiddenVolDirect && GetVolumeDataAreaSize (FALSE, hiddenVolHostSize) <= TC_MAX_FAT_SECTOR_COUNT * GetFormatSectorSize())
 			Info ("HIDDEN_VOL_HOST_NTFS");
 
 		if (!GetDiskFreeSpace(szRootPathName, 
@@ -8786,6 +8863,10 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszComm
 	if (!IsOSAtLeast (WIN_7))
 		FormatWriteBufferSize = 64 * 1024;
 
+#if TC_MAX_VOLUME_SECTOR_SIZE > 64 * 1024
+#error TC_MAX_VOLUME_SECTOR_SIZE > 64 * 1024
+#endif
+
 	nPbar = IDC_PROGRESS_BAR;
 
 	if (Randinit ())
@@ -8815,4 +8896,21 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszComm
 		(LPARAM)lpszCommandLine);
 
 	return 0;
+}
+
+
+static int GetFormatSectorSize ()
+{
+	if (!bDevice)
+		return TC_SECTOR_SIZE_FILE_HOSTED_VOLUME;
+
+	DISK_GEOMETRY geometry;
+
+	if (!GetDriveGeometry (szDiskFile, &geometry))
+	{
+		handleWin32Error (MainDlg);
+		AbortProcessSilent();
+	}
+
+	return geometry.BytesPerSector;
 }

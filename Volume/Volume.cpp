@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -113,6 +113,11 @@ namespace TrueCrypt
 
 			bool skipLayoutV1Normal = false;
 
+			bool deviceHosted = GetPath().IsDevice();
+			size_t hostDeviceSectorSize = 0;
+			if (deviceHosted)
+				hostDeviceSectorSize = volumeFile->GetDeviceSectorSize();
+
 			// Test volume layouts
 			foreach (shared_ptr <VolumeLayout> layout, VolumeLayout::GetAvailableLayouts (volumeType))
 			{
@@ -124,6 +129,13 @@ namespace TrueCrypt
 
 				if (useBackupHeaders && !layout->HasBackupHeader())
 					continue;
+
+				if (typeid (*layout) == typeid (VolumeLayoutV1Hidden)
+					&& deviceHosted
+					&& hostDeviceSectorSize != TC_SECTOR_SIZE_LEGACY)
+				{
+					continue;
+				}
 
 				SecureBuffer headerBuffer (layout->GetHeaderSize());
 

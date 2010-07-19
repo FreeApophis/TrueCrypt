@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "Platform/Unix/Process.h"
 #endif
 
 #include "Common/SecurityToken.h"
@@ -521,6 +522,12 @@ namespace TrueCrypt
 			} while (options->Path.IsEmpty());
 		}
 
+		// Sector size
+		if (options->Path.IsDevice())
+			options->SectorSize = Core->GetDeviceSectorSize (options->Path);
+		else
+			options->SectorSize = TC_SECTOR_SIZE_FILE_HOSTED_VOLUME;
+
 		// Volume size
 		uint64 hostSize = 0;
 
@@ -544,10 +551,11 @@ namespace TrueCrypt
 			}
 
 			if (hostSize < TC_MIN_HIDDEN_VOLUME_HOST_SIZE)
-				throw_err (StringFormatter (_("Minimum outer volume size is {0}."), SizeToString (TC_MIN_HIDDEN_VOLUME_HOST_SIZE + 512)));
+				throw_err (StringFormatter (_("Minimum outer volume size is {0}."), SizeToString (TC_MIN_HIDDEN_VOLUME_HOST_SIZE)));
 		}
 
 		uint64 minVolumeSize = options->Type == VolumeType::Hidden ? TC_MIN_HIDDEN_VOLUME_SIZE : TC_MIN_VOLUME_SIZE;
+		uint64 maxVolumeSize = options->Type == VolumeType::Hidden ? VolumeLayoutV2Normal().GetMaxDataSize (hostSize) - TC_MIN_FAT_FS_SIZE : TC_MAX_VOLUME_SIZE_GENERAL;
 
 		if (options->Path.IsDevice() && options->Type != VolumeType::Hidden)
 		{
@@ -559,6 +567,10 @@ namespace TrueCrypt
 		else
 		{
 			options->Quick = false;
+
+			uint32 sectorSizeRem = options->Size % options->SectorSize;
+			if (sectorSizeRem != 0)
+				options->Size += options->SectorSize - sectorSizeRem;
 
 			while (options->Size == 0)
 			{
@@ -587,32 +599,32 @@ namespace TrueCrypt
 				{
 					options->Size = StringConverter::ToUInt64 (sizeStr);
 					options->Size *= multiplier;
+
+					sectorSizeRem = options->Size % options->SectorSize;
+					if (sectorSizeRem != 0)
+						options->Size += options->SectorSize - sectorSizeRem;
 				}
 				catch (...)
 				{
+					options->Size = 0;
 					continue;
 				}
 
 				if (options->Size < minVolumeSize)
 				{
-					ShowError (StringFormatter (_("Minimum volume size is {0}."), SizeToString (minVolumeSize + 512)));
+					ShowError (StringFormatter (_("Minimum volume size is {0}."), SizeToString (minVolumeSize)));
 					options->Size = 0;
 				}
-				
-				if (options->Type == VolumeType::Hidden)
-				{
-					uint64 maxHiddenVolumeSize = VolumeLayoutV2Normal().GetMaxDataSize (hostSize) - TC_MIN_FAT_FS_SIZE;
 
-					if (options->Size > maxHiddenVolumeSize)
-					{
-						ShowError (StringFormatter (_("Maximum volume size is {0}."), SizeToString (maxHiddenVolumeSize)));
-						options->Size = 0;
-					}
+				if (options->Size > maxVolumeSize)
+				{
+					ShowError (StringFormatter (_("Maximum volume size is {0}."), SizeToString (maxVolumeSize)));
+					options->Size = 0;
 				}
 			}
 		}
 
-		if (options->Size < minVolumeSize)
+		if (options->Size < minVolumeSize || options->Size > maxVolumeSize)
 			throw_err (_("Incorrect volume size"));
 
 		if (options->Type == VolumeType::Hidden)
@@ -671,29 +683,35 @@ namespace TrueCrypt
 		{
 			if (Preferences.NonInteractive)
 			{
-				options->Filesystem = VolumeCreationOptions::FilesystemType::FAT;
+				options->Filesystem = VolumeCreationOptions::FilesystemType::GetPlatformNative();
 			}
 			else
 			{
-				ShowInfo (_("\nFilesystem:\n 1) FAT\n 2) None"));
+				ShowInfo (_("\nFilesystem:"));
 
-				switch (AskSelection (2, 1))
-				{
-				case 1:
-					options->Filesystem = VolumeCreationOptions::FilesystemType::FAT;
-					break;
+				vector <VolumeCreationOptions::FilesystemType::Enum> filesystems;
 
-				case 2:
-					options->Filesystem = VolumeCreationOptions::FilesystemType::None;
-					break;
-				}
+				ShowInfo (L" 1) " + LangString["NONE"]); filesystems.push_back (VolumeCreationOptions::FilesystemType::None);
+				ShowInfo (L" 2) FAT"); filesystems.push_back (VolumeCreationOptions::FilesystemType::FAT);
+
+#if defined (TC_LINUX)
+				ShowInfo (L" 3) Linux Ext2"); filesystems.push_back (VolumeCreationOptions::FilesystemType::Ext2);
+				ShowInfo (L" 4) Linux Ext3"); filesystems.push_back (VolumeCreationOptions::FilesystemType::Ext3);
+				ShowInfo (L" 5) Linux Ext4"); filesystems.push_back (VolumeCreationOptions::FilesystemType::Ext4);
+#elif defined (TC_MACOSX)
+				ShowInfo (L" 3) Mac OS Extended"); filesystems.push_back (VolumeCreationOptions::FilesystemType::MacOsExt);
+#elif defined (TC_FREEBSD) || defined (TC_SOLARIS)
+				ShowInfo (L" 3) UFS"); filesystems.push_back (VolumeCreationOptions::FilesystemType::UFS);
+#endif
+
+				options->Filesystem = filesystems[AskSelection (filesystems.size(), 2) - 1];
 			}
 		}
 
 		uint64 filesystemSize = layout->GetMaxDataSize (options->Size);
 
 		if (options->Filesystem == VolumeCreationOptions::FilesystemType::FAT
-			&& (filesystemSize < TC_MIN_FAT_FS_SIZE || filesystemSize > TC_MAX_FAT_FS_SIZE))
+			&& (filesystemSize < TC_MIN_FAT_FS_SIZE || filesystemSize > TC_MAX_FAT_SECTOR_COUNT * options->SectorSize))
 		{
 			throw_err (_("Specified volume size cannot be used with FAT filesystem."));
 		}
@@ -754,6 +772,75 @@ namespace TrueCrypt
 
 		ShowString (L"\n\n");
 		creator.CheckResult();
+
+#ifdef TC_UNIX
+		if (options->Filesystem != VolumeCreationOptions::FilesystemType::None
+			&& options->Filesystem != VolumeCreationOptions::FilesystemType::FAT)
+		{
+			const char *fsFormatter = nullptr;
+
+			switch (options->Filesystem)
+			{
+			case VolumeCreationOptions::FilesystemType::Ext2:		fsFormatter = "mkfs.ext2"; break;
+			case VolumeCreationOptions::FilesystemType::Ext3:		fsFormatter = "mkfs.ext3"; break;
+			case VolumeCreationOptions::FilesystemType::Ext4:		fsFormatter = "mkfs.ext4"; break;
+			case VolumeCreationOptions::FilesystemType::MacOsExt:	fsFormatter = "newfs_hfs"; break;
+			case VolumeCreationOptions::FilesystemType::UFS:		fsFormatter = "newfs" ; break;
+			default: throw ParameterIncorrect (SRC_POS);
+			}
+
+			MountOptions mountOptions (GetPreferences().DefaultMountOptions);
+			mountOptions.Path = make_shared <VolumePath> (options->Path);
+			mountOptions.NoFilesystem = true;
+			mountOptions.Protection = VolumeProtection::None;
+			mountOptions.Password = options->Password;
+			mountOptions.Keyfiles = options->Keyfiles;
+
+			shared_ptr <VolumeInfo> volume = Core->MountVolume (mountOptions);
+			finally_do_arg (shared_ptr <VolumeInfo>, volume, { Core->DismountVolume (finally_arg, true); });
+
+			Thread::Sleep (2000);	// Try to prevent race conditions caused by OS
+
+			// Temporarily take ownership of the device if the user is not an administrator
+			UserId origDeviceOwner ((uid_t) -1);
+
+			DevicePath virtualDevice = volume->VirtualDevice;
+#ifdef TC_MACOSX
+			string virtualDeviceStr = virtualDevice;
+			if (virtualDeviceStr.find ("/dev/rdisk") != 0)
+				virtualDevice = "/dev/r" + virtualDeviceStr.substr (5);
+#endif
+			try
+			{
+				File file;
+				file.Open (virtualDevice, File::OpenReadWrite);
+			}
+			catch (...)
+			{
+				if (!Core->HasAdminPrivileges())
+				{
+					origDeviceOwner = virtualDevice.GetOwner();
+					Core->SetFileOwner (virtualDevice, UserId (getuid()));
+				}
+			}
+
+			finally_do_arg2 (FilesystemPath, virtualDevice, UserId, origDeviceOwner,
+			{
+				if (finally_arg2.SystemId != (uid_t) -1)
+					Core->SetFileOwner (finally_arg, finally_arg2);
+			});
+
+			// Create filesystem
+			list <string> args;
+
+			if (options->Filesystem == VolumeCreationOptions::FilesystemType::MacOsExt && options->Size >= 10 * BYTES_PER_MB)
+				args.push_back ("-J");
+
+			args.push_back (string (virtualDevice));
+
+			Process::Execute (fsFormatter, args);
+		}
+#endif // TC_UNIX
 
 		ShowInfo (options->Type == VolumeType::Hidden ? "HIDVOL_FORMAT_FINISHED_HELP" : "FORMAT_FINISHED_INFO");
 	}
@@ -1390,6 +1477,9 @@ namespace TrueCrypt
 
 	void TextUserInterface::SetTerminalEcho (bool enable)
 	{
+		if (CmdLine->ArgDisplayPassword)
+			return;
+
 #ifdef TC_UNIX
 		struct termios termAttr;
 		if (tcgetattr (0, &termAttr) == 0)
@@ -1436,7 +1526,7 @@ namespace TrueCrypt
 		}
 		else if (!Preferences.NonInteractive)
 		{
-			int randCharsRequired = RandomNumberGenerator::PoolSize / 2;
+			int randCharsRequired = RandomNumberGenerator::PoolSize;
 			ShowInfo (StringFormatter (_("\nPlease type at least {0} randomly chosen characters and then press Enter:"), randCharsRequired));
 
 			SetTerminalEcho (false);

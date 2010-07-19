@@ -1,3 +1,6 @@
+/* Deprecated/legacy */
+
+
 // blowfish.cpp - written and placed in the public domain by Wei Dai
 
 /* Adapted for TrueCrypt */

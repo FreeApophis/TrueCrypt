@@ -4,8 +4,8 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
@@ -30,6 +30,7 @@
 #include "Format/Tcformat.h"
 
 int FormatWriteBufferSize = 1024 * 1024;
+static uint32 FormatSectorSize = 0;
 
 
 uint64 GetVolumeDataAreaSize (BOOL hiddenVolume, uint64 volumeSize)
@@ -38,7 +39,20 @@ uint64 GetVolumeDataAreaSize (BOOL hiddenVolume, uint64 volumeSize)
 
 	if (hiddenVolume)
 	{
-		// Reserve free space at the end of the host filesystem
+		// Reserve free space at the end of the host filesystem. FAT file system fills the last sector with
+		// zeroes (marked as free; observed when quick format was performed using the OS format tool).
+		// Therefore, when the outer volume is mounted with hidden volume protection, such write operations
+		// (e.g. quick formatting the outer volume filesystem as FAT) would needlessly trigger hidden volume
+		// protection.
+
+#if TC_HIDDEN_VOLUME_HOST_FS_RESERVED_END_AREA_SIZE > 4096
+#	error	TC_HIDDEN_VOLUME_HOST_FS_RESERVED_END_AREA_SIZE too large for very small volumes. Revise the code.
+#endif
+
+#if TC_HIDDEN_VOLUME_HOST_FS_RESERVED_END_AREA_SIZE_HIGH < TC_MAX_VOLUME_SECTOR_SIZE
+#	error	TC_HIDDEN_VOLUME_HOST_FS_RESERVED_END_AREA_SIZE_HIGH too small.
+#endif
+		
 		if (volumeSize < TC_VOLUME_SMALL_SIZE_THRESHOLD)
 			reservedSize = TC_HIDDEN_VOLUME_HOST_FS_RESERVED_END_AREA_SIZE;
 		else
@@ -78,9 +92,18 @@ int TCFormatVolume (volatile FORMAT_VOL_PARAMETERS *volParams)
 	LARGE_INTEGER offset;
 	BOOL bFailedRequiredDASD = FALSE;
 
+	FormatSectorSize = volParams->sectorSize;
+
+	if (FormatSectorSize < TC_MIN_VOLUME_SECTOR_SIZE
+		|| FormatSectorSize > TC_MAX_VOLUME_SECTOR_SIZE
+		|| FormatSectorSize % ENCRYPTION_DATA_UNIT_SIZE != 0)
+	{
+		Error ("SECTOR_SIZE_UNSUPPORTED");
+		return ERR_DONT_REPORT; 
+	}
 
 	/* WARNING: Note that if Windows fails to format the volume as NTFS and the volume size is
-	less than TC_MAX_FAT_FS_SIZE, the user is asked within this function whether he wants to instantly
+	less than the maximum FAT size, the user is asked within this function whether he wants to instantly
 	retry FAT format instead (to avoid having to re-create the whole container again). If the user
 	answers yes, some of the input parameters are modified, the code below 'begin_format' is re-executed 
 	and some destructive operations that were performed during the first attempt must be (and are) skipped. 
@@ -102,7 +125,7 @@ int TCFormatVolume (volatile FORMAT_VOL_PARAMETERS *volParams)
 
 	dataAreaSize = GetVolumeDataAreaSize (volParams->hiddenVol, volParams->size);
 
-	num_sectors = dataAreaSize / SECTOR_SIZE;
+	num_sectors = dataAreaSize / FormatSectorSize;
 
 	if (volParams->bDevice)
 	{
@@ -128,6 +151,7 @@ int TCFormatVolume (volatile FORMAT_VOL_PARAMETERS *volParams)
 					 dataAreaSize,
 					 0,
 					 volParams->headerFlags,
+					 FormatSectorSize,
 					 FALSE);
 
 	if (nStatus != 0)
@@ -238,7 +262,7 @@ begin_format:
 			// Note that when exclusive access is denied, it is worth retrying (usually succeeds after a few tries).
 			while (dev == INVALID_HANDLE_VALUE && retryCount++ < EXCL_ACCESS_MAX_AUTO_RETRIES)
 			{
-				dev = CreateFile (devName, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+				dev = CreateFile (devName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
 
 				if (retryCount > 1)
 					Sleep (EXCL_ACCESS_AUTO_RETRY_DELAY);
@@ -247,7 +271,7 @@ begin_format:
 			if (dev == INVALID_HANDLE_VALUE)
 			{
 				// Exclusive access denied -- retry in shared mode
-				dev = CreateFile (devName, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+				dev = CreateFile (devName, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 				if (dev != INVALID_HANDLE_VALUE)
 				{
 					if (IDNO == MessageBoxW (volParams->hwndDlg, GetString ("DEVICE_IN_USE_FORMAT"), lpszTitle, MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2))
@@ -390,20 +414,28 @@ begin_format:
 	if (!bInstantRetryOtherFilesys)
 	{
 		// Write the volume header
-		if (_lwrite ((HFILE) dev, header, TC_VOLUME_HEADER_EFFECTIVE_SIZE) == HFILE_ERROR)
+		if (!WriteEffectiveVolumeHeader (volParams->bDevice, dev, header))
 		{
 			nStatus = ERR_OS_ERROR;
 			goto error;
 		}
 
 		// To prevent fragmentation, write zeroes to reserved header sectors which are going to be filled with random data
-		if (!volParams->hiddenVol)
+		if (!volParams->bDevice && !volParams->hiddenVol)
 		{
 			byte buf[TC_VOLUME_HEADER_GROUP_SIZE - TC_VOLUME_HEADER_EFFECTIVE_SIZE];
+			DWORD bytesWritten;
 			ZeroMemory (buf, sizeof (buf));
-			if (_lwrite ((HFILE) dev, buf, sizeof (buf)) == HFILE_ERROR)
+
+			if (!WriteFile (dev, buf, sizeof (buf), &bytesWritten, NULL))
 			{
 				nStatus = ERR_OS_ERROR;
+				goto error;
+			}
+
+			if (bytesWritten != sizeof (buf))
+			{
+				nStatus = ERR_PARAMETER_INCORRECT;
 				goto error;
 			}
 		}
@@ -415,7 +447,7 @@ begin_format:
 		cryptoInfo->hiddenVolumeOffset = dataOffset;
 
 		// Validate the offset
-		if (dataOffset % SECTOR_SIZE != 0)
+		if (dataOffset % FormatSectorSize != 0)
 		{
 			nStatus = ERR_VOL_SIZE_WRONG; 
 			goto error;
@@ -425,7 +457,7 @@ begin_format:
 	}
 
 	/* Data area */
-	startSector = dataOffset / SECTOR_SIZE;
+	startSector = dataOffset / FormatSectorSize;
 
 	// Format filesystem
 
@@ -456,10 +488,16 @@ begin_format:
 
 		// Calculate the fats, root dir etc
 		ft.num_sectors = (unsigned int) (num_sectors);
+
+#if TC_MAX_VOLUME_SECTOR_SIZE > 0xFFFF
+#error TC_MAX_VOLUME_SECTOR_SIZE > 0xFFFF
+#endif
+
+		ft.sector_size = (uint16) FormatSectorSize;
 		ft.cluster_size = volParams->clusterSize;
 		memcpy (ft.volume_name, "NO NAME    ", 11);
 		GetFatParams (&ft); 
-		*(volParams->realClusterSize) = ft.cluster_size * SECTOR_SIZE;
+		*(volParams->realClusterSize) = ft.cluster_size * FormatSectorSize;
 
 		if (volParams->bDevice && !StartFormatWriteThread())
 		{
@@ -505,9 +543,10 @@ begin_format:
 		dataAreaSize,
 		0,
 		volParams->headerFlags,
+		FormatSectorSize,
 		FALSE);
 
-	if (_lwrite ((HFILE) dev, header, TC_VOLUME_HEADER_EFFECTIVE_SIZE) == HFILE_ERROR)
+	if (!WriteEffectiveVolumeHeader (volParams->bDevice, dev, header))
 	{
 		nStatus = ERR_OS_ERROR;
 		goto error;
@@ -600,7 +639,7 @@ error:
 			if (!UnmountVolume (volParams->hwndDlg, driveNo, FALSE))
 				MessageBoxW (volParams->hwndDlg, GetString ("CANT_DISMOUNT_VOLUME"), lpszTitle, ICON_HAND);
 
-			if (dataAreaSize <= TC_MAX_FAT_FS_SIZE)
+			if (dataAreaSize <= TC_MAX_FAT_SECTOR_COUNT * FormatSectorSize)
 			{
 				if (AskErrYesNo ("FORMAT_NTFS_FAILED_ASK_FAT") == IDYES)
 				{
@@ -639,7 +678,7 @@ fv_end:
 int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, PCRYPTO_INFO cryptoInfo, BOOL quickFormat)
 {
 	int write_buf_cnt = 0;
-	char sector[SECTOR_SIZE], *write_buf;
+	char sector[TC_MAX_VOLUME_SECTOR_SIZE], *write_buf;
 	unsigned __int64 nSecNo = startSector;
 	int retVal = 0;
 	DWORD err;
@@ -650,7 +689,7 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, P
 	LARGE_INTEGER newOffset;
 
 	// Seek to start sector
-	startOffset.QuadPart = startSector * SECTOR_SIZE;
+	startOffset.QuadPart = startSector * FormatSectorSize;
 	if (!SetFilePointerEx ((HANDLE) dev, startOffset, &newOffset, FILE_BEGIN)
 		|| newOffset.QuadPart != startOffset.QuadPart)
 	{
@@ -697,19 +736,6 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, P
 
 		while (num_sectors--)
 		{
-			/* Generate random plaintext. Note that reused plaintext blocks are not a concern here
-			since XTS mode is designed to hide patterns. Furthermore, patterns in plaintext do 
-			occur commonly on media in the "real world", so it might actually be a fatal mistake
-			to try to avoid them completely. */
-
-#if RNG_POOL_SIZE < SECTOR_SIZE
-#error RNG_POOL_SIZE < SECTOR_SIZE
-#endif
-
-			if (!RandpeekBytes (sector, SECTOR_SIZE))
-				goto fail;
-
-			// Encrypt the random plaintext and write it to the disk
 			if (WriteSector (dev, sector, write_buf, &write_buf_cnt, &nSecNo,
 				cryptoInfo) == FALSE)
 				goto fail;
@@ -721,7 +747,7 @@ int FormatNoFs (unsigned __int64 startSector, __int64 num_sectors, void * dev, P
 	else
 		nSecNo = num_sectors;
 
-	UpdateProgressBar (nSecNo);
+	UpdateProgressBar (nSecNo * FormatSectorSize);
 
 	// Restore the original secondary key (XTS mode) in case NTFS format fails and the user wants to try FAT immediately
 	memcpy (cryptoInfo->k2, originalK2, sizeof (cryptoInfo->k2));
@@ -791,7 +817,7 @@ BOOL FormatNtfs (int driveNo, int clusterSize)
 	// It often helps to retry several times.
 	for (i = 0; i < 50 && FormatExResult != TRUE; i++)
 	{
-		FormatEx (dir, FMIFS_HARDDISK, L"NTFS", L"", TRUE, clusterSize * SECTOR_SIZE, FormatExCallback);
+		FormatEx (dir, FMIFS_HARDDISK, L"NTFS", L"", TRUE, clusterSize * FormatSectorSize, FormatExCallback);
 	}
 
 	// The device may be referenced for some time after FormatEx() returns
@@ -810,15 +836,15 @@ BOOL WriteSector (void *dev, char *sector,
 
 	(*nSecNo)++;
 
-	memcpy (write_buf + *write_buf_cnt, sector, SECTOR_SIZE);
-	(*write_buf_cnt) += SECTOR_SIZE;
+	memcpy (write_buf + *write_buf_cnt, sector, FormatSectorSize);
+	(*write_buf_cnt) += FormatSectorSize;
 
 	if (*write_buf_cnt == FormatWriteBufferSize && !FlushFormatWriteBuffer (dev, write_buf, write_buf_cnt, nSecNo, cryptoInfo))
 		return FALSE;
 	
 	if (GetTickCount () - updateTime > 25)
 	{
-		if (UpdateProgressBar (*nSecNo))
+		if (UpdateProgressBar (*nSecNo * FormatSectorSize))
 			return FALSE;
 
 		updateTime = GetTickCount ();
@@ -950,7 +976,7 @@ BOOL FlushFormatWriteBuffer (void *dev, char *write_buf, int *write_buf_cnt, __i
 	if (*write_buf_cnt == 0)
 		return TRUE;
 
-	unitNo.Value = (*nSecNo - *write_buf_cnt / SECTOR_SIZE) * SECTOR_SIZE / ENCRYPTION_DATA_UNIT_SIZE;
+	unitNo.Value = (*nSecNo * FormatSectorSize - *write_buf_cnt) / ENCRYPTION_DATA_UNIT_SIZE;
 
 	EncryptDataUnits (write_buf, &unitNo, *write_buf_cnt / ENCRYPTION_DATA_UNIT_SIZE, cryptoInfo);
 

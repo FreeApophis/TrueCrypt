@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -36,6 +36,15 @@ namespace TrueCrypt
 		TC_SERIALIZABLE (DismountVolumeResponse);
 
 		shared_ptr <VolumeInfo> DismountedVolumeInfo;
+	};
+
+	struct GetDeviceSectorSizeResponse : CoreServiceResponse
+	{
+		GetDeviceSectorSizeResponse () { }
+		GetDeviceSectorSizeResponse (uint32 size) : Size (size) { }
+		TC_SERIALIZABLE (GetDeviceSectorSizeResponse);
+
+		uint32 Size;
 	};
 
 	struct GetDeviceSizeResponse : CoreServiceResponse

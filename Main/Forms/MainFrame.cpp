@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -16,6 +16,7 @@
 #include "Main/Xml.h"
 #include "MainFrame.h"
 #include "AboutDialog.h"
+#include "BenchmarkDialog.h"
 #include "ChangePasswordDialog.h"
 #include "EncryptionTestDialog.h"
 #include "FavoriteVolumesDialog.h"
@@ -418,6 +419,9 @@ namespace TrueCrypt
 
 			LoadFavoriteVolumes();
 			VolumeHistory::Load();
+
+			if (VolumePathComboBox->GetValue().empty() && !VolumeHistory::Get().empty())
+				SetVolumePath (VolumeHistory::Get().front());
 		}
 		catch (exception &e)
 		{
@@ -664,6 +668,12 @@ namespace TrueCrypt
 		{
 			Gui->ShowError (e);
 		}
+	}
+
+	void MainFrame::OnBenchmarkMenuItemSelected (wxCommandEvent& event)
+	{
+		BenchmarkDialog dialog (this);
+		dialog.ShowModal();
 	}
 
 	void MainFrame::OnClearSlotSelectionMenuItemSelected (wxCommandEvent& event)

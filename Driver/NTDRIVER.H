@@ -4,8 +4,8 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
@@ -61,7 +61,7 @@ typedef struct EXTENSION
 	ULONG BytesPerSector;		/* Partition info */
 	UCHAR PartitionType;		/* Partition info */
 	
-	int HostBytesPerSector;
+	uint32 HostBytesPerSector;
 
 	KEVENT keVolumeEvent;		/* Event structure used when setting up a device */
 
@@ -159,7 +159,7 @@ BOOL IsDriveLetterAvailable (int nDosDriveNo);
 NTSTATUS TCReadRegistryKey (PUNICODE_STRING keyPath, wchar_t *keyValueName, PKEY_VALUE_PARTIAL_INFORMATION *keyData);
 NTSTATUS TCWriteRegistryKey (PUNICODE_STRING keyPath, wchar_t *keyValueName, ULONG keyValueType, void *valueData, ULONG valueSize);
 BOOL IsVolumeClassFilterRegistered ();
-uint32 ReadRegistryConfigFlags ();
+NTSTATUS ReadRegistryConfigFlags (BOOL driverEntry);
 NTSTATUS WriteRegistryConfigFlags (uint32 flags);
 BOOL ValidateIOBufferSize (PIRP irp, size_t requiredBufferSize, ValidateIOBufferSizeType type);
 NTSTATUS GetDeviceSectorSize (PDEVICE_OBJECT deviceObject, ULONG *bytesPerSector);

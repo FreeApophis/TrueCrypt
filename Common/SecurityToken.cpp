@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -158,7 +158,7 @@ namespace TrueCrypt
 		vector <byte> objectData;
 
 		GetObjectAttribute (slotId, keyfileHandle, CKA_VALUE, objectData);
-		finally_do_arg (vector <byte> *, &objectData, { burn (&finally_arg->front(), finally_arg->size()); });
+		finally_do_arg (vector <byte> *, &objectData, { if (!finally_arg->empty()) burn (&finally_arg->front(), finally_arg->size()); });
 
 		if (objectData.size() != keyfileData.size())
 		{

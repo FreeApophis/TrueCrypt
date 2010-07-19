@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -48,14 +48,14 @@ namespace TrueCrypt
 			L"Paulo Barreto, Brian Gladman, Wei Dai, Peter Gutmann, and many others.\n\n"
 
 			L"Portions of this software:\n"
-			L"Copyright \xA9 2003-2009 TrueCrypt Developers Association. All Rights Reserved.\n"
+			L"Copyright \xA9 2003-2010 TrueCrypt Developers Association. All Rights Reserved.\n"
 			L"Copyright \xA9 1998-2000 Paul Le Roux. All Rights Reserved.\n"
 			L"Copyright \xA9 1998-2008 Brian Gladman. All Rights Reserved.\n"
 
 			L"\nThis software as a whole:\n"
-			L"Copyright \xA9 2009 TrueCrypt Developers Association. All rights reserved.\n\n"
+			L"Copyright \xA9 2010 TrueCrypt Developers Association. All rights reserved.\n\n"
 
-			L"This software uses wxWidgets library, which is copyright \xA9 1998-2009 Julian Smart, Robert Roebling et al.\n\n"
+			L"This software uses wxWidgets library, which is copyright \xA9 1998-2010 Julian Smart, Robert Roebling et al.\n\n"
 
 			L"A TrueCrypt Foundation Release");
 	}

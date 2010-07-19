@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -37,12 +37,14 @@ namespace TrueCrypt
 		virtual shared_ptr <VolumeInfo> DismountVolume (shared_ptr <VolumeInfo> mountedVolume, bool ignoreOpenFiles = false, bool syncVolumeInfo = false) = 0;
 		virtual bool FilesystemSupportsLargeFiles (const FilePath &filePath) const = 0;
 		virtual DirectoryPath GetDeviceMountPoint (const DevicePath &devicePath) const = 0;
+		virtual uint32 GetDeviceSectorSize (const DevicePath &devicePath) const = 0;
+		virtual uint64 GetDeviceSize (const DevicePath &devicePath) const = 0;
 		virtual VolumeSlotNumber GetFirstFreeSlotNumber (VolumeSlotNumber startFrom = 0) const;
 		virtual VolumeSlotNumber GetFirstSlotNumber () const { return 1; }
 		virtual VolumeSlotNumber GetLastSlotNumber () const { return 64; }
 		virtual HostDeviceList GetHostDevices (bool pathListOnly = false) const = 0;
 		virtual FilePath GetApplicationExecutablePath () const { return ApplicationExecutablePath; }
-		virtual uint64 GetDeviceSize (const DevicePath &devicePath) const = 0;
+		virtual uint64 GetMaxHiddenVolumeSize (shared_ptr <Volume> outerVolume) const;
 		virtual int GetOSMajorVersion () const = 0;
 		virtual int GetOSMinorVersion () const = 0;
 		virtual shared_ptr <VolumeInfo> GetMountedVolume (const VolumePath &volumePath) const;

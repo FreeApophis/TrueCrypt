@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -15,6 +15,7 @@
 #include "Main/Main.h"
 #include "Main/Application.h"
 #include "Main/GraphicUserInterface.h"
+#include "Volume/Cipher.h"
 #include "PreferencesDialog.h"
 
 namespace TrueCrypt
@@ -26,7 +27,10 @@ namespace TrueCrypt
 		RestoreValidatorBell (false)
 	{
 #define TC_CHECK_BOX_VALIDATOR(NAME) (TC_JOIN(NAME,CheckBox))->SetValidator (wxGenericValidator (&Preferences.NAME));
-		
+
+#ifdef TC_MACOSX
+		PreferencesNotebook->SetMinSize (wxSize (Gui->GetCharWidth (PreferencesNotebook) * 108, -1));
+#endif
 		// Security
 		TC_CHECK_BOX_VALIDATOR (DismountOnLogOff);
 		TC_CHECK_BOX_VALIDATOR (DismountOnPowerSaving);
@@ -58,6 +62,15 @@ namespace TrueCrypt
 		TC_CHECK_BOX_VALIDATOR (BackgroundTaskMenuDismountItemsEnabled);
 		TC_CHECK_BOX_VALIDATOR (BackgroundTaskMenuMountItemsEnabled);
 		TC_CHECK_BOX_VALIDATOR (BackgroundTaskMenuOpenItemsEnabled);
+
+		// Encryption
+		AesHwCpuSupportedStaticText->SetLabel (
+#ifdef TC_AES_HW_CPU
+			(is_aes_hw_cpu_supported() ? LangString["UISTR_YES"] : LangString["UISTR_NO"]));
+#else
+			LangString["NOT_APPLICABLE_OR_NOT_AVAILABLE"]);
+#endif
+		NoHardwareCryptoCheckBox->SetValidator (wxGenericValidator (&Preferences.DefaultMountOptions.NoHardwareCrypto));
 
 		// Security tokens
 		Pkcs11ModulePathTextCtrl->SetValue (wstring (Preferences.SecurityTokenModule));
@@ -259,6 +272,23 @@ namespace TrueCrypt
 			BackgroundTaskEnabledCheckBox->SetValue (!Gui->AskYesNo (LangString["CONFIRM_BACKGROUND_TASK_DISABLED"], false, true));
 	}
 
+	void PreferencesDialog::OnNoHardwareCryptoCheckBoxClick (wxCommandEvent& event)
+	{
+		if (event.IsChecked())
+		{
+			if (Gui->AskYesNo (LangString["CONFIRM_SETTING_DEGRADES_PERFORMANCE"], true, true))
+			{
+#ifdef TC_LINUX
+				Gui->ShowWarning (_("Please note that this setting takes effect only if use of the kernel cryptographic services is disabled."));
+#endif
+			}
+			else
+				NoHardwareCryptoCheckBox->SetValue (false);
+		}
+
+		Gui->ShowWarning (_("Please note that any currently mounted volumes need to be remounted before they can use this setting."));
+	}
+
 	void PreferencesDialog::OnNoKernelCryptoCheckBoxClick (wxCommandEvent& event)
 	{
 		if (event.IsChecked())
@@ -343,39 +373,6 @@ namespace TrueCrypt
 		}
 
 #ifdef TC_WINDOWS
-		// Log on actions
-		wxString logonKey = wxString (L"HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\Curren") + L"tVersion\\Run"; // Splitted to prevent false antivirus heuristic alerts
-		if (Preferences.StartOnLogon || Preferences.MountDevicesOnLogon || Preferences.MountFavoritesOnLogon)
-		{
-			auto_ptr <wxRegKey> regKey (new wxRegKey (logonKey));
-			throw_sys_sub_if (!regKey.get(), wstring (logonKey));
-
-			wxString cmdLine = wstring (L"\"") + wstring (Application::GetExecutablePath()) + L"\" --load-preferences";
-
-			wxString autoMount;
-			if (Preferences.MountDevicesOnLogon)
-				autoMount += L"devices";
-			if (Preferences.MountFavoritesOnLogon)
-			{
-				if (!autoMount.empty())
-					autoMount += L",";
-				autoMount += L"favorites";
-			}
-
-			if (!autoMount.empty())
-				cmdLine += wxString (L" --auto-mount=") + autoMount;
-
-			if (Preferences.StartOnLogon)
-				cmdLine += L" --background-task";
-
-			throw_sys_sub_if (!regKey->SetValue (Application::GetName().c_str(), cmdLine), wstring (logonKey));
-		}
-		else
-		{
-			auto_ptr <wxRegKey> regKey (new wxRegKey (logonKey));
-			regKey->DeleteValue (Application::GetName().c_str());
-		}
-
 		// Hotkeys
 		Hotkey::RegisterList (Gui->GetMainFrame(), Preferences.Hotkeys);
 #endif

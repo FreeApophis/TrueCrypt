@@ -1,3 +1,6 @@
+/* Deprecated/legacy */
+
+
 #ifndef TC_HEADER_Crypto_Blowfish
 #define TC_HEADER_Crypto_Blowfish
 

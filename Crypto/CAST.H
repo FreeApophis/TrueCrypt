@@ -1,5 +1,6 @@
 /* Deprecated/legacy */
 
+
 #ifndef HEADER_CAST_H
 #define HEADER_CAST_H
 

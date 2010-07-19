@@ -1,7 +1,7 @@
 ::
 :: Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
 ::
-:: Governed by the TrueCrypt License 2.8 the full text of which is contained in
+:: Governed by the TrueCrypt License 3.0 the full text of which is contained in
 :: the file License.txt included in TrueCrypt binary and source code distribution
 :: packages.
 ::
@@ -19,7 +19,7 @@ shift
 
 :: Windows Driver Kit build number
 
-set TC_WINDDK_BUILD=7600.16385.0
+set TC_WINDDK_BUILD=7600.16385.1
 
 
 :: Check for spaces in the current directory path
@@ -34,12 +34,13 @@ if %ERRORLEVEL% == 0 (
 
 :: Build options
 
-set TC_C_DEFINES=-D_WIN32 -DNT4_DRIVER
+set TC_C_DEFINES=-D_WIN32 -DTC_WINDOWS_DRIVER
 set TC_C_FLAGS=-nologo -I..
 set TC_C_WARNING_LEVEL=-W4
 set TC_C_DISABLED_WARNINGS=-wd4057 -wd4100 -wd4127 -wd4152 -wd4201 -wd4701 -wd4702 -wd4706
 set TC_LIBRARIAN_FLAGS=-nologo
 set TC_LINKER_FLAGS=-nologo
+set TC_TEST_SIGN=0
 
 
 :: Windows Driver Kit root
@@ -67,6 +68,8 @@ if "%TC_ARG_ARCH%"=="-x64" (
 	set TC_ARCH=x64
 	set TC_ARCH_SUFFIX=-x64
 	set TC_C_DISABLED_WARNINGS=%TC_C_DISABLED_WARNINGS% -wd4328 -wd4366
+	set TC_LINKER_FLAGS=%TC_LINKER_FLAGS% -LTCG
+	if defined TC_KERNEL_TEST_CERTIFICATE_NAME set TC_TEST_SIGN=1
 ) else (
 	set TC_BUILD_ARCH=WXP
 	set TC_BUILD_ARCH_DIR=i386
@@ -86,6 +89,7 @@ if "%TC_ARG_TYPE%"=="-debug" (
 	set TC_BUILD_TYPE=fre
 	set TC_BUILD_ALT_DIR=_driver_release
 	set TC_COPY_DIR="..\Release"
+	set TC_TEST_SIGN=0
 )
 
 
@@ -123,9 +127,10 @@ pushd .
 		
 		if errorlevel 1 (
 			type build_errors.log
+			type build_errors_asm.log 2>NUL:
 			exit /B 1
 		)
-		del /q build_errors.log build%BUILD_ALT_DIR%.* 2>NUL:
+		del /q build_errors.log build_errors_asm.log build%BUILD_ALT_DIR%.* 2>NUL:
 	)
 
 	shift
@@ -141,8 +146,17 @@ md "%TC_COPY_DIR%\Setup Files" >NUL: 2>NUL:
 copy /B /Y obj%TC_BUILD_ALT_DIR%\%TC_BUILD_ARCH_DIR%\truecrypt.sys "%TC_COPY_DIR%\Setup Files\truecrypt%TC_ARCH_SUFFIX%.sys" >NUL:
 
 if errorlevel 1 (
-	echo BuildDriver.cmd: error: Cannot copy target.>&2
+	echo BuildDriver.cmd: error: Cannot copy target. >&2
 	exit /B 1
+)
+
+if %TC_TEST_SIGN% equ 1 (
+	signtool sign /s "%TC_KERNEL_TEST_CERTIFICATE_STORE%" /n "%TC_KERNEL_TEST_CERTIFICATE_NAME%" "%TC_COPY_DIR%\Setup Files\truecrypt%TC_ARCH_SUFFIX%.sys" >NUL:
+
+	if errorlevel 1 (
+		echo BuildDriver.cmd: error: Cannot test-sign target. >&2
+		exit /B 1
+	)
 )
 
 exit /B 0

@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -23,6 +23,7 @@ namespace TrueCrypt
 		TC_CLONE_SHARED (KeyfileList, Keyfiles);
 		TC_CLONE_SHARED (DirectoryPath, MountPoint);
 		TC_CLONE (NoFilesystem);
+		TC_CLONE (NoHardwareCrypto);
 		TC_CLONE (NoKernelCrypto);
 		TC_CLONE_SHARED (VolumePassword, Password);
 		TC_CLONE_SHARED (VolumePath, Path);
@@ -53,6 +54,7 @@ namespace TrueCrypt
 			MountPoint.reset();
 
 		sr.Deserialize ("NoFilesystem", NoFilesystem);
+		sr.Deserialize ("NoHardwareCrypto", NoHardwareCrypto);
 		sr.Deserialize ("NoKernelCrypto", NoKernelCrypto);
 
 		if (!sr.DeserializeBool ("PasswordNull"))
@@ -97,6 +99,7 @@ namespace TrueCrypt
 			sr.Serialize ("MountPoint", wstring (*MountPoint));
 
 		sr.Serialize ("NoFilesystem", NoFilesystem);
+		sr.Serialize ("NoHardwareCrypto", NoHardwareCrypto);
 		sr.Serialize ("NoKernelCrypto", NoKernelCrypto);
 		
 		sr.Serialize ("PasswordNull", Password == nullptr);

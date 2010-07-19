@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -42,6 +42,20 @@ namespace TrueCrypt
 		Serializable::Serialize (stream);
 		Serializer sr (stream);
 		DismountedVolumeInfo->Serialize (stream);
+	}
+
+	// GetDeviceSectorSizeResponse
+	void GetDeviceSectorSizeResponse::Deserialize (shared_ptr <Stream> stream)
+	{
+		Serializer sr (stream);
+		sr.Deserialize ("Size", Size);
+	}
+
+	void GetDeviceSectorSizeResponse::Serialize (shared_ptr <Stream> stream) const
+	{
+		Serializable::Serialize (stream);
+		Serializer sr (stream);
+		sr.Serialize ("Size", Size);
 	}
 
 	// GetDeviceSizeResponse
@@ -97,6 +111,7 @@ namespace TrueCrypt
 	TC_SERIALIZER_FACTORY_ADD_CLASS (CheckFilesystemResponse);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (DismountFilesystemResponse);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (DismountVolumeResponse);
+	TC_SERIALIZER_FACTORY_ADD_CLASS (GetDeviceSectorSizeResponse);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (GetDeviceSizeResponse);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (GetHostDevicesResponse);
 	TC_SERIALIZER_FACTORY_ADD_CLASS (MountVolumeResponse);

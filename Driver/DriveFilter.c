@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -33,9 +33,13 @@ static BOOL BootDriveFound = FALSE;
 static DriveFilterExtension *BootDriveFilterExtension = NULL;
 static LARGE_INTEGER BootDriveLength;
 
-static BOOL HibernationDriverFilterActive = FALSE;
+static BOOL CrashDumpEnabled = FALSE;
+static BOOL HibernationEnabled = FALSE;
+
+static BOOL LegacyHibernationDriverFilterActive = FALSE;
 static byte *HibernationWriteBuffer = NULL;
 static MDL *HibernationWriteBufferMdl = NULL;
+
 static uint32 HibernationPreventionCount = 0;
 
 static BootEncryptionSetupRequest SetupRequest;
@@ -322,8 +326,23 @@ static NTSTATUS MountDrive (DriveFilterExtension *Extension, Password *password,
 
 		burn (&BootArgs.BootPassword, sizeof (BootArgs.BootPassword));
 
-		// Get drive length
-		status =  SendDeviceIoControlRequest (Extension->LowerDeviceObject, IOCTL_DISK_GET_LENGTH_INFO, NULL, 0, &BootDriveLength, sizeof (BootDriveLength));
+		{
+			STORAGE_DEVICE_NUMBER storageDeviceNumber;
+			status = SendDeviceIoControlRequest (Extension->LowerDeviceObject, IOCTL_STORAGE_GET_DEVICE_NUMBER, NULL, 0, &storageDeviceNumber, sizeof (storageDeviceNumber));
+
+			if (!NT_SUCCESS (status))
+			{
+				Dump ("Failed to get drive number - error %x\n", status);
+				Extension->SystemStorageDeviceNumberValid = FALSE;
+			}
+			else
+			{
+				Extension->SystemStorageDeviceNumber = storageDeviceNumber.DeviceNumber;
+				Extension->SystemStorageDeviceNumberValid = TRUE;
+			}
+		}
+
+		status = SendDeviceIoControlRequest (Extension->LowerDeviceObject, IOCTL_DISK_GET_LENGTH_INFO, NULL, 0, &BootDriveLength, sizeof (BootDriveLength));
 		
 		if (!NT_SUCCESS (status))
 		{
@@ -338,8 +357,20 @@ static NTSTATUS MountDrive (DriveFilterExtension *Extension, Password *password,
 		if (!NT_SUCCESS (status))
 			TC_BUG_CHECK (status);
 
-		if (!HibernationDriverFilterActive)
-			StartHibernationDriverFilter();
+		if (IsOSAtLeast (WIN_VISTA))
+		{
+			CrashDumpEnabled = TRUE;
+			HibernationEnabled = TRUE;
+		}
+		else if (!LegacyHibernationDriverFilterActive)
+			StartLegacyHibernationDriverFilter();
+
+		// Hidden system hibernation is not supported if an extra boot partition is present as the system is not allowed to update the boot partition
+		if (IsHiddenSystemRunning() && (BootArgs.Flags & TC_BOOT_ARGS_FLAG_EXTRA_BOOT_PARTITION))
+		{
+			CrashDumpEnabled = FALSE;
+			HibernationEnabled = FALSE;
+		}
 	}
 	else
 	{
@@ -562,16 +593,20 @@ static NTSTATUS DispatchPnp (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilterE
 			ObDereferenceObject (attachedDevice);
 		}
 
-		// Prevent creation of hibernation and crash dump files
+		// Prevent creation of hibernation and crash dump files if required
 		if (irpSp->Parameters.UsageNotification.InPath
-			&& (irpSp->Parameters.UsageNotification.Type == DeviceUsageTypeDumpFile
-			|| (irpSp->Parameters.UsageNotification.Type == DeviceUsageTypeHibernation && !HibernationDriverFilterActive)))
+			&& (
+				(irpSp->Parameters.UsageNotification.Type == DeviceUsageTypeDumpFile && !CrashDumpEnabled)
+				|| (irpSp->Parameters.UsageNotification.Type == DeviceUsageTypeHibernation && !HibernationEnabled)
+				)
+			)
 		{
 			IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
 
 			if (irpSp->Parameters.UsageNotification.Type == DeviceUsageTypeHibernation)
 				++HibernationPreventionCount;
 
+			Dump ("Preventing dump type=%d\n", (int) irpSp->Parameters.UsageNotification.Type);
 			return TCCompleteIrp (Irp, STATUS_UNSUCCESSFUL, 0);
 		}
 
@@ -761,12 +796,13 @@ wipe:
 }
 
 
+// Legacy Windows XP/2003 hibernation dump filter
+
 typedef NTSTATUS (*HiberDriverWriteFunctionA) (ULONG arg0, PLARGE_INTEGER writeOffset, PMDL dataMdl, PVOID arg3);
 typedef NTSTATUS (*HiberDriverWriteFunctionB) (PLARGE_INTEGER writeOffset, PMDL dataMdl);
 
 typedef struct
 {
-	// Until MS releases an API for filtering hibernation drivers, we have to resort to this.
 #ifdef _WIN64
 	byte FieldPad1[64];
 	HiberDriverWriteFunctionB WriteFunctionB;
@@ -1007,11 +1043,6 @@ static VOID LoadImageNotifyRoutine (PUNICODE_STRING fullImageName, HANDLE proces
 		{
 			if (moduleItem->ModuleName.Buffer && moduleItem->ModuleName.Length >= 5 * sizeof (wchar_t))
 			{
-				// Skip MS BitLocker filter
-				if (moduleItem->ModuleName.Length >= 13 * sizeof (wchar_t)
-					&& memcmp (moduleItem->ModuleName.Buffer, L"hiber_dumpfve", 13 * sizeof (wchar_t)) == 0)
-					break;
-
 				if (memcmp (moduleItem->ModuleName.Buffer, L"hiber", 5 * sizeof (wchar_t)) == 0
 					|| memcmp (moduleItem->ModuleName.Buffer, L"Hiber", 5 * sizeof (wchar_t)) == 0
 					|| memcmp (moduleItem->ModuleName.Buffer, L"HIBER", 5 * sizeof (wchar_t)) == 0)
@@ -1045,16 +1076,13 @@ static VOID LoadImageNotifyRoutine (PUNICODE_STRING fullImageName, HANDLE proces
 }
 
 
-void StartHibernationDriverFilter ()
+void StartLegacyHibernationDriverFilter ()
 {
 	PHYSICAL_ADDRESS highestAcceptableWriteBufferAddr;
 	NTSTATUS status;
 
 	ASSERT (KeGetCurrentIrql() == PASSIVE_LEVEL);
-
-	// Hidden system hibernation is not supported if an extra boot partition is present as the system is not allowed to update the boot partition
-	if (IsHiddenSystemRunning() && (BootArgs.Flags & TC_BOOT_ARGS_FLAG_EXTRA_BOOT_PARTITION))
-		return;
+	ASSERT (!IsOSAtLeast (WIN_VISTA));
 
 	if (!TCDriverObject->DriverSection || !*(ModuleTableItem **) TCDriverObject->DriverSection)
 		goto err;
@@ -1080,12 +1108,16 @@ void StartHibernationDriverFilter ()
 	if (!NT_SUCCESS (status))
 		goto err;
 
-	HibernationDriverFilterActive = TRUE;
+	LegacyHibernationDriverFilterActive = TRUE;
+	CrashDumpEnabled = FALSE;
+	HibernationEnabled = TRUE;
 	return;
 
 err:
-	HibernationDriverFilterActive = FALSE;
-	
+	LegacyHibernationDriverFilterActive = FALSE;
+	CrashDumpEnabled = FALSE;
+	HibernationEnabled = FALSE;
+
 	if (HibernationWriteBufferMdl)
 	{
 		IoFreeMdl (HibernationWriteBufferMdl);
@@ -1396,6 +1428,9 @@ err:
 			TCSleep (100);
 		}
 
+		// Disable hibernation (resume would fail due to a change in the system memory map)
+		HibernationEnabled = FALSE;
+
 		DismountDrive (Extension, FALSE);
 
 		if (!EncryptionSetupThreadAbortRequested)
@@ -1604,6 +1639,12 @@ BOOL IsBootEncryptionSetupInProgress ()
 BOOL IsHiddenSystemRunning ()
 {
 	return BootDriveFilterExtension && BootDriveFilterExtension->HiddenSystem;
+}
+
+
+DriveFilterExtension *GetBootDriveFilterExtension ()
+{
+	return BootDriveFilterExtension;
 }
 
 

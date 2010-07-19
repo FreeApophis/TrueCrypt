@@ -4,8 +4,8 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
@@ -1363,7 +1363,7 @@ BOOL TestLegacySectorBufEncryption (PCRYPTO_INFO ci)
 }
 
 
-BOOL AutoTestAlgorithms (void)
+static BOOL DoAutoTestAlgorithms (void)
 {
 	PCRYPTO_INFO ci;
 	char key[32];
@@ -1465,6 +1465,30 @@ BOOL AutoTestAlgorithms (void)
 	if (i != AES_TEST_COUNT)
 		bFailed = TRUE;
 
+	// AES EncipherBlocks()/DecipherBlocks()
+	{
+		byte testData[1024];
+		uint32 origCrc;
+		size_t i;
+
+		for (i = 0; i < sizeof (testData); ++i)
+		{
+			testData[i] = (byte) i;
+		}
+
+		origCrc = GetCrc32 (testData, sizeof (testData));
+
+		CipherInit (AES, testData, ks_tmp);
+		EncipherBlocks (AES, testData, ks_tmp, sizeof (testData) / CipherGetBlockSize (AES));
+
+		if (GetCrc32 (testData, sizeof (testData)) != 0xb5cd5631)
+			bFailed = TRUE;
+
+		DecipherBlocks (AES, testData, ks_tmp, sizeof (testData) / CipherGetBlockSize (AES));
+
+		if (origCrc != GetCrc32 (testData, sizeof (testData)))
+			bFailed = TRUE;
+	}
 
 	/* Serpent */
 
@@ -1537,6 +1561,27 @@ BOOL AutoTestAlgorithms (void)
 	crypto_close (ci);
 	return !bFailed;
 }
+
+
+BOOL AutoTestAlgorithms (void)
+{
+	BOOL result = TRUE;
+	BOOL hwEncryptionEnabled = IsHwEncryptionEnabled();
+
+	EnableHwEncryption (FALSE);
+
+	if (!DoAutoTestAlgorithms())
+		result = FALSE;
+
+	EnableHwEncryption (TRUE);
+
+	if (!DoAutoTestAlgorithms())
+		result = FALSE;
+
+	EnableHwEncryption (hwEncryptionEnabled);
+	return result;
+}
+
 
 BOOL test_hmac_sha512 ()
 {

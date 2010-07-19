@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -164,9 +164,6 @@ namespace TrueCrypt
 		} while ((waitRes = waitpid (forkedPid, &status, WNOHANG)) == 0);
 		throw_sys_if (waitRes == -1);
 
-		stdOutput.push_back (0);
-		errOutput.push_back (0);
-
 		if (!exOutput.empty())
 		{
 			auto_ptr <Serializable> deserializedObject;
@@ -188,12 +185,18 @@ namespace TrueCrypt
 		if (exitCode != 0)
 		{
 			string strErrOutput;
-			strErrOutput.insert (strErrOutput.begin(), errOutput.begin(), errOutput.end());
+
+			if (!errOutput.empty())
+				strErrOutput.insert (strErrOutput.begin(), errOutput.begin(), errOutput.end());
+
 			throw ExecutedProcessFailed (SRC_POS, processName, exitCode, strErrOutput);
 		}
 
 		string strOutput;
-		strOutput.insert (strOutput.begin(), stdOutput.begin(), stdOutput.end());
+
+		if (!stdOutput.empty())
+			strOutput.insert (strOutput.begin(), stdOutput.begin(), stdOutput.end());
+
 		return strOutput;
 	}
 }

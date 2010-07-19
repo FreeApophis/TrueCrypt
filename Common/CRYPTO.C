@@ -4,8 +4,8 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
@@ -176,7 +176,16 @@ void EncipherBlock(int cipher, void *data, void *ks)
 {
 	switch (cipher)
 	{
-	case AES:			aes_encrypt (data, data, ks); break;
+	case AES:	
+		// In 32-bit kernel mode, due to KeSaveFloatingPointState() overhead, AES instructions can be used only when processing the whole data unit.
+#if (defined (_WIN64) || !defined (TC_WINDOWS_DRIVER)) && !defined (TC_WINDOWS_BOOT)
+		if (IsAesHwCpuSupported())
+			aes_hw_cpu_encrypt (ks, data);
+		else
+#endif
+			aes_encrypt (data, data, ks);
+		break;
+
 	case TWOFISH:		twofish_encrypt (ks, data, data); break;
 	case SERPENT:		serpent_encrypt (data, data, ks); break;
 #ifndef TC_WINDOWS_BOOT
@@ -188,6 +197,48 @@ void EncipherBlock(int cipher, void *data, void *ks)
 	}
 }
 
+#ifndef TC_WINDOWS_BOOT
+
+void EncipherBlocks (int cipher, void *dataPtr, void *ks, size_t blockCount)
+{
+	byte *data = dataPtr;
+#if defined (TC_WINDOWS_DRIVER) && !defined (_WIN64)
+	KFLOATING_SAVE floatingPointState;
+#endif
+
+	if (cipher == AES
+		&& (blockCount & (32 - 1)) == 0
+		&& IsAesHwCpuSupported()
+#if defined (TC_WINDOWS_DRIVER) && !defined (_WIN64)
+		&& NT_SUCCESS (KeSaveFloatingPointState (&floatingPointState))
+#endif
+		)
+	{
+		while (blockCount > 0)
+		{
+			aes_hw_cpu_encrypt_32_blocks (ks, data);
+
+			data += 32 * 16;
+			blockCount -= 32;
+		}
+
+#if defined (TC_WINDOWS_DRIVER) && !defined (_WIN64)
+		KeRestoreFloatingPointState (&floatingPointState);
+#endif
+	}
+	else
+	{
+		size_t blockSize = CipherGetBlockSize (cipher);
+		while (blockCount-- > 0)
+		{
+			EncipherBlock (cipher, data, ks);
+			data += blockSize;
+		}
+	}
+}
+
+#endif // !TC_WINDOWS_BOOT
+
 void DecipherBlock(int cipher, void *data, void *ks)
 {
 	switch (cipher)
@@ -195,7 +246,16 @@ void DecipherBlock(int cipher, void *data, void *ks)
 	case SERPENT:	serpent_decrypt (data, data, ks); break;
 	case TWOFISH:	twofish_decrypt (ks, data, data); break;
 #ifndef TC_WINDOWS_BOOT
-	case AES:		aes_decrypt (data, data, (void *) ((char *) ks + sizeof(aes_encrypt_ctx))); break;
+
+	case AES:
+#if defined (_WIN64) || !defined (TC_WINDOWS_DRIVER)
+		if (IsAesHwCpuSupported())
+			aes_hw_cpu_decrypt ((byte *) ks + sizeof (aes_encrypt_ctx), data);
+		else
+#endif
+			aes_decrypt (data, data, (void *) ((char *) ks + sizeof(aes_encrypt_ctx)));
+		break;
+
 	case BLOWFISH:	BlowfishEncryptLE (data, data, ks, 0); break;	// Deprecated/legacy
 	case CAST:		Cast5Decrypt (data, data, ks); break;			// Deprecated/legacy
 	case TRIPLEDES:	TripleDesEncrypt (data, data, ks, 0); break;	// Deprecated/legacy
@@ -205,6 +265,49 @@ void DecipherBlock(int cipher, void *data, void *ks)
 	default:		TC_THROW_FATAL_EXCEPTION;	// Unknown/wrong ID
 	}
 }
+
+#ifndef TC_WINDOWS_BOOT
+
+void DecipherBlocks (int cipher, void *dataPtr, void *ks, size_t blockCount)
+{
+	byte *data = dataPtr;
+#if defined (TC_WINDOWS_DRIVER) && !defined (_WIN64)
+	KFLOATING_SAVE floatingPointState;
+#endif
+
+	if (cipher == AES
+		&& (blockCount & (32 - 1)) == 0
+		&& IsAesHwCpuSupported()
+#if defined (TC_WINDOWS_DRIVER) && !defined (_WIN64)
+		&& NT_SUCCESS (KeSaveFloatingPointState (&floatingPointState))
+#endif
+		)
+	{
+		while (blockCount > 0)
+		{
+			aes_hw_cpu_decrypt_32_blocks ((byte *) ks + sizeof (aes_encrypt_ctx), data);
+
+			data += 32 * 16;
+			blockCount -= 32;
+		}
+
+#if defined (TC_WINDOWS_DRIVER) && !defined (_WIN64)
+		KeRestoreFloatingPointState (&floatingPointState);
+#endif
+	}
+	else
+	{
+		size_t blockSize = CipherGetBlockSize (cipher);
+		while (blockCount-- > 0)
+		{
+			DecipherBlock (cipher, data, ks);
+			data += blockSize;
+		}
+	}
+}
+
+#endif // !TC_WINDOWS_BOOT
+
 
 // Ciphers support
 
@@ -237,6 +340,15 @@ int CipherGetKeyScheduleSize (int cipherId)
 {
 	return CipherGet (cipherId) -> KeyScheduleSize;
 }
+
+#ifndef TC_WINDOWS_BOOT
+
+BOOL CipherSupportsIntraDataUnitParallelization (int cipher)
+{
+	return cipher == AES && IsAesHwCpuSupported();
+}
+
+#endif
 
 
 // Encryption algorithms support
@@ -1632,7 +1744,10 @@ int GetMaxPkcs5OutSize (void)
 void EncipherBlock(int cipher, void *data, void *ks)
 {
 #ifdef TC_WINDOWS_BOOT_AES
-	aes_encrypt (data, data, ks); 
+	if (IsAesHwCpuSupported())
+		aes_hw_cpu_encrypt ((byte *) ks, data);
+	else
+		aes_encrypt (data, data, ks); 
 #elif defined (TC_WINDOWS_BOOT_SERPENT)
 	serpent_encrypt (data, data, ks);
 #elif defined (TC_WINDOWS_BOOT_TWOFISH)
@@ -1643,7 +1758,10 @@ void EncipherBlock(int cipher, void *data, void *ks)
 void DecipherBlock(int cipher, void *data, void *ks)
 {
 #ifdef TC_WINDOWS_BOOT_AES
-	aes_decrypt (data, data, (aes_decrypt_ctx *) ((byte *) ks + sizeof(aes_encrypt_ctx))); 
+	if (IsAesHwCpuSupported())
+		aes_hw_cpu_decrypt ((byte *) ks + sizeof (aes_encrypt_ctx) + 14 * 16, data);
+	else
+		aes_decrypt (data, data, (aes_decrypt_ctx *) ((byte *) ks + sizeof(aes_encrypt_ctx))); 
 #elif defined (TC_WINDOWS_BOOT_SERPENT)
 	serpent_decrypt (data, data, ks);
 #elif defined (TC_WINDOWS_BOOT_TWOFISH)
@@ -1715,3 +1833,39 @@ void DecryptDataUnits (unsigned __int8 *buf, const UINT64_STRUCT *structUnitNo, 
 }
 
 #endif // TC_WINDOWS_BOOT_SINGLE_CIPHER_MODE
+
+
+#if !defined (TC_WINDOWS_BOOT) || defined (TC_WINDOWS_BOOT_AES)
+
+static BOOL HwEncryptionDisabled = FALSE;
+
+BOOL IsAesHwCpuSupported ()
+{
+	static BOOL state = FALSE;
+	static BOOL stateValid = FALSE;
+
+	if (!stateValid)
+	{
+		state = is_aes_hw_cpu_supported() ? TRUE : FALSE;
+		stateValid = TRUE;
+	}
+
+	return state && !HwEncryptionDisabled;
+}
+
+void EnableHwEncryption (BOOL enable)
+{
+#if defined (TC_WINDOWS_BOOT)
+	if (enable)
+		aes_hw_cpu_enable_sse();
+#endif
+
+	HwEncryptionDisabled = !enable;
+}
+
+BOOL IsHwEncryptionEnabled ()
+{
+	return !HwEncryptionDisabled;
+}
+
+#endif // !TC_WINDOWS_BOOT

@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
  of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
@@ -17,7 +17,8 @@ extern "C" {
 #endif
 
 /* RNG defines & pool pointers */
-#define RNG_POOL_SIZE	640	// Must be divisible by the size of the output of each of the implemented hash functions. (in bytes)
+#define RNG_POOL_SIZE	320	// Must be divisible by the size of the output of each of the implemented hash functions. (in bytes)
+
 #if RNG_POOL_SIZE % SHA512_DIGESTSIZE || RNG_POOL_SIZE % WHIRLPOOL_DIGESTSIZE || RNG_POOL_SIZE % RIPEMD160_DIGESTSIZE
 #error RNG_POOL_SIZE must be divisible by the size of the output of each of the implemented hash functions.
 #endif

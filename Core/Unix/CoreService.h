@@ -1,7 +1,7 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -25,6 +25,7 @@ namespace TrueCrypt
 		static void RequestCheckFilesystem (shared_ptr <VolumeInfo> mountedVolume, bool repair);
 		static void RequestDismountFilesystem (const DirectoryPath &mountPoint, bool force);
 		static shared_ptr <VolumeInfo> RequestDismountVolume (shared_ptr <VolumeInfo> mountedVolume, bool ignoreOpenFiles = false, bool syncVolumeInfo = false);
+		static uint32 RequestGetDeviceSectorSize (const DevicePath &devicePath);
 		static uint64 RequestGetDeviceSize (const DevicePath &devicePath);
 		static HostDeviceList RequestGetHostDevices (bool pathListOnly);
 		static shared_ptr <VolumeInfo> RequestMountVolume (MountOptions &options);

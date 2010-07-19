@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2008 TrueCrypt Developers Association. All rights reserved.
 
- Governed by the TrueCrypt License 2.8 the full text of which is contained in
+ Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
@@ -94,6 +94,7 @@ namespace TrueCrypt
 			DefaultMountOptions.Protection = readOnly ? VolumeProtection::ReadOnly : VolumeProtection::None;
 
 			SetValue (configMap[L"MountVolumesRemovable"], DefaultMountOptions.Removable);
+			SetValue (configMap[L"NoHardwareCrypto"], DefaultMountOptions.NoHardwareCrypto);
 			SetValue (configMap[L"NoKernelCrypto"], DefaultMountOptions.NoKernelCrypto);
 			TC_CONFIG_SET (OpenExplorerWindowAfterMount);
 			SetValue (configMap[L"PreserveTimestamps"], DefaultMountOptions.PreserveTimestamps);
@@ -189,6 +190,7 @@ namespace TrueCrypt
 		TC_CONFIG_ADD (MountFavoritesOnLogon);
 		formatter.AddEntry (L"MountVolumesReadOnly", DefaultMountOptions.Protection == VolumeProtection::ReadOnly);
 		formatter.AddEntry (L"MountVolumesRemovable", DefaultMountOptions.Removable);
+		formatter.AddEntry (L"NoHardwareCrypto", DefaultMountOptions.NoHardwareCrypto);
 		formatter.AddEntry (L"NoKernelCrypto", DefaultMountOptions.NoKernelCrypto);
 		TC_CONFIG_ADD (OpenExplorerWindowAfterMount);
 		formatter.AddEntry (L"PreserveTimestamps", DefaultMountOptions.PreserveTimestamps);

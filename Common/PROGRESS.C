@@ -5,7 +5,7 @@
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
  of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
- and are governed by the TrueCrypt License 2.8 the full text of which is
+ and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
 
@@ -17,20 +17,20 @@
 #include "../Format/FormatCom.h"
 #include "../Format/resource.h"
 
-ULONG prevTime, startTime;
-__int64 totalSectors;
-__int64 resumedPointBytesDone;
-BOOL bProgressBarReverse = FALSE;
-BOOL bRWThroughput = FALSE;
-BOOL bShowStatus = FALSE;
-BOOL bPercentMode = FALSE;
+static ULONG prevTime, startTime;
+static __int64 TotalSize;
+static __int64 resumedPointBytesDone;
+static BOOL bProgressBarReverse = FALSE;
+static BOOL bRWThroughput = FALSE;
+static BOOL bShowStatus = FALSE;
+static BOOL bPercentMode = FALSE;
 
 static wchar_t *seconds, *minutes, *hours, *days;
 
 
 // If bIOThroughput is TRUE, the speed reflects the amount of data read AND written per second (rather than
 // the speed of the "transform cursor").
-void InitProgressBar (__int64 totalSecs, __int64 bytesDone, BOOL bReverse, BOOL bIOThroughput, BOOL bDisplayStatus, BOOL bShowPercent)
+void InitProgressBar (__int64 totalBytes, __int64 bytesDone, BOOL bReverse, BOOL bIOThroughput, BOOL bDisplayStatus, BOOL bShowPercent)
 {
 	HWND hProgressBar = GetDlgItem (hCurPage, nPbar);
 	SendMessage (hProgressBar, PBM_SETRANGE32, 0, 10000);
@@ -47,18 +47,18 @@ void InitProgressBar (__int64 totalSecs, __int64 bytesDone, BOOL bReverse, BOOL 
 	days = GetString ("DAYS");
 
 	prevTime = startTime = GetTickCount ();
-	totalSectors = totalSecs;
+	TotalSize = totalBytes;
 	resumedPointBytesDone = bytesDone;
 }
 
 
-BOOL UpdateProgressBar (__int64 nSecNo)
+BOOL UpdateProgressBar (__int64 byteOffset)
 {
-	return UpdateProgressBarProc (nSecNo);
+	return UpdateProgressBarProc (byteOffset);
 }
 
 
-BOOL UpdateProgressBarProc (__int64 nSecNo)
+BOOL UpdateProgressBarProc (__int64 byteOffset)
 {
 	wchar_t text[100];
 	wchar_t speed[100];
@@ -66,12 +66,12 @@ BOOL UpdateProgressBarProc (__int64 nSecNo)
 	int time = GetTickCount ();
 	int elapsed = (time - startTime) / 1000;
 
-	uint64 bytesDone = (bProgressBarReverse ? ((totalSectors - nSecNo) * SECTOR_SIZE) : ((nSecNo) * SECTOR_SIZE));
-	uint64 bytesPerSec = (bProgressBarReverse ? (resumedPointBytesDone - nSecNo * SECTOR_SIZE) : (bytesDone - resumedPointBytesDone)) / (elapsed + 1);
+	uint64 bytesDone = (bProgressBarReverse ? (TotalSize - byteOffset) : byteOffset);
+	uint64 bytesPerSec = (bProgressBarReverse ? (resumedPointBytesDone - byteOffset) : (bytesDone - resumedPointBytesDone)) / (elapsed + 1);
 
 	if (bPercentMode)
 	{
-		double perc = (double) (100.0 * (bProgressBarReverse ? ((double) (totalSectors - nSecNo)) : ((double) nSecNo)) / (totalSectors == 0 ? 0.0001 : ((double) totalSectors)));
+		double perc = (double) (100.0 * (bProgressBarReverse ? ((double) (TotalSize - byteOffset)) : ((double) byteOffset)) / (TotalSize == 0 ? 0.0001 : ((double) TotalSize)));
 
 		if (perc > 99.999999999)
 			wcscpy (text, GetString ("PROCESSED_PORTION_100_PERCENT"));
@@ -102,9 +102,9 @@ BOOL UpdateProgressBarProc (__int64 nSecNo)
 		SetWindowTextW (GetDlgItem (hCurPage, IDC_WRITESPEED), speed);
 	}
 
-	if (nSecNo < totalSectors)
+	if (byteOffset < TotalSize)
 	{
-		int64 sec = (int64) ((bProgressBarReverse ? nSecNo : (totalSectors - nSecNo)) / ((bytesPerSec == 0 ? 0.001 : bytesPerSec) / SECTOR_SIZE));
+		int64 sec = (int64) ((bProgressBarReverse ? byteOffset : (TotalSize - byteOffset)) / (bytesPerSec == 0 ? 0.001 : bytesPerSec));
 
 		if (bytesPerSec == 0 || sec > 60 * 60 * 24 * 999)
 			swprintf (text, L"%s ", GetString ("NOT_APPLICABLE_OR_NOT_AVAILABLE"));
@@ -123,7 +123,7 @@ BOOL UpdateProgressBarProc (__int64 nSecNo)
 	prevTime = time;
 
 	SendMessage (hProgressBar, PBM_SETPOS, 
-		(int) (10000.0 * (bProgressBarReverse ? (totalSectors - nSecNo) : nSecNo) / (totalSectors == 0 ? 1 : totalSectors)),
+		(int) (10000.0 * (bProgressBarReverse ? (TotalSize - byteOffset) : byteOffset) / (TotalSize == 0 ? 1 : TotalSize)),
 		0);
 
 	return bVolTransformThreadCancel;
