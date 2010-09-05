@@ -32,12 +32,7 @@ HRESULT CreateElevatedComObject (HWND hwnd, REFGUID guid, REFIID iid, void **ppv
     bo.dwClassContext = CLSCTX_LOCAL_SERVER;
 
 	// Prevent the GUI from being half-rendered when the UAC prompt "freezes" it
-	MSG paintMsg;
-	int MsgCounter = 5000;	// Avoid endless processing of paint messages
-	while (PeekMessage (&paintMsg, hwnd, 0, 0, PM_REMOVE | PM_QS_PAINT) != 0 && --MsgCounter > 0)
-	{
-		DispatchMessage (&paintMsg);
-	}
+	ProcessPaintMessages (hwnd, 5000);
 
     return CoGetObject (monikerName, &bo, iid, ppv);
 }

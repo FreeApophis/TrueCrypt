@@ -107,7 +107,7 @@ namespace TrueCrypt
 
 			ShowString (L"\n");
 
-			if (length < 1)
+			if (!verPhase && length < 1)
 			{
 				password->Set (passwordBuf, 0);
 				return password;

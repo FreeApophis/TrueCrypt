@@ -87,6 +87,13 @@ namespace TrueCrypt
 		favorite.SystemEncryption = prop.partitionInInactiveSysEncScope ? true : false;
 		favorite.OpenExplorerWindow = (bExplore == TRUE);
 
+		if (favorite.VolumePathId.empty()
+			&& IsVolumeDeviceHosted (favorite.Path.c_str())
+			&& favorite.Path.find ("\\\\?\\Volume{") != 0)
+		{
+			Warning (favorite.Path.find ("\\Partition0") == string::npos ? "FAVORITE_ADD_PARTITION_TYPE_WARNING" : "FAVORITE_ADD_DRIVE_DEV_WARNING");
+		}
+
 		return OrganizeFavoriteVolumes (hwndDlg, systemFavorites, favorite);
 	}
 
@@ -118,6 +125,8 @@ namespace TrueCrypt
 
 					FavoriteVolumesDlgProcArguments *args = (FavoriteVolumesDlgProcArguments *) lParam;
 					SystemFavoritesMode = args->SystemFavorites;
+
+					LocalizeDialog (hwndDlg, SystemFavoritesMode ? "SYSTEM_FAVORITES_DLG_TITLE" : "IDD_FAVORITE_VOLUMES");
 
 					if (SystemFavoritesMode)
 					{
@@ -155,7 +164,6 @@ namespace TrueCrypt
 						ShowWindow (GetDlgItem(hwndDlg, IDC_FAV_VOL_OPTIONS_GLOBAL_SETTINGS_BOX), SW_HIDE);
 					}
 
-					LocalizeDialog (hwndDlg, SystemFavoritesMode ? "SYSTEM_FAVORITES_DLG_TITLE" : "IDD_FAVORITE_VOLUMES");
 					Favorites.clear();
 
 					LVCOLUMNW column;
@@ -814,15 +822,17 @@ namespace TrueCrypt
 			&& IsVolumeDeviceHosted (favorite.Path.c_str())
 			&& favorite.Path.find ("\\\\?\\Volume{") != 0)
 		{
+			bool partition = (favorite.Path.find ("\\Partition0") == string::npos);
+
 			if (!favorite.Label.empty())
 			{
-				ErrorDirect ((GetString ("FAVORITE_LABEL_DEVICE_PATH_ERR") + wstring (L"\n\n") + SingleStringToWide (favorite.Path)).c_str());
+				ErrorDirect ((GetString (partition ? "FAVORITE_LABEL_PARTITION_TYPE_ERR" : "FAVORITE_LABEL_DEVICE_PATH_ERR") + wstring (L"\n\n") + SingleStringToWide (favorite.Path)).c_str());
 				favorite.Label.clear();
 			}
 
 			if (favorite.MountOnArrival)
 			{
-				ErrorDirect ((GetString ("FAVORITE_ARRIVAL_MOUNT_DEVICE_PATH_ERR") + wstring (L"\n\n") + SingleStringToWide (favorite.Path)).c_str());
+				ErrorDirect ((GetString (partition ? "FAVORITE_ARRIVAL_MOUNT_PARTITION_TYPE_ERR" : "FAVORITE_ARRIVAL_MOUNT_DEVICE_PATH_ERR") + wstring (L"\n\n") + SingleStringToWide (favorite.Path)).c_str());
 				favorite.MountOnArrival = false;
 			}
 		}

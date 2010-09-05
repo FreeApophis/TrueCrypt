@@ -957,13 +957,6 @@ int CreateVolumeHeaderInMemory (BOOL bBoot, char *header, int ea, int mode, Pass
 			strcat (MasterKeyGUIView, tmp2);
 		}
 
-		if (dots3)
-		{
-			strcat (MasterKeyGUIView, "...");
-		}
-
-		SendMessage (hMasterKey, WM_SETTEXT, 0, (LPARAM) MasterKeyGUIView);
-
 		HeaderKeyGUIView[0] = 0;
 		for (i = 0; i < NBR_KEY_BYTES_TO_DISPLAY; i++)
 		{
@@ -974,10 +967,13 @@ int CreateVolumeHeaderInMemory (BOOL bBoot, char *header, int ea, int mode, Pass
 
 		if (dots3)
 		{
-			strcat (HeaderKeyGUIView, "...");
+			DisplayPortionsOfKeys (hHeaderKey, hMasterKey, HeaderKeyGUIView, MasterKeyGUIView, !showKeys);
 		}
-
-		SendMessage (hHeaderKey, WM_SETTEXT, 0, (LPARAM) HeaderKeyGUIView);
+		else
+		{
+			SendMessage (hMasterKey, WM_SETTEXT, 0, (LPARAM) MasterKeyGUIView);
+			SendMessage (hHeaderKey, WM_SETTEXT, 0, (LPARAM) HeaderKeyGUIView);
+		}
 	}
 #endif	// #ifdef VOLFORMAT
 

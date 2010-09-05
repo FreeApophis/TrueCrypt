@@ -20,6 +20,7 @@
 #include "Language.h"
 #include "SecurityToken.h"
 #include "Common/resource.h"
+#include "Platform/Finally.h"
 #include "Platform/ForEach.h"
 
 using namespace TrueCrypt;
@@ -149,6 +150,12 @@ static BOOL KeyFileProcess (unsigned __int8 *keyPool, KeyFile *keyFile)
 			bTimeStampValid = TRUE;
 	}
 
+	finally_do_arg (HANDLE, src,
+	{
+		if (finally_arg != INVALID_HANDLE_VALUE)
+			CloseHandle (finally_arg);
+	});
+
 	f = fopen (keyFile->FileName, "rb");
 	if (f == NULL) return FALSE;
 
@@ -197,7 +204,6 @@ close:
 	{
 		// Restore the keyfile timestamp
 		SetFileTime (src, &ftCreationTime, &ftLastAccessTime, &ftLastWriteTime);
-		CloseHandle (src);
 	}
 
 	SetLastError (err);

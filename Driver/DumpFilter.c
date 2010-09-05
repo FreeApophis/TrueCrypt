@@ -49,6 +49,13 @@ NTSTATUS DumpFilterEntry (PFILTER_EXTENSION filterExtension, PFILTER_INITIALIZAT
 		goto err;
 
 	BootDriveFilterExtension = dumpConfig.BootDriveFilterExtension;
+
+	if (BootDriveFilterExtension->MagicNumber != TC_BOOT_DRIVE_FILTER_EXTENSION_MAGIC_NUMBER)
+	{
+		status = STATUS_CRC_ERROR;
+		goto err;
+	}
+
 	EnableHwEncryption (dumpConfig.HwEncryptionEnabled);
 
 	if (!AutoTestAlgorithms())
@@ -126,6 +133,10 @@ err:
 static NTSTATUS DumpFilterStart (PFILTER_EXTENSION filterExtension)
 {
 	Dump ("DumpFilterStart type=%d\n", filterExtension->DumpType);
+
+	if (BootDriveFilterExtension->MagicNumber != TC_BOOT_DRIVE_FILTER_EXTENSION_MAGIC_NUMBER)
+		TC_BUG_CHECK (STATUS_CRC_ERROR);
+
 	return BootDriveFilterExtension->DriveMounted ? STATUS_SUCCESS : STATUS_UNSUCCESSFUL;
 }
 
@@ -137,6 +148,13 @@ static NTSTATUS DumpFilterWrite (PFILTER_EXTENSION filterExtension, PLARGE_INTEG
 	uint64 intersectStart;
 	uint32 intersectLength;
 	PVOID writeBuffer;
+	CSHORT origMdlFlags;
+
+	if (BootDriveFilterExtension->MagicNumber != TC_BOOT_DRIVE_FILTER_EXTENSION_MAGIC_NUMBER)
+		TC_BUG_CHECK (STATUS_CRC_ERROR);
+
+	if (BootDriveFilterExtension->Queue.EncryptedAreaEndUpdatePending)	// Hibernation should always abort the setup thread
+		TC_BUG_CHECK (STATUS_INVALID_PARAMETER);
 
 	if (dataLength > WriteFilterBufferSize)
 		TC_BUG_CHECK (STATUS_BUFFER_OVERFLOW);	// Bug check is required as returning an error does not prevent data from being written to disk
@@ -177,8 +195,17 @@ static NTSTATUS DumpFilterWrite (PFILTER_EXTENSION filterExtension, PLARGE_INTEG
 			BootDriveFilterExtension->Queue.CryptoInfo);
 	}
 
+	origMdlFlags = writeMdl->MdlFlags;
+
 	MmInitializeMdl (writeMdl, WriteFilterBuffer, dataLength);
 	MmBuildMdlForNonPagedPool (writeMdl);
+
+	// Instead of using MmGetSystemAddressForMdlSafe(), some buggy custom storage drivers may directly test MDL_MAPPED_TO_SYSTEM_VA flag,
+	// disregarding the fact that other MDL flags may be set by the system or a dump filter (e.g. MDL_SOURCE_IS_NONPAGED_POOL flag only).
+	// Therefore, to work around this issue, the original flags will be restored even if they do not match the new MDL.
+	// MS BitLocker also uses this hack/workaround (it should be safe to use until the MDL structure is changed).
+
+	writeMdl->MdlFlags = origMdlFlags;
 
 	return STATUS_SUCCESS;
 }

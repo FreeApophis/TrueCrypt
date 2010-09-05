@@ -1133,7 +1133,7 @@ static BOOL ForceRemoveSysEnc (void)
 			locBootEncStatus = BootEncObj->GetStatus();
 
 			if (!locBootEncStatus.DriveMounted)
-				BootEncObj->Deinstall ();
+				BootEncObj->Deinstall (true);
 		}
 		catch (Exception &e)
 		{
@@ -1968,6 +1968,15 @@ void DisplayRandPool (HWND hPoolDisplay, BOOL bShow)
 
 		memcpy (lastRandPool, randPool, sizeof(lastRandPool));
 	}
+}
+
+
+void DisplayPortionsOfKeys (HWND headerKeyHandle, HWND masterKeyHandle, char *headerKeyStr, char *masterKeyStr, BOOL hideKeys)
+{
+	const wchar_t *hiddenKey = L"********************************                                              ";
+
+	SetWindowTextW (headerKeyHandle, hideKeys ? hiddenKey : (SingleStringToWide (headerKeyStr) + GetString ("TRIPLE_DOT_GLYPH_ELLIPSIS")).c_str());
+	SetWindowTextW (masterKeyHandle, hideKeys ? hiddenKey : (SingleStringToWide (masterKeyStr) + GetString ("TRIPLE_DOT_GLYPH_ELLIPSIS")).c_str());
 }
 
 
@@ -3991,8 +4000,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 			SendMessage (GetDlgItem (hwndDlg, IDC_DISPLAY_KEYS), BM_SETCHECK, showKeys ? BST_CHECKED : BST_UNCHECKED, 0);
 
-			SetWindowText (GetDlgItem (hwndDlg, IDC_HEADER_KEY), showKeys ? HeaderKeyGUIView : "********************************                                              ");
-			SetWindowText (GetDlgItem (hwndDlg, IDC_DISK_KEY), showKeys ? MasterKeyGUIView : "********************************                                              ");
+			DisplayPortionsOfKeys (hHeaderKey, hMasterKey, HeaderKeyGUIView, MasterKeyGUIView, !showKeys);
 
 			break;
 
@@ -5252,8 +5260,7 @@ BOOL CALLBACK PageDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 		{
 			showKeys = IsButtonChecked (GetDlgItem (hCurPage, IDC_DISPLAY_KEYS));
 
-			SetWindowText (GetDlgItem (hwndDlg, IDC_HEADER_KEY), showKeys ? HeaderKeyGUIView : "********************************                                              ");
-			SetWindowText (GetDlgItem (hwndDlg, IDC_DISK_KEY), showKeys ? MasterKeyGUIView : "********************************                                              ");
+			DisplayPortionsOfKeys (GetDlgItem (hwndDlg, IDC_HEADER_KEY), GetDlgItem (hwndDlg, IDC_DISK_KEY), HeaderKeyGUIView, MasterKeyGUIView, !showKeys);
 			return 1;
 		}
 
@@ -5459,7 +5466,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 				tmp2[32] = 0;
 
-				SetWindowText (GetDlgItem (hCurPage, IDC_RANDOM_BYTES), tmp2);
+				SetWindowTextW (GetDlgItem (hCurPage, IDC_RANDOM_BYTES), (SingleStringToWide (tmp2) + GetString ("TRIPLE_DOT_GLYPH_ELLIPSIS")).c_str());
 
 				burn (tmp, sizeof(tmp));
 				burn (tmp2, sizeof(tmp2));
@@ -6535,7 +6542,8 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					if (AskWarnNoYes ("CONFIRM_CASCADE_FOR_SYS_ENCRYPTION") == IDNO)
 						return 1;
 
-					Info ("NOTE_CASCADE_FOR_SYS_ENCRYPTION");
+					if (!bHiddenOS)
+						Info ("NOTE_CASCADE_FOR_SYS_ENCRYPTION");
 				}
 
 				nIndex = SendMessage (GetDlgItem (hCurPage, IDC_COMBO_BOX_HASH_ALGO), CB_GETCURSEL, 0, 0);
@@ -8740,11 +8748,12 @@ static void AfterWMInitTasks (HWND hwndDlg)
 
 						try
 						{
-							BootEncObj->Deinstall ();
+							BootEncObj->Deinstall (true);
 						}
 						catch (Exception &e)
 						{
 							e.Show (hwndDlg);
+							AbortProcessSilent();
 						}
 
 						ManageStartupSeqWiz (TRUE, "");

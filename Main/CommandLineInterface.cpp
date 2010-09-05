@@ -281,7 +281,7 @@ namespace TrueCrypt
 				if (str.IsSameAs (L"FAT", false))
 					ArgFilesystem = VolumeCreationOptions::FilesystemType::FAT;
 				else
-					throw_err (LangString["UNKNOWN_OPTION"] + L": " + str);
+					ArgFilesystem = VolumeCreationOptions::FilesystemType::None;
 			}
 		}
 

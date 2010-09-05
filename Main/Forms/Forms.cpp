@@ -233,8 +233,6 @@ MainFrameBase::MainFrameBase( wxWindow* parent, wxWindowID id, const wxString& t
 	sbSizer1 = new wxStaticBoxSizer( new wxStaticBox( MainPanel, wxID_ANY, wxEmptyString ), wxVERTICAL );
 	
 	SlotListCtrl = new wxListCtrl( MainPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_NO_SORT_HEADER|wxLC_REPORT|wxLC_SINGLE_SEL|wxLC_VRULES|wxSUNKEN_BORDER );
-	SlotListCtrl->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), 70, 90, 90, false, wxEmptyString ) );
-	
 	sbSizer1->Add( SlotListCtrl, 1, wxALL|wxEXPAND, 5 );
 	
 	bSizer48->Add( sbSizer1, 1, wxEXPAND, 5 );
@@ -669,8 +667,6 @@ AboutDialogBase::AboutDialogBase( wxWindow* parent, wxWindowID id, const wxStrin
 	
 	VersionStaticText = new wxStaticText( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	VersionStaticText->Wrap( -1 );
-	VersionStaticText->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), 70, 90, 92, false, wxEmptyString ) );
-	
 	bSizer123->Add( VersionStaticText, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
 	

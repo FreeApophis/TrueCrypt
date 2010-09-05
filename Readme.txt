@@ -1,4 +1,4 @@
-This archive contains the source code of TrueCrypt 7.0.
+This archive contains the source code of TrueCrypt 7.0a.
 
 
 Important
@@ -42,7 +42,7 @@ Requirements for Building TrueCrypt for Windows:
 
 - Microsoft Visual C++ 2008 SP1 (Professional Edition or compatible)
 - Microsoft Visual C++ 1.52 (available from MSDN Subscriber Downloads)
-- Microsoft Windows SDK for Windows 7
+- Microsoft Windows SDK for Windows 7 (configured for Visual C++)
 - Microsoft Windows Driver Kit 7.1.0 (build 7600.16385.1)
 - RSA Security Inc. PKCS #11 Cryptographic Token Interface (Cryptoki) 2.20
   header files (available at ftp://ftp.rsasecurity.com/pub/pkcs/pkcs-11/v2-20)

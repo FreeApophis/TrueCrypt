@@ -19,6 +19,7 @@ typedef struct _DriveFilterExtension
 	BOOL IsVolumeDevice;
 	BOOL IsDriveFilterDevice;
 	BOOL IsVolumeFilterDevice;
+	uint64 MagicNumber;
 
 	PDEVICE_OBJECT DeviceObject;
 	PDEVICE_OBJECT LowerDeviceObject;
@@ -43,6 +44,8 @@ typedef struct _DriveFilterExtension
 	BOOL HiddenSystem;
 
 } DriveFilterExtension;
+
+#define TC_BOOT_DRIVE_FILTER_EXTENSION_MAGIC_NUMBER 0x5452554542455854
 
 extern BOOL BootArgsValid;
 extern BootArguments BootArgs;

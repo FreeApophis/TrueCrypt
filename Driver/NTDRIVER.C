@@ -1164,6 +1164,7 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 				PEXTENSION ListExtension = (PEXTENSION) ListDevice->DeviceExtension;
 				if (!ListExtension->bRootDevice
 					&& ListExtension->IsVolumeDevice
+					&& ListExtension->lMagicNumber == 0xabfeacde
 					&& !ListExtension->bShuttingDown
 					&& ListExtension->nDosDriveNo == prop->driveNo
 					&& IsVolumeAccessibleByCurrentUser (ListExtension))
@@ -1389,6 +1390,7 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 
 				if (!ListExtension->bRootDevice
 					&& ListExtension->IsVolumeDevice
+					&& ListExtension->lMagicNumber == 0xabfeacde
 					&& !ListExtension->bShuttingDown
 					&& unmount->nDosDriveNo == ListExtension->nDosDriveNo
 					&& IsVolumeAccessibleByCurrentUser (ListExtension))
@@ -2090,6 +2092,8 @@ PDEVICE_OBJECT TCDeleteDeviceObject (PDEVICE_OBJECT DeviceObject, PEXTENSION Ext
 	}
 	else
 	{
+		Extension->lMagicNumber = 0;	// Clear magic number to protect from rare zombie objects. TODO: Do not use DRIVER_OBJECT.DeviceObject even if advised by the documentation of DRIVER_OBJECT.
+
 		if (Extension->peThread != NULL)
 			TCStopVolumeThread (DeviceObject, Extension);
 
@@ -2762,6 +2766,7 @@ NTSTATUS UnmountAllDevices (UNMOUNT_STRUCT *unmountRequest, PDEVICE_OBJECT Devic
 	{
 		PEXTENSION ListExtension = (PEXTENSION) ListDevice->DeviceExtension;
 		if (!ListExtension->bRootDevice && ListExtension->IsVolumeDevice && !ListExtension->bShuttingDown
+			&& ListExtension->lMagicNumber == 0xabfeacde
 			&& IsVolumeAccessibleByCurrentUser (ListExtension))
 		{
 			PDEVICE_OBJECT nextDevice = ListDevice->NextDevice;

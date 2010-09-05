@@ -29,6 +29,7 @@
 namespace TrueCrypt
 {
 	MainFrame::MainFrame (wxWindow* parent) : MainFrameBase (parent),
+		ListItemRightClickEventPending (false),
 		SelectedItemIndex (-1),
 		SelectedSlotNumber (0)
 	{
@@ -975,7 +976,17 @@ namespace TrueCrypt
 			SelectedItemIndex = event.GetIndex();
 			OnListItemSelectionChanged();
 		}
+
+		if (!ListItemRightClickEventPending)
+		{
+			ListItemRightClickEventPending = true;
+			SlotListCtrl->AddPendingEvent (event);
+			return;
+		}
+
+		ListItemRightClickEventPending = false;
 #endif
+
 		wxMenu popup;
 		if (IsMountedSlotSelected())
 		{
@@ -1010,8 +1021,6 @@ namespace TrueCrypt
 
 			PopupMenu (&popup);
 		}
-
-		event.Skip();
 	}
 
 	void MainFrame::OnListItemSelected (wxListEvent& event)

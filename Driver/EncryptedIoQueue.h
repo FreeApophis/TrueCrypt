@@ -51,7 +51,8 @@ typedef struct
 	BOOL IsFilterDevice;
 	PDEVICE_OBJECT LowerDeviceObject;
 	int64 EncryptedAreaStart;
-	int64 EncryptedAreaEnd;
+	volatile int64 EncryptedAreaEnd;
+	volatile BOOL EncryptedAreaEndUpdatePending;
 	BOOL RemapEncryptedArea;
 	int64 RemappedAreaOffset;
 	int64 RemappedAreaDataUnitOffset;

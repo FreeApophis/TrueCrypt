@@ -148,7 +148,7 @@ namespace TrueCrypt
 		void CheckRequirementsHiddenOS ();
 		void CopyFileAdmin (const string &sourceFile, const string &destinationFile);
 		void CreateRescueIsoImage (bool initialSetup, const string &isoImagePath);
-		void Deinstall ();
+		void Deinstall (bool displayWaitDialog = false);
 		void DeleteFileAdmin (const string &file);
 		DecoySystemWipeStatus GetDecoyOSWipeStatus ();
 		DWORD GetDriverServiceStartType ();

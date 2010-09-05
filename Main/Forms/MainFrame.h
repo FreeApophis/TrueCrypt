@@ -159,6 +159,7 @@ namespace TrueCrypt
 		};
 
 		map <int, FavoriteVolume> FavoriteVolumesMenuMap;
+		bool ListItemRightClickEventPending;
 		VolumeInfoList MountedVolumes;
 		auto_ptr <wxTaskBarIcon> mTaskBarIcon;
 		auto_ptr <wxTimer> mTimer;

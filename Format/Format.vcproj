@@ -493,11 +493,11 @@
 				>
 			</File>
 			<File
-				RelativePath="..\Common\Resource.h"
+				RelativePath=".\resource.h"
 				>
 			</File>
 			<File
-				RelativePath=".\resource.h"
+				RelativePath="..\Common\Resource.h"
 				>
 			</File>
 			<File
@@ -539,6 +539,10 @@
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
 			<File
+				RelativePath=".\Format.manifest"
+				>
+			</File>
+			<File
 				RelativePath=".\Format.rc"
 				>
 			</File>
@@ -558,10 +562,6 @@
 			<Filter
 				Name="Common"
 				>
-				<File
-					RelativePath="..\Boot\Windows\Rescue_Serpent\BootLoader.com.gz"
-					>
-				</File>
 				<File
 					RelativePath="..\Boot\Windows\Rescue_AES\BootLoader.com.gz"
 					>
@@ -588,6 +588,10 @@
 				</File>
 				<File
 					RelativePath="..\Boot\Windows\Release_Twofish\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Rescue_Serpent\BootLoader.com.gz"
 					>
 				</File>
 				<File

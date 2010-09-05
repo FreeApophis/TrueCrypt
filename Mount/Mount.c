@@ -4454,19 +4454,14 @@ static BOOL CheckMountList ()
 		LoadDriveLetters (GetDlgItem (MainDlg, IDC_DRIVELIST), 0);
 		NormalCursor ();
 
-		if ((current.ulMountedDrives & (1 << (selDrive - 'A'))) == 0 && !IsDriveAvailable (selDrive - 'A'))
+		if (selDrive != -1 && (current.ulMountedDrives & (1 << (selDrive - 'A'))) == 0 && !IsDriveAvailable (selDrive - 'A'))
 		{
 			nSelectedDriveIndex = -1;
 			return FALSE;
 		}
 
-		if (nSelectedDriveIndex >= 0)
-		{
+		if (selDrive != -1)
 			SelectItem (GetDlgItem (MainDlg, IDC_DRIVELIST),selDrive);
-
-			//if(nSelectedDriveIndex > SendMessage (GetDlgItem (MainDlg, IDC_DRIVELIST), LVM_GETITEMCOUNT, 0, 0)/2) 
-			//	SendMessage(GetDlgItem (MainDlg, IDC_DRIVELIST), LVM_SCROLL, 0, 10000);
-		}
 	}
 
 	try
@@ -4510,12 +4505,12 @@ static BOOL CheckMountList ()
 
 			RecentBootEncStatus = newBootEncStatus;
 
-			if ((current.ulMountedDrives & (1 << (selDrive - 'A'))) == 0 && !IsDriveAvailable (selDrive - 'A'))
+			if (selDrive != -1 && (current.ulMountedDrives & (1 << (selDrive - 'A'))) == 0 && !IsDriveAvailable (selDrive - 'A'))
 			{
 				nSelectedDriveIndex = -1;
 			}
 
-			if (nSelectedDriveIndex >= 0)
+			if (selDrive != -1)
 			{
 				SelectItem (GetDlgItem (MainDlg, IDC_DRIVELIST),selDrive);
 			}
@@ -8764,37 +8759,37 @@ void AnalyzeKernelMiniDump (HWND hwndDlg)
 
 	wstring msg;
 
-	if (otherDriver)
+	if (!imageName.empty() && StringToUpperCase (imageName) != StringToUpperCase (TC_APP_NAME) + ".SYS")
 	{
-		if (!imageName.empty())
+		msg += wstring (GetString ("SYSTEM_CRASH_UPDATE_DRIVER")) + L"\n\n" + SingleStringToWide (imageName);
+
+		string description, company, product;
+		if (GetExecutableImageInformation (string (winDir) + "\\System32\\drivers\\" + imageName, imageVersion, description, company, product))
 		{
-			msg += wstring (GetString ("SYSTEM_CRASH_UPDATE_DRIVER")) + L"\n\n" + SingleStringToWide (imageName);
+			string s;
+			if (!description.empty())
+				s += description;
+			if (!company.empty())
+				s += ";  " + company;
+			if (!product.empty())
+				s += ";  " + product;
 
-			string description, company, product;
-			if (GetExecutableImageInformation (string (winDir) + "\\System32\\drivers\\" + imageName, imageVersion, description, company, product))
-			{
-				string s;
-				if (!description.empty())
-					s += description;
-				if (!company.empty())
-					s += ";  " + company;
-				if (!product.empty())
-					s += ";  " + product;
+			if (s.find (";  ") == 0)
+				s = s.substr (3);
 
-				if (s.find (";  ") == 0)
-					s = s.substr (3);
-
-				if (!s.empty())
-					msg += SingleStringToWide ("  (" + s + ")");
-			}
-
-			msg += L"\n\n";
+			if (!s.empty())
+				msg += SingleStringToWide ("  (" + s + ")");
 		}
 
+		msg += L"\n\n";
+	}
+
+	if (otherDriver)
+	{
 		msg += GetString ("SYSTEM_CRASH_NO_TRUECRYPT");
 		msg += L"\n\n";
 	}
-	
+
 	string urlStr = string (url) + "&drvver=" + (imageVersion.empty() ? "-" : imageVersion) + stackTraceArgs.str();
 
 	for (size_t i = 0; i < urlStr.size(); ++i)
@@ -8818,6 +8813,10 @@ void AnalyzeKernelMiniDump (HWND hwndDlg)
 
 static BOOL HandleDriveListMouseWheelEvent (UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL bListMustBePointed)
 {
+	static BOOL eventHandlerActive = FALSE;
+	if (eventHandlerActive)
+		return 0;
+
 	RECT listRect;
 	int mouseX = GET_X_LPARAM (lParam);
 	int mouseY = GET_Y_LPARAM (lParam);
@@ -8831,11 +8830,14 @@ static BOOL HandleDriveListMouseWheelEvent (UINT uMsg, WPARAM wParam, LPARAM lPa
 	if (bListMustBePointed && bListPointed
 		|| !bListMustBePointed)
 	{
+		eventHandlerActive = TRUE;
+
 		if (!bListMustBePointed && bListPointed)
 			SetFocus (GetDlgItem (MainDlg, IDC_DRIVELIST));
 
 		SendMessage (GetDlgItem (MainDlg, IDC_DRIVELIST), uMsg, wParam, lParam);
 
+		eventHandlerActive = FALSE;
 		return 0;	// Do not process this event any further e.g. to prevent two lists from being scrolled at once
 	}
 

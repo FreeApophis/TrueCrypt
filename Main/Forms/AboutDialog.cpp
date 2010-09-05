@@ -19,6 +19,10 @@ namespace TrueCrypt
 	{
 		LogoBitmap->SetBitmap (Resources::GetTextualLogoBitmap());
 
+		wxFont versionStaticTextFont = VersionStaticText->GetFont();
+		versionStaticTextFont.SetWeight (wxFONTWEIGHT_BOLD);
+		VersionStaticText->SetFont (versionStaticTextFont);
+
 		VersionStaticText->SetLabel (Application::GetName() + L" " + StringConverter::ToWide (Version::String()));
 		CopyrightStaticText->SetLabel (StringConverter::ToWide (TC_STR_RELEASED_BY));
 		WebsiteHyperlink->SetLabel (L"www.truecrypt.org");

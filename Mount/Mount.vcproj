@@ -539,6 +539,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Mount.manifest"
+				>
+			</File>
+			<File
 				RelativePath=".\Mount.rc"
 				>
 			</File>
@@ -561,10 +565,6 @@
 			<Filter
 				Name="Common"
 				>
-				<File
-					RelativePath="..\Boot\Windows\Rescue_Twofish\BootLoader.com.gz"
-					>
-				</File>
 				<File
 					RelativePath="..\Boot\Windows\Release_Serpent\BootLoader.com.gz"
 					>
@@ -591,6 +591,10 @@
 				</File>
 				<File
 					RelativePath="..\Boot\Windows\Rescue\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Rescue_Twofish\BootLoader.com.gz"
 					>
 				</File>
 				<File

@@ -173,6 +173,7 @@ NTSTATUS DriveFilterAddDevice (PDRIVER_OBJECT driverObject, PDEVICE_OBJECT pdo)
 	Extension->ConfiguredEncryptedAreaEnd = -1;
 	Extension->Queue.EncryptedAreaStart = -1;
 	Extension->Queue.EncryptedAreaEnd = -1;
+	Extension->Queue.EncryptedAreaEndUpdatePending = FALSE;
 
 	filterDeviceObject->Flags |= Extension->LowerDeviceObject->Flags & (DO_DIRECT_IO | DO_BUFFERED_IO | DO_POWER_PAGABLE);
 	filterDeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
@@ -323,6 +324,7 @@ static NTSTATUS MountDrive (DriveFilterExtension *Extension, Password *password,
 
 		BootDriveFilterExtension = Extension;
 		BootDriveFound = Extension->BootDrive = Extension->DriveMounted = Extension->VolumeHeaderPresent = TRUE;
+		BootDriveFilterExtension->MagicNumber = TC_BOOT_DRIVE_FILTER_EXTENSION_MAGIC_NUMBER;
 
 		burn (&BootArgs.BootPassword, sizeof (BootArgs.BootPassword));
 
@@ -1368,7 +1370,10 @@ static VOID SetupThreadProc (PVOID threadArg)
 		if (SetupRequest.SetupMode == SetupEncryption)
 			offset.QuadPart += setupBlockSize;
 
+		Extension->Queue.EncryptedAreaEndUpdatePending = TRUE;
 		Extension->Queue.EncryptedAreaEnd = offset.QuadPart - 1;
+		Extension->Queue.EncryptedAreaEndUpdatePending = FALSE;
+
 		headerUpdateRequired = TRUE;
 
 		EncryptedIoQueueResumeFromHold (&Extension->Queue);

@@ -29,7 +29,7 @@ namespace TrueCrypt
 		DeviceListCtrl->InsertColumn (ColumnSize, LangString["SIZE"], wxLIST_FORMAT_RIGHT, 1);
 		colPermilles.push_back (153);
 #ifdef TC_WINDOWS
-		DeviceListCtrl->InsertColumn (ColumnName, LangString["VOLUME_LABEL"], wxLIST_FORMAT_LEFT, 1);
+		DeviceListCtrl->InsertColumn (ColumnName, LangString["LABEL"], wxLIST_FORMAT_LEFT, 1);
 		colPermilles.push_back (307);
 #else
 		DeviceListCtrl->InsertColumn (ColumnMountPoint, LangString["MOUNT_POINT"], wxLIST_FORMAT_LEFT, 1);

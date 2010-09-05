@@ -1954,7 +1954,9 @@ namespace TrueCrypt
 	}
 
 
-	void BootEncryption::Deinstall ()
+	// This operation may take a long time when an antivirus is installed and its real-time protection enabled.
+	// Therefore, if calling it without the wizard displayed, it should be called with displayWaitDialog set to true.
+	void BootEncryption::Deinstall (bool displayWaitDialog)
 	{
 		BootEncryptionStatus encStatus = GetStatus();
 
@@ -2004,6 +2006,11 @@ namespace TrueCrypt
 
 		try
 		{
+			if (displayWaitDialog)
+				DisplayStaticModelessWaitDlg (ParentWindow);
+
+			finally_do_arg (bool, displayWaitDialog, { if (finally_arg) CloseStaticModelessWaitDlg(); });
+
 			RestoreSystemLoader ();
 		}
 		catch (Exception &e)
@@ -2011,7 +2018,6 @@ namespace TrueCrypt
 			e.Show (ParentWindow);
 			throw ErrorException ("SYS_LOADER_RESTORE_FAILED");
 		}
-
 	}
 
 

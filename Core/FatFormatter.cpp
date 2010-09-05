@@ -101,7 +101,7 @@ namespace TrueCrypt
 		ft->size_fat = 12;
 		ft->reserved = 2;
 		fatsecs = ft->num_sectors - (ft->size_root_dir + ft->sector_size - 1) / ft->sector_size - ft->reserved;
-		ft->cluster_count = (int) (((int64) fatsecs * ft->sector_size) / (ft->cluster_size * ft->sector_size + 3));
+		ft->cluster_count = (int) (((int64) fatsecs * ft->sector_size) / (ft->cluster_size * ft->sector_size));
 		ft->fat_length = (((ft->cluster_count * 3 + 1) >> 1) + ft->sector_size - 1) / ft->sector_size;
 
 		if (ft->cluster_count >= 4085) // FAT16
@@ -109,7 +109,7 @@ namespace TrueCrypt
 			ft->size_fat = 16;
 			ft->reserved = 2;
 			fatsecs = ft->num_sectors - (ft->size_root_dir + ft->sector_size - 1) / ft->sector_size - ft->reserved;
-			ft->cluster_count = (int) (((int64) fatsecs * ft->sector_size) / (ft->cluster_size * ft->sector_size + 4));
+			ft->cluster_count = (int) (((int64) fatsecs * ft->sector_size) / (ft->cluster_size * ft->sector_size));
 			ft->fat_length = (ft->cluster_count * 2 + ft->sector_size - 1) / ft->sector_size;
 		}
 
@@ -124,7 +124,7 @@ namespace TrueCrypt
 
 				fatsecs = ft->num_sectors - ft->reserved;
 				ft->size_root_dir = ft->cluster_size * ft->sector_size;
-				ft->cluster_count = (int) (((int64) fatsecs * ft->sector_size) / (ft->cluster_size * ft->sector_size + 8));
+				ft->cluster_count = (int) (((int64) fatsecs * ft->sector_size) / (ft->cluster_size * ft->sector_size));
 				ft->fat_length = (ft->cluster_count * 4 + ft->sector_size - 1) / ft->sector_size;
 
 				// Align data area on TC_MAX_VOLUME_SECTOR_SIZE
@@ -132,6 +132,8 @@ namespace TrueCrypt
 			} while (ft->sector_size == TC_SECTOR_SIZE_LEGACY
 				&& (ft->reserved * ft->sector_size + ft->fat_length * ft->fats * ft->sector_size) % TC_MAX_VOLUME_SECTOR_SIZE != 0);
 		}
+
+		ft->cluster_count -= ft->fat_length * ft->fats / ft->cluster_size;
 
 		if (ft->num_sectors >= 65536 || ft->size_fat == 32)
 		{

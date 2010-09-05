@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 7,0,0,0
- PRODUCTVERSION 7,0,0,0
+ FILEVERSION 7,0,1,0
+ PRODUCTVERSION 7,0,1,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -46,11 +46,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Format"
-            VALUE "FileVersion", "7.0"
+            VALUE "FileVersion", "7.0a"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt Format.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "7.0"
+            VALUE "ProductVersion", "7.0a"
         END
     END
     BLOCK "VarFileInfo"
@@ -131,9 +131,9 @@ BEGIN
     EDITTEXT        IDC_SIZEBOX,0,22,71,14,ES_AUTOHSCROLL | ES_NUMBER
     CONTROL         "&KB",IDC_KB,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,80,25,38,10
     CONTROL         "&MB",IDC_MB,"Button",BS_AUTORADIOBUTTON,119,25,38,10
+    CONTROL         "&GB",IDC_GB,"Button",BS_AUTORADIOBUTTON,158,25,38,10
     LTEXT           "",IDC_BOX_HELP,0,75,214,64
     LTEXT           "",IDC_SPACE_LEFT,0,44,214,21
-    CONTROL         "&GB",IDC_GB,"Button",BS_AUTORADIOBUTTON,158,25,38,10
 END
 
 IDD_VOLUME_LOCATION_PAGE_DLG DIALOGEX 0, 0, 226, 152
@@ -173,7 +173,7 @@ BEGIN
     RTEXT           "Filesystem ",IDT_FILESYSTEM,1,15,41,8,0,WS_EX_RIGHT
     RTEXT           "Random Pool: ",IDT_RANDOM_POOL,2,39,54,8
     GROUPBOX        "",IDC_STATIC,0,32,225,35
-    CONTROL         "",IDC_RANDOM_BYTES,"Static",SS_SIMPLE | WS_GROUP,57,38,149,8,WS_EX_TRANSPARENT
+    CONTROL         "",IDC_RANDOM_BYTES,"Static",SS_SIMPLE | WS_GROUP,57,38,155,8,WS_EX_TRANSPARENT
 END
 
 IDD_INTRO_PAGE_DLG DIALOGEX 0, 0, 226, 152

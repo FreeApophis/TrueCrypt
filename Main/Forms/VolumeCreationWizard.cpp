@@ -575,6 +575,15 @@ namespace TrueCrypt
 						{
 							if (drive.Path == SelectedVolumePath && !drive.Partitions.empty())
 							{
+								foreach_ref (const HostDevice &partition, drive.Partitions)
+								{
+									if (partition.MountPoint == "/")
+									{
+										Gui->ShowError (_("Error: You are trying to encrypt a system drive.\n\nTrueCrypt can encrypt a system drive only under Windows."));
+										return GetCurrentStep();
+									}
+								}
+
 								Gui->ShowError ("DEVICE_PARTITIONS_ERR");
 								return GetCurrentStep();
 							}
@@ -603,6 +612,12 @@ namespace TrueCrypt
 							
 							if (!mountPoint.IsEmpty())
 							{
+								if (mountPoint == "/")
+								{
+									Gui->ShowError (_("Error: You are trying to encrypt a system partition.\n\nTrueCrypt can encrypt system partitions only under Windows."));
+									return GetCurrentStep();
+								}
+
 								if (!Gui->AskYesNo (StringFormatter (_("WARNING: Formatting of the device will destroy all data on filesystem '{0}'.\n\nDo you want to continue?"), wstring (mountPoint)), false, true))
 									return GetCurrentStep();
 

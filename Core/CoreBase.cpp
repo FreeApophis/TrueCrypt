@@ -147,21 +147,21 @@ namespace TrueCrypt
 			throw ParameterIncorrect (SRC_POS);
 
 		uint32 clusterSize = bootSector[13] * sectorSize;
-		uint32 reservedSectorCount = *(uint16 *) (bootSector + 14);
+		uint32 reservedSectorCount = Endian::Little (*(uint16 *) (bootSector + 14));
 		uint32 fatCount = bootSector[16];
 
 		uint64 fatSectorCount;
 		if (fatType == 32)
-			fatSectorCount = *(uint32 *) (bootSector + 36);
+			fatSectorCount = Endian::Little (*(uint32 *) (bootSector + 36));
 		else
-			fatSectorCount = *(uint16 *) (bootSector + 22);
+			fatSectorCount = Endian::Little (*(uint16 *) (bootSector + 22));
 		uint64 fatSize = fatSectorCount * sectorSize;
 
 		uint64 fatStartOffset = reservedSectorCount * sectorSize;
 		uint64 dataAreaOffset = reservedSectorCount * sectorSize + fatSize * fatCount;
 
 		if (fatType < 32)
-			dataAreaOffset += (*(uint16 *) (bootSector + 17)) * 32;
+			dataAreaOffset += Endian::Little (*(uint16 *) (bootSector + 17)) * 32;
 
 		SecureBuffer sector (sectorSize);
 

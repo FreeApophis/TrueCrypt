@@ -962,6 +962,64 @@ BOOL CALLBACK AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 }
 
 
+static HWND StaticModelessWaitDlgHandle = NULL;
+
+// Call DisplayStaticModelessWaitDlg() to open this dialog and CloseStaticModelessWaitDlg() to close it.
+static BOOL CALLBACK StaticModelessWaitDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	WORD lw = LOWORD (wParam);
+
+	switch (msg)
+	{
+	case WM_INITDIALOG:
+		{
+			LocalizeDialog (hwndDlg, NULL);
+
+			return 0;
+		}
+
+	case WM_COMMAND:
+
+		if (lw == IDOK || lw == IDCANCEL)
+			return 1;
+
+		return 0;
+
+
+	case WM_CLOSE:
+		StaticModelessWaitDlgHandle = NULL;
+		EndDialog (hwndDlg, 0);
+		return 1;
+	}
+
+	return 0;
+}
+
+
+// Opens a dialog window saying "Please wait..." which is not modal and does not need any GUI refresh after initialization.
+void DisplayStaticModelessWaitDlg (HWND parent)
+{
+	if (StaticModelessWaitDlgHandle != NULL)
+		return;	// Already shown
+
+	StaticModelessWaitDlgHandle = CreateDialogParamW (hInst, MAKEINTRESOURCEW (IDD_STATIC_MODELESS_WAIT_DLG), parent, (DLGPROC) StaticModelessWaitDlgProc, (LPARAM) 0);
+
+	ShowWindow (StaticModelessWaitDlgHandle, SW_SHOWNORMAL);
+
+	// Allow synchronous use with the GUI being instantly and fully rendered
+	ProcessPaintMessages (StaticModelessWaitDlgHandle, 500);
+}
+
+
+void CloseStaticModelessWaitDlg (void)
+{
+	if (StaticModelessWaitDlgHandle == NULL)
+		return;	// Not shown
+
+	DestroyWindow (StaticModelessWaitDlgHandle);
+}
+
+
 BOOL IsButtonChecked (HWND hButton)
 {
 	if (SendMessage (hButton, BM_GETCHECK, 0, 0) == BST_CHECKED)
@@ -969,6 +1027,7 @@ BOOL IsButtonChecked (HWND hButton)
 	else
 		return FALSE;
 }
+
 
 void CheckButton (HWND hButton)
 {
@@ -1173,6 +1232,20 @@ void InitDialog (HWND hwndDlg)
 		aboutMenuAppended = TRUE;
 	}
 }
+
+
+// The parameter maxMessagesToProcess prevents endless processing of paint messages
+void ProcessPaintMessages (HWND hwnd, int maxMessagesToProcess)
+{
+	MSG paintMsg;
+	int msgCounter = maxMessagesToProcess;	
+
+	while (PeekMessage (&paintMsg, hwnd, 0, 0, PM_REMOVE | PM_QS_PAINT) != 0 && msgCounter-- > 0)
+	{
+		DispatchMessage (&paintMsg);
+	}
+}
+
 
 HDC CreateMemBitmap (HINSTANCE hInstance, HWND hwnd, char *resource)
 {
@@ -2201,6 +2274,7 @@ void InitApp (HINSTANCE hInstance, char *lpszCommandLine)
 
 	InitOSVersionInfo();
 
+	SetErrorMode (SetErrorMode (0) | SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);
 	CoInitialize (NULL);
 
 #ifndef SETUP
@@ -2815,7 +2889,7 @@ BOOL CALLBACK RawDevicesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM l
 			LvCol.fmt = LVCFMT_RIGHT;
 			SendMessage (hList,LVM_INSERTCOLUMNW,2,(LPARAM)&LvCol);
 
-			LvCol.pszText = GetString ("VOLUME_LABEL");
+			LvCol.pszText = GetString ("LABEL");
 			LvCol.cx = CompensateXDPI (128);
 			LvCol.fmt = LVCFMT_LEFT;
 			SendMessage (hList,LVM_INSERTCOLUMNW,3,(LPARAM)&LvCol);
@@ -4730,7 +4804,7 @@ exit:
 			burn (outputDispBuffer, sizeof(outputDispBuffer));
 
 			// Attempt to wipe the pool contents in the GUI text area
-			memset (tmp, 'X', RNG_POOL_SIZE);
+			memset (tmp, ' ', RNG_POOL_SIZE);
 			tmp [RNG_POOL_SIZE] = 0;
 			SetWindowText (GetDlgItem (hwndDlg, IDC_POOL_CONTENTS), tmp);
 
@@ -4925,7 +4999,7 @@ exit:
 			burn (outputDispBuffer, sizeof(outputDispBuffer));
 
 			// Attempt to wipe the pool contents in the GUI text area
-			memset (tmp, 'X', RNG_POOL_SIZE);
+			memset (tmp, ' ', RNG_POOL_SIZE);
 			tmp [RNG_POOL_SIZE] = 0;
 			SetWindowText (GetDlgItem (hwndDlg, IDC_POOL_CONTENTS), tmp);
 
@@ -8164,7 +8238,7 @@ void HandleDriveNotReadyError ()
 	else if (nCurrentOS == WIN_VISTA && CurrentOSServicePack < 1)
 		Warning ("SYS_ASSIGN_DRIVE_LETTER");
 	else
-		Error ("ERR_HARDWARE_ERROR");
+		Error ("DEVICE_NOT_READY_ERROR");
 
 	RegCloseKey (hkey);
 }
