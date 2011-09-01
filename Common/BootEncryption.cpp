@@ -808,6 +808,32 @@ namespace TrueCrypt
 	}
 
 
+	bool BootEncryption::SystemDriveContainsNonStandardPartitions ()
+	{
+		for (int partitionType = 1; partitionType <= 0xff; ++partitionType)
+		{
+			switch (partitionType)
+			{
+			case PARTITION_FAT_12:
+			case PARTITION_FAT_16:
+			case PARTITION_EXTENDED:
+			case PARTITION_HUGE:
+			case PARTITION_IFS:
+			case PARTITION_FAT32:
+			case PARTITION_FAT32_XINT13:
+			case PARTITION_XINT13:
+			case PARTITION_XINT13_EXTENDED:
+				continue;
+			}
+
+			if (SystemDriveContainsPartitionType ((byte) partitionType))
+				return true;
+		}
+
+		return false;
+	}
+
+
 	bool BootEncryption::SystemDriveIsDynamic ()
 	{
 		GetSystemDriveConfigurationRequest request;

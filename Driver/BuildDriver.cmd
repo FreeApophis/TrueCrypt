@@ -102,7 +102,7 @@ popd
 
 :: Build
 
-if "%TC_ARG_CMD%"=="-rebuild" (set TC_BUILD_OPTS=-c)
+if "%TC_ARG_CMD%"=="-rebuild" (set TC_BUILD_OPTS=-c -Z)
 
 pushd .
 :build_dirs
@@ -123,7 +123,7 @@ pushd .
 		set LINKER_FLAGS=%TC_LINKER_FLAGS%
 		set BUILD_ALT_DIR=%TC_BUILD_ALT_DIR%
 
-		build %TC_BUILD_OPTS% -Z -w -nmake /S -nmake /C 2>build_errors.log 1>&2
+		build %TC_BUILD_OPTS% -w -nmake /S -nmake /C 2>build_errors.log 1>&2
 		
 		if errorlevel 1 (
 			type build_errors.log

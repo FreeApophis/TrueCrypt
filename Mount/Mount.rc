@@ -69,8 +69,8 @@ BEGIN
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,141,294,10
     CONTROL         "Open Explorer window for successfully mounted volume",IDC_PREF_OPEN_EXPLORER,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,171,316,11
-    CONTROL         "Close all Explorer windows of volume being dismounted",IDC_PREF_CLOSE_DISMOUNTED_WINDOWS,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,184,316,10
+    CONTROL         "Use a different taskbar icon when there are mounted volumes",IDC_PREF_USE_DIFF_TRAY_ICON_IF_VOL_MOUNTED,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,184,314,10
     CONTROL         "Preserve modification timestamp of file containers",IDC_PRESERVE_TIMESTAMPS,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,11,196,316,10
     CONTROL         "Cache passwords in driver memory",IDC_PREF_CACHE_PASSWORDS,
@@ -215,15 +215,15 @@ BEGIN
     CONTROL         "",IDC_HOTKEY_LIST,"SysListView32",LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_ALIGNLEFT | LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,7,367,93
     EDITTEXT        IDC_HOTKEY_KEY,108,121,190,13,ES_AUTOHSCROLL
     PUSHBUTTON      "Assign",IDC_HOTKEY_ASSIGN,304,121,59,14
-    CONTROL         "Control",IDC_HK_MOD_CTRL,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,109,139,56,10,WS_EX_TRANSPARENT
-    CONTROL         "Shift",IDC_HK_MOD_SHIFT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,167,139,46,10,WS_EX_TRANSPARENT
-    CONTROL         "Alt",IDC_HK_MOD_ALT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,220,139,44,10,WS_EX_TRANSPARENT
+    CONTROL         "Ctrl",IDC_HK_MOD_CTRL,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,109,139,46,10,WS_EX_TRANSPARENT
+    CONTROL         "Shift",IDC_HK_MOD_SHIFT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,162,139,49,10,WS_EX_TRANSPARENT
+    CONTROL         "Alt",IDC_HK_MOD_ALT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,216,139,43,10,WS_EX_TRANSPARENT
     CONTROL         "Win",IDC_HK_MOD_WIN,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,266,139,34,10,WS_EX_TRANSPARENT
     PUSHBUTTON      "Remove",IDC_HOTKEY_REMOVE,304,139,59,14
-    CONTROL         "Play system notification sound after mount/dismount",IDC_DISMOUNT_CONFIRM_PLAY_SOUND,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,182,284,10
-    CONTROL         "Display confirmation message box after dismount",IDC_DISMOUNT_CONFIRM_MSG_BOX,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,194,285,10,WS_EX_TRANSPARENT
+    CONTROL         "Play system notification sound after successful hot-key dismount",IDC_HK_DISMOUNT_PLAY_SOUND,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,182,348,10
+    CONTROL         "Display balloon tooltip after successful hot-key dismount",IDC_HK_DISMOUNT_BALLOON_TOOLTIP,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,194,351,10,WS_EX_TRANSPARENT
     DEFPUSHBUTTON   "OK",IDOK,249,218,59,14
     PUSHBUTTON      "Cancel",IDCANCEL,315,218,59,14
     PUSHBUTTON      "Reset",IDC_RESET_HOTKEYS,7,218,59,14
@@ -285,7 +285,7 @@ BEGIN
     PUSHBUTTON      "&Benchmark",IDC_BENCHMARK,7,185,59,14
     DEFPUSHBUTTON   "OK",IDOK,257,185,50,14
     PUSHBUTTON      "Cancel",IDCANCEL,313,185,50,14
-    LTEXT           "Processor (CPU) in this computer provides hardware acceleration for AES:",IDT_HW_AES_SUPPORTED_BY_CPU,18,23,263,9
+    LTEXT           "Processor (CPU) in this computer supports hardware acceleration for AES:",IDT_HW_AES_SUPPORTED_BY_CPU,18,23,273,9
     GROUPBOX        "Hardware Acceleration",IDT_ACCELERATION_OPTIONS,7,6,355,74
     GROUPBOX        "Thread-Based Parallelization",IDT_PARALLELIZATION_OPTIONS,7,84,355,93
     LTEXT           "",IDT_LIMIT_ENC_THREAD_POOL_NOTE,18,126,334,33
@@ -421,8 +421,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 7,0,1,0
- PRODUCTVERSION 7,0,1,0
+ FILEVERSION 7,1,0,0
+ PRODUCTVERSION 7,1,0,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -439,11 +439,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt"
-            VALUE "FileVersion", "7.0a"
+            VALUE "FileVersion", "7.1"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "7.0a"
+            VALUE "ProductVersion", "7.1"
         END
     END
     BLOCK "VarFileInfo"
@@ -605,8 +605,6 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "Forums",                      IDM_FORUMS
         MENUITEM "Contact...",                  IDM_CONTACT
-        MENUITEM SEPARATOR
-        MENUITEM "Donations...",                IDM_DONATIONS
         MENUITEM SEPARATOR
         MENUITEM "About...",                    IDM_ABOUT
     END

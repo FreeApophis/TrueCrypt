@@ -134,7 +134,6 @@ namespace TrueCrypt
 			virtual void OnReportBugMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnForumsMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnContactMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnDonationsMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnAboutMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnListItemActivated( wxListEvent& event ){ event.Skip(); }
 			virtual void OnListItemDeselected( wxListEvent& event ){ event.Skip(); }
@@ -213,12 +212,10 @@ namespace TrueCrypt
 			wxStaticLine* m_staticline4;
 			wxStaticLine* m_staticline5;
 			
-			wxButton* DonationsButton;
 			
 			
 			// Virtual event handlers, overide them in your derived class
 			virtual void OnWebsiteHyperlinkClick( wxHyperlinkEvent& event ){ event.Skip(); }
-			virtual void OnDonationsButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			
 		
 		public:

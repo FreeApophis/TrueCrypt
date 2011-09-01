@@ -186,6 +186,7 @@ namespace TrueCrypt
 		void StartEncryption (WipeAlgorithmId wipeAlgorithm, bool zeroUnreadableSectors);
 		bool SystemDriveContainsPartitionType (byte type);
 		bool SystemDriveContainsExtendedPartition ();
+		bool SystemDriveContainsNonStandardPartitions ();
 		bool SystemPartitionCoversWholeDrive ();
 		bool SystemDriveIsDynamic ();
 		bool VerifyRescueDisk ();

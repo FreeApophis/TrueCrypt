@@ -884,7 +884,13 @@ BOOL SwitchWizardToSysEncMode (void)
 				{
 					if (bWholeSysDrive && !BootEncObj->SystemPartitionCoversWholeDrive())
 					{
-						if (!IsOSAtLeast (WIN_VISTA))
+						if (BootEncObj->SystemDriveContainsNonStandardPartitions())
+						{
+							if (AskWarnYesNoString ((wstring (GetString ("SYSDRIVE_NON_STANDARD_PARTITIONS")) + L"\n\n" + GetString ("ASK_ENCRYPT_PARTITION_INSTEAD_OF_DRIVE")).c_str()) == IDYES)
+								bWholeSysDrive = FALSE;
+						}
+
+						if (!IsOSAtLeast (WIN_VISTA) && bWholeSysDrive)
 						{
 							if (BootEncObj->SystemDriveContainsExtendedPartition())
 							{
@@ -1242,7 +1248,7 @@ void ComboSelChangeEA (HWND hwndDlg)
 
 		// Update hyperlink
 		SetWindowTextW (GetDlgItem (hwndDlg, IDC_LINK_MORE_INFO_ABOUT_CIPHER), hyperLink);
-		AccommodateTextField (hwndDlg, IDC_LINK_MORE_INFO_ABOUT_CIPHER, FALSE);
+		AccommodateTextField (hwndDlg, IDC_LINK_MORE_INFO_ABOUT_CIPHER, FALSE, hUserUnderlineFont);
 	}
 }
 
@@ -5986,7 +5992,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 		if (hiddenVolHostDriveNo > -1)
 		{
 			CloseVolumeExplorerWindows (hwndDlg, hiddenVolHostDriveNo);
-			UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE);
+			UnmountVolume (hwndDlg, hiddenVolHostDriveNo, TRUE);
 		}
 
 		EndMainDlg (hwndDlg);
@@ -6136,7 +6142,13 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				{
 					if (bWholeSysDrive && !BootEncObj->SystemPartitionCoversWholeDrive())
 					{
-						if (!IsOSAtLeast (WIN_VISTA))
+						if (BootEncObj->SystemDriveContainsNonStandardPartitions())
+						{
+							if (AskWarnYesNoString ((wstring (GetString ("SYSDRIVE_NON_STANDARD_PARTITIONS")) + L"\n\n" + GetString ("ASK_ENCRYPT_PARTITION_INSTEAD_OF_DRIVE")).c_str()) == IDYES)
+								bWholeSysDrive = FALSE;
+						}
+
+						if (!IsOSAtLeast (WIN_VISTA) && bWholeSysDrive)
 						{
 							if (BootEncObj->SystemDriveContainsExtendedPartition())
 							{
@@ -6188,40 +6200,56 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			}
 			else if (nCurPageNo == SYSENC_MULTI_BOOT_MODE_PAGE)
 			{
-				if (nMultiBoot <= 1)
+				if (nMultiBoot > 1)
 				{
+					// Multi-boot 
+
+					if (AskWarnNoYes ("MULTI_BOOT_FOR_ADVANCED_ONLY") == IDNO)
+						return 1;
+
 					if (bHiddenOS)
 					{
-						if (IsOSAtLeast (WIN_7)
-							&& BootEncObj->GetSystemDriveConfiguration().ExtraBootPartitionPresent
-							&& AskWarnYesNo ("CONFIRM_HIDDEN_OS_EXTRA_BOOT_PARTITION") == IDNO)
+						if (AskWarnNoYes ("HIDDEN_OS_MULTI_BOOT") == IDNO)
 						{
-							TextInfoDialogBox (TC_TBXID_EXTRA_BOOT_PARTITION_REMOVAL_INSTRUCTIONS);
-							NormalCursor ();
+							Error ("UNSUPPORTED_HIDDEN_OS_MULTI_BOOT_CFG");
 							return 1;
 						}
-
-						if (AskWarnYesNo ("DECOY_OS_REQUIREMENTS") == IDNO)
-						{
-							NormalCursor ();
-							return 1;
-						}
-
-						if (!ChangeWizardMode (WIZARD_MODE_NONSYS_DEVICE))
-						{
-							NormalCursor ();
-							return 1;
-						}
-
-						nNewPageNo = HIDDEN_VOL_HOST_PRE_CIPHER_PAGE - 1;		// Skip irrelevant pages
 					}
-					else
-						nNewPageNo = CIPHER_PAGE - 1;		// Skip irrelevant pages
 				}
-				else if (bHiddenOS)
-					AbortProcess ("MULTI_BOOT_HIDDEN_OS_NOT_SUPPORTED");
-				else if (AskWarnNoYes ("MULTI_BOOT_FOR_ADVANCED_ONLY") == IDNO)
-					return 1;
+
+				if (bHiddenOS)
+				{
+					if (IsOSAtLeast (WIN_7)
+						&& BootEncObj->GetSystemDriveConfiguration().ExtraBootPartitionPresent
+						&& AskWarnYesNo ("CONFIRM_HIDDEN_OS_EXTRA_BOOT_PARTITION") == IDNO)
+					{
+						TextInfoDialogBox (TC_TBXID_EXTRA_BOOT_PARTITION_REMOVAL_INSTRUCTIONS);
+						NormalCursor ();
+						return 1;
+					}
+
+					if (AskWarnYesNo ("DECOY_OS_REQUIREMENTS") == IDNO)
+					{
+						NormalCursor ();
+						return 1;
+					}
+
+					if (!ChangeWizardMode (WIZARD_MODE_NONSYS_DEVICE))
+					{
+						NormalCursor ();
+						return 1;
+					}
+
+					// Skip irrelevant pages
+					nNewPageNo = HIDDEN_VOL_HOST_PRE_CIPHER_PAGE - 1;
+				}
+				else if (nMultiBoot <= 1)
+				{
+					// Single-boot (not creating a hidden OS)
+					
+					// Skip irrelevant pages
+					nNewPageNo = CIPHER_PAGE - 1;
+				}
 			}
 			else if (nCurPageNo == SYSENC_MULTI_BOOT_SYS_EQ_BOOT_PAGE)
 			{
@@ -6293,12 +6321,6 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 			else if (nCurPageNo == SYSENC_MULTI_BOOT_OUTCOME_PAGE)
 			{
-				SYSTEMTIME sysTime;
-				GetLocalTime (&sysTime);
-
-				if (sysTime.wYear <= 2010)
-					Warning ("MULTI_BOOT_VISTA_SP1");
-
 				if (bHiddenOS)
 				{
 					if (!ChangeWizardMode (WIZARD_MODE_NONSYS_DEVICE))
@@ -6332,19 +6354,6 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				}
 				else
 				{
-					if (IsHiddenOSRunning())
-					{
-						WarningDirect ((wstring (GetString ("CAN_CREATE_ONLY_HIDDEN_VOLUMES_UNDER_HIDDEN_OS"))
-							+ L"\n\n"
-							+ GetString ("NOTE_BEGINNING")
-							+ GetString ("HIDDEN_OS_WRITE_PROTECTION_BRIEF_INFO")
-							+ L" "
-							+ GetString ("HIDDEN_OS_WRITE_PROTECTION_EXPLANATION")).c_str());
-
-						NormalCursor ();
-						return 1;
-					}
-
 					bHiddenVol = FALSE;
 					bHiddenVolHost = FALSE;
 					bHiddenVolDirect = FALSE;
@@ -6704,7 +6713,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						BOOL tmp_result;
 
 						// Dismount the hidden volume host (in order to remount it as read-only subsequently)
-						while (!(tmp_result = UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE)))
+						while (!(tmp_result = UnmountVolume (hwndDlg, hiddenVolHostDriveNo, TRUE)))
 						{
 							if (MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_OUTER_VOL"), lpszTitle, MB_RETRYCANCEL) != IDRETRY)
 							{
@@ -6751,7 +6760,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 							case -1:	// Fatal error
 								CloseVolumeExplorerWindows (hwndDlg, hiddenVolHostDriveNo);
 
-								if (UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE))
+								if (UnmountVolume (hwndDlg, hiddenVolHostDriveNo, TRUE))
 									hiddenVolHostDriveNo = -1;
 
 								AbortProcessSilent ();
@@ -6762,7 +6771,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 								{
 									CloseVolumeExplorerWindows (hwndDlg, hiddenVolHostDriveNo);
 
-									if (UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE))
+									if (UnmountVolume (hwndDlg, hiddenVolHostDriveNo, TRUE))
 										hiddenVolHostDriveNo = -1;
 								}
 								NormalCursor ();
@@ -6784,7 +6793,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 									/* Maximum possible size of the hidden volume successfully determined */
 
 									// Dismount the hidden volume host
-									while (!(tmp_result = UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE)))
+									while (!(tmp_result = UnmountVolume (hwndDlg, hiddenVolHostDriveNo, TRUE)))
 									{
 										if (MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_OUTER_VOL"), lpszTitle, MB_RETRYCANCEL) != IDRETRY)
 										{
@@ -6874,6 +6883,22 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 			else if (nCurPageNo == FILESYS_PAGE)
 			{
+				if (!bHiddenVol && IsHiddenOSRunning() && Get2RadButtonPageAnswer() == 1)
+				{
+					// The user wants to store files larger than 4GB on the non-hidden volume about to be created and a hidden OS is running
+
+					WarningDirect ((wstring (GetString ("CANNOT_SATISFY_OVER_4G_FILE_SIZE_REQ"))
+						+ L" "
+						+ GetString ("CANNOT_CREATE_NON_HIDDEN_NTFS_VOLUMES_UNDER_HIDDEN_OS")
+						+ L"\n\n"
+						+ GetString ("NOTE_BEGINNING")
+						+ GetString ("HIDDEN_OS_WRITE_PROTECTION_BRIEF_INFO")
+						+ L" "
+						+ GetString ("HIDDEN_OS_WRITE_PROTECTION_EXPLANATION")).c_str());
+
+					return 1;
+				}
+
 				if (nNeedToStoreFilesOver4GB != Get2RadButtonPageAnswer())
 					fileSystem = FILESYS_NONE;	// The user may have gone back and changed the answer, so default file system must be reselected
 	
@@ -7191,6 +7216,37 @@ retryCDDriveCheck:
 
 				quickFormat = IsButtonChecked (GetDlgItem (hCurPage, IDC_QUICKFORMAT));
 
+
+				if (!bHiddenVol && IsHiddenOSRunning())
+				{
+					// Creating a non-hidden volume under a hidden OS
+
+					if (fileSystem == FILESYS_NTFS)	
+					{
+						WarningDirect ((wstring (GetString ("CANNOT_CREATE_NON_HIDDEN_NTFS_VOLUMES_UNDER_HIDDEN_OS"))
+							+ L"\n\n"
+							+ GetString ("NOTE_BEGINNING")
+							+ GetString ("HIDDEN_OS_WRITE_PROTECTION_BRIEF_INFO")
+							+ L" "
+							+ GetString ("HIDDEN_OS_WRITE_PROTECTION_EXPLANATION")).c_str());
+
+						if (GetVolumeDataAreaSize (FALSE, nVolumeSize) <= TC_MAX_FAT_SECTOR_COUNT * GetFormatSectorSize()
+							&& AskYesNo("OFFER_FAT_FORMAT_ALTERNATIVE") == IDYES)
+						{
+							fileSystem = FILESYS_FAT;
+							SelectAlgo (GetDlgItem (hCurPage, IDC_FILESYS), (int *) &fileSystem);
+						}
+						else
+						{
+							if (GetVolumeDataAreaSize (FALSE, nVolumeSize) > TC_MAX_FAT_SECTOR_COUNT * GetFormatSectorSize())
+								Info ("FAT_NOT_AVAILABLE_FOR_SO_LARGE_VOLUME");
+
+							bVolTransformThreadToRun = FALSE;
+							return 1;
+						}
+					}
+				}
+
 				if (bHiddenVolHost)
 				{
 					hiddenVolHostDriveNo = -1;
@@ -7211,6 +7267,9 @@ retryCDDriveCheck:
 							}
 							else
 							{
+								if (GetVolumeDataAreaSize (FALSE, nVolumeSize) > TC_MAX_FAT_SECTOR_COUNT * GetFormatSectorSize())
+									Info ("FAT_NOT_AVAILABLE_FOR_SO_LARGE_VOLUME");
+
 								bVolTransformThreadToRun = FALSE;
 								return 1;
 							}
@@ -7333,7 +7392,7 @@ retryCDDriveCheck:
 
 						// Dismount the hidden volume host (in order to remount it as read-only subsequently)
 						CloseVolumeExplorerWindows (hwndDlg, hiddenVolHostDriveNo);
-						while (!(tmp_result = UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE)))
+						while (!(tmp_result = UnmountVolume (hwndDlg, hiddenVolHostDriveNo, TRUE)))
 						{
 							if (MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_OUTER_VOL"), lpszTitle, MB_RETRYCANCEL | MB_ICONERROR | MB_SETFOREGROUND) != IDRETRY)
 							{
@@ -7378,7 +7437,7 @@ retryCDDriveCheck:
 							case -1:	// Fatal error
 								CloseVolumeExplorerWindows (hwndDlg, hiddenVolHostDriveNo);
 
-								if (UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE))
+								if (UnmountVolume (hwndDlg, hiddenVolHostDriveNo, TRUE))
 									hiddenVolHostDriveNo = -1;
 
 								AbortProcessSilent ();
@@ -7402,7 +7461,7 @@ retryCDDriveCheck:
 									/* Maximum possible size of the hidden volume successfully determined */
 
 									// Dismount the hidden volume host
-									while (!(tmp_result = UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE)))
+									while (!(tmp_result = UnmountVolume (hwndDlg, hiddenVolHostDriveNo, TRUE)))
 									{
 										if (MessageBoxW (hwndDlg, GetString ("CANT_DISMOUNT_OUTER_VOL"), lpszTitle, MB_RETRYCANCEL) != IDRETRY)
 										{
@@ -7484,7 +7543,10 @@ ovf_end:
 						return 1;
 					}
 
-					nNewPageNo = (nMultiBoot <= 1 ? SYSENC_MULTI_BOOT_MODE_PAGE + 1 : SYSENC_MULTI_BOOT_OUTCOME_PAGE + 1);		// Skip irrelevant pages
+					// Skip irrelevant pages.
+					// Note that we're ignoring nMultiBoot here, as the multi-boot question pages are skipped
+					// when creating a hidden OS (only a single message box is displayed with requirements).
+					nNewPageNo = SYSENC_MULTI_BOOT_MODE_PAGE + 1;		
 				}
 				else
 				{
@@ -7518,11 +7580,6 @@ ovf_end:
 
 				if (!bHiddenVol)
 					nNewPageNo = VOLUME_TYPE_PAGE + 1;		// Skip the hidden volume creation wizard mode selection
-			}
-
-			else if (nCurPageNo == HIDDEN_VOL_HOST_PRE_CIPHER_PAGE)
-			{
-				nNewPageNo = VOLUME_LOCATION_PAGE + 1;
 			}
 
 			else if (nCurPageNo == CIPHER_PAGE)
@@ -7943,7 +8000,7 @@ int DetermineMaxHiddenVolSize (HWND hwndDlg)
 	if (nbrFreeClusters * realClusterSize < TC_MIN_HIDDEN_VOLUME_SIZE)
 	{
 		MessageBoxW (hwndDlg, GetString ("NO_SPACE_FOR_HIDDEN_VOL"), lpszTitle, ICON_HAND);
-		UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE);
+		UnmountVolume (hwndDlg, hiddenVolHostDriveNo, TRUE);
 		AbortProcessSilent ();
 	}
 
@@ -7962,7 +8019,7 @@ int DetermineMaxHiddenVolSize (HWND hwndDlg)
 	if (nMaximumHiddenVolSize < TC_MIN_HIDDEN_VOLUME_SIZE)
 	{
 		MessageBoxW (hwndDlg, GetString ("NO_SPACE_FOR_HIDDEN_VOL"), lpszTitle, ICON_HAND);
-		UnmountVolume (hwndDlg, hiddenVolHostDriveNo, FALSE);
+		UnmountVolume (hwndDlg, hiddenVolHostDriveNo, TRUE);
 		AbortProcessSilent ();
 	}
 

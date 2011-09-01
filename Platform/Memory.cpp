@@ -6,6 +6,7 @@
  packages.
 */
 
+#include "Common/Tcdefs.h"
 #include "Memory.h"
 #include "Exception.h"
 
@@ -41,7 +42,7 @@ namespace TrueCrypt
 
 	void Memory::Erase (void *memory, size_t size)
 	{
-		Zero (memory, size);
+		burn (memory, size);
 	}
 
 	void Memory::Zero (void *memory, size_t size)

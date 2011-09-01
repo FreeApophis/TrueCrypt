@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2011 TrueCrypt Developers Association. All rights reserved.
 
  Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
@@ -28,8 +28,11 @@ static BOOL DeviceFilterActive = FALSE;
 BOOL BootArgsValid = FALSE;
 BootArguments BootArgs;
 static uint16 BootLoaderSegment;
+static BOOL BootDriveSignatureValid = FALSE;
 
-static BOOL BootDriveFound = FALSE;
+static KMUTEX MountMutex;
+
+static volatile BOOL BootDriveFound = FALSE;
 static DriveFilterExtension *BootDriveFilterExtension = NULL;
 static LARGE_INTEGER BootDriveLength;
 
@@ -66,6 +69,8 @@ NTSTATUS LoadBootArguments ()
 	PHYSICAL_ADDRESS bootArgsAddr;
 	byte *mappedBootArgs;
 	uint16 bootLoaderSegment;
+
+	KeInitializeMutex (&MountMutex, 0);
 
 	for (bootLoaderSegment = TC_BOOT_LOADER_SEGMENT;
 		bootLoaderSegment >= TC_BOOT_LOADER_SEGMENT - 64 * 1024 / 16 && status != STATUS_SUCCESS;
@@ -107,6 +112,8 @@ NTSTATUS LoadBootArguments ()
 			if (BootArgs.BootLoaderVersion < 0x630)
 				BootArgs.Flags = 0;
 
+			BootDriveSignatureValid = (BootArgs.BootLoaderVersion >= 0x710);
+
 			Dump ("BootLoaderVersion = %x\n", (int) BootArgs.BootLoaderVersion);
 			Dump ("HeaderSaltCrc32 = %x\n", (int) BootArgs.HeaderSaltCrc32);
 			Dump ("CryptoInfoOffset = %x\n", (int) BootArgs.CryptoInfoOffset);
@@ -114,6 +121,7 @@ NTSTATUS LoadBootArguments ()
 			Dump ("HiddenSystemPartitionStart = %I64u\n", BootArgs.HiddenSystemPartitionStart);
 			Dump ("DecoySystemPartitionStart = %I64u\n", BootArgs.DecoySystemPartitionStart);
 			Dump ("Flags = %x\n", BootArgs.Flags);
+			Dump ("BootDriveSignature = %x\n", BootArgs.BootDriveSignature);
 			Dump ("BootArgumentsCrc32 = %x\n", BootArgs.BootArgumentsCrc32);
 
 			if (CacheBootPassword && BootArgs.BootPassword.Length > 0)
@@ -139,10 +147,7 @@ NTSTATUS DriveFilterAddDevice (PDRIVER_OBJECT driverObject, PDEVICE_OBJECT pdo)
 	Dump ("DriveFilterAddDevice pdo=%p\n", pdo);
 
 	attachedDeviceObject = IoGetAttachedDeviceReference (pdo);
-
-	DriverMutexWait();
 	status = IoCreateDevice (driverObject, sizeof (DriveFilterExtension), NULL, attachedDeviceObject->DeviceType, 0, FALSE, &filterDeviceObject);
-	DriverMutexRelease();
 
 	ObDereferenceObject (attachedDeviceObject);
 
@@ -187,9 +192,7 @@ err:
 		if (Extension->LowerDeviceObject)
 			IoDetachDevice (Extension->LowerDeviceObject);
 
-		DriverMutexWait();
 		IoDeleteDevice (filterDeviceObject);
-		DriverMutexRelease();
 	}
 
 	return status;
@@ -224,6 +227,18 @@ static NTSTATUS MountDrive (DriveFilterExtension *Extension, Password *password,
 
 	Dump ("MountDrive pdo=%p\n", Extension->Pdo);
 	ASSERT (KeGetCurrentIrql() == PASSIVE_LEVEL);
+
+	// Check boot drive signature first (header CRC search could fail if a user restored the header to a non-boot drive)
+	if (BootDriveSignatureValid)
+	{
+		byte mbr[TC_SECTOR_SIZE_BIOS];
+
+		offset.QuadPart = 0;
+		status = TCReadDevice (Extension->LowerDeviceObject, mbr, offset, TC_SECTOR_SIZE_BIOS);
+
+		if (NT_SUCCESS (status) && BootArgs.BootDriveSignature != *(uint32 *) (mbr + 0x1b8))
+			return STATUS_UNSUCCESSFUL;
+	}
 
 	header = TCalloc (TC_BOOT_ENCRYPTION_VOLUME_HEADER_SIZE);
 	if (!header)
@@ -518,11 +533,16 @@ static void CheckDeviceTypeAndMount (DriveFilterExtension *filterExtension)
 			filterExtension->IsVolumeFilterDevice = TRUE;
 			filterExtension->IsDriveFilterDevice = FALSE;
 		}
-		else if (!BootDriveFound)
+		else
 		{
-			DriverMutexWait();
-			MountDrive (filterExtension, &BootArgs.BootPassword, &BootArgs.HeaderSaltCrc32);
-			DriverMutexRelease();
+			NTSTATUS status = KeWaitForMutexObject (&MountMutex, Executive, KernelMode, FALSE, NULL);
+			if (!NT_SUCCESS (status))
+				TC_BUG_CHECK (status);
+
+			if (!BootDriveFound)
+				MountDrive (filterExtension, &BootArgs.BootPassword, &BootArgs.HeaderSaltCrc32);
+
+			KeReleaseMutex (&MountMutex, FALSE);
 		}
 	}
 }
@@ -623,8 +643,6 @@ static NTSTATUS DispatchPnp (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilterE
 
 		IoDetachDevice (Extension->LowerDeviceObject);
 
-		DriverMutexWait();
-
 		if (Extension->DriveMounted)
 			DismountDrive (Extension, TRUE);
 
@@ -635,9 +653,6 @@ static NTSTATUS DispatchPnp (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilterE
 		}
 
 		IoDeleteDevice (DeviceObject);
-
-		DriverMutexRelease();
-
 		return status;
 
 
@@ -668,9 +683,7 @@ static NTSTATUS DispatchPower (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilte
 		&& irpSp->MinorFunction == IRP_MN_SET_POWER
 		&& irpSp->Parameters.Power.Type == DevicePowerState)
 	{
-		DriverMutexWait();
 		DismountDrive (Extension, TRUE);
-		DriverMutexRelease();
 	}
 #endif // 0
 
@@ -1428,9 +1441,9 @@ err:
 
 	if (SetupRequest.SetupMode == SetupDecryption && Extension->ConfiguredEncryptedAreaEnd == -1 && Extension->DriveMounted)
 	{
-		while (!DriverMutexAcquireNoWait() && !EncryptionSetupThreadAbortRequested)
+		while (!RootDeviceControlMutexAcquireNoWait() && !EncryptionSetupThreadAbortRequested)
 		{
-			TCSleep (100);
+			TCSleep (10);
 		}
 
 		// Disable hibernation (resume would fail due to a change in the system memory map)
@@ -1439,7 +1452,7 @@ err:
 		DismountDrive (Extension, FALSE);
 
 		if (!EncryptionSetupThreadAbortRequested)
-			DriverMutexRelease();
+			RootDeviceControlMutexRelease();
 	}
 
 ret:
@@ -1664,8 +1677,6 @@ NTSTATUS AbortBootEncryptionSetup ()
 	if (!IoIsSystemThread (PsGetCurrentThread()) && !UserCanAccessDriveDevice())
 		return STATUS_ACCESS_DENIED;
 
-	DriverMutexWait();
-
 	if (EncryptionSetupThread)
 	{
 		EncryptionSetupThreadAbortRequested = TRUE;
@@ -1673,8 +1684,6 @@ NTSTATUS AbortBootEncryptionSetup ()
 		TCStopThread (EncryptionSetupThread, NULL);
 		EncryptionSetupThread = NULL;
 	}
-
-	DriverMutexRelease();
 
 	return STATUS_SUCCESS;
 }
@@ -1899,8 +1908,6 @@ NTSTATUS AbortDecoySystemWipe ()
 	if (!IoIsSystemThread (PsGetCurrentThread()) && !UserCanAccessDriveDevice())
 		return STATUS_ACCESS_DENIED;
 
-	DriverMutexWait();
-
 	if (DecoySystemWipeThread)
 	{
 		DecoySystemWipeThreadAbortRequested = TRUE;
@@ -1908,8 +1915,6 @@ NTSTATUS AbortDecoySystemWipe ()
 		TCStopThread (DecoySystemWipeThread, NULL);
 		DecoySystemWipeThread = NULL;
 	}
-
-	DriverMutexRelease();
 
 	return STATUS_SUCCESS;
 }

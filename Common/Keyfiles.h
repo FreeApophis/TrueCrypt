@@ -39,6 +39,8 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile);
 BOOL CALLBACK KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
 BOOL KeyfilesPopupMenu (HWND hwndDlg, POINT popupPosition, KeyFilesDlgParam *dialogParam);
 
+extern BOOL HiddenFilesPresentInKeyfilePath;
+
 #ifdef __cplusplus
 }
 #endif

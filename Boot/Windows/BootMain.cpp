@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2011 TrueCrypt Developers Association. All rights reserved.
 
  Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
@@ -434,6 +434,11 @@ static byte BootEncryptedDrive ()
 
 	if (ExtraBootPartitionPresent && !GetActivePartition (BootDrive))
 		goto err;
+
+	if (ReadWriteMBR (false, ActivePartition.Drive) != BiosResultSuccess)
+		goto err;
+
+	bootArguments->BootDriveSignature = *(uint32 *) (SectorBuffer + 0x1b8);
 
 	if (!InstallInterruptFilters())
 		goto err;

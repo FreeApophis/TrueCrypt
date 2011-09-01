@@ -53,6 +53,7 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 	NTSTATUS ntStatus = 0;
 	BOOL forceAccessCheck = (!bRawDevice && !(OsMajorVersion == 5 &&OsMinorVersion == 0)); // Windows 2000 does not support OBJ_FORCE_ACCESS_CHECK attribute
 	BOOL disableBuffering = TRUE;
+	BOOL exclusiveAccess = mount->bExclusiveAccess;
 
 	Extension->pfoDeviceFile = NULL;
 	Extension->hDeviceFile = NULL;
@@ -123,6 +124,13 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 		}
 
 		ProbingHostDeviceForWrite = FALSE;
+
+		// Some Windows tools (e.g. diskmgmt, diskpart, vssadmin) fail or experience timeouts when there is a raw device
+		// open for exclusive access. Therefore, exclusive access is used only for file-hosted volumes.
+		// Applications requiring a consistent device image need to acquire exclusive write access first. This is prevented
+		// when a device-hosted volume is mounted.
+
+		exclusiveAccess = FALSE;
 	}
 	else
 	{
@@ -149,7 +157,7 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			NULL,
 			FILE_ATTRIBUTE_NORMAL |
 			FILE_ATTRIBUTE_SYSTEM,
-			mount->bExclusiveAccess ? 0 : FILE_SHARE_READ | FILE_SHARE_WRITE,
+			exclusiveAccess ? 0 : FILE_SHARE_READ | FILE_SHARE_WRITE,
 			FILE_OPEN,
 			FILE_RANDOM_ACCESS |
 			FILE_WRITE_THROUGH |
@@ -174,7 +182,7 @@ NTSTATUS TCOpenVolume (PDEVICE_OBJECT DeviceObject,
 			NULL,
 			FILE_ATTRIBUTE_NORMAL |
 			FILE_ATTRIBUTE_SYSTEM,
-			mount->bExclusiveAccess ? FILE_SHARE_READ : FILE_SHARE_READ | FILE_SHARE_WRITE,
+			exclusiveAccess ? FILE_SHARE_READ : FILE_SHARE_READ | FILE_SHARE_WRITE,
 			FILE_OPEN,
 			FILE_RANDOM_ACCESS |
 			FILE_WRITE_THROUGH |

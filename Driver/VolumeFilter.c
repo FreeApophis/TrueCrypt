@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008-2010 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2011 TrueCrypt Developers Association. All rights reserved.
 
  Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
@@ -13,8 +13,6 @@
 #include "VolumeFilter.h"
 
 typedef DriveFilterExtension VolumeFilterExtension;
-
-static PDEVICE_OBJECT SystemVolumePdo = NULL;
 
 // Number of times the filter driver answered that an unencrypted volume
 // is read-only (or mounted an outer/normal TrueCrypt volume as read only)
@@ -31,10 +29,7 @@ NTSTATUS VolumeFilterAddDevice (PDRIVER_OBJECT driverObject, PDEVICE_OBJECT pdo)
 	Dump ("VolumeFilterAddDevice pdo=%p\n", pdo);
 
 	attachedDeviceObject = IoGetAttachedDeviceReference (pdo);
-
-	DriverMutexWait();
 	status = IoCreateDevice (driverObject, sizeof (VolumeFilterExtension), NULL, attachedDeviceObject->DeviceType, 0, FALSE, &filterDeviceObject);
-	DriverMutexRelease();
 
 	ObDereferenceObject (attachedDeviceObject);
 
@@ -71,9 +66,7 @@ err:
 		if (Extension->LowerDeviceObject)
 			IoDetachDevice (Extension->LowerDeviceObject);
 
-		DriverMutexWait();
 		IoDeleteDevice (filterDeviceObject);
-		DriverMutexRelease();
 	}
 
 	return status;
@@ -135,22 +128,34 @@ static NTSTATUS DispatchControl (PDEVICE_OBJECT DeviceObject, PIRP Irp, VolumeFi
 		switch (irpSp->Parameters.DeviceIoControl.IoControlCode)
 		{
 		case IOCTL_DISK_IS_WRITABLE:
-			IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
+			{
+				// All volumes except the system volume must be read-only
 
-			if (SystemVolumePdo == NULL)
-			{
-				// The first volume checked for being writable is the system volume
-				SystemVolumePdo = Extension->Pdo;
-				Dump ("System volume pdo=%p\n", SystemVolumePdo);
-			}
-			else if (Extension->Pdo != SystemVolumePdo)
-			{
-				// Volumes other than the system volume must be presented as read-only
+				DriveFilterExtension *bootDriveExtension = GetBootDriveFilterExtension();
+				STORAGE_DEVICE_NUMBER storageDeviceNumber;
+
+				if (!bootDriveExtension->SystemStorageDeviceNumberValid)
+					TC_BUG_CHECK (STATUS_INVALID_PARAMETER);
+
+				status = SendDeviceIoControlRequest (Extension->LowerDeviceObject, IOCTL_STORAGE_GET_DEVICE_NUMBER, NULL, 0, &storageDeviceNumber, sizeof (storageDeviceNumber));
+
+				if (NT_SUCCESS (status) && bootDriveExtension->SystemStorageDeviceNumber == storageDeviceNumber.DeviceNumber)
+				{
+					PARTITION_INFORMATION_EX partition;
+					status = SendDeviceIoControlRequest (Extension->LowerDeviceObject, IOCTL_DISK_GET_PARTITION_INFO_EX, NULL, 0, &partition, sizeof (partition));
+
+					if (NT_SUCCESS (status) && partition.StartingOffset.QuadPart == bootDriveExtension->ConfiguredEncryptedAreaStart)
+					{
+						IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
+						return TCCompleteDiskIrp (Irp, STATUS_SUCCESS, 0);
+					}
+				}
+
+				IoReleaseRemoveLock (&Extension->Queue.RemoveLock, Irp);
+
 				++HiddenSysLeakProtectionCount;
 				return TCCompleteDiskIrp (Irp, STATUS_MEDIA_WRITE_PROTECTED, 0);
 			}
-
-			return TCCompleteDiskIrp (Irp, STATUS_SUCCESS, 0);
 
 		case TC_IOCTL_DISK_IS_WRITABLE:
 			Dump ("TC_IOCTL_DISK_IS_WRITABLE pdo=%p\n", Extension->Pdo);
@@ -224,10 +229,7 @@ static NTSTATUS DispatchPnp (PDEVICE_OBJECT DeviceObject, PIRP Irp, VolumeFilter
 
 		IoDetachDevice (Extension->LowerDeviceObject);
 
-		DriverMutexWait();
 		IoDeleteDevice (DeviceObject);
-		DriverMutexRelease();
-
 		return status;
 
 	default:

@@ -1,13 +1,15 @@
-This archive contains the source code of TrueCrypt 7.0a.
+This archive contains the source code of TrueCrypt 7.1.
 
 
 Important
 =========
 
 You may use the source code contained in this archive only if you accept and
-agree to be bound by the license terms contained in the file 'License.txt',
-which is included in this archive. Note that the license specifies, for
-example, that a derived work must not be called 'TrueCrypt'.
+agree to the license terms contained in the file 'License.txt', which is
+included in this archive.
+
+Note that the license specifies, for example, that a derived work must not be
+called 'TrueCrypt'.
 
 
 
@@ -24,7 +26,7 @@ II. Linux and Mac OS X
 	Requirements for Running TrueCrypt on Linux
 	Requirements for Running TrueCrypt on Mac OS X
 	
-III. OpenSolaris and FreeBSD
+III. FreeBSD and OpenSolaris
 
 IV. Third-Party Developers (Contributors)
 
@@ -72,8 +74,13 @@ use different versions of the required SDKs).
 Instructions for Building TrueCrypt for Windows:
 ------------------------------------------------
 
-1) Create an environment variable 'MSVC16_ROOT' pointing to the installation
-   directory of MS Visual C++ 1.52.
+1) Create an environment variable 'MSVC16_ROOT' pointing to the folder 'MSVC15'
+   extracted from the Visual C++ 1.52 self-extracting package.
+
+   Note: The 16-bit installer MSVC15\SETUP.EXE cannot be run on 64-bit Windows,
+   but it is actually not necessary to run it. You only need to extract the
+   folder 'MSVC15', which contains the 32-bit binaries required to build the
+   TrueCrypt Boot Loader.
 
 2) If you have installed the Windows Driver Development Kit in another
    directory than '%SYSTEMDRIVE%\WinDDK', create an environment variable
@@ -83,7 +90,7 @@ Instructions for Building TrueCrypt for Windows:
    environment variable 'PKCS11_INC' pointing to the directory where
    the PKCS #11 header files are installed.
 
-4) Open the 'TrueCrypt.sln' solution in Microsoft Visual Studio 2008.
+4) Open the solution file 'TrueCrypt.sln' in Microsoft Visual Studio 2008.
 
 5) Select 'All' as the active solution configuration.
 
@@ -160,16 +167,16 @@ Requirements for Running TrueCrypt on Linux:
 Requirements for Running TrueCrypt on Mac OS X:
 -----------------------------------------------
 
-- Mac OS X 10.4 or later
-- MacFUSE 1.3 or later (available at http://code.google.com/p/macfuse)
+- Mac OS X 10.4 or compatible
+- MacFUSE 1.3 or compatible (available at http://code.google.com/p/macfuse) or
+  OSXFUSE 2.3 or compatible (available at http://osxfuse.github.com)
 
 
-
-III. OpenSolaris and FreeBSD
+III. FreeBSD and OpenSolaris
 ============================
 
-Support status for OpenSolaris: http://www.truecrypt.org/misc/opensolaris
 Support status for FreeBSD: http://www.truecrypt.org/misc/freebsd
+Support status for OpenSolaris: http://www.truecrypt.org/misc/opensolaris
 
 
 
@@ -195,10 +202,10 @@ Copyright Information
 ---------------------
 
 This software as a whole:
-Copyright (c) 2009 TrueCrypt Developers Association. All rights reserved.
+Copyright (c) 2011 TrueCrypt Developers Association. All rights reserved.
 
 Portions of this software:
-Copyright (c) 2003-2009 TrueCrypt Developers Association. All rights reserved.
+Copyright (c) 2003-2011 TrueCrypt Developers Association. All rights reserved.
 Copyright (c) 1998-2000 Paul Le Roux. All rights reserved.
 Copyright (c) 1998-2008 Brian Gladman, Worcester, UK. All rights reserved.
 Copyright (c) 2002-2004 Mark Adler. All rights reserved.

@@ -45,15 +45,14 @@
 // 68		2		Header version
 // 70		2		Required program version
 // 72		4		CRC-32 checksum of the (decrypted) bytes 256-511
-// 76		8		Reserved (set to zero)
-// 84		8		Reserved (set to zero)
+// 76		16		Reserved (must contain zeroes)
 // 92		8		Size of hidden volume in bytes (0 = normal volume)
 // 100		8		Size of the volume in bytes (identical with field 92 for hidden volumes, valid if field 70 >= 0x600 or flag bit 0 == 1)
 // 108		8		Byte offset of the start of the master key scope (valid if field 70 >= 0x600 or flag bit 0 == 1)
 // 116		8		Size of the encrypted area within the master key scope (valid if field 70 >= 0x600 or flag bit 0 == 1)
 // 124		4		Flags: bit 0 set = system encryption; bit 1 set = non-system in-place encryption, bits 2-31 are reserved (set to zero)
 // 128		4		Sector size in bytes
-// 132		120		Reserved (set to zero)
+// 132		120		Reserved (must contain zeroes)
 // 252		4		CRC-32 checksum of the (decrypted) bytes 64-251
 // 256		256		Concatenated primary master key(s) and secondary master key(s) (XTS mode)
 
@@ -69,14 +68,13 @@
 // 68		2		Header version
 // 70		2		Required program version
 // 72		4		CRC-32 checksum of the (decrypted) bytes 256-511
-// 76		8		Reserved (set to zero)
-// 84		8		Reserved (set to zero)
+// 76		16		Reserved (must contain zeroes)
 // 92		8		Size of hidden volume in bytes (0 = normal volume)
 // 100		8		Size of the volume in bytes (identical with field 92 for hidden volumes, valid if field 70 >= 0x600 or flag bit 0 == 1)
 // 108		8		Byte offset of the start of the master key scope (valid if field 70 >= 0x600 or flag bit 0 == 1)
 // 116		8		Size of the encrypted area within the master key scope (valid if field 70 >= 0x600 or flag bit 0 == 1)
 // 124		4		Flags: bit 0 set = system encryption; bit 1 set = non-system in-place encryption, bits 2-31 are reserved
-// 128		124		Reserved (set to zero)
+// 128		124		Reserved (must contain zeroes)
 // 252		4		CRC-32 checksum of the (decrypted) bytes 64-251
 // 256		256		Concatenated primary master key(s) and secondary master key(s) (XTS mode)
 
@@ -98,7 +96,7 @@
 // 100		8		Size of the volume in bytes (identical with field 92 for hidden volumes)
 // 108		8		Start byte offset of the encrypted area of the volume
 // 116		8		Size of the encrypted area of the volume in bytes
-// 124		132		Reserved (set to zero)
+// 124		132		Reserved (must contain zeroes)
 // 256		256		Concatenated primary master key(s) and secondary master key(s) (XTS mode)
 
 
@@ -116,7 +114,7 @@
 // 76		8		Volume creation time
 // 84		8		Header creation time
 // 92		8		Size of hidden volume in bytes (0 = normal volume)
-// 100		156		Reserved (set to zero)
+// 100		156		Reserved (must contain zeroes)
 // 256		32		For LRW (deprecated/legacy), secondary key
 //					For CBC (deprecated/legacy), data used to generate IV and whitening values
 // 288		224		Master key(s)

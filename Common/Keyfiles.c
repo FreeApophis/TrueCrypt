@@ -30,6 +30,9 @@ using namespace TrueCrypt;
 #define snprintf _snprintf
 
 
+BOOL HiddenFilesPresentInKeyfilePath = FALSE;
+
+
 KeyFile *KeyFileAdd (KeyFile *firstKeyFile, KeyFile *keyFile)
 {
 	KeyFile *kf = firstKeyFile;
@@ -224,6 +227,8 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile)
 	struct _finddata_t fBuf;
 	intptr_t searchHandle;
 
+	HiddenFilesPresentInKeyfilePath = FALSE;
+
 	if (firstKeyFile == NULL) return TRUE;
 
 	VirtualLock (keyPool, sizeof (keyPool));
@@ -304,6 +309,8 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile)
 
 			do
 			{
+				WIN32_FILE_ATTRIBUTE_DATA fileAttributes;
+
 				snprintf (kfSub->FileName, sizeof(kfSub->FileName), "%s%c%s", kf->FileName,
 					'\\',
 					fBuf.name
@@ -320,6 +327,14 @@ BOOL KeyFilesApply (Password *password, KeyFile *firstKeyFile)
 				else if (statStruct.st_mode & S_IFDIR)		// If it's a directory
 				{
 					// Prevent recursive folder scanning
+					continue;	 
+				}
+
+				// Skip hidden files
+				if (GetFileAttributesEx (kfSub->FileName, GetFileExInfoStandard, &fileAttributes)
+					&& (fileAttributes.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) != 0)
+				{
+					HiddenFilesPresentInKeyfilePath = TRUE;
 					continue;	 
 				}
 

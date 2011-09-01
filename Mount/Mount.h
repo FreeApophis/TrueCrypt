@@ -53,8 +53,8 @@ extern VOLUME_NOTIFICATIONS_LIST VolumeNotificationsList;
 
 extern BOOL bEnableBkgTask;
 extern BOOL bCloseBkgTaskWhenNoVolumes;
-extern BOOL bPlaySoundOnHotkeyMountDismount;
-extern BOOL bDisplayMsgBoxOnHotkeyDismount;
+extern BOOL bPlaySoundOnSuccessfulHkDismount;
+extern BOOL bDisplayBalloonOnSuccessfulHkDismount;
 extern BOOL bExplore;
 
 static void localcleanup ( void );
@@ -78,6 +78,7 @@ static void WipeCache (HWND hwndDlg, BOOL silent);
 void OpenVolumeExplorerWindow (int driveNo);
 BOOL TaskBarIconAdd (HWND hwnd);
 BOOL TaskBarIconRemove (HWND hwnd);
+BOOL TaskBarIconChange (HWND hwnd, int iconId);
 void DismountIdleVolumes ();
 static void SaveDefaultKeyFilesParam (void);
 static BOOL Dismount (HWND hwndDlg, int nDosDriveNo);

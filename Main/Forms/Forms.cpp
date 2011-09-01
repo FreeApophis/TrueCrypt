@@ -205,12 +205,6 @@ MainFrameBase::MainFrameBase( wxWindow* parent, wxWindowID id, const wxString& t
 	
 	HelpMenu->AppendSeparator();
 	
-	wxMenuItem* DonationsMenuItem;
-	DonationsMenuItem = new wxMenuItem( HelpMenu, wxID_ANY, wxString( _("Donations...") ) , wxEmptyString, wxITEM_NORMAL );
-	HelpMenu->Append( DonationsMenuItem );
-	
-	HelpMenu->AppendSeparator();
-	
 	wxMenuItem* AboutMenuItem;
 	AboutMenuItem = new wxMenuItem( HelpMenu, wxID_ABOUT, wxString( _("About...") ) , wxEmptyString, wxITEM_NORMAL );
 	HelpMenu->Append( AboutMenuItem );
@@ -435,7 +429,6 @@ MainFrameBase::MainFrameBase( wxWindow* parent, wxWindowID id, const wxString& t
 	this->Connect( ReportBugMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnReportBugMenuItemSelected ) );
 	this->Connect( ForumsMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnForumsMenuItemSelected ) );
 	this->Connect( ContactMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnContactMenuItemSelected ) );
-	this->Connect( DonationsMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnDonationsMenuItemSelected ) );
 	this->Connect( AboutMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnAboutMenuItemSelected ) );
 	SlotListCtrl->Connect( wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler( MainFrameBase::OnListItemActivated ), NULL, this );
 	SlotListCtrl->Connect( wxEVT_COMMAND_LIST_ITEM_DESELECTED, wxListEventHandler( MainFrameBase::OnListItemDeselected ), NULL, this );
@@ -499,7 +492,6 @@ MainFrameBase::~MainFrameBase()
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnReportBugMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnForumsMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnContactMenuItemSelected ) );
-	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnDonationsMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnAboutMenuItemSelected ) );
 	SlotListCtrl->Disconnect( wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler( MainFrameBase::OnListItemActivated ), NULL, this );
 	SlotListCtrl->Disconnect( wxEVT_COMMAND_LIST_ITEM_DESELECTED, wxListEventHandler( MainFrameBase::OnListItemDeselected ), NULL, this );
@@ -711,9 +703,6 @@ AboutDialogBase::AboutDialogBase( wxWindow* parent, wxWindowID id, const wxStrin
 	
 	bSizer119->Add( 0, 0, 1, wxEXPAND|wxALL, 5 );
 	
-	DonationsButton = new wxButton( this, wxID_ANY, _("Donations..."), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer119->Add( DonationsButton, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
-	
 	wxButton* OKButton;
 	OKButton = new wxButton( this, wxID_OK, _("OK"), wxDefaultPosition, wxDefaultSize, 0 );
 	OKButton->SetDefault(); 
@@ -732,14 +721,12 @@ AboutDialogBase::AboutDialogBase( wxWindow* parent, wxWindowID id, const wxStrin
 	
 	// Connect Events
 	WebsiteHyperlink->Connect( wxEVT_COMMAND_HYPERLINK, wxHyperlinkEventHandler( AboutDialogBase::OnWebsiteHyperlinkClick ), NULL, this );
-	DonationsButton->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( AboutDialogBase::OnDonationsButtonClick ), NULL, this );
 }
 
 AboutDialogBase::~AboutDialogBase()
 {
 	// Disconnect Events
 	WebsiteHyperlink->Disconnect( wxEVT_COMMAND_HYPERLINK, wxHyperlinkEventHandler( AboutDialogBase::OnWebsiteHyperlinkClick ), NULL, this );
-	DonationsButton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( AboutDialogBase::OnDonationsButtonClick ), NULL, this );
 }
 
 BenchmarkDialogBase::BenchmarkDialogBase( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxDialog( parent, id, title, pos, size, style )
@@ -1855,13 +1842,13 @@ PreferencesDialogBase::PreferencesDialogBase( wxWindow* parent, wxWindowID id, c
 	bSizer158 = new wxBoxSizer( wxHORIZONTAL );
 	
 	wxStaticText* m_staticText57;
-	m_staticText57 = new wxStaticText( PerformanceOptionsPage, wxID_ANY, _("Processor (CPU) in this computer provides hardware acceleration for AES:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText57 = new wxStaticText( PerformanceOptionsPage, wxID_ANY, _("Processor (CPU) in this computer supports hardware acceleration for AES:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText57->Wrap( -1 );
 	bSizer158->Add( m_staticText57, 0, wxALL, 5 );
 	
 	AesHwCpuSupportedStaticText = new wxStaticText( PerformanceOptionsPage, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0|wxSUNKEN_BORDER );
 	AesHwCpuSupportedStaticText->Wrap( -1 );
-	bSizer158->Add( AesHwCpuSupportedStaticText, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	bSizer158->Add( AesHwCpuSupportedStaticText, 0, wxALL, 5 );
 	
 	sbSizer44->Add( bSizer158, 1, wxEXPAND, 5 );
 	

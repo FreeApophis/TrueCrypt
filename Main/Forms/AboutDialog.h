@@ -18,7 +18,6 @@ namespace TrueCrypt
 	public:
 		AboutDialog (wxWindow* parent);
 		
-		void OnDonationsButtonClick (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"donate"); }
 		void OnWebsiteHyperlinkClick (wxHyperlinkEvent& event) { Gui->OpenHomepageLink (this, L"main"); }
 	};
 }

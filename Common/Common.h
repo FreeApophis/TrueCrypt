@@ -11,6 +11,12 @@
 
 #include "Crypto.h"
 
+#define MIN_MOUNTED_VOLUME_DRIVE_NUMBER ('A' - 'A')
+#define MAX_MOUNTED_VOLUME_DRIVE_NUMBER ('Z' - 'A')
+
+#define MAX_HOST_DRIVE_NUMBER 64
+#define MAX_HOST_PARTITION_NUMBER 32
+
 typedef enum
 {
 	// IMPORTANT: If you add a new item here, update IsOSVersionAtLeast().

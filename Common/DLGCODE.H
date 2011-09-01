@@ -56,7 +56,7 @@ enum
 #define EXCL_ACCESS_MAX_AUTO_RETRIES 500
 #define EXCL_ACCESS_AUTO_RETRY_DELAY 10
 
-#define UNMOUNT_MAX_AUTO_RETRIES 10
+#define UNMOUNT_MAX_AUTO_RETRIES 30
 #define UNMOUNT_AUTO_RETRY_DELAY 50
 
 // After the user receives the "Incorrect password" error this number of times in a row, we should automatically
@@ -140,6 +140,7 @@ extern BOOL DeviceChangeBroadcastDisabled;
 extern BOOL LastMountedVolumeDirty;
 extern BOOL MountVolumesAsSystemFavorite;
 extern BOOL FavoriteMountOnArrivalInProgress;
+extern BOOL MultipleMountOperationInProgress;
 
 
 enum tc_app_msg_ids
@@ -324,7 +325,7 @@ BOOL IsDriveAvailable (int driveNo);
 BOOL IsDeviceMounted (char *deviceName);
 int DriverUnmountVolume (HWND hwndDlg, int nDosDriveNo, BOOL forced);
 void BroadcastDeviceChange (WPARAM message, int nDosDriveNo, DWORD driveMap);
-int MountVolume (HWND hwndDlg, int driveNo, char *volumePath, Password *password, BOOL cachePassword, BOOL sharedAccess, MountOptions *mountOptions, BOOL quiet, BOOL bReportWrongPassword);
+int MountVolume (HWND hwndDlg, int driveNo, char *volumePath, Password *password, BOOL cachePassword, BOOL sharedAccess,  const MountOptions* const mountOptions, BOOL quiet, BOOL bReportWrongPassword);
 BOOL UnmountVolume (HWND hwndDlg , int nDosDriveNo, BOOL forceUnmount);
 BOOL IsPasswordCacheEmpty (void);
 BOOL IsMountedVolume (const char *volname);
@@ -372,6 +373,11 @@ char *GetConfigPath (char *fileName);
 char *GetProgramConfigPath (char *fileName);
 char GetSystemDriveLetter (void);
 void OpenPageHelp (HWND hwndDlg, int nPage);
+void TaskBarIconDisplayBalloonTooltip (HWND hwnd, wchar_t *headline, wchar_t *text, BOOL warning);
+void InfoBalloon (char *headingStringId, char *textStringId);
+void InfoBalloonDirect (wchar_t *headingString, wchar_t *textString);
+void WarningBalloon (char *headingStringId, char *textStringId);
+void WarningBalloonDirect (wchar_t *headingString, wchar_t *textString);
 int Info (char *stringId);
 int InfoTopMost (char *stringId);
 int InfoDirect (const wchar_t *msg);
@@ -383,12 +389,15 @@ int ErrorDirect (const wchar_t *errMsg);
 int ErrorTopMost (char *stringId);
 int AskYesNo (char *stringId);
 int AskYesNoString (const wchar_t *str);
+int AskYesNoTopmost (char *stringId);
 int AskNoYes (char *stringId);
 int AskOkCancel (char *stringId);
 int AskWarnYesNo (char *stringId);
+int AskWarnYesNoString (const wchar_t *string);
+int AskWarnYesNoTopmost (char *stringId);
 int AskWarnNoYes (char *stringId);
 int AskWarnNoYesString (const wchar_t *string);
-int AskWarnYesNoString (const wchar_t *string);
+int AskWarnNoYesTopmost (char *stringId);
 int AskWarnOkCancel (char *stringId);
 int AskWarnCancelOk (char *stringId);
 int AskErrYesNo (char *stringId);
@@ -432,8 +441,9 @@ int CompensateDPIFont (int val);
 int GetTextGfxWidth (HWND hwndDlgItem, const wchar_t *text, HFONT hFont);
 int GetTextGfxHeight (HWND hwndDlgItem, const wchar_t *text, HFONT hFont);
 BOOL ToHyperlink (HWND hwndDlg, UINT ctrlId);
+BOOL ToCustHyperlink (HWND hwndDlg, UINT ctrlId, HFONT hFont);
 void ToBootPwdField (HWND hwndDlg, UINT ctrlId);
-void AccommodateTextField (HWND hwndDlg, UINT ctrlId, BOOL bFirstUpdate);
+void AccommodateTextField (HWND hwndDlg, UINT ctrlId, BOOL bFirstUpdate, HFONT hFont);
 BOOL GetDriveLabel (int driveNo, wchar_t *label, int labelSize);
 BOOL DoDriverInstall (HWND hwndDlg);
 int OpenVolume (OpenVolumeContext *context, const char *volumePath, Password *password, BOOL write, BOOL preserveTimestamps, BOOL useBackupHeader);
@@ -512,6 +522,7 @@ std::string GetWindowsEdition ();
 std::string FitPathInGfxWidth (HWND hwnd, HFONT hFont, LONG width, const std::string &path);
 std::string GetServiceConfigPath (const char *fileName);
 std::string VolumeGuidPathToDevicePath (std::string volumeGuidPath);
+std::string HarddiskVolumePathToPartitionPath (const std::string &harddiskVolumePath);
 std::string FindLatestFileOrDirectory (const std::string &directory, const char *namePattern, bool findDirectory, bool findFile);
 std::string GetUserFriendlyVersionString (int version);
 

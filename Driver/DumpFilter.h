@@ -15,6 +15,7 @@
 NTSTATUS DumpFilterEntry (PFILTER_EXTENSION filterExtension, PFILTER_INITIALIZATION_DATA filterInitData);
 static NTSTATUS DumpFilterStart (PFILTER_EXTENSION filterExtension);
 static NTSTATUS DumpFilterWrite (PFILTER_EXTENSION filterExtension, PLARGE_INTEGER diskWriteOffset, PMDL writeMdl);
+static NTSTATUS DumpFilterFinish (PFILTER_EXTENSION filterExtension);
 static NTSTATUS DumpFilterUnload (PFILTER_EXTENSION filterExtension);
 
 #endif // TC_HEADER_DRIVER_DUMP_FILTER

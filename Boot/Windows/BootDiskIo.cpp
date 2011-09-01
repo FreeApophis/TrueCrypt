@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2011 TrueCrypt Developers Association. All rights reserved.
 
  Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
@@ -114,29 +114,38 @@ BiosResult ReadWriteSectors (bool write, uint16 bufferSegment, uint16 bufferOffs
 	sector |= byte (chs.Cylinder >> 2) & 0xc0;
 	byte function = write ? 0x03 : 0x02;
 
-	BiosResult result = BiosResultSuccess;
-	__asm
-	{
-		push es
-		mov ax, bufferSegment
-		mov	es, ax
-		mov	bx, bufferOffset
-		mov dl, drive
-		mov ch, cylinderLow
-		mov si, chs
-		mov dh, [si].Head
-		mov cl, sector
-		mov	al, sectorCount
-		mov	ah, function
-		int	0x13
-		jnc ok				// If CF=0, ignore AH to prevent issues caused by potential bugs in BIOSes
-		mov	result, ah
-	ok:
-		pop es
-	}
+	BiosResult result;
+	byte tryCount = TC_MAX_BIOS_DISK_IO_RETRIES;
 
-	if (result == BiosResultEccCorrected)
+	do
+	{
 		result = BiosResultSuccess;
+
+		__asm
+		{
+			push es
+			mov ax, bufferSegment
+			mov	es, ax
+			mov	bx, bufferOffset
+			mov dl, drive
+			mov ch, cylinderLow
+			mov si, chs
+			mov dh, [si].Head
+			mov cl, sector
+			mov	al, sectorCount
+			mov	ah, function
+			int	0x13
+			jnc ok				// If CF=0, ignore AH to prevent issues caused by potential bugs in BIOSes
+			mov	result, ah
+		ok:
+			pop es
+		}
+
+		if (result == BiosResultEccCorrected)
+			result = BiosResultSuccess;
+
+	// Some BIOSes report I/O errors prematurely in some cases
+	} while (result != BiosResultSuccess && --tryCount != 0);
 
 	if (!silent && result != BiosResultSuccess)
 		PrintDiskError (result, write, drive, nullptr, &chs);
@@ -189,22 +198,31 @@ static BiosResult ReadWriteSectors (bool write, BiosLbaPacket &dapPacket, byte d
 
 	byte function = write ? 0x43 : 0x42;
 	
-	BiosResult result = BiosResultSuccess;
-	__asm
-	{
-		mov	bx, 0x55aa
-		mov	dl, drive
-		mov si, [dapPacket]
-		mov	ah, function
-		xor al, al
-		int	0x13
-		jnc ok				// If CF=0, ignore AH to prevent issues caused by potential bugs in BIOSes
-		mov	result, ah
-	ok:
-	}
+	BiosResult result;
+	byte tryCount = TC_MAX_BIOS_DISK_IO_RETRIES;
 
-	if (result == BiosResultEccCorrected)
+	do
+	{
 		result = BiosResultSuccess;
+
+		__asm
+		{
+			mov	bx, 0x55aa
+			mov	dl, drive
+			mov si, [dapPacket]
+			mov	ah, function
+			xor al, al
+			int	0x13
+			jnc ok				// If CF=0, ignore AH to prevent issues caused by potential bugs in BIOSes
+			mov	result, ah
+		ok:
+		}
+
+		if (result == BiosResultEccCorrected)
+			result = BiosResultSuccess;
+
+	// Some BIOSes report I/O errors prematurely in some cases
+	} while (result != BiosResultSuccess && --tryCount != 0);
 
 	if (!silent && result != BiosResultSuccess)
 		PrintDiskError (result, write, drive, &sector);

@@ -33,7 +33,7 @@ CLASS "SplashDlg"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     EDITTEXT        IDC_ABOUT_CREDITS,7,111,277,45,ES_MULTILINE | WS_VSCROLL | NOT WS_TABSTOP
-    DEFPUSHBUTTON   "OK",IDOK,233,178,50,14
+    DEFPUSHBUTTON   "OK",IDOK,230,178,52,14
     LTEXT           "",IDC_HOMEPAGE,18,87,117,9,SS_NOTIFY
     LTEXT           "",IDT_ABOUT_RELEASE,18,71,235,8
     CONTROL         517,IDC_ABOUT_BKG,"Static",SS_BITMAP,0,0,12,11,WS_EX_STATICEDGE
@@ -41,7 +41,6 @@ BEGIN
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,167,291,1,WS_EX_STATICEDGE
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,169,291,1,WS_EX_STATICEDGE
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,1,107,291,1,WS_EX_STATICEDGE
-    PUSHBUTTON      "Donations...",IDC_DONATIONS,164,178,61,14
     CONTROL         "",IDC_ABOUT_LOGO_AREA,"Static",SS_GRAYRECT | NOT WS_VISIBLE,0,0,293,50,WS_EX_TRANSPARENT | WS_EX_STATICEDGE
     CONTROL         518,IDC_TEXTUAL_LOGO_IMG,"Static",SS_BITMAP,12,26,157,16
 END
@@ -515,6 +514,7 @@ END
 // remains consistent on all systems.
 IDI_TRUECRYPT_ICON      ICON                    "..\\Common\\TrueCrypt.ico"
 IDI_TRUECRYPT_VOL_ICON  ICON                    "..\\Common\\TrueCrypt_volume.ico"
+IDI_TRUECRYPT_MOUNTED_ICON ICON                    "..\\Common\\TrueCrypt_mounted.ico"
 
 /////////////////////////////////////////////////////////////////////////////
 //

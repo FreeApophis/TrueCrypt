@@ -398,6 +398,15 @@ namespace TrueCrypt
 			if (Application::GetUserInterfaceType() == UserInterfaceType::Graphic && wxGetKeyState (WXK_CAPITAL))
 				message += wxString (L"\n\n") + LangString["CAPSLOCK_ON"];
 #endif
+			if (Keyfile::WasHiddenFilePresentInKeyfilePath())
+			{
+#ifdef TC_UNIX
+				message += _("\n\nWarning: Hidden files are present in a keyfile path. If you need to use them as keyfiles, remove the leading dot from their filenames. Hidden files are visible only if enabled in system options.");
+#else
+				message += LangString["HIDDEN_FILES_PRESENT_IN_KEYFILE_PATH"];
+#endif
+			}
+
 			return message;
 		}
 
@@ -636,6 +645,7 @@ namespace TrueCrypt
 			catch (MissingVolumeData&) { }
 			catch (PasswordException&) { }
 			catch (SystemException&) { }
+			catch (ExecutedProcessFailed&) { }
 		}
 
 		if (newMountedVolumes.empty())

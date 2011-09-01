@@ -123,6 +123,7 @@ BOOL DeviceChangeBroadcastDisabled = FALSE;
 BOOL LastMountedVolumeDirty;
 BOOL MountVolumesAsSystemFavorite = FALSE;
 BOOL FavoriteMountOnArrivalInProgress = FALSE;
+BOOL MultipleMountOperationInProgress = FALSE;
 
 /* Handle to the device driver */
 HANDLE hDriver = INVALID_HANDLE_VALUE;
@@ -263,13 +264,13 @@ void cleanup ()
 		{
 			// If a dismount was forced in the lifetime of the driver, Windows may later prevent it to be loaded again from
 			// the same path. Therefore, the driver will not be unloaded even though it was loaded in non-install mode.
-			int refDevDeleted;
+			int driverUnloadDisabled;
 			DWORD dwResult;
 
-			if (!DeviceIoControl (hDriver, TC_IOCTL_WAS_REFERENCED_DEVICE_DELETED, NULL, 0, &refDevDeleted, sizeof (refDevDeleted), &dwResult, NULL))
-				refDevDeleted = 0;
+			if (!DeviceIoControl (hDriver, TC_IOCTL_IS_DRIVER_UNLOAD_DISABLED, NULL, 0, &driverUnloadDisabled, sizeof (driverUnloadDisabled), &dwResult, NULL))
+				driverUnloadDisabled = 0;
 
-			if (!refDevDeleted)
+			if (!driverUnloadDisabled)
 				DriverUnload ();
 			else
 			{
@@ -670,31 +671,37 @@ static LRESULT CALLBACK HyperlinkProc (HWND hwnd, UINT message, WPARAM wParam, L
 
 BOOL ToHyperlink (HWND hwndDlg, UINT ctrlId)
 {
+	return ToCustHyperlink (hwndDlg, ctrlId, hUserUnderlineFont);
+}
+
+
+BOOL ToCustHyperlink (HWND hwndDlg, UINT ctrlId, HFONT hFont)
+{
 	HWND hwndCtrl = GetDlgItem (hwndDlg, ctrlId);
 
-	SendMessage (hwndCtrl, WM_SETFONT, (WPARAM) hUserUnderlineFont, 0);
+	SendMessage (hwndCtrl, WM_SETFONT, (WPARAM) hFont, 0);
 
 	SetWindowLongPtr (hwndCtrl, GWLP_USERDATA, (LONG_PTR) GetWindowLongPtr (hwndCtrl, GWLP_WNDPROC));
 	SetWindowLongPtr (hwndCtrl, GWLP_WNDPROC, (LONG_PTR) HyperlinkProc);
 
-	// Resize the field according to its actual length in pixels and move it if centered or right-aligned.
+	// Resize the field according to its actual size in pixels and move it if centered or right-aligned.
 	// This should be done again if the link text changes.
-	AccommodateTextField (hwndDlg, ctrlId, TRUE);
+	AccommodateTextField (hwndDlg, ctrlId, TRUE, hFont);
 
 	return TRUE;
 }
 
 
-// Resizes a text field according to its actual width in pixels (font size is taken into account) and moves
+// Resizes a text field according to its actual width and height in pixels (font size is taken into account) and moves
 // it accordingly if the field is centered or right-aligned. Should be used on all hyperlinks upon dialog init
 // after localization (bFirstUpdate should be TRUE) and later whenever a hyperlink text changes (bFirstUpdate
 // must be FALSE).
-void AccommodateTextField (HWND hwndDlg, UINT ctrlId, BOOL bFirstUpdate)
+void AccommodateTextField (HWND hwndDlg, UINT ctrlId, BOOL bFirstUpdate, HFONT hFont)
 {
 	RECT rec, wrec, trec;
 	HWND hwndCtrl = GetDlgItem (hwndDlg, ctrlId);
-	int width, origWidth, origHeight;
-	int horizSubOffset, vertOffset, alignPosDiff = 0;
+	int width, origWidth, height, origHeight;
+	int horizSubOffset, vertSubOffset, vertOffset, alignPosDiff = 0;
 	wchar_t text [MAX_URL_LENGTH];
 	WINDOWINFO windowInfo;
 	BOOL bBorderlessWindow = !(GetWindowLongPtr (hwndDlg, GWL_STYLE) & (WS_BORDER | WS_DLGFRAME));
@@ -703,7 +710,8 @@ void AccommodateTextField (HWND hwndDlg, UINT ctrlId, BOOL bFirstUpdate)
 
 	GetWindowTextW (hwndCtrl, text, sizeof (text) / sizeof (wchar_t));
 
-	width = GetTextGfxWidth (hwndCtrl, text, hUserUnderlineFont);
+	width = GetTextGfxWidth (hwndCtrl, text, hFont);
+	height = GetTextGfxHeight (hwndCtrl, text, hFont);
 
 	GetClientRect (hwndCtrl, &rec);		
 	origWidth = rec.right;
@@ -713,6 +721,7 @@ void AccommodateTextField (HWND hwndDlg, UINT ctrlId, BOOL bFirstUpdate)
 		&& (!bFirstUpdate || origWidth > width))	// The original width of the field is the maximum allowed size 
 	{
 		horizSubOffset = origWidth - width;
+		vertSubOffset = origHeight - height;
 
 		// Window coords
 		GetWindowRect(hwndDlg, &wrec);
@@ -741,7 +750,7 @@ void AccommodateTextField (HWND hwndDlg, UINT ctrlId, BOOL bFirstUpdate)
 				rec.left - wrec.left - (bBorderlessWindow ? 0 : GetSystemMetrics(SM_CXFIXEDFRAME)) + alignPosDiff,
 				rec.top - wrec.top - vertOffset,
 				origWidth - horizSubOffset,
-				origHeight,
+				origHeight - vertSubOffset,
 				TRUE);
 		}
 		else
@@ -749,7 +758,7 @@ void AccommodateTextField (HWND hwndDlg, UINT ctrlId, BOOL bFirstUpdate)
 			// Resize the text field
 			SetWindowPos (hwndCtrl, 0, 0, 0,
 				origWidth - horizSubOffset,
-				origHeight,
+				origHeight - vertSubOffset,
 				SWP_NOMOVE | SWP_NOZORDER);
 		}
 
@@ -906,13 +915,13 @@ BOOL CALLBACK AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 			"Paulo Barreto, Brian Gladman, Wei Dai, Peter Gutmann, and many others.\r\n\r\n"
 
 			"Portions of this software:\r\n"
-			"Copyright \xA9 2003-2010 TrueCrypt Developers Association. All Rights Reserved.\r\n"
+			"Copyright \xA9 2003-2011 TrueCrypt Developers Association. All Rights Reserved.\r\n"
 			"Copyright \xA9 1998-2000 Paul Le Roux. All Rights Reserved.\r\n"
 			"Copyright \xA9 1998-2008 Brian Gladman. All Rights Reserved.\r\n"
 			"Copyright \xA9 2002-2004 Mark Adler. All Rights Reserved.\r\n\r\n"
 
 			"This software as a whole:\r\n"
-			"Copyright \xA9 2010 TrueCrypt Developers Association. All rights reserved.\r\n\r\n"
+			"Copyright \xA9 2011 TrueCrypt Developers Association. All rights reserved.\r\n\r\n"
 
 			"A TrueCrypt Foundation Release");
 
@@ -928,12 +937,6 @@ BOOL CALLBACK AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 		if (lw == IDC_HOMEPAGE)
 		{
 			Applink ("main", TRUE, "");
-			return 1;
-		}
-
-		if (lw == IDC_DONATIONS)
-		{
-			Applink ("donate", FALSE, "");
 			return 1;
 		}
 
@@ -1111,6 +1114,8 @@ void InitDialog (HWND hwndDlg)
 	Font *font;
 
 	/* Fonts */
+
+	memset (&lf, 0, sizeof(lf));
 
 	// Normal
 	font = GetFont ("font_normal");
@@ -1872,6 +1877,12 @@ LONG __stdcall ExceptionHandler (EXCEPTION_POINTERS *ep)
 }
 
 
+void InvalidParameterHandler (const wchar_t *expression, const wchar_t *function, const wchar_t *file, unsigned int line, uintptr_t reserved)
+{
+	TC_THROW_FATAL_EXCEPTION;
+}
+
+
 static LRESULT CALLBACK NonInstallUacWndProc (HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	return DefWindowProc (hWnd, message, wParam, lParam);
@@ -2146,6 +2157,9 @@ void SavePostInstallTasksSettings (int command)
 {
 	FILE *f = NULL;
 
+	if (IsNonInstallMode() && command != TC_POST_INSTALL_CFG_REMOVE_ALL)
+		return;
+
 	switch (command)
 	{
 	case TC_POST_INSTALL_CFG_REMOVE_ALL:
@@ -2342,6 +2356,7 @@ void InitApp (HINSTANCE hInstance, char *lpszCommandLine)
 #endif
 
 	SetUnhandledExceptionFilter (ExceptionHandler);
+	_set_invalid_parameter_handler (InvalidParameterHandler);
 
 	RemoteSession = GetSystemMetrics (SM_REMOTESESSION) != 0;
 
@@ -3810,7 +3825,17 @@ std::wstring GetWrongPasswordErrorMessage (HWND hwndDlg)
 	}
 #endif
 
-	return szTmp;
+	wstring msg = szTmp;
+
+#ifdef TCMOUNT
+	if (KeyFilesEnable && HiddenFilesPresentInKeyfilePath)
+	{
+		msg += GetString ("HIDDEN_FILES_PRESENT_IN_KEYFILE_PATH");
+		HiddenFilesPresentInKeyfilePath = FALSE;
+	}
+#endif
+
+	return msg;
 }
 
 
@@ -3877,8 +3902,7 @@ void handleError (HWND hwndDlg, int code)
 		break;
 
 	case ERR_DRIVER_VERSION:
-		wsprintfW (szTmp, GetString ("DRIVER_VERSION"), VERSION_STRING);
-		MessageBoxW (hwndDlg, szTmp, lpszTitle, ICON_HAND);
+		Error ("DRIVER_VERSION");
 		break;
 
 	case ERR_NEW_VERSION_REQUIRED:
@@ -4277,7 +4301,7 @@ static BOOL PerformBenchmark(HWND hwndDlg)
 		{
 			int i;
 
-			for (i = 0; i < 2; i++)
+			for (i = 0; i < 10; i++)
 			{
 				EncryptDataUnits (lpTestBuffer, &startDataUnitNo, (TC_LARGEST_COMPILER_UINT) benchmarkBufferSize / ENCRYPTION_DATA_UNIT_SIZE, ci);
 				DecryptDataUnits (lpTestBuffer, &startDataUnitNo, (TC_LARGEST_COMPILER_UINT) benchmarkBufferSize / ENCRYPTION_DATA_UNIT_SIZE, ci);
@@ -4584,7 +4608,7 @@ BOOL CALLBACK BenchmarkDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lP
 			nIndex = SendMessageW (hCboxBufferSize, CB_ADDSTRING, 0, (LPARAM) s);
 			SendMessage (hCboxBufferSize, CB_SETITEMDATA, nIndex, (LPARAM) 1 * BYTES_PER_GB);
 
-			SendMessage (hCboxBufferSize, CB_SETCURSEL, 3, 0);		// Default buffer size
+			SendMessage (hCboxBufferSize, CB_SETCURSEL, 5, 0);		// Default buffer size
 
 
 			uint32 driverConfig = ReadDriverConfigurationFlags();
@@ -5707,7 +5731,7 @@ BOOL CheckCapsLock (HWND hwnd, BOOL quiet)
 
 
 // Checks whether the file extension is not used for executable files or similarly problematic, which often
-// causes Windows and antivirus software to interfere with the container 
+// causes Windows and antivirus software to interfere with the container.
 BOOL CheckFileExtension (char *fileName)
 {
 	int i = 0;
@@ -5932,6 +5956,9 @@ void BroadcastDeviceChange (WPARAM message, int nDosDriveNo, DWORD driveMap)
 // 0  = mount failed
 // 1  = mount OK
 // 2  = mount OK in shared mode
+//
+// Note that some code calling this relies on the content of the mountOptions struct
+// to remain unmodified (don't remove the 'const' without proper revision).
 
 int MountVolume (HWND hwndDlg,
 				 int driveNo,
@@ -5939,7 +5966,7 @@ int MountVolume (HWND hwndDlg,
 				 Password *password,
 				 BOOL cachePassword,
 				 BOOL sharedAccess,
-				 MountOptions *mountOptions,
+				 const MountOptions* const mountOptions,
 				 BOOL quiet,
 				 BOOL bReportWrongPassword)
 {
@@ -6021,26 +6048,10 @@ retry:
 	
 	if (path.find ("Volume{") == 0 && path.rfind ("}\\") == path.size() - 2)
 	{
-		// Resolve volume name
-		if (QueryDosDevice (path.substr (0, path.size() - 1).c_str(), volumePath, TC_MAX_PATH) != 0)
-		{
-			foreach (const HostDevice &device, GetAvailableHostDevices (true, true))
-			{
-				if (!device.DynamicVolume)
-				{
-					wchar_t resolvedVolumePath[TC_MAX_PATH];
+		string resolvedPath = VolumeGuidPathToDevicePath (path);
 
-					if (ResolveSymbolicLink (SingleStringToWide (device.Path).c_str(), resolvedVolumePath)
-						&& SingleStringToWide (volumePath) == resolvedVolumePath)
-					{
-						strcpy_s (volumePath, TC_MAX_PATH, device.Path.c_str());
-						break;
-					}
-				}
-			}
-		}
-		else
-			strcpy_s (volumePath, TC_MAX_PATH, path.c_str());
+		if (!resolvedPath.empty())
+			strcpy_s (volumePath, TC_MAX_PATH, resolvedPath.c_str());
 	}
 
 	CreateFullVolumePath ((char *) mount.wszVolume, volumePath, &bDevice);
@@ -6123,7 +6134,7 @@ retry:
 			return -1;
 		}
 
-		if (!quiet)
+		if (!quiet && (!MultipleMountOperationInProgress || GetLastError() != ERROR_NOT_READY))
 			handleWin32Error (hwndDlg);
 
 		return -1;
@@ -6276,7 +6287,7 @@ retry:
 	{
 		if (result == ERR_FILES_OPEN && !Silent)
 		{
-			if (IDYES == AskWarnNoYes ("UNMOUNT_LOCK_FAILED"))
+			if (IDYES == AskWarnYesNoTopmost ("UNMOUNT_LOCK_FAILED"))
 			{
 				forced = TRUE;
 				goto retry;
@@ -6321,6 +6332,11 @@ BOOL IsMountedVolume (const char *volname)
 
 	if (strstr (volname, "\\Device\\") != volname)
 		sprintf(volume, "\\??\\%s", volname);
+
+	string resolvedPath = VolumeGuidPathToDevicePath (volname);
+	if (!resolvedPath.empty())
+		strcpy_s (volume, sizeof (volume), resolvedPath.c_str());
+
 	ToUNICODE (volume);
 
 	memset (&mlist, 0, sizeof (mlist));
@@ -6350,6 +6366,11 @@ int GetMountedVolumeDriveNo (char *volname)
 
 	if (strstr (volname, "\\Device\\") != volname)
 		sprintf(volume, "\\??\\%s", volname);
+
+	string resolvedPath = VolumeGuidPathToDevicePath (volname);
+	if (!resolvedPath.empty())
+		strcpy_s (volume, sizeof (volume), resolvedPath.c_str());
+
 	ToUNICODE (volume);
 
 	memset (&mlist, 0, sizeof (mlist));
@@ -7551,6 +7572,91 @@ char GetSystemDriveLetter (void)
 		return 0;
 }
 
+
+void TaskBarIconDisplayBalloonTooltip (HWND hwnd, wchar_t *headline, wchar_t *text, BOOL warning)
+{
+	if (nCurrentOS == WIN_2000)
+	{
+		MessageBoxW (MainDlg, text, headline, warning ? MB_ICONWARNING : MB_ICONINFORMATION);
+		return;
+	}
+
+	NOTIFYICONDATAW tnid; 
+
+	ZeroMemory (&tnid, sizeof (tnid));
+
+	tnid.cbSize = sizeof (tnid); 
+	tnid.hWnd = hwnd; 
+	tnid.uID = IDI_TRUECRYPT_ICON; 
+	//tnid.uVersion = (IsOSAtLeast (WIN_VISTA) ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
+
+	//Shell_NotifyIconW (NIM_SETVERSION, &tnid);
+
+	tnid.uFlags = NIF_INFO; 
+	tnid.dwInfoFlags = (warning ? NIIF_WARNING : NIIF_INFO);
+	tnid.uTimeout = (IsOSAtLeast (WIN_VISTA) ? 1000 : 5000); // in ms
+
+	wcsncpy (tnid.szInfoTitle, headline, ARRAYSIZE (tnid.szInfoTitle) - 1);
+	wcsncpy (tnid.szInfo, text, ARRAYSIZE (tnid.szInfo) - 1);
+
+	// Display the balloon tooltip quickly twice in a row to avoid the slow and unwanted "fade-in" phase
+	Shell_NotifyIconW (NIM_MODIFY, &tnid);
+	Shell_NotifyIconW (NIM_MODIFY, &tnid);
+}
+
+
+// Either of the pointers may be NULL
+void InfoBalloon (char *headingStringId, char *textStringId)
+{
+	if (Silent) 
+		return;
+
+	TaskBarIconDisplayBalloonTooltip (MainDlg,
+		headingStringId == NULL ? L"TrueCrypt" : GetString (headingStringId), 
+		textStringId == NULL ? L" " : GetString (textStringId), 
+		FALSE);
+}
+
+
+// Either of the pointers may be NULL
+void InfoBalloonDirect (wchar_t *headingString, wchar_t *textString)
+{
+	if (Silent) 
+		return;
+
+	TaskBarIconDisplayBalloonTooltip (MainDlg,
+		headingString == NULL ? L"TrueCrypt" : headingString, 
+		textString == NULL ? L" " : textString, 
+		FALSE);
+}
+
+
+// Either of the pointers may be NULL
+void WarningBalloon (char *headingStringId, char *textStringId)
+{
+	if (Silent) 
+		return;
+
+	TaskBarIconDisplayBalloonTooltip (MainDlg,
+		headingStringId == NULL ? L"TrueCrypt" : GetString (headingStringId), 
+		textStringId == NULL ? L" " : GetString (textStringId), 
+		TRUE);
+}
+
+
+// Either of the pointers may be NULL
+void WarningBalloonDirect (wchar_t *headingString, wchar_t *textString)
+{
+	if (Silent) 
+		return;
+
+	TaskBarIconDisplayBalloonTooltip (MainDlg,
+		headingString == NULL ? L"TrueCrypt" : headingString, 
+		textString == NULL ? L" " : textString, 
+		TRUE);
+}
+
+
 int Info (char *stringId)
 {
 	if (Silent) return 0;
@@ -7628,6 +7734,13 @@ int AskYesNoString (const wchar_t *str)
 }
 
 
+int AskYesNoTopmost (char *stringId)
+{
+	if (Silent) return IDNO;
+	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONQUESTION | MB_YESNO | MB_DEFBUTTON1 | MB_SETFOREGROUND | MB_TOPMOST);
+}
+
+
 int AskNoYes (char *stringId)
 {
 	if (Silent) return IDNO;
@@ -7649,6 +7762,20 @@ int AskWarnYesNo (char *stringId)
 }
 
 
+int AskWarnYesNoString (const wchar_t *string)
+{
+	if (Silent) return IDNO;
+	return MessageBoxW (MainDlg, string, lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON1);
+}
+
+
+int AskWarnYesNoTopmost (char *stringId)
+{
+	if (Silent) return IDNO;
+	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON1 | MB_SETFOREGROUND | MB_TOPMOST);
+}
+
+
 int AskWarnNoYes (char *stringId)
 {
 	if (Silent) return IDNO;
@@ -7663,10 +7790,10 @@ int AskWarnNoYesString (const wchar_t *string)
 }
 
 
-int AskWarnYesNoString (const wchar_t *string)
+int AskWarnNoYesTopmost (char *stringId)
 {
 	if (Silent) return IDNO;
-	return MessageBoxW (MainDlg, string, lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON1);
+	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2 | MB_SETFOREGROUND | MB_TOPMOST);
 }
 
 
@@ -8238,7 +8365,7 @@ void HandleDriveNotReadyError ()
 	else if (nCurrentOS == WIN_VISTA && CurrentOSServicePack < 1)
 		Warning ("SYS_ASSIGN_DRIVE_LETTER");
 	else
-		Error ("DEVICE_NOT_READY_ERROR");
+		Warning ("DEVICE_NOT_READY_ERROR");
 
 	RegCloseKey (hkey);
 }
@@ -9201,9 +9328,9 @@ std::vector <HostDevice> GetAvailableHostDevices (bool noDeviceProperties, bool 
 	vector <HostDevice> devices;
 	size_t dev0;
 
-	for (int devNumber = 0; devNumber < 64; devNumber++)
+	for (int devNumber = 0; devNumber < MAX_HOST_DRIVE_NUMBER; devNumber++)
 	{
-		for (int partNumber = 0; partNumber < 32; partNumber++)
+		for (int partNumber = 0; partNumber < MAX_HOST_PARTITION_NUMBER; partNumber++)
 		{
 			stringstream strm;
 			strm << "\\Device\\Harddisk" << devNumber << "\\Partition" << partNumber;
@@ -9591,7 +9718,7 @@ BOOL LaunchWindowsIsoBurner (HWND hwnd, const char *isoPath)
 }
 
 
-std::string VolumeGuidPathToDevicePath (string volumeGuidPath)
+std::string VolumeGuidPathToDevicePath (std::string volumeGuidPath)
 {
 	if (volumeGuidPath.find ("\\\\?\\") == 0)
 		volumeGuidPath = volumeGuidPath.substr (4);
@@ -9603,22 +9730,32 @@ std::string VolumeGuidPathToDevicePath (string volumeGuidPath)
 	if (QueryDosDevice (volumeGuidPath.substr (0, volumeGuidPath.size() - 1).c_str(), volDevPath, TC_MAX_PATH) == 0)
 		return string();
 
-	wstring volDevPathStr = SingleStringToWide (volDevPath);
+	string partitionPath = HarddiskVolumePathToPartitionPath (volDevPath);
 
-	foreach (const HostDevice &device, GetAvailableHostDevices (true, true))
+	return partitionPath.empty() ? volDevPath : partitionPath;
+}
+
+
+std::string HarddiskVolumePathToPartitionPath (const std::string &harddiskVolumePath)
+{
+	wstring volPath = SingleStringToWide (harddiskVolumePath);
+
+	for (int driveNumber = 0; driveNumber < MAX_HOST_DRIVE_NUMBER; driveNumber++)
 	{
-		if (!device.DynamicVolume)
+		for (int partNumber = 0; partNumber < MAX_HOST_PARTITION_NUMBER; partNumber++)
 		{
-			wchar_t resolvedVolumePath[TC_MAX_PATH];
+			wchar_t partitionPath[TC_MAX_PATH];
+			swprintf_s (partitionPath, ARRAYSIZE (partitionPath), L"\\Device\\Harddisk%d\\Partition%d", driveNumber, partNumber);
 
-			if (ResolveSymbolicLink (SingleStringToWide (device.Path).c_str(), resolvedVolumePath)
-				&& volDevPathStr == resolvedVolumePath)
+			wchar_t resolvedPath[TC_MAX_PATH];
+			if (ResolveSymbolicLink (partitionPath, resolvedPath))
 			{
-				return device.Path;
+				if (volPath == resolvedPath)
+					return WideToSingleString (partitionPath);
 			}
+			else if (partNumber == 0)
+				break;
 		}
-		else if (volDevPath == device.Path)
-			return device.Path;
 	}
 
 	return string();

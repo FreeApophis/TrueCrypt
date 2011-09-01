@@ -133,7 +133,7 @@ static void FreePoolBuffers (EncryptedIoQueue *queue)
 	{
 		EncryptedIoQueueBuffer *nextBuffer = buffer->NextBuffer;
 
-		ASSERT (!buffer->InUse);
+		ASSERT (!buffer->InUse || queue->StartPending);
 
 		TCfree (buffer->Address);
 		TCfree (buffer);
@@ -969,6 +969,8 @@ err:
 		TCfree (queue->FragmentBufferA);
 	if (queue->FragmentBufferB)
 		TCfree (queue->FragmentBufferB);
+	if (queue->ReadAheadBuffer)
+		TCfree (queue->ReadAheadBuffer);
 
 	FreePoolBuffers (queue);
 

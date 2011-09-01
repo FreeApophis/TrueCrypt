@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <mntent.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/mount.h>
 #include <sys/wait.h>
@@ -219,6 +220,17 @@ namespace TrueCrypt
 	MountedFilesystemList CoreLinux::GetMountedFilesystems (const DevicePath &devicePath, const DirectoryPath &mountPoint) const
 	{
 		MountedFilesystemList mountedFilesystems;
+		DevicePath realDevicePath = devicePath;
+
+		if (!devicePath.IsEmpty())
+		{
+			char *resolvedPath = realpath (string (devicePath).c_str(), NULL);
+			if (resolvedPath)
+			{
+				realDevicePath = resolvedPath;
+				free (resolvedPath);
+			}
+		}
 
 		FILE *mtab = fopen ("/etc/mtab", "r");
 
@@ -247,7 +259,7 @@ namespace TrueCrypt
 			if (entry->mnt_type)
 				mf->Type = entry->mnt_type;
 
-			if ((devicePath.IsEmpty() || devicePath == mf->Device) && (mountPoint.IsEmpty() || mountPoint == mf->MountPoint))
+			if ((devicePath.IsEmpty() || devicePath == mf->Device || realDevicePath == mf->Device) && (mountPoint.IsEmpty() || mountPoint == mf->MountPoint))
 				mountedFilesystems.push_back (mf);
 		}
 

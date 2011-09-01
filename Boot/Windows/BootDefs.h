@@ -35,7 +35,7 @@
 #endif
 
 // Modifying this value can introduce incompatibility with previous versions
-#define TC__BOOT_LOADER_SEGMENT			TC_HEX (9000)	// Memory reserved in the segment 8000 is always destroyed by Vista with no SP
+#define TC__BOOT_LOADER_SEGMENT			TC_HEX (9000)	// Some buggy BIOS routines fail if CS bits 0-10 are not zero
 
 #if TC__BOOT_MEMORY_REQUIRED <= 32
 #	define TC__BOOT_LOADER_SEGMENT_LOW	(TC__BOOT_LOADER_SEGMENT - 32 * 1024 / 16)	

@@ -559,16 +559,16 @@
 				>
 			</File>
 			<File
+				RelativePath="..\Common\TrueCrypt_mounted.ico"
+				>
+			</File>
+			<File
 				RelativePath="..\Common\TrueCrypt_volume.ico"
 				>
 			</File>
 			<Filter
 				Name="Common"
 				>
-				<File
-					RelativePath="..\Boot\Windows\Release_Serpent\BootLoader.com.gz"
-					>
-				</File>
 				<File
 					RelativePath="..\Boot\Windows\Release_AES\BootLoader.com.gz"
 					>
@@ -595,6 +595,10 @@
 				</File>
 				<File
 					RelativePath="..\Boot\Windows\Rescue_Twofish\BootLoader.com.gz"
+					>
+				</File>
+				<File
+					RelativePath="..\Boot\Windows\Release_Serpent\BootLoader.com.gz"
 					>
 				</File>
 				<File

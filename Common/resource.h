@@ -42,6 +42,7 @@
 #define IDD_TOKEN_KEYFILES              538
 #define IDD_NEW_TOKEN_KEYFILE           539
 #define IDD_RANDOM_POOL_ENRICHMENT      540
+#define IDI_TRUECRYPT_MOUNTED_ICON      541
 #define IDC_HW_AES_LABEL_LINK           5000
 #define IDC_HW_AES                      5001
 #define IDC_PARALLELIZATION_LABEL_LINK  5002
@@ -139,36 +140,35 @@
 #define IDC_CHOICE10                    5094
 #define IDC_MC_DLG_HR1                  5095
 #define IDC_MC_DLG_HR2                  5096
-#define IDC_DONATIONS                   5097
-#define IDC_LINK_HIDVOL_PROTECTION_INFO 5098
-#define IDC_LINK_KEYFILES_INFO          5099
-#define IDC_TEXTUAL_LOGO_IMG            5100
-#define IDC_ASPECT_RATIO_CALIBRATION_BOX 5101
-#define IDC_ABOUT_LOGO_AREA             5102
-#define IDC_TOKEN_PASSWORD              5103
-#define IDC_TOKEN_FILE_LIST             5104
-#define IDC_TOKEN_FILES_ADD             5105
-#define IDC_EXPORT                      5106
-#define IDC_DELETE                      5107
-#define IDC_IMPORT_KEYFILE              5108
-#define IDC_SELECTED_TOKEN              5109
-#define IDT_SECURITY_TOKEN              5110
-#define IDT_TOKEN_KEYFILE_NAME          5111
-#define IDC_TOKEN_KEYFILE_NAME          5112
-#define IDT_TOKEN_PASSWORD_INFO         5113
-#define IDT_RANDOM_POOL_ENRICHMENT_NOTE 5114
-#define IDC_CONTINUE                    5115
-#define IDT_ABOUT_RELEASE               5116
-#define IDT_STATIC_MODELESS_WAIT_DLG_INFO 5117
+#define IDC_LINK_HIDVOL_PROTECTION_INFO 5097
+#define IDC_LINK_KEYFILES_INFO          5098
+#define IDC_TEXTUAL_LOGO_IMG            5099
+#define IDC_ASPECT_RATIO_CALIBRATION_BOX 5100
+#define IDC_ABOUT_LOGO_AREA             5101
+#define IDC_TOKEN_PASSWORD              5102
+#define IDC_TOKEN_FILE_LIST             5103
+#define IDC_TOKEN_FILES_ADD             5104
+#define IDC_EXPORT                      5105
+#define IDC_DELETE                      5106
+#define IDC_IMPORT_KEYFILE              5107
+#define IDC_SELECTED_TOKEN              5108
+#define IDT_SECURITY_TOKEN              5109
+#define IDT_TOKEN_KEYFILE_NAME          5110
+#define IDC_TOKEN_KEYFILE_NAME          5111
+#define IDT_TOKEN_PASSWORD_INFO         5112
+#define IDT_RANDOM_POOL_ENRICHMENT_NOTE 5113
+#define IDC_CONTINUE                    5114
+#define IDT_ABOUT_RELEASE               5115
+#define IDT_STATIC_MODELESS_WAIT_DLG_INFO 5116
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
-#define _APS_NEXT_RESOURCE_VALUE        541
+#define _APS_NEXT_RESOURCE_VALUE        542
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         5118
+#define _APS_NEXT_CONTROL_VALUE         5117
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

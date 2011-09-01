@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008-2009 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2011 TrueCrypt Developers Association. All rights reserved.
 
  Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
@@ -12,6 +12,8 @@
 #include "Bios.h"
 #include "BootDebug.h"
 #include "BootDefs.h"
+
+#define TC_MAX_BIOS_DISK_IO_RETRIES 5
 
 enum
 {

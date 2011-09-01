@@ -79,7 +79,6 @@ namespace TrueCrypt
 		void OnDefaultKeyfilesMenuItemSelected (wxCommandEvent& event);
 		void OnDismountAllButtonClick (wxCommandEvent& event);
 		void OnDismountVolumeMenuItemSelected (wxCommandEvent& event) { DismountVolume(); }
-		void OnDonationsMenuItemSelected (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"donations"); }
 		void OnDownloadsMenuItemSelected (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"downloads"); }
 		void OnEncryptionTestMenuItemSelected (wxCommandEvent& event);
 		void OnExitButtonClick (wxCommandEvent& event);

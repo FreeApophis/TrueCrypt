@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ of this file are Copyright (c) 2003-2011 TrueCrypt Developers Association
  and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
@@ -38,13 +38,14 @@
 #pragma alloc_text(INIT,TCCreateRootDeviceObject)
 
 PDRIVER_OBJECT TCDriverObject;
-KMUTEX driverMutex;			/* Sync mutex for the entire driver */
+PDEVICE_OBJECT RootDeviceObject = NULL;
+static KMUTEX RootDeviceControlMutex;
 BOOL DriverShuttingDown = FALSE;
 BOOL SelfTestsPassed;
 int LastUniqueVolumeId;
 ULONG OsMajorVersion = 0;
 ULONG OsMinorVersion;
-BOOL ReferencedDeviceDeleted = FALSE;
+BOOL DriverUnloadDisabled = FALSE;
 BOOL PortableMode = FALSE;
 BOOL VolumeClassFilterRegistered = FALSE;
 BOOL CacheBootPassword = FALSE;
@@ -52,6 +53,8 @@ BOOL NonAdminSystemFavoritesAccessDisabled = FALSE;
 static size_t EncryptionThreadPoolFreeCpuCountLimit = 0;
 static BOOL SystemFavoriteVolumeDirty = FALSE;
 static BOOL PagingFileCreationPrevented = FALSE;
+
+PDEVICE_OBJECT VirtualVolumeDeviceObjects[MAX_MOUNTED_VOLUME_DRIVE_NUMBER + 1];
 
 
 NTSTATUS DriverEntry (PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
@@ -69,7 +72,7 @@ NTSTATUS DriverEntry (PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 		return DumpFilterEntry ((PFILTER_EXTENSION) DriverObject, (PFILTER_INITIALIZATION_DATA) RegistryPath);
 
 	TCDriverObject = DriverObject;
-	KeInitializeMutex (&driverMutex, 0);
+	memset (VirtualVolumeDeviceObjects, 0, sizeof (VirtualVolumeDeviceObjects));
 
 	ReadRegistryConfigFlags (TRUE);
 	EncryptionThreadPoolStart (EncryptionThreadPoolFreeCpuCountLimit);
@@ -182,6 +185,15 @@ BOOL ValidateIOBufferSize (PIRP irp, size_t requiredBufferSize, ValidateIOBuffer
 }
 
 
+PDEVICE_OBJECT GetVirtualVolumeDeviceObject (int driveNumber)
+{
+	if (driveNumber < MIN_MOUNTED_VOLUME_DRIVE_NUMBER || driveNumber > MAX_MOUNTED_VOLUME_DRIVE_NUMBER)
+		return NULL;
+
+	return VirtualVolumeDeviceObjects[driveNumber];
+}
+
+
 /* TCDispatchQueueIRP queues any IRP's so that they can be processed later
    by the thread -- or in some cases handles them immediately! */
 NTSTATUS TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp)
@@ -250,7 +262,7 @@ NTSTATUS TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 			if (DecoySystemWipeThread)
 				AbortDecoySystemWipe();
 
-			UnmountAllDevices (NULL, DeviceObject, TRUE);
+			OnShutdownPending();
 		}
 
 		return COMPLETE_IRP (DeviceObject, Irp, STATUS_SUCCESS, 0);
@@ -263,7 +275,16 @@ NTSTATUS TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 		if (Extension->bRootDevice)
 		{
 			if (irpSp->MajorFunction == IRP_MJ_DEVICE_CONTROL)
-				return ProcessMainDeviceControlIrp (DeviceObject, Extension, Irp);
+			{
+				NTSTATUS status = KeWaitForMutexObject (&RootDeviceControlMutex, Executive, KernelMode, FALSE, NULL);
+				if (!NT_SUCCESS (status))
+					return status;
+
+				status = ProcessMainDeviceControlIrp (DeviceObject, Extension, Irp);
+
+				KeReleaseMutex (&RootDeviceControlMutex, FALSE);
+				return status;
+			}
 			break;
 		}
 
@@ -367,6 +388,8 @@ NTSTATUS TCCreateRootDeviceObject (PDRIVER_OBJECT DriverObject)
 	bRootExtension = (BOOL *) DeviceObject->DeviceExtension;
 	*bRootExtension = TRUE;
 
+	KeInitializeMutex (&RootDeviceControlMutex, 0);
+
 	ntStatus = IoCreateSymbolicLink (&Win32NameString, &ntUnicodeString);
 
 	if (!NT_SUCCESS (ntStatus))
@@ -377,6 +400,7 @@ NTSTATUS TCCreateRootDeviceObject (PDRIVER_OBJECT DriverObject)
 	}
 
 	IoRegisterShutdownNotification (DeviceObject);
+	RootDeviceObject = DeviceObject;
 
 	Dump ("TCCreateRootDeviceObject STATUS_SUCCESS END\n");
 	return STATUS_SUCCESS;
@@ -423,14 +447,13 @@ NTSTATUS TCCreateDeviceObject (PDRIVER_OBJECT DriverObject,
 	/* Initialize device object and extension. */
 
 	(*ppDeviceObject)->Flags |= DO_DIRECT_IO;
-	(*ppDeviceObject)->StackSize += 4;		// Reduce occurrence of NO_MORE_IRP_STACK_LOCATIONS bug check caused by buggy drivers
+	(*ppDeviceObject)->StackSize += 6;		// Reduce occurrence of NO_MORE_IRP_STACK_LOCATIONS bug check caused by buggy drivers
 
 	/* Setup the device extension */
 	Extension = (PEXTENSION) (*ppDeviceObject)->DeviceExtension;
 	memset (Extension, 0, sizeof (EXTENSION));
 
 	Extension->IsVolumeDevice = TRUE;
-	Extension->lMagicNumber = 0xabfeacde;
 	Extension->nDosDriveNo = mount->nDosDriveNo;
 	Extension->bRemovable = mount->bMountRemovable;
 	Extension->PartitionInInactiveSysEncScope = mount->bPartitionInInactiveSysEncScope;
@@ -442,35 +465,28 @@ NTSTATUS TCCreateDeviceObject (PDRIVER_OBJECT DriverObject,
 	InitializeListHead (&Extension->ListEntry);
 	IoInitializeRemoveLock (&Extension->Queue.RemoveLock, 'LRCT', 0, 0);
 
+	VirtualVolumeDeviceObjects[mount->nDosDriveNo] = *ppDeviceObject;
+
 	Dump ("TCCreateDeviceObject STATUS_SUCCESS END\n");
 
 	return STATUS_SUCCESS;
 }
 
 
-void DriverMutexWait ()
-{
-	NTSTATUS status = KeWaitForMutexObject (&driverMutex, Executive, KernelMode, FALSE, NULL);
-
-	if (!NT_SUCCESS (status))
-		TC_BUG_CHECK (status);
-}
-
-
-BOOL DriverMutexAcquireNoWait ()
+BOOL RootDeviceControlMutexAcquireNoWait ()
 {
 	NTSTATUS status;
 	LARGE_INTEGER timeout;
 	timeout.QuadPart = 0;
 
-	status = KeWaitForMutexObject (&driverMutex, Executive, KernelMode, FALSE, &timeout);
+	status = KeWaitForMutexObject (&RootDeviceControlMutex, Executive, KernelMode, FALSE, &timeout);
 	return NT_SUCCESS (status) && status != STATUS_TIMEOUT;
 }
 
 
-void DriverMutexRelease ()
+void RootDeviceControlMutexRelease ()
 {
-	KeReleaseMutex (&driverMutex, FALSE);
+	KeReleaseMutex (&RootDeviceControlMutex, FALSE);
 }
 
 
@@ -813,10 +829,16 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		}
 		break;
 
-	case TC_IOCTL_WAS_REFERENCED_DEVICE_DELETED:
+	case TC_IOCTL_IS_DRIVER_UNLOAD_DISABLED:
 		if (ValidateIOBufferSize (Irp, sizeof (int), ValidateOutput))
 		{
-			*(int *) Irp->AssociatedIrp.SystemBuffer = ReferencedDeviceDeleted;
+			LONG deviceObjectCount = 0;
+
+			*(int *) Irp->AssociatedIrp.SystemBuffer = DriverUnloadDisabled;
+
+			if (IoEnumerateDeviceObjectList (TCDriverObject, NULL, 0, &deviceObjectCount) == STATUS_BUFFER_TOO_SMALL && deviceObjectCount > 1)
+				*(int *) Irp->AssociatedIrp.SystemBuffer = TRUE;
+
 			Irp->IoStatus.Information = sizeof (int);
 			Irp->IoStatus.Status = STATUS_SUCCESS;
 		}
@@ -825,25 +847,17 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 	case TC_IOCTL_IS_ANY_VOLUME_MOUNTED:
 		if (ValidateIOBufferSize (Irp, sizeof (int), ValidateOutput))
 		{
-			PDEVICE_OBJECT ListDevice;
+			int drive;
 			*(int *) Irp->AssociatedIrp.SystemBuffer = 0;
 
-			DriverMutexWait ();
-
-			for (ListDevice = DeviceObject->DriverObject->DeviceObject;
-				ListDevice != (PDEVICE_OBJECT) NULL; ListDevice = ListDevice->NextDevice)
+			for (drive = MIN_MOUNTED_VOLUME_DRIVE_NUMBER; drive <= MAX_MOUNTED_VOLUME_DRIVE_NUMBER; ++drive)
 			{
-				PEXTENSION ListExtension = (PEXTENSION) ListDevice->DeviceExtension;
-				if (!ListExtension->bRootDevice
-					&& ListExtension->IsVolumeDevice
-					&& ListExtension->lMagicNumber == 0xabfeacde)
+				if (GetVirtualVolumeDeviceObject (drive))
 				{
 					*(int *) Irp->AssociatedIrp.SystemBuffer = 1;
 					break;
 				}
 			}
-
-			DriverMutexRelease ();
 
 			if (IsBootDriveMounted())
 				*(int *) Irp->AssociatedIrp.SystemBuffer = 1;
@@ -1057,9 +1071,7 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		break;
 
 	case TC_IOCTL_WIPE_PASSWORD_CACHE:
-		DriverMutexWait ();
 		WipeCache ();
-		DriverMutexRelease ();
 
 		Irp->IoStatus.Status = STATUS_SUCCESS;
 		Irp->IoStatus.Information = 0;
@@ -1094,20 +1106,20 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		{
 			MOUNT_LIST_STRUCT *list = (MOUNT_LIST_STRUCT *) Irp->AssociatedIrp.SystemBuffer;
 			PDEVICE_OBJECT ListDevice;
-
-			DriverMutexWait ();
+			int drive;
 
 			list->ulMountedDrives = 0;
 
-			for (ListDevice = DeviceObject->DriverObject->DeviceObject;
-			     ListDevice != (PDEVICE_OBJECT) NULL; ListDevice = ListDevice->NextDevice)
+			for (drive = MIN_MOUNTED_VOLUME_DRIVE_NUMBER; drive <= MAX_MOUNTED_VOLUME_DRIVE_NUMBER; ++drive)
 			{
-				PEXTENSION ListExtension = (PEXTENSION) ListDevice->DeviceExtension;
-				if (!ListExtension->bRootDevice
-					&& ListExtension->IsVolumeDevice
-					&& !ListExtension->bShuttingDown
-					&& ListExtension->lMagicNumber == 0xabfeacde
-					&& IsVolumeAccessibleByCurrentUser (ListExtension))
+				PEXTENSION ListExtension;
+				
+				ListDevice = GetVirtualVolumeDeviceObject (drive);
+				if (!ListDevice)
+					continue;
+
+				ListExtension = (PEXTENSION) ListDevice->DeviceExtension;
+				if (IsVolumeAccessibleByCurrentUser (ListExtension))
 				{
 					list->ulMountedDrives |= (1 << ListExtension->nDosDriveNo);
 					wcscpy (list->wszVolume[ListExtension->nDosDriveNo], ListExtension->wszVolume);
@@ -1123,8 +1135,6 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 						list->volumeType[ListExtension->nDosDriveNo] = PROP_VOL_TYPE_NORMAL;	// Normal volume
 				}
 			}
-
-			DriverMutexRelease ();
 
 			Irp->IoStatus.Status = STATUS_SUCCESS;
 			Irp->IoStatus.Information = sizeof (MOUNT_LIST_STRUCT);
@@ -1150,24 +1160,15 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		if (ValidateIOBufferSize (Irp, sizeof (VOLUME_PROPERTIES_STRUCT), ValidateInputOutput))
 		{
 			VOLUME_PROPERTIES_STRUCT *prop = (VOLUME_PROPERTIES_STRUCT *) Irp->AssociatedIrp.SystemBuffer;
-			PDEVICE_OBJECT ListDevice;
+			PDEVICE_OBJECT ListDevice = GetVirtualVolumeDeviceObject (prop->driveNo);
 
 			Irp->IoStatus.Status = STATUS_INVALID_PARAMETER;
 			Irp->IoStatus.Information = 0;
 
-			DriverMutexWait ();
-
-			for (ListDevice = DeviceObject->DriverObject->DeviceObject;
-			     ListDevice != (PDEVICE_OBJECT) NULL; ListDevice = ListDevice->NextDevice)
+			if (ListDevice)
 			{
-
 				PEXTENSION ListExtension = (PEXTENSION) ListDevice->DeviceExtension;
-				if (!ListExtension->bRootDevice
-					&& ListExtension->IsVolumeDevice
-					&& ListExtension->lMagicNumber == 0xabfeacde
-					&& !ListExtension->bShuttingDown
-					&& ListExtension->nDosDriveNo == prop->driveNo
-					&& IsVolumeAccessibleByCurrentUser (ListExtension))
+				if (IsVolumeAccessibleByCurrentUser (ListExtension))
 				{
 					prop->uniqueId = ListExtension->UniqueVolumeId;
 					wcscpy (prop->wszVolume, ListExtension->wszVolume);
@@ -1198,11 +1199,8 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 
 					Irp->IoStatus.Status = STATUS_SUCCESS;
 					Irp->IoStatus.Information = sizeof (VOLUME_PROPERTIES_STRUCT);
-					break;
 				}
 			}
-
-			DriverMutexRelease ();
 		}
 		break;
 
@@ -1362,12 +1360,8 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 
 			EnsureNullTerminatedString (mount->wszVolume, sizeof (mount->wszVolume));
 
-			DriverMutexWait ();
-
 			Irp->IoStatus.Information = sizeof (MOUNT_STRUCT);
 			Irp->IoStatus.Status = MountDevice (DeviceObject, mount);
-
-			DriverMutexRelease ();
 
 			burn (&mount->VolumePassword, sizeof (mount->VolumePassword));
 			burn (&mount->ProtectedHidVolPassword, sizeof (mount->ProtectedHidVolPassword));
@@ -1378,28 +1372,16 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		if (ValidateIOBufferSize (Irp, sizeof (UNMOUNT_STRUCT), ValidateInputOutput))
 		{
 			UNMOUNT_STRUCT *unmount = (UNMOUNT_STRUCT *) Irp->AssociatedIrp.SystemBuffer;
-			PDEVICE_OBJECT ListDevice;
+			PDEVICE_OBJECT ListDevice = GetVirtualVolumeDeviceObject (unmount->nDosDriveNo);
 
 			unmount->nReturnCode = ERR_DRIVE_NOT_FOUND;
 
-			for (ListDevice = DeviceObject->DriverObject->DeviceObject;
-			     ListDevice != (PDEVICE_OBJECT) NULL;
-			     ListDevice = ListDevice->NextDevice)
+			if (ListDevice)
 			{
 				PEXTENSION ListExtension = (PEXTENSION) ListDevice->DeviceExtension;
 
-				if (!ListExtension->bRootDevice
-					&& ListExtension->IsVolumeDevice
-					&& ListExtension->lMagicNumber == 0xabfeacde
-					&& !ListExtension->bShuttingDown
-					&& unmount->nDosDriveNo == ListExtension->nDosDriveNo
-					&& IsVolumeAccessibleByCurrentUser (ListExtension))
-				{
-					DriverMutexWait ();
+				if (IsVolumeAccessibleByCurrentUser (ListExtension))
 					unmount->nReturnCode = UnmountDevice (unmount, ListDevice, unmount->ignoreOpenFiles);
-					DriverMutexRelease ();
-					break;
-				}
 			}
 
 			Irp->IoStatus.Information = sizeof (UNMOUNT_STRUCT);
@@ -1412,7 +1394,7 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		{
 			UNMOUNT_STRUCT *unmount = (UNMOUNT_STRUCT *) Irp->AssociatedIrp.SystemBuffer;
 
-			unmount->nReturnCode = UnmountAllDevices (unmount, DeviceObject, unmount->ignoreOpenFiles);
+			unmount->nReturnCode = UnmountAllDevices (unmount, unmount->ignoreOpenFiles);
 
 			Irp->IoStatus.Information = sizeof (UNMOUNT_STRUCT);
 			Irp->IoStatus.Status = STATUS_SUCCESS;
@@ -1420,27 +1402,17 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		break;
 
 	case TC_IOCTL_BOOT_ENCRYPTION_SETUP:
-		DriverMutexWait ();
-		
 		Irp->IoStatus.Status = StartBootEncryptionSetup (DeviceObject, Irp, irpSp);
 		Irp->IoStatus.Information = 0;
-		
-		DriverMutexRelease ();
 		break;
 
 	case TC_IOCTL_ABORT_BOOT_ENCRYPTION_SETUP:
-		DriverMutexWait ();
-
 		Irp->IoStatus.Status = AbortBootEncryptionSetup();
 		Irp->IoStatus.Information = 0;
-
-		DriverMutexRelease ();
 		break;
 
 	case TC_IOCTL_GET_BOOT_ENCRYPTION_STATUS:
-		DriverMutexWait ();
 		GetBootEncryptionStatus (Irp, irpSp);
-		DriverMutexRelease ();
 		break;
 
 	case TC_IOCTL_GET_BOOT_ENCRYPTION_SETUP_RESULT:
@@ -1449,27 +1421,19 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		break;
 
 	case TC_IOCTL_GET_BOOT_DRIVE_VOLUME_PROPERTIES:
-		DriverMutexWait ();
 		GetBootDriveVolumeProperties (Irp, irpSp);
-		DriverMutexRelease ();
 		break;
 
 	case TC_IOCTL_GET_BOOT_LOADER_VERSION:
-		DriverMutexWait ();
 		GetBootLoaderVersion (Irp, irpSp);
-		DriverMutexRelease ();
 		break;
 
 	case TC_IOCTL_REOPEN_BOOT_VOLUME_HEADER:
-		DriverMutexWait ();
 		ReopenBootVolumeHeader (Irp, irpSp);
-		DriverMutexRelease ();
 		break;
 
 	case TC_IOCTL_GET_BOOT_ENCRYPTION_ALGORITHM_NAME:
-		DriverMutexWait ();
 		GetBootEncryptionAlgorithmName (Irp, irpSp);
-		DriverMutexRelease ();
 		break;
 
 	case TC_IOCTL_IS_HIDDEN_SYSTEM_RUNNING:
@@ -1482,21 +1446,13 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		break;
 
 	case TC_IOCTL_START_DECOY_SYSTEM_WIPE:
-		DriverMutexWait ();
-		
 		Irp->IoStatus.Status = StartDecoySystemWipe (DeviceObject, Irp, irpSp);
 		Irp->IoStatus.Information = 0;
-		
-		DriverMutexRelease ();
 		break;
 
 	case TC_IOCTL_ABORT_DECOY_SYSTEM_WIPE:
-		DriverMutexWait ();
-		
 		Irp->IoStatus.Status = AbortDecoySystemWipe();
 		Irp->IoStatus.Information = 0;
-		
-		DriverMutexRelease ();
 		break;
 
 	case TC_IOCTL_GET_DECOY_SYSTEM_WIPE_RESULT:
@@ -1505,9 +1461,7 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		break;
 
 	case TC_IOCTL_GET_DECOY_SYSTEM_WIPE_STATUS:
-		DriverMutexWait ();
 		GetDecoySystemWipeStatus (Irp, irpSp);
-		DriverMutexRelease ();
 		break;
 
 	case TC_IOCTL_WRITE_BOOT_DRIVE_SECTOR:
@@ -1543,12 +1497,8 @@ NTSTATUS ProcessMainDeviceControlIrp (PDEVICE_OBJECT DeviceObject, PEXTENSION Ex
 		break;
 
 	case TC_IOCTL_REREAD_DRIVER_CONFIG:
-		DriverMutexWait();
-
 		Irp->IoStatus.Status = ReadRegistryConfigFlags (FALSE);
 		Irp->IoStatus.Information = 0;
-
-		DriverMutexRelease();
 		break;
 
 	case TC_IOCTL_GET_SYSTEM_DRIVE_DUMP_CONFIG:
@@ -1944,6 +1894,7 @@ LPWSTR TCTranslateCode (ULONG ulCode)
 		TC_CASE_RET_NAME (TC_IOCTL_GET_WARNING_FLAGS);
 		TC_CASE_RET_NAME (TC_IOCTL_DISK_IS_WRITABLE);
 		TC_CASE_RET_NAME (TC_IOCTL_IS_ANY_VOLUME_MOUNTED);
+		TC_CASE_RET_NAME (TC_IOCTL_IS_DRIVER_UNLOAD_DISABLED);
 		TC_CASE_RET_NAME (TC_IOCTL_IS_HIDDEN_SYSTEM_RUNNING);
 		TC_CASE_RET_NAME (TC_IOCTL_MOUNT_VOLUME);
 		TC_CASE_RET_NAME (TC_IOCTL_OPEN_TEST);
@@ -1952,7 +1903,6 @@ LPWSTR TCTranslateCode (ULONG ulCode)
 		TC_CASE_RET_NAME (TC_IOCTL_REREAD_DRIVER_CONFIG);
 		TC_CASE_RET_NAME (TC_IOCTL_SET_SYSTEM_FAVORITE_VOLUME_DIRTY);
 		TC_CASE_RET_NAME (TC_IOCTL_START_DECOY_SYSTEM_WIPE);
-		TC_CASE_RET_NAME (TC_IOCTL_WAS_REFERENCED_DEVICE_DELETED);
 		TC_CASE_RET_NAME (TC_IOCTL_WIPE_PASSWORD_CACHE);
 		TC_CASE_RET_NAME (TC_IOCTL_WRITE_BOOT_DRIVE_SECTOR);
 
@@ -2075,9 +2025,8 @@ LPWSTR TCTranslateCode (ULONG ulCode)
 
 #endif
 
-PDEVICE_OBJECT TCDeleteDeviceObject (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension)
+void TCDeleteDeviceObject (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension)
 {
-	PDEVICE_OBJECT OldDeviceObject = DeviceObject;
 	UNICODE_STRING Win32NameString;
 	NTSTATUS ntStatus;
 
@@ -2089,11 +2038,11 @@ PDEVICE_OBJECT TCDeleteDeviceObject (PDEVICE_OBJECT DeviceObject, PEXTENSION Ext
 		ntStatus = IoDeleteSymbolicLink (&Win32NameString);
 		if (!NT_SUCCESS (ntStatus))
 			Dump ("IoDeleteSymbolicLink failed ntStatus = 0x%08x\n", ntStatus);
+
+		RootDeviceObject = NULL;
 	}
 	else
 	{
-		Extension->lMagicNumber = 0;	// Clear magic number to protect from rare zombie objects. TODO: Do not use DRIVER_OBJECT.DeviceObject even if advised by the documentation of DRIVER_OBJECT.
-
 		if (Extension->peThread != NULL)
 			TCStopVolumeThread (DeviceObject, Extension);
 
@@ -2129,47 +2078,35 @@ PDEVICE_OBJECT TCDeleteDeviceObject (PDEVICE_OBJECT DeviceObject, PEXTENSION Ext
 			}
 		}
 
-		if (DeviceObject->ReferenceCount > 0)
-			ReferencedDeviceDeleted = TRUE;
-			
-		// Forced dismount does not set reference count to zero even if all open handles are closed
-		Dump ("Deleting device with ref count %ld\n", DeviceObject->ReferenceCount);
-		DeviceObject->ReferenceCount = 0;
+		VirtualVolumeDeviceObjects[Extension->nDosDriveNo] = NULL;
 	}
 
-	if (DeviceObject != NULL)
-		DeviceObject = DeviceObject->NextDevice;
-
-	IoDeleteDevice (OldDeviceObject);
+	IoDeleteDevice (DeviceObject);
 
 	Dump ("TCDeleteDeviceObject END\n");
-	return DeviceObject;
 }
 
 
 VOID TCUnloadDriver (PDRIVER_OBJECT DriverObject)
 {
-	PDEVICE_OBJECT DeviceObject = DriverObject->DeviceObject;
-
 	Dump ("TCUnloadDriver BEGIN\n");
 
-	UnmountAllDevices (NULL, DeviceObject, TRUE);
-
-	/* Now walk the list of driver objects and get rid of them */
-	while (DeviceObject != (PDEVICE_OBJECT) NULL)
-	{
-		DeviceObject = TCDeleteDeviceObject (DeviceObject,
-				(PEXTENSION) DeviceObject->DeviceExtension);
-	}
-
-	WipeCache ();	
+	OnShutdownPending();
 
 	if (IsBootDriveMounted())
 		TC_BUG_CHECK (STATUS_INVALID_DEVICE_STATE);
 
 	EncryptionThreadPoolStop();
+	TCDeleteDeviceObject (RootDeviceObject, (PEXTENSION) RootDeviceObject->DeviceExtension);
 
 	Dump ("TCUnloadDriver END\n");
+}
+
+
+void OnShutdownPending ()
+{
+	UnmountAllDevices (NULL, TRUE);
+	WipeCache ();
 }
 
 
@@ -2681,7 +2618,7 @@ NTSTATUS UnmountDevice (UNMOUNT_STRUCT *unmountRequest, PDEVICE_OBJECT deviceObj
 			NTFS_VOLUME_DATA_BUFFER ntfsData;
 
 			if (NT_SUCCESS (TCFsctlCall (volumeFileObject, FSCTL_GET_NTFS_VOLUME_DATA, NULL, 0, &ntfsData, sizeof (ntfsData))))
-				ReferencedDeviceDeleted = TRUE;
+				DriverUnloadDisabled = TRUE;
 		}
 
 		// Lock volume
@@ -2746,30 +2683,50 @@ NTSTATUS UnmountDevice (UNMOUNT_STRUCT *unmountRequest, PDEVICE_OBJECT deviceObj
 	return 0;
 }
 
-NTSTATUS UnmountAllDevices (UNMOUNT_STRUCT *unmountRequest, PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles)
+
+static PDEVICE_OBJECT FindVolumeWithHighestUniqueId (int maxUniqueId)
+{
+	PDEVICE_OBJECT highestIdDevice = NULL;
+	int highestId = -1;
+	int drive;
+
+	for (drive = MIN_MOUNTED_VOLUME_DRIVE_NUMBER; drive <= MAX_MOUNTED_VOLUME_DRIVE_NUMBER; ++drive)
+	{
+		PDEVICE_OBJECT device = GetVirtualVolumeDeviceObject (drive);
+		if (device)
+		{
+			PEXTENSION extension = (PEXTENSION) device->DeviceExtension;
+			if (extension->UniqueVolumeId > highestId && extension->UniqueVolumeId <= maxUniqueId)
+			{
+				highestId = extension->UniqueVolumeId;
+				highestIdDevice = device;
+			}
+		}
+	}
+
+	return highestIdDevice;
+}
+
+
+NTSTATUS UnmountAllDevices (UNMOUNT_STRUCT *unmountRequest, BOOL ignoreOpenFiles)
 {
 	NTSTATUS status = 0;
 	PDEVICE_OBJECT ListDevice;
+	int maxUniqueId = LastUniqueVolumeId;
 
 	Dump ("Unmounting all volumes\n");
 
 	if (unmountRequest)
 		unmountRequest->HiddenVolumeProtectionTriggered = FALSE;
 
-	if (!DeviceObject || !DeviceObject->DriverObject)
-		return STATUS_INVALID_PARAMETER;
-
-	DriverMutexWait ();
-
-	ListDevice = DeviceObject->DriverObject->DeviceObject;
-	while (ListDevice != NULL)
+	// Dismount volumes in the reverse order they were mounted to properly dismount nested volumes
+	while ((ListDevice = FindVolumeWithHighestUniqueId (maxUniqueId)) != NULL)
 	{
 		PEXTENSION ListExtension = (PEXTENSION) ListDevice->DeviceExtension;
-		if (!ListExtension->bRootDevice && ListExtension->IsVolumeDevice && !ListExtension->bShuttingDown
-			&& ListExtension->lMagicNumber == 0xabfeacde
-			&& IsVolumeAccessibleByCurrentUser (ListExtension))
+		maxUniqueId = ListExtension->UniqueVolumeId - 1;
+
+		if (IsVolumeAccessibleByCurrentUser (ListExtension))
 		{
-			PDEVICE_OBJECT nextDevice = ListDevice->NextDevice;
 			NTSTATUS ntStatus;
 
 			if (unmountRequest)
@@ -2780,15 +2737,9 @@ NTSTATUS UnmountAllDevices (UNMOUNT_STRUCT *unmountRequest, PDEVICE_OBJECT Devic
 
 			if (unmountRequest && unmountRequest->HiddenVolumeProtectionTriggered)
 				break;
-
-			ListDevice = nextDevice;
-			continue;
 		}
-
-		ListDevice = ListDevice->NextDevice;
 	}
 
-	DriverMutexRelease ();
 	return status;
 }
 

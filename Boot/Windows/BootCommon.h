@@ -58,6 +58,7 @@ typedef struct
 	uint64 HiddenSystemPartitionStart;
 	uint64 DecoySystemPartitionStart;
 	uint32 Flags;
+	uint32 BootDriveSignature;
 
 	uint32 BootArgumentsCrc32;
 

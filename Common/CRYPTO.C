@@ -743,14 +743,14 @@ PCRYPTO_INFO crypto_open ()
 
 	/* Do the crt allocation */
 	PCRYPTO_INFO cryptoInfo = (PCRYPTO_INFO) TCalloc (sizeof (CRYPTO_INFO));
+	if (cryptoInfo == NULL)
+		return NULL;
+
 	memset (cryptoInfo, 0, sizeof (CRYPTO_INFO));
 
 #ifndef DEVICE_DRIVER
 	VirtualLock (cryptoInfo, sizeof (CRYPTO_INFO));
 #endif
-
-	if (cryptoInfo == NULL)
-		return NULL;
 
 	cryptoInfo->ea = -1;
 	return cryptoInfo;

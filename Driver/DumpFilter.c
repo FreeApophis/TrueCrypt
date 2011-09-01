@@ -56,6 +56,12 @@ NTSTATUS DumpFilterEntry (PFILTER_EXTENSION filterExtension, PFILTER_INITIALIZAT
 		goto err;
 	}
 
+	// KeSaveFloatingPointState() may generate a bug check during crash dump
+#if !defined (_WIN64)
+	if (filterExtension->DumpType == DumpTypeCrashdump)
+		dumpConfig.HwEncryptionEnabled = FALSE;
+#endif
+
 	EnableHwEncryption (dumpConfig.HwEncryptionEnabled);
 
 	if (!AutoTestAlgorithms())
@@ -119,6 +125,7 @@ NTSTATUS DumpFilterEntry (PFILTER_EXTENSION filterExtension, PFILTER_INITIALIZAT
 
 	filterInitData->DumpStart = DumpFilterStart;
 	filterInitData->DumpWrite = DumpFilterWrite;
+	filterInitData->DumpFinish = DumpFilterFinish;
 	filterInitData->DumpUnload = DumpFilterUnload;
 
 	Dump ("Dump filter loaded type=%d\n", filterExtension->DumpType);
@@ -155,6 +162,9 @@ static NTSTATUS DumpFilterWrite (PFILTER_EXTENSION filterExtension, PLARGE_INTEG
 
 	if (BootDriveFilterExtension->Queue.EncryptedAreaEndUpdatePending)	// Hibernation should always abort the setup thread
 		TC_BUG_CHECK (STATUS_INVALID_PARAMETER);
+
+	if (BootDriveFilterExtension->Queue.EncryptedAreaStart == -1 || BootDriveFilterExtension->Queue.EncryptedAreaEnd == -1)
+		return STATUS_SUCCESS;
 
 	if (dataLength > WriteFilterBufferSize)
 		TC_BUG_CHECK (STATUS_BUFFER_OVERFLOW);	// Bug check is required as returning an error does not prevent data from being written to disk
@@ -206,6 +216,14 @@ static NTSTATUS DumpFilterWrite (PFILTER_EXTENSION filterExtension, PLARGE_INTEG
 	// MS BitLocker also uses this hack/workaround (it should be safe to use until the MDL structure is changed).
 
 	writeMdl->MdlFlags = origMdlFlags;
+
+	return STATUS_SUCCESS;
+}
+
+
+static NTSTATUS DumpFilterFinish (PFILTER_EXTENSION filterExtension)
+{
+	Dump ("DumpFilterFinish type=%d\n", filterExtension->DumpType);
 
 	return STATUS_SUCCESS;
 }

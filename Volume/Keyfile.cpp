@@ -91,6 +91,7 @@ done:
 			return password;
 
 		KeyfileList keyfilesExp;
+		HiddenFileWasPresentInKeyfilePath = false;
 
 		// Enumerate directories
 		foreach (shared_ptr <Keyfile> keyfile, *keyfiles)
@@ -100,6 +101,14 @@ done:
 				size_t keyfileCount = 0;
 				foreach_ref (const FilePath &path, Directory::GetFilePaths (*keyfile))
 				{
+#ifdef TC_UNIX
+					// Skip hidden files
+					if (wstring (path.ToBaseName()).find (L'.') == 0)
+					{
+						HiddenFileWasPresentInKeyfilePath = true;
+						continue;
+					}
+#endif
 					keyfilesExp.push_back (make_shared <Keyfile> (path));
 					++keyfileCount;
 				}
@@ -167,4 +176,6 @@ done:
 			sr.Serialize (name, sl);
 		}
 	}
+
+	bool Keyfile::HiddenFileWasPresentInKeyfilePath = false;
 }

@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ of this file are Copyright (c) 2003-2011 TrueCrypt Developers Association
  and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
@@ -33,8 +33,6 @@ typedef struct EXTENSION
 	BOOL IsVolumeDevice;
 	BOOL IsDriveFilterDevice;
 	BOOL IsVolumeFilterDevice;
-
-	ULONG lMagicNumber;	/* To ensure the completion routine is not sending us bad IRP's */
 
 	int UniqueVolumeId;
 	int nDosDriveNo;	/* Drive number this extension is mounted against */
@@ -129,8 +127,9 @@ void TCSleep (int milliSeconds);
 void TCGetNTNameFromNumber (LPWSTR ntname, int nDriveNo);
 void TCGetDosNameFromNumber (LPWSTR dosname, int nDriveNo);
 LPWSTR TCTranslateCode (ULONG ulCode);
-PDEVICE_OBJECT TCDeleteDeviceObject (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension);
+void TCDeleteDeviceObject (PDEVICE_OBJECT DeviceObject, PEXTENSION Extension);
 VOID TCUnloadDriver (PDRIVER_OBJECT DriverObject);
+void OnShutdownPending ();
 NTSTATUS TCDeviceIoControl (PWSTR deviceName, ULONG IoControlCode, void *InputBuffer, ULONG InputBufferSize, void *OutputBuffer, ULONG OutputBufferSize);
 NTSTATUS TCOpenFsVolume (PEXTENSION Extension, PHANDLE volumeHandle, PFILE_OBJECT * fileObject);
 void TCCloseFsVolume (HANDLE volumeHandle, PFILE_OBJECT fileObject);
@@ -141,11 +140,10 @@ NTSTATUS MountManagerMount (MOUNT_STRUCT *mount);
 NTSTATUS MountManagerUnmount (int nDosDriveNo);
 NTSTATUS MountDevice (PDEVICE_OBJECT deviceObject, MOUNT_STRUCT *mount);
 NTSTATUS UnmountDevice (UNMOUNT_STRUCT *unmountRequest, PDEVICE_OBJECT deviceObject, BOOL ignoreOpenFiles);
-NTSTATUS UnmountAllDevices (UNMOUNT_STRUCT *unmountRequest, PDEVICE_OBJECT DeviceObject, BOOL ignoreOpenFiles);
+NTSTATUS UnmountAllDevices (UNMOUNT_STRUCT *unmountRequest, BOOL ignoreOpenFiles);
 NTSTATUS SymbolicLinkToTarget (PWSTR symlinkName, PWSTR targetName, USHORT maxTargetNameLength);
-void DriverMutexWait ();
-BOOL DriverMutexAcquireNoWait ();
-void DriverMutexRelease ();
+BOOL RootDeviceControlMutexAcquireNoWait ();
+void RootDeviceControlMutexRelease ();
 BOOL RegionsOverlap (unsigned __int64 start1, unsigned __int64 end1, unsigned __int64 start2, unsigned __int64 end2);
 void GetIntersection (uint64 start1, uint32 length1, uint64 start2, uint64 end2, uint64 *intersectStart, uint32 *intersectLength);
 NTSTATUS TCCompleteIrp (PIRP irp, NTSTATUS status, ULONG_PTR information);

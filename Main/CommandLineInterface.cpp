@@ -256,7 +256,7 @@ namespace TrueCrypt
 
 			foreach (shared_ptr <EncryptionAlgorithm> ea, EncryptionAlgorithm::GetAvailableAlgorithms())
 			{
-				if (wxString (ea->GetName()).IsSameAs (str, false))
+				if (!ea->IsDeprecated() && wxString (ea->GetName()).IsSameAs (str, false))
 					ArgEncryptionAlgorithm = ea;
 			}
 

@@ -541,7 +541,7 @@ namespace TrueCrypt
 			favorite.MountPoint = mountPoint;
 
 			XmlGetNodeText (xml, volume, sizeof (volume));
-			favorite.Path = volume;
+			favorite.Path = WideToSingleString (Utf8StringToWide (volume));
 
 			char label[1024];
 			XmlGetAttributeText (xml, "label", label, sizeof (label));
@@ -803,7 +803,15 @@ namespace TrueCrypt
 	{
 		wchar_t label[1024];
 		if (GetDlgItemTextW (hwndDlg, IDC_FAVORITE_LABEL, label, ARRAYSIZE (label)) != 0)
+		{
 			favorite.Label = label;
+
+			for (size_t i = 0; i < favorite.Label.size(); ++i)
+			{
+				if (favorite.Label[i] == L'"')
+					favorite.Label.at (i) = L'\'';
+			}
+		}
 		else
 			favorite.Label.clear();
 

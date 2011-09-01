@@ -274,8 +274,8 @@ BOOL CALLBACK HotkeysDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPar
 	WORD lw = LOWORD (wParam);
 	WORD hw = HIWORD (wParam);
 	static BOOL bKeyScanOn;
-	static BOOL bTPlaySoundOnHotkeyMountDismount;
-	static BOOL bTDisplayMsgBoxOnHotkeyDismount;
+	static BOOL bTPlaySoundOnSuccessfulHkDismount;
+	static BOOL bTDisplayBalloonOnSuccessfulHkDismount;
 
 	while (GetParent (hwndMainDlg) != NULL)
 	{
@@ -316,11 +316,11 @@ BOOL CALLBACK HotkeysDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPar
 			SetCheckBox (hwndDlg, IDC_HK_MOD_ALT, TRUE);
 			SetCheckBox (hwndDlg, IDC_HK_MOD_WIN, FALSE);
 
-			SetCheckBox (hwndDlg, IDC_DISMOUNT_CONFIRM_PLAY_SOUND, bPlaySoundOnHotkeyMountDismount);
-			SetCheckBox (hwndDlg, IDC_DISMOUNT_CONFIRM_MSG_BOX, bDisplayMsgBoxOnHotkeyDismount);
+			SetCheckBox (hwndDlg, IDC_HK_DISMOUNT_PLAY_SOUND, bPlaySoundOnSuccessfulHkDismount);
+			SetCheckBox (hwndDlg, IDC_HK_DISMOUNT_BALLOON_TOOLTIP, bDisplayBalloonOnSuccessfulHkDismount);
 
-			bTPlaySoundOnHotkeyMountDismount = bPlaySoundOnHotkeyMountDismount;
-			bTDisplayMsgBoxOnHotkeyDismount = bDisplayMsgBoxOnHotkeyDismount;
+			bTPlaySoundOnSuccessfulHkDismount = bPlaySoundOnSuccessfulHkDismount;
+			bTDisplayBalloonOnSuccessfulHkDismount = bDisplayBalloonOnSuccessfulHkDismount;
 
 			EnableWindow (GetDlgItem (hwndDlg, IDC_HOTKEY_ASSIGN), FALSE);
 			EnableWindow (GetDlgItem (hwndDlg, IDC_HOTKEY_REMOVE), FALSE);
@@ -481,14 +481,14 @@ BOOL CALLBACK HotkeysDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPar
 			return 1;
 		}
 
-		if (lw == IDC_DISMOUNT_CONFIRM_PLAY_SOUND)
+		if (lw == IDC_HK_DISMOUNT_PLAY_SOUND)
 		{
-			bTPlaySoundOnHotkeyMountDismount = GetCheckBox (hwndDlg, IDC_DISMOUNT_CONFIRM_PLAY_SOUND);
+			bTPlaySoundOnSuccessfulHkDismount = GetCheckBox (hwndDlg, IDC_HK_DISMOUNT_PLAY_SOUND);
 		}
 
-		if (lw == IDC_DISMOUNT_CONFIRM_MSG_BOX)
+		if (lw == IDC_HK_DISMOUNT_BALLOON_TOOLTIP)
 		{
-			bTDisplayMsgBoxOnHotkeyDismount = GetCheckBox (hwndDlg, IDC_DISMOUNT_CONFIRM_MSG_BOX);
+			bTDisplayBalloonOnSuccessfulHkDismount = GetCheckBox (hwndDlg, IDC_HK_DISMOUNT_BALLOON_TOOLTIP);
 		}
 
 		if (lw == IDCANCEL || lw == IDCLOSE)
@@ -504,8 +504,8 @@ BOOL CALLBACK HotkeysDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPar
 			memcpy (Hotkeys, tmpHotkeys, sizeof(Hotkeys));
 			RegisterAllHotkeys (hwndMainDlg, Hotkeys);
 			KillTimer (hwndDlg, 0xfe);
-			bPlaySoundOnHotkeyMountDismount = bTPlaySoundOnHotkeyMountDismount;
-			bDisplayMsgBoxOnHotkeyDismount = bTDisplayMsgBoxOnHotkeyDismount;
+			bPlaySoundOnSuccessfulHkDismount = bTPlaySoundOnSuccessfulHkDismount;
+			bDisplayBalloonOnSuccessfulHkDismount = bTDisplayBalloonOnSuccessfulHkDismount;
 
 			SaveSettings (hwndDlg);
 			EndDialog (hwndDlg, IDCANCEL);
