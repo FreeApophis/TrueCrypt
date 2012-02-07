@@ -401,7 +401,7 @@ BiosResult GetDrivePartitions (byte drive, Partition *partitionArray, size_t par
 				continue;
 
 			partition.Drive = drive;
-			partition.Number = partitionNumber;
+			partition.Number = partitionArrayPos;
 
 			if (partEntry.Type == 0x5 || partEntry.Type == 0xf) // Extended partition
 			{
@@ -422,7 +422,7 @@ BiosResult GetDrivePartitions (byte drive, Partition *partitionArray, size_t par
 							PartitionEntryMBRToPartition (extMbr->Partitions[0], logPart);
 							logPart.Drive = drive;
 
-							logPart.Number = partitionNumber++;
+							logPart.Number = partitionArrayPos;
 							logPart.Primary = false;
 
 							logPart.StartSector.LowPart += extStartLBA.LowPart;

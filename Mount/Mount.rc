@@ -421,8 +421,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 7,1,0,0
- PRODUCTVERSION 7,1,0,0
+ FILEVERSION 7,1,1,0
+ PRODUCTVERSION 7,1,1,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -439,11 +439,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt"
-            VALUE "FileVersion", "7.1"
+            VALUE "FileVersion", "7.1a"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "7.1"
+            VALUE "ProductVersion", "7.1a"
         END
     END
     BLOCK "VarFileInfo"
@@ -596,17 +596,13 @@ BEGIN
         MENUITEM "TrueCrypt Website",           IDM_WEBSITE
         MENUITEM "Downloads",                   IDM_TC_DOWNLOADS
         MENUITEM "News",                        IDM_NEWS
-        MENUITEM SEPARATOR
         MENUITEM "Version History",             IDM_VERSION_HISTORY
-        MENUITEM "Legal Notices",               IDM_LICENSE
         MENUITEM SEPARATOR
-        MENUITEM "Report a Bug...",             IDM_BUGREPORT
         MENUITEM "Analyze a System Crash...",   IDM_ANALYZE_SYSTEM_CRASH
         MENUITEM SEPARATOR
-        MENUITEM "Forums",                      IDM_FORUMS
-        MENUITEM "Contact...",                  IDM_CONTACT
-        MENUITEM SEPARATOR
-        MENUITEM "About...",                    IDM_ABOUT
+        MENUITEM "Contact",                     IDM_CONTACT
+        MENUITEM "Legal Notices",               IDM_LICENSE
+        MENUITEM "About",                       IDM_ABOUT
     END
     MENUITEM "&Homepage ",                  IDM_HOMEPAGE
 END

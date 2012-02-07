@@ -7,6 +7,14 @@
 */
 
 #include "System.h"
+
+#ifdef TC_UNIX
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#endif
+
 #include "Common/SecurityToken.h"
 #include "Main/Main.h"
 #include "Main/Resources.h"
@@ -31,13 +39,33 @@ namespace TrueCrypt
 	MainFrame::MainFrame (wxWindow* parent) : MainFrameBase (parent),
 		ListItemRightClickEventPending (false),
 		SelectedItemIndex (-1),
-		SelectedSlotNumber (0)
+		SelectedSlotNumber (0),
+		ShowRequestFifo (-1)
 	{
 		wxBusyCursor busy;
 
 		SetName (Application::GetName());
 		SetTitle (Application::GetName());
 		SetIcon (Resources::GetTrueCryptIcon());
+
+#if defined(TC_UNIX) && !defined(TC_MACOSX)
+		try
+		{
+			string fifoPath = GetShowRequestFifoPath();
+
+			remove (fifoPath.c_str());
+			throw_sys_if (mkfifo (fifoPath.c_str(), S_IRUSR | S_IWUSR) == -1);
+
+			ShowRequestFifo = open (fifoPath.c_str(), O_RDONLY | O_NONBLOCK);
+			throw_sys_if (ShowRequestFifo == -1);
+		}
+		catch (...)
+		{
+#ifdef DEBUG
+			throw;
+#endif
+		}
+#endif
 
 		InitControls();
 		InitPreferences();
@@ -60,6 +88,18 @@ namespace TrueCrypt
 
 	MainFrame::~MainFrame ()
 	{
+#if defined(TC_UNIX) && !defined(TC_MACOSX)
+		if (ShowRequestFifo != -1)
+		{
+			try
+			{
+				close (ShowRequestFifo);
+				remove (string (GetShowRequestFifoPath()).c_str());
+			}
+			catch (...) { }
+		}
+#endif
+
 		Core->VolumeMountedEvent.Disconnect (this);
 		Core->VolumeDismountedEvent.Disconnect (this);
 		Gui->OpenVolumeSystemRequestEvent.Disconnect (this);
@@ -1254,6 +1294,21 @@ namespace TrueCrypt
 					Close (true);
 				}
 			}
+
+#if defined(TC_UNIX) && !defined(TC_MACOSX)
+			try
+			{
+				byte buf[128];
+				if (read (ShowRequestFifo, buf, sizeof (buf)) > 0 && Gui->IsInBackgroundMode())
+					Gui->SetBackgroundMode (false);
+			}
+			catch (...)
+			{
+#ifdef DEBUG
+				throw;
+#endif
+			}
+#endif
 		}
 		catch (exception &e)
 		{

@@ -426,7 +426,7 @@ namespace TrueCrypt
 
 			wstring menuText = SingleStringToWide (favorite.Path);
 			if (favorite.DisconnectedDevice)
-				menuText = wstring (L"(") + GetString ("FAVORITE_DISCONNECTED_DEV") + L")";
+				menuText = favorite.Label.empty() ? wstring (L"(") + GetString ("FAVORITE_DISCONNECTED_DEV") + L")" : L"";
 
 			if (!favorite.Label.empty())
 			{

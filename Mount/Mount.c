@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2009 TrueCrypt Developers Association
+ of this file are Copyright (c) 2003-2012 TrueCrypt Developers Association
  and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
@@ -4665,18 +4665,6 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 			ExtractCommandLine (hwndDlg, (char *) lParam);
 
-			if (ComServerMode)
-			{
-				InitDialog (hwndDlg);
-
-				if (!ComServerMain ())
-				{
-					handleWin32Error (hwndDlg);
-					exit (1);
-				}
-				exit (0);
-			}
-
 			try
 			{
 				BootEncStatus = BootEncObj->GetStatus();
@@ -4695,6 +4683,18 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				// Keyfiles
 				LoadDefaultKeyFilesParam ();
 				RestoreDefaultKeyFilesParam ();
+			}
+
+			if (ComServerMode)
+			{
+				InitDialog (hwndDlg);
+
+				if (!ComServerMain ())
+				{
+					handleWin32Error (hwndDlg);
+					exit (1);
+				}
+				exit (0);
 			}
 
 			if (CmdMountOptionsValid)
@@ -5336,7 +5336,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					}
 					AppendMenuW (popup, MF_STRING, IDM_MOUNTALL, GetString ("IDC_MOUNTALL"));
 					AppendMenuW (popup, MF_STRING, IDM_MOUNT_FAVORITE_VOLUMES, GetString ("IDM_MOUNT_FAVORITE_VOLUMES"));
-					AppendMenuW (popup, MF_STRING, IDM_UNMOUNTALL, GetString ("IDM_UNMOUNTALL"));
+					AppendMenuW (popup, MF_STRING, IDM_UNMOUNTALL, GetString ("IDC_UNMOUNTALL"));
 					AppendMenu (popup, MF_SEPARATOR, 0, NULL);
 
 					for (n = 0; n < 2; n++)
@@ -5478,7 +5478,10 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 									vol += 4;
 
 								if (vol[1] == L':' && i == (vol[0] - (vol[0] <= L'Z' ? L'A' : L'a')))
+								{
 									UnmountVolume (hwndDlg, m, TRUE);
+									WarningBalloon ("HOST_DEVICE_REMOVAL_DISMOUNT_WARN_TITLE", "HOST_DEVICE_REMOVAL_DISMOUNT_WARN");
+								}
 							}
 						}
 					}
@@ -5503,7 +5506,10 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						OPEN_TEST_STRUCT ots;
 
 						if (!OpenDevice (volp, &ots, FALSE))
+						{
 							UnmountVolume (hwndDlg, m, TRUE);
+							WarningBalloon ("HOST_DEVICE_REMOVAL_DISMOUNT_WARN_TITLE", "HOST_DEVICE_REMOVAL_DISMOUNT_WARN");
+						}
 					}
 				}
 			}
@@ -5833,6 +5839,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			if (CheckSysEncMountWithoutPBA ("", FALSE))
 			{
 				mountOptions = defaultMountOptions;
+				mountOptions.PartitionInInactiveSysEncScope = TRUE;
 				bPrebootPasswordDlgMode = TRUE;
 
 				if (CheckMountList ())
@@ -6111,11 +6118,6 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			Applink ("homepage", TRUE, "");
 			return 1;
 		}
-		else if (lw == IDM_FORUMS)
-		{
-			Applink ("forum", TRUE, "");
-			return 1;
-		}
 		else if (lw == IDM_ONLINE_TUTORIAL)
 		{
 			Applink ("tutorial", TRUE, "");
@@ -6144,11 +6146,6 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 		else if (lw == IDM_VERSION_HISTORY)
 		{
 			Applink ("history", TRUE, "");
-			return 1;
-		}
-		else if (lw == IDM_BUGREPORT)
-		{
-			Applink ("bugreport", TRUE, "");
 			return 1;
 		}
 		else if (lw == IDM_ANALYZE_SYSTEM_CRASH)
@@ -6994,7 +6991,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, char *lpszComm
 
 BOOL TaskBarIconAdd (HWND hwnd) 
 { 
-	BOOL res; 
 	NOTIFYICONDATAW tnid; 
 
 	ZeroMemory (&tnid, sizeof (tnid));
@@ -7019,16 +7015,12 @@ BOOL TaskBarIconAdd (HWND hwnd)
 		ScreenDPI >= 120 ? 0 : 16, 
 		ScreenDPI >= 120 ? 0 : 16,
 		(ScreenDPI >= 120 ? LR_DEFAULTSIZE : 0) 
+		| LR_SHARED
 		| (nCurrentOS != WIN_2000 ? LR_DEFAULTCOLOR : LR_VGACOLOR)); // Windows 2000 cannot display more than 16 fixed colors in notification tray
 
 	wcscpy (tnid.szTip, L"TrueCrypt");
 
-	res = Shell_NotifyIconW (NIM_ADD, &tnid); 
-
-	if (tnid.hIcon) 
-		DestroyIcon (tnid.hIcon); 
-
-	return res; 
+	return Shell_NotifyIconW (NIM_ADD, &tnid); 
 }
 
 
@@ -7075,6 +7067,7 @@ BOOL TaskBarIconChange (HWND hwnd, int iconId)
 		ScreenDPI >= 120 ? 0 : 16, 
 		ScreenDPI >= 120 ? 0 : 16,
 		(ScreenDPI >= 120 ? LR_DEFAULTSIZE : 0) 
+		| LR_SHARED
 		| (nCurrentOS != WIN_2000 ? LR_DEFAULTCOLOR : LR_VGACOLOR)); // Windows 2000 cannot display more than 16 fixed colors in notification tray
 
 	return Shell_NotifyIcon (NIM_MODIFY, &tnid); 
@@ -8147,6 +8140,13 @@ static BOOL CALLBACK PerformanceSettingsDlgProc (HWND hwndDlg, UINT msg, WPARAM 
 
 		case IDOK:
 			{
+				if (IsNonInstallMode())
+				{
+					Error ("FEATURE_REQUIRES_INSTALLATION");
+					EndDialog (hwndDlg, IDCANCEL);
+					return 1;
+				}
+
 				BOOL disableHW = !IsDlgButtonChecked (hwndDlg, IDC_ENABLE_HARDWARE_ENCRYPTION);
 
 				try
@@ -8640,7 +8640,7 @@ void AnalyzeKernelMiniDump (HWND hwndDlg)
 			if (_abs64 (miniDumpTime.QuadPart - memDumpTime.QuadPart) < 10I64 * 1000 * 1000 * 60 * 5)
 			{
 				// Rename MEMORY.DMP file first as it can be deleted by Windows when system crash dialog is closed
-				tmpDumpPath = memDumpPath + TC_APP_NAME;
+				tmpDumpPath = memDumpPath + ".true_crypt.dmp"; // Application name must be mangled to avoid interfering with crash analysis
 
 				if (MoveFile (memDumpPath.c_str(), tmpDumpPath.c_str()))
 					dumpPath = tmpDumpPath;

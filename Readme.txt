@@ -1,4 +1,4 @@
-This archive contains the source code of TrueCrypt 7.1.
+This archive contains the source code of TrueCrypt 7.1a.
 
 
 Important
@@ -23,8 +23,6 @@ I. Windows
 II. Linux and Mac OS X
 	Requirements for Building TrueCrypt for Linux and Mac OS X
 	Instructions for Building TrueCrypt for Linux and Mac OS X
-	Requirements for Running TrueCrypt on Linux
-	Requirements for Running TrueCrypt on Mac OS X
 	
 III. FreeBSD and OpenSolaris
 
@@ -156,21 +154,6 @@ library, use the 'NOGUI' parameter:
    $ make NOGUI=1 WXSTATIC=1
 
 
-Requirements for Running TrueCrypt on Linux:
---------------------------------------------
-
-- Kernel including FUSE, device mapper, and encryption modules
-- FUSE library (available at http://fuse.sourceforge.net)
-- device mapper tools (available at http://sources.redhat.com/dm)
-
-
-Requirements for Running TrueCrypt on Mac OS X:
------------------------------------------------
-
-- Mac OS X 10.4 or compatible
-- MacFUSE 1.3 or compatible (available at http://code.google.com/p/macfuse) or
-  OSXFUSE 2.3 or compatible (available at http://osxfuse.github.com)
-
 
 III. FreeBSD and OpenSolaris
 ============================
@@ -202,10 +185,10 @@ Copyright Information
 ---------------------
 
 This software as a whole:
-Copyright (c) 2011 TrueCrypt Developers Association. All rights reserved.
+Copyright (c) 2012 TrueCrypt Developers Association. All rights reserved.
 
 Portions of this software:
-Copyright (c) 2003-2011 TrueCrypt Developers Association. All rights reserved.
+Copyright (c) 2003-2012 TrueCrypt Developers Association. All rights reserved.
 Copyright (c) 1998-2000 Paul Le Roux. All rights reserved.
 Copyright (c) 1998-2008 Brian Gladman, Worcester, UK. All rights reserved.
 Copyright (c) 2002-2004 Mark Adler. All rights reserved.
@@ -215,14 +198,8 @@ source code.
 Trademark Information
 ---------------------
 
-TrueCrypt and the TrueCrypt logo are registered trademarks.
-Note: The goal is not to monetize the name or the product, but to protect
-the reputation of TrueCrypt, and to prevent support issues and other kinds
-of issues that might arise from the existence of similar products with
-the same or similar name. Even though TrueCrypt is a trademark, TrueCrypt
-is and will remain open-source and free software.
-
-Any other trademarks are the sole property of their respective owners.
+Any trademarks contained in the source code, binaries, and/or in the 
+documentation, are the sole property of their respective owners.
 
 
 

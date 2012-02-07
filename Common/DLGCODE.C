@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2010 TrueCrypt Developers Association
+ of this file are Copyright (c) 2003-2012 TrueCrypt Developers Association
  and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
@@ -915,13 +915,13 @@ BOOL CALLBACK AboutDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 			"Paulo Barreto, Brian Gladman, Wei Dai, Peter Gutmann, and many others.\r\n\r\n"
 
 			"Portions of this software:\r\n"
-			"Copyright \xA9 2003-2011 TrueCrypt Developers Association. All Rights Reserved.\r\n"
+			"Copyright \xA9 2003-2012 TrueCrypt Developers Association. All Rights Reserved.\r\n"
 			"Copyright \xA9 1998-2000 Paul Le Roux. All Rights Reserved.\r\n"
 			"Copyright \xA9 1998-2008 Brian Gladman. All Rights Reserved.\r\n"
 			"Copyright \xA9 2002-2004 Mark Adler. All Rights Reserved.\r\n\r\n"
 
 			"This software as a whole:\r\n"
-			"Copyright \xA9 2011 TrueCrypt Developers Association. All rights reserved.\r\n\r\n"
+			"Copyright \xA9 2012 TrueCrypt Developers Association. All rights reserved.\r\n\r\n"
 
 			"A TrueCrypt Foundation Release");
 
@@ -3183,7 +3183,7 @@ BOOL CALLBACK RawDevicesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM l
 BOOL DoDriverInstall (HWND hwndDlg)
 {
 #ifdef SETUP
-	if (SystemEncryptionUpgrade)
+	if (SystemEncryptionUpdate)
 		return TRUE;
 #endif
 
@@ -6206,7 +6206,7 @@ retry:
 		wchar_t mountPoint[] = { L'A' + (wchar_t) driveNo, L':', 0 };
 		wsprintfW (msg, GetString ("MOUNTED_VOLUME_DIRTY"), mountPoint);
 
-		if (AskWarnYesNoString (msg) == IDYES)
+		if (AskWarnYesNoStringTopmost (msg) == IDYES)
 			CheckFilesystem (driveNo, TRUE);
 	}
 
@@ -7773,6 +7773,13 @@ int AskWarnYesNoTopmost (char *stringId)
 {
 	if (Silent) return IDNO;
 	return MessageBoxW (MainDlg, GetString (stringId), lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON1 | MB_SETFOREGROUND | MB_TOPMOST);
+}
+
+
+int AskWarnYesNoStringTopmost (const wchar_t *string)
+{
+	if (Silent) return IDNO;
+	return MessageBoxW (MainDlg, string, lpszTitle, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON1 | MB_SETFOREGROUND | MB_TOPMOST);
 }
 
 

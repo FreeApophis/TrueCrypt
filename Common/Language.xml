@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <TrueCrypt>
-  <localization prog-version="7.1">
+  <localization prog-version="7.1a">
     <!-- Languages -->
     <language langid="en" name="English" en-name="English" version="0.0.0" translators="" />
     <!-- Fonts -->
@@ -13,6 +13,7 @@
     <control lang="en" key="IDC_ALL_USERS">Install &amp;for all users</control>
     <control lang="en" key="IDC_BROWSE">Bro&amp;wse...</control>
     <control lang="en" key="IDC_DESKTOP_ICON">Add TrueCrypt icon to &amp;desktop</control>
+    <control lang="en" key="IDC_DONATE">Donate now...</control>
     <control lang="en" key="IDC_FILE_TYPE">Associate the .tc file &amp;extension with TrueCrypt</control>
     <control lang="en" key="IDC_OPEN_CONTAINING_FOLDER">&amp;Open the destination location when finished</control>
     <control lang="en" key="IDC_PROG_GROUP">Add TrueCrypt to &amp;Start menu</control>
@@ -179,28 +180,26 @@
     <control lang="en" key="IDD_TOKEN_PREFERENCES">TrueCrypt - Security Token Preferences</control>
     <control lang="en" key="IDD_TRAVELER_DLG">TrueCrypt Traveler Disk Setup</control>
     <control lang="en" key="IDD_VOLUME_PROPERTIES">TrueCrypt Volume Properties</control>
-    <control lang="en" key="IDM_ABOUT">About...</control>
+    <control lang="en" key="IDM_ABOUT">About</control>
     <control lang="en" key="IDM_ADD_REMOVE_VOL_KEYFILES">Add/Remove Keyfiles to/from Volume...</control>
     <control lang="en" key="IDM_ADD_VOLUME_TO_FAVORITES">Add Mounted Volume to Favorites...</control>
     <control lang="en" key="IDM_ADD_VOLUME_TO_SYSTEM_FAVORITES">Add Mounted Volume to System Favorites...</control>
     <control lang="en" key="IDM_ANALYZE_SYSTEM_CRASH">Analyze a System Crash...</control>
     <control lang="en" key="IDM_BACKUP_VOL_HEADER">Backup Volume Header...</control>
     <control lang="en" key="IDM_BENCHMARK">Benchmark...</control>
-    <control lang="en" key="IDM_BUGREPORT">Report a Bug...</control>
     <control lang="en" key="IDM_CHANGE_HEADER_KEY_DERIV_ALGO">Set Header Key Derivation Algorithm...</control>
     <control lang="en" key="IDM_CHANGE_PASSWORD">Change Volume Password...</control>
     <control lang="en" key="IDM_CHANGE_SYS_HEADER_KEY_DERIV_ALGO">Set Header Key Derivation Algorithm...</control>
     <control lang="en" key="IDM_CHANGE_SYS_PASSWORD">Change Password...</control>
     <control lang="en" key="IDM_CLEAR_HISTORY">Clear Volume History</control>
     <control lang="en" key="IDM_CLOSE_ALL_TOKEN_SESSIONS">Close All Security Token Sessions</control>
-    <control lang="en" key="IDM_CONTACT">Contact...</control>
+    <control lang="en" key="IDM_CONTACT">Contact</control>
     <control lang="en" key="IDM_CREATE_HIDDEN_OS">Create Hidden Operating System...</control>
     <control lang="en" key="IDM_CREATE_RESCUE_DISK">Create Rescue Disk...</control>
     <control lang="en" key="IDM_CREATE_VOLUME">Create New Volume...</control>
     <control lang="en" key="IDM_DEFAULT_KEYFILES">Default Keyfiles...</control>
     <control lang="en" key="IDM_ENCRYPT_SYSTEM_DEVICE">Encrypt System Partition/Drive...</control>
     <control lang="en" key="IDM_FAQ">Frequently Asked Questions</control>
-    <control lang="en" key="IDM_FORUMS">Forums</control>
     <control lang="en" key="IDM_HELP">User's Guide</control>
     <control lang="en" key="IDM_HOMEPAGE">&amp;Homepage </control>
     <control lang="en" key="IDM_HOTKEY_SETTINGS">Hot Keys...</control>
@@ -436,7 +435,6 @@
     <string lang="en" key="SYSTEM_CRASH_UPDATE_DRIVER">Results of the analysis indicate that updating the following driver might solve this issue: </string>
     <string lang="en" key="SYSTEM_CRASH_REPORT">To help us determine whether there is a bug in TrueCrypt, you can send us an automatically generated error report containing the following items:\n- Program version\n- Operating system version\n- Type of CPU\n- Error category\n- Driver name and version\n- System call stack\n\nIf you select 'Yes', the following URL (which contains the entire error report) will be opened in your default Internet browser.</string>
     <string lang="en" key="ASK_SEND_ERROR_REPORT">Do you want to send us the above error report?</string>
-    <string lang="en" key="CONSIDER_MAKING_A_DONATION">Please consider making a donation.</string>
     <string lang="en" key="ENCRYPT">&amp;Encrypt</string>
     <string lang="en" key="DECRYPT">&amp;Decrypt</string>
     <string lang="en" key="PERMANENTLY_DECRYPT">&amp;Permanently Decrypt</string>
@@ -637,7 +635,7 @@
     <string lang="en" key="VOL_MOUNT_FAILED">An error occurred when attempting to mount volume.</string>
     <string lang="en" key="VOL_SEEKING">Error seeking location within volume.</string>
     <string lang="en" key="VOL_SIZE_WRONG">Error: Incorrect volume size.</string>
-    <string lang="en" key="WARN_QUICK_FORMAT">WARNING: You should use Quick Format only in the following cases:\n\n1) The device contains random data (e.g. has already been securely and fully encrypted).\n2) You are going to use all available space immediately.\n3) You are not concerned with security (testing).\n\nAre you sure you want to use Quick Format?</string>
+    <string lang="en" key="WARN_QUICK_FORMAT">WARNING: You should use Quick Format only in the following cases:\n\n1) The device contains no sensitive data and you do not need plausible deniability.\n2) The device has already been securely and fully encrypted.\n\nAre you sure you want to use Quick Format?</string>
     <string lang="en" key="CONFIRM_SPARSE_FILE">Dynamic container is a pre-allocated NTFS sparse file whose physical size (actual disk space used) grows as new data is added to it.\n\nWARNING: Performance of sparse-file-hosted volumes is significantly worse than performance of regular volumes. Sparse-file-hosted volumes are also less secure, because it is possible to tell which volume sectors are unused. Furthermore, sparse-file-hosted volumes cannot provide plausible deniability (host a hidden volume). Also note that if data is written to a sparse file container when there is not enough free space in the host file system, the encrypted file system may get corrupted.\n\nAre you sure you want to create a sparse-file-hosted volume?</string>
     <string lang="en" key="SPARSE_FILE_SIZE_NOTE">Note that the size of the dynamic container reported by Windows and by TrueCrypt will always be equal to its maximum size. To find out current physical size of the container (actual disk space it uses), right-click the container file (in a Windows Explorer window, not in TrueCrypt), then select 'Properties' and see the 'Size on disk' value.\n\nAlso note that if you move a dynamic container to another volume or drive, the physical size of the container will be extended to the maximum. (You can prevent that by creating a new dynamic container in the destination location, mounting it and then moving the files from the old container to the new one.)</string>
     <string lang="en" key="PASSWORD_CACHE_WIPED_SHORT">Password cache wiped</string>
@@ -759,21 +757,14 @@
     <string lang="en" key="SETUP_MODE_HELP_EXTRACT">If you select this option, all files will be extracted from this package but nothing will be installed on the system. Do not select it if you intend to encrypt the system partition or system drive. Selecting this option can be useful, for example, if you want to run TrueCrypt in so-called portable mode. TrueCrypt does not have to be installed on the operating system under which it is run. After all files are extracted, you can directly run the extracted file 'TrueCrypt.exe' (then TrueCrypt will run in portable mode).</string>
     <string lang="en" key="SETUP_OPTIONS_TITLE">Setup Options</string>
     <string lang="en" key="SETUP_OPTIONS_INFO">Here you can set various options to control the installation process.</string>
-    <string lang="en" key="SETUP_DON_INSTALL_INFO">When ready, click Install to start installing.</string>
-    <string lang="en" key="SETUP_DON_UPGRADE_INFO">When ready, click Upgrade to start upgrading.</string>
-    <string lang="en" key="SETUP_DON_EXTRACT_INFO">When ready, click Extract to start extracting.</string>
     <string lang="en" key="SETUP_PROGRESS_TITLE">Installing</string>
     <string lang="en" key="SETUP_PROGRESS_INFO">Please wait while TrueCrypt is being installed.</string>
-    <string lang="en" key="SETUP_FINISHED_TITLE">TrueCrypt Installed</string>
     <string lang="en" key="SETUP_FINISHED_TITLE_DON">TrueCrypt has been successfully installed</string>
     <string lang="en" key="SETUP_FINISHED_UPGRADE_TITLE_DON">TrueCrypt has been successfully upgraded</string>
-    <string lang="en" key="SETUP_FINISHED_INFO">TrueCrypt has been successfully installed. You can click Finish and run TrueCrypt now.</string>
-    <string lang="en" key="SETUP_FINISHED_INFO_RESTART_REQUIRED">TrueCrypt has been successfully installed.</string>
     <string lang="en" key="SETUP_FINISHED_INFO_DON">Please consider making a donation. You can click Finish anytime to close the installer.</string>
     <string lang="en" key="EXTRACTION_OPTIONS_TITLE">Extraction Options</string>
     <string lang="en" key="EXTRACTION_OPTIONS_INFO">Here you can set various options to control the extraction process.</string>
     <string lang="en" key="EXTRACTION_PROGRESS_INFO">Please wait while files are being extracted.</string>
-    <string lang="en" key="EXTRACTION_FINISHED_TITLE">Extraction Complete</string>
     <string lang="en" key="EXTRACTION_FINISHED_TITLE_DON">Files successfully extracted</string>
     <string lang="en" key="EXTRACTION_FINISHED_INFO">All files have been successfully extracted to the destination location.</string>
     <string lang="en" key="AUTO_FOLDER_CREATION">If the specified folder does not exist, it will be automatically created.</string>
@@ -797,7 +788,7 @@
     <string lang="en" key="ROLLBACK">The installation has been rolled back.</string>
     <string lang="en" key="INSTALL_OK">TrueCrypt has been successfully installed.</string>
     <string lang="en" key="SETUP_UPDATE_OK">TrueCrypt has been successfully updated.</string>
-    <string lang="en" key="UPGRADE_OK_REBOOT_REQUIRED">TrueCrypt has been upgraded to a new version. Before you can start using it, your computer must be restarted.\n\nDo you want to restart it now?</string>
+    <string lang="en" key="UPGRADE_OK_REBOOT_REQUIRED">TrueCrypt has been successfully upgraded. However, before you can start using it, the computer must be restarted.\n\nDo you want to restart it now?</string>
     <string lang="en" key="SYS_ENC_UPGRADE_FAILED">Failed to upgrade TrueCrypt!\n\nIMPORTANT: Before you shut down or restart the system, we strongly recommend that you use System Restore (Windows Start menu > All programs > Accessories > System Tools > System Restore) to restore your system to the restore point named 'TrueCrypt installation'. If System Restore is not available, you should try installing the original or the new version of TrueCrypt again before you shut down or restart the system.</string>
     <string lang="en" key="UNINSTALL_OK">TrueCrypt has been successfully uninstalled.\n\nClick 'Finish' to remove the TrueCrypt installer and the folder %hs. Note that the folder will not be removed if it contains any files that were not installed by the TrueCrypt installer or created by TrueCrypt.</string>
     <string lang="en" key="REMOVING_REG">Removing TrueCrypt registry entries</string>
@@ -826,6 +817,7 @@
     <string lang="en" key="REMOVING_DRIVER">Uninstalling TrueCrypt device driver</string>
     <string lang="en" key="COM_REG_FAILED">Registration of the User Account Control support library failed.</string>
     <string lang="en" key="COM_DEREG_FAILED">Unregistration of the User Account Control support library failed.</string>
+    <string lang="en" key="TRAVELER_LIMITATIONS_NOTE">Note about portable mode:\n\nPlease note that the operating system requires drivers to be registered with it before they can be started. Hence, the TrueCrypt driver is not (and cannot be) fully portable (whereas the TrueCrypt applications are fully portable, i.e. they do not have to be installed or registered with the operating system). Also note that TrueCrypt needs a driver to provide transparent on-the-fly encryption/decryption.</string>
     <string lang="en" key="TRAVELER_UAC_NOTE">Note that if you decide to run TrueCrypt in portable mode (as opposed to running an installed copy of TrueCrypt), the system will ask you for permission to run TrueCrypt (UAC prompt) every time you attempt to run it.\n\nThe reason is that when you run TrueCrypt in portable mode, TrueCrypt needs to load and start the TrueCrypt device driver. TrueCrypt needs a device driver to provide transparent on-the-fly encryption/decryption, and users without administrator privileges cannot start device drivers in Windows. Therefore, the system will ask you for permission to run TrueCrypt with administrator privileges (UAC prompt).\n\nNote that if you install TrueCrypt on the system (as opposed to running TrueCrypt in portable mode), the system will NOT ask you for permission to run TrueCrypt (UAC prompt) every time you attempt to run it.\n\nAre you sure you want to extract the files?</string>
     <string lang="en" key="CONTAINER_ADMIN_WARNING">Warning: This instance of the Volume Creation Wizard has administrator privileges.\n\nYour new volume may be created with permissions that will not allow you to write to the volume when it is mounted. If you want to avoid that, close this instance of the Volume Creation Wizard and launch a new one without administrator privileges.\n\nDo you want to close this instance of the Volume Creation Wizard?</string>
     <string lang="en" key="CANNOT_DISPLAY_LICENSE">Error: Cannot display license.</string>
@@ -1167,7 +1159,7 @@
     <string lang="en" key="CONFIRM_DECRYPT_SYS_DEVICE_CAUTION">CAUTION: If you permanently decrypt the system partition/drive, unencrypted data will be written to it.\n\nAre you really sure you want to permanently decrypt the system partition/drive?</string>
     <string lang="en" key="CONFIRM_CASCADE_FOR_SYS_ENCRYPTION">Warning: If you use a cascade of ciphers for system encryption, you may encounter the following issues:\n\n1) The TrueCrypt Boot Loader is larger than normal and, therefore, there is not enough space in the first drive track for a backup of the TrueCrypt Boot Loader. Hence, whenever it gets damaged (which often happens, for example, during inappropriately designed anti-piracy activation procedures of certain programs), you will need to use the TrueCrypt Rescue Disk to boot or to repair the TrueCrypt Boot Loader.\n\n2) On some computers, resuming from hibernation takes longer.\n\nThese potential issues can be prevented by choosing a non-cascade encryption algorithm (e.g. AES).\n\nAre you sure you want to use a cascade of ciphers?</string>
     <string lang="en" key="NOTE_CASCADE_FOR_SYS_ENCRYPTION">If you encounter any of the previously described problems, decrypt the partition/drive (if it is encrypted) and then try encrypting it again using a non-cascade encryption algorithm (e.g. AES).</string>
-    <string lang="en" key="UPDATE_TC_IN_DECOY_OS_FIRST">WARNING: For safety and security reasons, you should update TrueCrypt on the decoy operating system before you update it on the hidden operating system.\n\nTo do so, boot the decoy system and run the TrueCrypt installer from within it. Then boot the hidden system and run the installer from within it as well.\n\nNote: The decoy system and the hidden system share a single boot loader. If you upgraded TrueCrypt only on the hidden system (but not on the decoy system), the decoy system would contain a TrueCrypt driver and TrueCrypt applications whose version numbers are different from the version number of the TrueCrypt Boot Loader. Such a discrepancy might indicate that there is a hidden operating system on this computer.\n\n\nDo you want to continue? (Not recommended.)</string>
+    <string lang="en" key="UPDATE_TC_IN_DECOY_OS_FIRST">WARNING: For safety and security reasons, you should update TrueCrypt on the decoy operating system before you update it on the hidden operating system.\n\nTo do so, boot the decoy system and run the TrueCrypt installer from within it. Then boot the hidden system and run the installer from within it as well.\n\nNote: The decoy system and the hidden system share a single boot loader. If you upgraded TrueCrypt only on the hidden system (but not on the decoy system), the decoy system would contain a TrueCrypt driver and TrueCrypt applications whose version numbers are different from the version number of the TrueCrypt Boot Loader. Such a discrepancy might indicate that there is a hidden operating system on this computer.\n\n\nDo you want to continue?</string>
     <string lang="en" key="UPDATE_TC_IN_HIDDEN_OS_TOO">The version number of the TrueCrypt Boot Loader that booted this operating system is different from the version number of the TrueCrypt driver (and of the TrueCrypt applications) installed on this system.\n\nYou should run the TrueCrypt installer (whose version number is the same as the one of the TrueCrypt Boot Loader) to update TrueCrypt on this operating system.</string>
     <string lang="en" key="BOOT_LOADER_VERSION_DIFFERENT_FROM_DRIVER_VERSION">The version number of the TrueCrypt Boot Loader that booted this operating system is different from the version number of the TrueCrypt driver (and of the TrueCrypt applications) installed on this system. Note that older versions may contain bugs fixed in later versions.\n\nIf you did not boot from the TrueCrypt Rescue Disk, you should reinstall TrueCrypt or upgrade it to the latest stable version (the boot loader will be updated too).\n\nIf you booted from the TrueCrypt Rescue Disk, you should update it ('System' > 'Create Rescue Disk').</string>
     <string lang="en" key="BOOT_LOADER_UPGRADE_OK">The TrueCrypt Boot Loader has been upgraded.\n\nIt is strongly recommended that you create a new TrueCrypt Rescue Disk (which will contain the new version of the TrueCrypt Boot Loader) by selecting 'System' > 'Create Rescue Disk' after you restart your computer.</string>
@@ -1222,6 +1214,8 @@
     <string lang="en" key="LIMITED_THREAD_COUNT_AFFECTS_PERFORMANCE">Note that the number of threads is currently limited, which will affect benchmark results (worse performance).\n\nTo utilize the full potential of the processor(s), select 'Settings' > 'Performance' and disable the corresponding option.</string>
     <string lang="en" key="ASK_REMOVE_DEVICE_WRITE_PROTECTION">Do you want TrueCrypt to attempt to disable write protection of the partition/drive?</string>
     <string lang="en" key="CONFIRM_SETTING_DEGRADES_PERFORMANCE">WARNING: This setting may degrade performance.\n\nAre you sure you want to use this setting?</string>
+    <string lang="en" key="HOST_DEVICE_REMOVAL_DISMOUNT_WARN_TITLE">Warning: TrueCrypt volume auto-dismounted</string>
+    <string lang="en" key="HOST_DEVICE_REMOVAL_DISMOUNT_WARN">Before you physically remove or turn off a device containing a mounted volume, you should always dismount the volume in TrueCrypt first.\n\nUnexpected spontaneous dismount is usually caused by an intermittently failing cable, drive (enclosure), etc.</string>
     <string lang="en" key="TEST">Test</string>
     <string lang="en" key="KEYFILE">Keyfile</string>
     <string lang="en" key="VKEY_08">Backspace</string>

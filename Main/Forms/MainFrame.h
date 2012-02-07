@@ -23,6 +23,9 @@ namespace TrueCrypt
 		virtual ~MainFrame ();
 
 		void OnDeviceChange (const DirectoryPath &mountPoint = DirectoryPath());
+#ifdef TC_UNIX
+		static FilePath GetShowRequestFifoPath () { return Application::GetConfigFilePath (L".show-request-queue", true); }
+#endif
 
 	protected:
 		enum
@@ -84,7 +87,6 @@ namespace TrueCrypt
 		void OnExitButtonClick (wxCommandEvent& event);
 		void OnFavoriteVolumeMenuItemSelected (wxCommandEvent& event);
 		void OnFaqMenuItemSelected (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"faq"); }
-		void OnForumsMenuItemSelected (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"forum"); }
 		void OnHiddenVolumeProtectionTriggered (shared_ptr <VolumeInfo> protectedVolume);
 		void OnHotkey (wxKeyEvent& event);
 		void OnHotkeysMenuItemSelected (wxCommandEvent& event);
@@ -112,7 +114,6 @@ namespace TrueCrypt
 		void OnPreferencesUpdated (EventArgs &args);
 		void OnRemoveKeyfilesMenuItemSelected (wxCommandEvent& event) { ChangePassword (ChangePasswordDialog::Mode::RemoveAllKeyfiles); }
 		void OnRepairFilesystemMenuItemSelected( wxCommandEvent& event ) { CheckFilesystem (true); }
-		void OnReportBugMenuItemSelected (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"bugreport"); }
 		void OnRestoreVolumeHeaderMenuItemSelected (wxCommandEvent& event);
 		void OnSecurityTokenPreferencesMenuItemSelected (wxCommandEvent& event);
 		void OnSelectDeviceAndMountMenuItemSelected (wxCommandEvent& event);
@@ -164,6 +165,7 @@ namespace TrueCrypt
 		auto_ptr <wxTimer> mTimer;
 		long SelectedItemIndex;
 		VolumeSlotNumber SelectedSlotNumber;
+		int ShowRequestFifo;
 		map <wstring, VolumeActivityMapEntry> VolumeActivityMap;
 	};
 }

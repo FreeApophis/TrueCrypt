@@ -1629,6 +1629,9 @@ static void SysEncResume (void)
 
 		if (locBootEncStatus.SetupInProgress)
 		{
+			// Prevent the OS from entering Sleep mode when idle
+			SetThreadExecutionState (ES_CONTINUOUS | ES_SYSTEM_REQUIRED);
+
 			bSystemEncryptionInProgress = TRUE;
 			UpdateSysEncControls ();
 			SetTimer (MainDlg, TIMER_ID_SYSENC_PROGRESS, TIMER_INTERVAL_SYSENC_PROGRESS, NULL);
@@ -1667,10 +1670,16 @@ static void SysEncResume (void)
 
 		if (!bSystemEncryptionInProgress)
 		{
+			// Allow the OS to enter Sleep mode when idle
+			SetThreadExecutionState (ES_CONTINUOUS);
+
 			EnableWindow (GetDlgItem (hCurPage, IDC_PAUSE), TRUE);
 			Error ("FAILED_TO_RESUME_SYSTEM_ENCRYPTION");
 			return;
 		}
+
+		// Prevent the OS from entering Sleep mode when idle
+		SetThreadExecutionState (ES_CONTINUOUS | ES_SYSTEM_REQUIRED);
 
 		bFirstSysEncResumeDone = TRUE;
 		InitSysEncProgressBar ();
@@ -2324,6 +2333,9 @@ static void __cdecl volTransformThreadFunction (void *hwndDlgArg)
 		}
 	}
 
+	// Prevent the OS from entering Sleep mode when idle
+	SetThreadExecutionState (ES_CONTINUOUS | ES_SYSTEM_REQUIRED);
+
 	bHidden = bHiddenVol && !bHiddenVolHost;
 
 	volParams->bDevice = bDevice;
@@ -2376,6 +2388,9 @@ static void __cdecl volTransformThreadFunction (void *hwndDlgArg)
 
 		nStatus = TCFormatVolume (volParams);
 	}
+
+	// Allow the OS to enter Sleep mode when idle
+	SetThreadExecutionState (ES_CONTINUOUS);
 
 	if (nStatus == ERR_OUTOFMEMORY)
 	{
@@ -2532,6 +2547,7 @@ static void __cdecl volTransformThreadFunction (void *hwndDlgArg)
 	}
 
 cancel:
+
 	LastDialogId = (bInPlaceEncNonSys ? "NONSYS_INPLACE_ENC_CANCELED" : "FORMAT_CANCELED");
 
 	if (!bInPlaceEncNonSys)
@@ -2547,6 +2563,9 @@ cancel:
 
 	bVolTransformThreadRunning = FALSE;
 	bVolTransformThreadCancel = FALSE;
+
+	// Allow the OS to enter Sleep mode when idle
+	SetThreadExecutionState (ES_CONTINUOUS);
 
 	PostMessage (hwndDlg, TC_APPMSG_VOL_TRANSFORM_THREAD_ENDED, 0, 0);
 
@@ -5519,6 +5538,9 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					if (!bSystemEncryptionInProgress)
 					{
 						// The driver stopped encrypting/decrypting
+
+						// Allow the OS to enter Sleep mode when idle
+						SetThreadExecutionState (ES_CONTINUOUS);
 
 						KillTimer (hwndDlg, TIMER_ID_SYSENC_PROGRESS);
 

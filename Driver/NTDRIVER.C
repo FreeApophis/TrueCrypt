@@ -4,7 +4,7 @@
  Copyright (c) 1998-2000 Paul Le Roux and which is governed by the 'License
  Agreement for Encryption for the Masses'. Modifications and additions to
  the original source code (contained in this file) and all other portions
- of this file are Copyright (c) 2003-2011 TrueCrypt Developers Association
+ of this file are Copyright (c) 2003-2012 TrueCrypt Developers Association
  and are governed by the TrueCrypt License 3.0 the full text of which is
  contained in the file License.txt included in TrueCrypt binary and source
  code distribution packages. */
@@ -257,10 +257,10 @@ NTSTATUS TCDispatchQueueIRP (PDEVICE_OBJECT DeviceObject, PIRP Irp)
 			DriverShuttingDown = TRUE;
 
 			if (EncryptionSetupThread)
-				AbortBootEncryptionSetup();
+				while (SendDeviceIoControlRequest (RootDeviceObject, TC_IOCTL_ABORT_BOOT_ENCRYPTION_SETUP, NULL, 0, NULL, 0) == STATUS_INSUFFICIENT_RESOURCES);
 
 			if (DecoySystemWipeThread)
-				AbortDecoySystemWipe();
+				while (SendDeviceIoControlRequest (RootDeviceObject, TC_IOCTL_ABORT_DECOY_SYSTEM_WIPE, NULL, 0, NULL, 0) == STATUS_INSUFFICIENT_RESOURCES);
 
 			OnShutdownPending();
 		}
@@ -2105,8 +2105,14 @@ VOID TCUnloadDriver (PDRIVER_OBJECT DriverObject)
 
 void OnShutdownPending ()
 {
-	UnmountAllDevices (NULL, TRUE);
-	WipeCache ();
+	UNMOUNT_STRUCT unmount;
+	memset (&unmount, 0, sizeof (unmount));
+	unmount.ignoreOpenFiles = TRUE;
+
+	while (SendDeviceIoControlRequest (RootDeviceObject, TC_IOCTL_DISMOUNT_ALL_VOLUMES, &unmount, sizeof (unmount), &unmount, sizeof (unmount)) == STATUS_INSUFFICIENT_RESOURCES || unmount.HiddenVolumeProtectionTriggered)
+		unmount.HiddenVolumeProtectionTriggered = FALSE;
+
+	while (SendDeviceIoControlRequest (RootDeviceObject, TC_IOCTL_WIPE_PASSWORD_CACHE, NULL, 0, NULL, 0) == STATUS_INSUFFICIENT_RESOURCES);
 }
 
 
@@ -2158,6 +2164,21 @@ ret:
 }
 
 
+typedef struct
+{
+	PDEVICE_OBJECT deviceObject; ULONG ioControlCode; void *inputBuffer; int inputBufferSize; void *outputBuffer; int outputBufferSize;
+	NTSTATUS Status;
+	KEVENT WorkItemCompletedEvent;
+} SendDeviceIoControlRequestWorkItemArgs;
+
+
+static VOID SendDeviceIoControlRequestWorkItemRoutine (PDEVICE_OBJECT rootDeviceObject, SendDeviceIoControlRequestWorkItemArgs *arg)
+{
+	arg->Status = SendDeviceIoControlRequest (arg->deviceObject, arg->ioControlCode, arg->inputBuffer, arg->inputBufferSize, arg->outputBuffer, arg->outputBufferSize);
+	KeSetEvent (&arg->WorkItemCompletedEvent, IO_NO_INCREMENT, FALSE);
+}
+
+
 NTSTATUS SendDeviceIoControlRequest (PDEVICE_OBJECT deviceObject, ULONG ioControlCode, void *inputBuffer, int inputBufferSize, void *outputBuffer, int outputBufferSize)
 {
 	IO_STATUS_BLOCK ioStatusBlock;
@@ -2165,7 +2186,29 @@ NTSTATUS SendDeviceIoControlRequest (PDEVICE_OBJECT deviceObject, ULONG ioContro
 	PIRP irp;
 	KEVENT event;
 
-	ASSERT(KeGetCurrentIrql() <= APC_LEVEL);
+	if (KeGetCurrentIrql() > APC_LEVEL)
+	{
+		SendDeviceIoControlRequestWorkItemArgs args;
+
+		PIO_WORKITEM workItem = IoAllocateWorkItem (RootDeviceObject);
+		if (!workItem)
+			return STATUS_INSUFFICIENT_RESOURCES;
+
+		args.deviceObject = deviceObject;
+		args.ioControlCode = ioControlCode;
+		args.inputBuffer = inputBuffer;
+		args.inputBufferSize = inputBufferSize;
+		args.outputBuffer = outputBuffer;
+		args.outputBufferSize = outputBufferSize;
+
+		KeInitializeEvent (&args.WorkItemCompletedEvent, SynchronizationEvent, FALSE);
+		IoQueueWorkItem (workItem, SendDeviceIoControlRequestWorkItemRoutine, DelayedWorkQueue, &args); 
+
+		KeWaitForSingleObject (&args.WorkItemCompletedEvent, Executive, KernelMode, FALSE, NULL);
+		IoFreeWorkItem (workItem);
+ 
+		return args.Status;
+	}
 
 	KeInitializeEvent (&event, NotificationEvent, FALSE);
 

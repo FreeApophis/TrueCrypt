@@ -96,6 +96,7 @@ typedef enum
 
 
 extern PDRIVER_OBJECT TCDriverObject;
+extern PDEVICE_OBJECT RootDeviceObject;
 extern BOOL DriverShuttingDown;
 extern ULONG OsMajorVersion;
 extern ULONG OsMinorVersion;

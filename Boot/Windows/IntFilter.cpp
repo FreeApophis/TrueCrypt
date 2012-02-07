@@ -290,7 +290,7 @@ mapOverflow:
 		++overSize;
 	}
 
-	PrintErrorNoEndl ("MMAP: ");
+	PrintErrorNoEndl ("MMP:");
 	Print (overSize);
 	PrintEndl();
 

@@ -179,34 +179,22 @@ MainFrameBase::MainFrameBase( wxWindow* parent, wxWindowID id, const wxString& t
 	NewsMenuItem = new wxMenuItem( HelpMenu, wxID_ANY, wxString( _("News") ) , wxEmptyString, wxITEM_NORMAL );
 	HelpMenu->Append( NewsMenuItem );
 	
-	HelpMenu->AppendSeparator();
-	
 	wxMenuItem* VersionHistoryMenuItem;
 	VersionHistoryMenuItem = new wxMenuItem( HelpMenu, wxID_ANY, wxString( _("Version History") ) , wxEmptyString, wxITEM_NORMAL );
 	HelpMenu->Append( VersionHistoryMenuItem );
+	
+	HelpMenu->AppendSeparator();
+	
+	wxMenuItem* ContactMenuItem;
+	ContactMenuItem = new wxMenuItem( HelpMenu, wxID_ANY, wxString( _("Contact") ) , wxEmptyString, wxITEM_NORMAL );
+	HelpMenu->Append( ContactMenuItem );
 	
 	wxMenuItem* LegalNoticesMenuItem;
 	LegalNoticesMenuItem = new wxMenuItem( HelpMenu, wxID_ANY, wxString( _("Legal Notices") ) , wxEmptyString, wxITEM_NORMAL );
 	HelpMenu->Append( LegalNoticesMenuItem );
 	
-	HelpMenu->AppendSeparator();
-	
-	wxMenuItem* ReportBugMenuItem;
-	ReportBugMenuItem = new wxMenuItem( HelpMenu, wxID_ANY, wxString( _("Report a Bug...") ) , wxEmptyString, wxITEM_NORMAL );
-	HelpMenu->Append( ReportBugMenuItem );
-	
-	wxMenuItem* ForumsMenuItem;
-	ForumsMenuItem = new wxMenuItem( HelpMenu, wxID_ANY, wxString( _("Forums") ) , wxEmptyString, wxITEM_NORMAL );
-	HelpMenu->Append( ForumsMenuItem );
-	
-	wxMenuItem* ContactMenuItem;
-	ContactMenuItem = new wxMenuItem( HelpMenu, wxID_ANY, wxString( _("Contact...") ) , wxEmptyString, wxITEM_NORMAL );
-	HelpMenu->Append( ContactMenuItem );
-	
-	HelpMenu->AppendSeparator();
-	
 	wxMenuItem* AboutMenuItem;
-	AboutMenuItem = new wxMenuItem( HelpMenu, wxID_ABOUT, wxString( _("About...") ) , wxEmptyString, wxITEM_NORMAL );
+	AboutMenuItem = new wxMenuItem( HelpMenu, wxID_ABOUT, wxString( _("About") ) , wxEmptyString, wxITEM_NORMAL );
 	HelpMenu->Append( AboutMenuItem );
 	
 	MainMenuBar->Append( HelpMenu, _("&Help") );
@@ -425,10 +413,8 @@ MainFrameBase::MainFrameBase( wxWindow* parent, wxWindowID id, const wxString& t
 	this->Connect( DownloadsMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnDownloadsMenuItemSelected ) );
 	this->Connect( NewsMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnNewsMenuItemSelected ) );
 	this->Connect( VersionHistoryMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnVersionHistoryMenuItemSelected ) );
-	this->Connect( LegalNoticesMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnLegalNoticesMenuItemSelected ) );
-	this->Connect( ReportBugMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnReportBugMenuItemSelected ) );
-	this->Connect( ForumsMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnForumsMenuItemSelected ) );
 	this->Connect( ContactMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnContactMenuItemSelected ) );
+	this->Connect( LegalNoticesMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnLegalNoticesMenuItemSelected ) );
 	this->Connect( AboutMenuItem->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnAboutMenuItemSelected ) );
 	SlotListCtrl->Connect( wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler( MainFrameBase::OnListItemActivated ), NULL, this );
 	SlotListCtrl->Connect( wxEVT_COMMAND_LIST_ITEM_DESELECTED, wxListEventHandler( MainFrameBase::OnListItemDeselected ), NULL, this );
@@ -488,10 +474,8 @@ MainFrameBase::~MainFrameBase()
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnDownloadsMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnNewsMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnVersionHistoryMenuItemSelected ) );
-	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnLegalNoticesMenuItemSelected ) );
-	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnReportBugMenuItemSelected ) );
-	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnForumsMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnContactMenuItemSelected ) );
+	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnLegalNoticesMenuItemSelected ) );
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( MainFrameBase::OnAboutMenuItemSelected ) );
 	SlotListCtrl->Disconnect( wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler( MainFrameBase::OnListItemActivated ), NULL, this );
 	SlotListCtrl->Disconnect( wxEVT_COMMAND_LIST_ITEM_DESELECTED, wxListEventHandler( MainFrameBase::OnListItemDeselected ), NULL, this );

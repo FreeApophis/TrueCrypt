@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2008-2011 TrueCrypt Developers Association. All rights reserved.
+ Copyright (c) 2008-2012 TrueCrypt Developers Association. All rights reserved.
 
  Governed by the TrueCrypt License 3.0 the full text of which is contained in
  the file License.txt included in TrueCrypt binary and source code distribution
@@ -673,7 +673,7 @@ static NTSTATUS DispatchPower (PDEVICE_OBJECT DeviceObject, PIRP Irp, DriveFilte
 		&& irpSp->MinorFunction == IRP_MN_SET_POWER
 		&& irpSp->Parameters.Power.ShutdownType == PowerActionHibernate)
 	{
-		AbortBootEncryptionSetup();
+		while (SendDeviceIoControlRequest (RootDeviceObject, TC_IOCTL_ABORT_BOOT_ENCRYPTION_SETUP, NULL, 0, NULL, 0) == STATUS_INSUFFICIENT_RESOURCES);
 	}
 
 #if 0	// Dismount of the system drive is disabled until there is a way to do it without causing system errors (see the documentation for more info)

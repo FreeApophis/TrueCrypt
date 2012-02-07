@@ -11,7 +11,11 @@
 #ifdef TC_UNIX
 #include <wx/mimetype.h>
 #include <wx/sckipc.h>
+#include <fcntl.h>
 #include <signal.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/utsname.h>
 #include "Platform/Unix/Process.h"
 #endif
@@ -829,6 +833,31 @@ namespace TrueCrypt
 					return false;
 				}
 #endif
+
+#if defined(TC_UNIX) && !defined(TC_MACOSX)
+				try
+				{
+					int showFifo = open (string (MainFrame::GetShowRequestFifoPath()).c_str(), O_WRONLY | O_NONBLOCK);
+					throw_sys_if (showFifo == -1);
+
+					byte buf[1] = { 1 };
+					if (write (showFifo, buf, 1) == 1)
+					{
+						close (showFifo);
+						Application::SetExitCode (0);
+						return false;
+					}
+
+					close (showFifo);
+				}
+				catch (...)
+				{
+#ifdef DEBUG
+					throw;
+#endif
+				}
+#endif
+
 				wxLog::FlushActive();
 				Application::SetExitCode (1);
 				Gui->ShowInfo (_("TrueCrypt is already running."));

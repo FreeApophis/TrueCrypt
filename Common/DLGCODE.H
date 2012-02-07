@@ -395,6 +395,7 @@ int AskOkCancel (char *stringId);
 int AskWarnYesNo (char *stringId);
 int AskWarnYesNoString (const wchar_t *string);
 int AskWarnYesNoTopmost (char *stringId);
+int AskWarnYesNoStringTopmost (const wchar_t *string);
 int AskWarnNoYes (char *stringId);
 int AskWarnNoYesString (const wchar_t *string);
 int AskWarnNoYesTopmost (char *stringId);
