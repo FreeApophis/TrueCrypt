@@ -67,7 +67,6 @@ namespace TrueCrypt
 		void OnAddAllMountedToFavoritesMenuItemSelected (wxCommandEvent& event);
 		void OnAddToFavoritesMenuItemSelected (wxCommandEvent& event);
 		void OnBackupVolumeHeadersMenuItemSelected (wxCommandEvent& event);
-		void OnBeginnersTutorialMenuItemSelected (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"tutorial"); }
 		void OnBenchmarkMenuItemSelected (wxCommandEvent& event);
 		void OnChangeKeyfilesMenuItemSelected (wxCommandEvent& event) { ChangePassword (ChangePasswordDialog::Mode::ChangeKeyfiles); }
 		void OnChangePasswordMenuItemSelected (wxCommandEvent& event) { ChangePassword (); }
@@ -76,20 +75,18 @@ namespace TrueCrypt
 		void OnClearSlotSelectionMenuItemSelected (wxCommandEvent& event);
 		void OnClose (wxCloseEvent& event);
 		void OnCloseAllSecurityTokenSessionsMenuItemSelected (wxCommandEvent& event);
-		void OnContactMenuItemSelected (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"contact"); }
 		void OnCreateKeyfileMenuItemSelected (wxCommandEvent& event) { Gui->CreateKeyfile(); }
 		void OnCreateVolumeButtonClick (wxCommandEvent& event);
 		void OnDefaultKeyfilesMenuItemSelected (wxCommandEvent& event);
 		void OnDismountAllButtonClick (wxCommandEvent& event);
 		void OnDismountVolumeMenuItemSelected (wxCommandEvent& event) { DismountVolume(); }
-		void OnDownloadsMenuItemSelected (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"downloads"); }
 		void OnEncryptionTestMenuItemSelected (wxCommandEvent& event);
 		void OnExitButtonClick (wxCommandEvent& event);
 		void OnFavoriteVolumeMenuItemSelected (wxCommandEvent& event);
-		void OnFaqMenuItemSelected (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"faq"); }
 		void OnHiddenVolumeProtectionTriggered (shared_ptr <VolumeInfo> protectedVolume);
 		void OnHotkey (wxKeyEvent& event);
 		void OnHotkeysMenuItemSelected (wxCommandEvent& event);
+		void OnInsecureAppLinkClick (wxHyperlinkEvent& event) { Gui->ShowWarning ("INSECURE_APP"); }
 		void OnLegalNoticesMenuItemSelected (wxCommandEvent& event);
 		void OnListChanged ();
 		void OnListItemActivated (wxListEvent& event);
@@ -104,12 +101,11 @@ namespace TrueCrypt
 		void OnMountAllDevicesButtonClick (wxCommandEvent& event);
 		void OnMountAllFavoritesMenuItemSelected (wxCommandEvent& event);
 		void OnMountVolumeMenuItemSelected (wxCommandEvent& event) { MountVolume(); }
-		void OnNewsMenuItemSelected (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"news"); }
 		void OnNoHistoryCheckBoxClick (wxCommandEvent& event);
-		void OnOnlineHelpMenuItemSelected (wxCommandEvent& event) { Gui->OpenOnlineHelp (this); }
 		void OnOpenVolumeMenuItemSelected (wxCommandEvent& event) { OpenSelectedVolume(); }
 		void OnOpenVolumeSystemRequestEvent (EventArgs &args) { SetVolumePath (wstring (dynamic_cast <OpenVolumeSystemRequestEventArgs &> (args).mVolumePath)); }
 		void OnOrganizeFavoritesMenuItemSelected (wxCommandEvent& event);
+		void OnPermanentlyDecryptMenuItemSelected (wxCommandEvent& event) { Gui->ShowError (L"Permanent decryption is available only on Windows. If you cannot use TrueCrypt on Windows, you should mount the volume you need to decrypt and move all data from the mounted volume."); }
 		void OnPreferencesMenuItemSelected (wxCommandEvent& event);
 		void OnPreferencesUpdated (EventArgs &args);
 		void OnRemoveKeyfilesMenuItemSelected (wxCommandEvent& event) { ChangePassword (ChangePasswordDialog::Mode::RemoveAllKeyfiles); }
@@ -121,14 +117,11 @@ namespace TrueCrypt
 		void OnSelectFileAndMountMenuItemSelected (wxCommandEvent& event);
 		void OnSelectFileButtonClick (wxCommandEvent& event);
 		void OnTimer ();
-		void OnVersionHistoryMenuItemSelected (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"history"); }
 		void OnVolumePropertiesButtonClick (wxCommandEvent& event);
 		void OnVolumeToolsButtonClick (wxCommandEvent& event);
 		void OnVolumeButtonClick (wxCommandEvent& event);
 		void OnVolumeDismounted (EventArgs &args) { UpdateVolumeList(); }
 		void OnVolumeMounted (EventArgs &args) { UpdateVolumeList(); }
-		void OnUserGuideMenuItemSelected (wxCommandEvent& event) { Gui->OpenUserGuide (this); }
-		void OnWebsiteMenuItemSelected (wxCommandEvent& event) { Gui->OpenHomepageLink (this, L"website"); }
 		void OnWipeCacheButtonClick (wxCommandEvent& event);
 		void OrganizeFavorites (const FavoriteVolumeList &favorites, size_t newItemCount = 0);
 		void OpenSelectedVolume () const;

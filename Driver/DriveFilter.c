@@ -1158,14 +1158,17 @@ static VOID SetupThreadProc (PVOID threadArg)
 	int64 bytesWrittenSinceHeaderUpdate = 0;
 
 	byte *buffer = NULL;
-	byte *wipeBuffer = NULL;
-	byte wipeRandChars[TC_WIPE_RAND_CHAR_COUNT];
-	byte wipeRandCharsUpdate[TC_WIPE_RAND_CHAR_COUNT];
 	
 	KIRQL irql;
 	NTSTATUS status;
 
 	SetupResult = STATUS_UNSUCCESSFUL;
+
+	if (SetupRequest.SetupMode == SetupEncryption)
+	{
+		SetupResult = STATUS_INVALID_PARAMETER;
+		goto ret;
+	}
 
 	// Make sure volume header can be updated
 	if (Extension->HeaderCryptoInfo == NULL)
@@ -1179,16 +1182,6 @@ static VOID SetupThreadProc (PVOID threadArg)
 	{
 		SetupResult = STATUS_INSUFFICIENT_RESOURCES;
 		goto ret;
-	}
-
-	if (SetupRequest.SetupMode == SetupEncryption && SetupRequest.WipeAlgorithm != TC_WIPE_NONE)
-	{
-		wipeBuffer = TCalloc (TC_ENCRYPTION_SETUP_IO_BLOCK_SIZE);
-		if (!wipeBuffer)
-		{
-			SetupResult = STATUS_INSUFFICIENT_RESOURCES;
-			goto ret;
-		}
 	}
 
 	while (!NT_SUCCESS (EncryptedIoQueueHoldWhenIdle (&Extension->Queue, 1000)))
@@ -1321,47 +1314,7 @@ static VOID SetupThreadProc (PVOID threadArg)
 		}
 
 		dataUnit.Value = offset.QuadPart / ENCRYPTION_DATA_UNIT_SIZE;
-
-		if (SetupRequest.SetupMode == SetupEncryption)
-		{
-			EncryptDataUnits (buffer, &dataUnit, setupBlockSize / ENCRYPTION_DATA_UNIT_SIZE, Extension->Queue.CryptoInfo);
-
-			if (SetupRequest.WipeAlgorithm != TC_WIPE_NONE)
-			{
-				byte wipePass;
-				for (wipePass = 1; wipePass <= GetWipePassCount (SetupRequest.WipeAlgorithm); ++wipePass)
-				{
-					if (!WipeBuffer (SetupRequest.WipeAlgorithm, wipeRandChars, wipePass, wipeBuffer, setupBlockSize))
-					{
-						ULONG i;
-						for (i = 0; i < setupBlockSize; ++i)
-						{
-							wipeBuffer[i] = buffer[i] + wipePass;
-						}
-
-						EncryptDataUnits (wipeBuffer, &dataUnit, setupBlockSize / ENCRYPTION_DATA_UNIT_SIZE, Extension->Queue.CryptoInfo);
-						memcpy (wipeRandCharsUpdate, wipeBuffer, sizeof (wipeRandCharsUpdate)); 
-					}
-
-					status = TCWriteDevice (BootDriveFilterExtension->LowerDeviceObject, wipeBuffer, offset, setupBlockSize);
-					if (!NT_SUCCESS (status))
-					{
-						// Undo failed write operation
-						DecryptDataUnits (buffer, &dataUnit, setupBlockSize / ENCRYPTION_DATA_UNIT_SIZE, Extension->Queue.CryptoInfo);
-						TCWriteDevice (BootDriveFilterExtension->LowerDeviceObject, buffer, offset, setupBlockSize);
-
-						SetupResult = status;
-						goto err;
-					}
-				}
-
-				memcpy (wipeRandChars, wipeRandCharsUpdate, sizeof (wipeRandCharsUpdate)); 
-			}
-		}
-		else
-		{
-			DecryptDataUnits (buffer, &dataUnit, setupBlockSize / ENCRYPTION_DATA_UNIT_SIZE, Extension->Queue.CryptoInfo);
-		}
+		DecryptDataUnits (buffer, &dataUnit, setupBlockSize / ENCRYPTION_DATA_UNIT_SIZE, Extension->Queue.CryptoInfo);
 
 		status = TCWriteDevice (BootDriveFilterExtension->LowerDeviceObject, buffer, offset, setupBlockSize);
 		if (!NT_SUCCESS (status))
@@ -1458,8 +1411,6 @@ err:
 ret:
 	if (buffer)
 		TCfree (buffer);
-	if (wipeBuffer)
-		TCfree (wipeBuffer);
 
 	SetupInProgress = FALSE;
 	PsTerminateSystemThread (SetupResult);

@@ -12,7 +12,7 @@ import "..\Common\Password.h";
 [
 	uuid(1770F56C-7881-4591-A179-79B8001C7D42),
 	helpstring("TrueCrypt Main UAC Support Library"),
-	version(2.4)	// Update ComSetup.cpp when changing version number
+	version(2.5)	// Update ComSetup.cpp when changing version number
 ]
 library TrueCryptMainCom
 {
@@ -24,7 +24,6 @@ library TrueCryptMainCom
 	]
 	interface ITrueCryptMainCom : IUnknown
 	{
-		void AnalyzeKernelMiniDump (LONG_PTR hwndDlg);
 		int BackupVolumeHeader (LONG_PTR hwndDlg, BOOL bRequireConfirmation, BSTR lpszVolume);
 		DWORD CallDriver (DWORD ioctl, BSTR input, BSTR *output);
 		int ChangePassword (BSTR volumePath, Password *oldPassword, Password *newPassword, int pkcs5, LONG_PTR hWnd);

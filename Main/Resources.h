@@ -25,7 +25,6 @@ namespace TrueCrypt
 		static wxBitmap GetLogoBitmap ();
 		static wxBitmap GetTextualLogoBitmap ();
 		static wxIcon GetTrueCryptIcon ();
-		static wxBitmap GetVolumeCreationWizardBitmap (int height = -1);
 #endif
 	};
 }

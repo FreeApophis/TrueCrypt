@@ -21,9 +21,9 @@
 #endif
 
 #include "Common/SecurityToken.h"
+#include "Core/RandomNumberGenerator.h"
 #include "Application.h"
 #include "GraphicUserInterface.h"
-#include "FatalErrorHandler.h"
 #include "Forms/DeviceSelectionDialog.h"
 #include "Forms/KeyfileGeneratorDialog.h"
 #include "Forms/MainFrame.h"
@@ -58,8 +58,6 @@ namespace TrueCrypt
 				RandomNumberGenerator::Stop();
 		}
 		catch (...) { }
-
-		FatalErrorHandler::Deregister();
 
 #ifdef TC_UNIX
 		signal (SIGHUP, SIG_DFL);
@@ -644,8 +642,27 @@ namespace TrueCrypt
 		}
 	}
 
-	shared_ptr <VolumeInfo> GraphicUserInterface::MountVolume (MountOptions &options) const
+	shared_ptr <VolumeInfo> GraphicUserInterface::MountVolume (MountOptions &options)
 	{
+		if (!Preferences.InsecureAppWarningDisplayed)
+		{
+			try
+			{
+				UserPreferences prefs;
+				prefs.Load ();
+
+				if (!prefs.InsecureAppWarningDisplayed)
+				{
+					prefs.InsecureAppWarningDisplayed = true;
+					SetPreferences (prefs);
+					prefs.Save();
+
+					ShowWarning ("INSECURE_APP");
+				}
+			}
+			catch (...) { }
+		}
+
 		CheckRequirementsForMountingVolume();
 
 		shared_ptr <VolumeInfo> volume;
@@ -771,7 +788,6 @@ namespace TrueCrypt
 		InterfaceType = UserInterfaceType::Graphic;
 		try
 		{
-			FatalErrorHandler::Register();
 			Init();
 
 			if (ProcessCommandLine() && !CmdLine->StartBackgroundTask)
@@ -1008,105 +1024,6 @@ namespace TrueCrypt
 			catch (TimeOut&) { }
 		}
 #endif
-	}
-
-	wxString GraphicUserInterface::GetHomepageLinkURL (const wxString &linkId, bool secure, const wxString &extraVars) const
-	{
-		wxString url = wxString (StringConverter::ToWide (secure ? TC_APPLINK_SECURE : TC_APPLINK)) + L"&dest=" + linkId;
-		wxString os, osVersion, architecture;
-
-#ifdef TC_WINDOWS
-
-		os = L"Windows";
-
-#elif defined (TC_UNIX)
-		struct utsname unameData;
-		if (uname (&unameData) != -1)
-		{
-			os = StringConverter::ToWide (unameData.sysname);
-			osVersion = StringConverter::ToWide (unameData.release);
-			architecture = StringConverter::ToWide (unameData.machine);
-
-			if (os == L"Darwin")
-				os = L"MacOSX";
-		}
-		else
-			os = L"Unknown";
-#else
-		os = L"Unknown";
-#endif
-
-		os.Replace (L" ", L"-");
-		url += L"&os=";
-		url += os;
-
-		osVersion.Replace (L" ", L"-");
-		url += L"&osver=";
-		url += osVersion;
-
-		architecture.Replace (L" ", L"-");
-		url += L"&arch=";
-		url += architecture;
-
-		if (!extraVars.empty())
-		{
-			 url += L"&";
-			 url += extraVars;
-		}
-
-		return url;
-	}
-
-	void GraphicUserInterface::OpenHomepageLink (wxWindow *parent, const wxString &linkId, const wxString &extraVars)
-	{
-		wxString url;
-		
-		BeginInteractiveBusyState (parent);
-		wxLaunchDefaultBrowser (GetHomepageLinkURL (linkId, false, extraVars), wxBROWSER_NEW_WINDOW);
-		Thread::Sleep (200);
-		EndInteractiveBusyState (parent);
-	}
-
-	void GraphicUserInterface::OpenOnlineHelp (wxWindow *parent)
-	{
-		OpenHomepageLink (parent, L"help");
-	}
-
-	void GraphicUserInterface::OpenUserGuide (wxWindow *parent)
-	{
-		try
-		{
-			wxString docPath = wstring (Application::GetExecutableDirectory());
-
-#ifdef TC_RESOURCE_DIR
-			docPath = StringConverter::ToWide (string (TC_TO_STRING (TC_RESOURCE_DIR)) + "/doc/TrueCrypt User Guide.pdf");
-#elif defined (TC_WINDOWS)
-			docPath += L"\\TrueCrypt User Guide.pdf";
-#elif defined (TC_MACOSX)
-			docPath += L"/../Resources/TrueCrypt User Guide.pdf";
-#elif defined (TC_UNIX)
-			docPath = L"/usr/share/truecrypt/doc/TrueCrypt User Guide.pdf";
-#else
-#	error TC_RESOURCE_DIR undefined
-#endif
-
-			wxFileName docFile = docPath;
-			docFile.Normalize();
-
-			try
-			{
-				Gui->OpenDocument (parent, docFile);
-			}
-			catch (...)
-			{
-				if (Gui->AskYesNo (LangString ["HELP_READER_ERROR"], true))
-					OpenOnlineHelp (parent);
-			}
-		}
-		catch (Exception &e)
-		{
-			Gui->ShowError (e);
-		}
 	}
 
 	void GraphicUserInterface::RestoreVolumeHeaders (shared_ptr <VolumePath> volumePath) const
@@ -1445,7 +1362,7 @@ namespace TrueCrypt
 	FilePath GraphicUserInterface::SelectVolumeFile (wxWindow *parent, bool saveMode, const DirectoryPath &directory) const
 	{
 		list < pair <wstring, wstring> > extensions;
-		extensions.push_back (make_pair (L"tc", LangString["TC_VOLUMES"]));
+		extensions.push_back (make_pair (wstring (L"tc"), wstring (LangString["TC_VOLUMES"])));
 
 		FilePathList selFiles = Gui->SelectFiles (parent, LangString[saveMode ? "OPEN_NEW_VOLUME" : "OPEN_VOL_TITLE"], saveMode, false, extensions, directory);
 

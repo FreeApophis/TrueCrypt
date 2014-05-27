@@ -1,4 +1,4 @@
-TrueCrypt License Version 3.0
+TrueCrypt License Version 3.1
 
 Software distributed under this license is distributed on an "AS
 IS" BASIS WITHOUT WARRANTIES OF ANY KIND. THE AUTHORS AND
@@ -112,32 +112,16 @@ Your Product.
     TrueCrypt Foundation", "This is a TrueCrypt Foundation
     release."
 
-    c. Phrase "Based on TrueCrypt, freely available at
-    http://www.truecrypt.org/" must be displayed by Your Product
-    (if technically feasible) and contained in its
-    documentation. Alternatively, if This Product or its portion
-    You included in Your Product constitutes only a minor
-    portion of Your Product, phrase "Portions of this product
-    are based in part on TrueCrypt, freely available at
-    http://www.truecrypt.org/" may be displayed instead. In each
-    of the cases mentioned above in this paragraph,
-    "http://www.truecrypt.org/" must be a hyperlink (if
-    technically feasible) pointing to http://www.truecrypt.org/
-    and You may freely choose the location within the user
-    interface (if there is any) of Your Product (e.g., an
-    "About" window, etc.) and the way in which Your Product will
-    display the respective phrase.
-
-    Your Product (and any associated materials, e.g., the
+    c. Your Product (and any associated materials, e.g., the
     documentation, the content of the official web site of Your
     Product, etc.) must not present any Internet address
-    containing the domain name truecrypt.org (or any domain name
-    that forwards to the domain name truecrypt.org) in a manner
+    containing the domain name truecrypt (or any domain name
+    that forwards to the domain name truecrypt) in a manner
     that might suggest that it is where information about Your
     Product may be obtained or where bugs found in Your Product
     may be reported or where support for Your Product may be
     available or otherwise attempt to indicate that the domain
-    name truecrypt.org is associated with Your Product.
+    name truecrypt is associated with Your Product.
 
     d. The complete source code of Your Product must be freely
     and publicly available (for exceptions, see Section III.2)

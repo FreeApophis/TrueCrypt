@@ -452,8 +452,6 @@ BOOL CALLBACK KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 			SetCheckBox (hwndDlg, IDC_KEYFILES_ENABLE, param->EnableKeyFiles);
 
 			SetWindowTextW(GetDlgItem(hwndDlg, IDT_KEYFILES_NOTE), GetString ("KEYFILES_NOTE"));
-
-			ToHyperlink (hwndDlg, IDC_LINK_KEYFILES_INFO);
 		}
 		return 1;
 
@@ -542,11 +540,6 @@ BOOL CALLBACK KeyFilesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 				MAKEINTRESOURCEW (IDD_KEYFILE_GENERATOR), hwndDlg,
 				(DLGPROC) KeyfileGeneratorDlgProc, (LPARAM) 0);
 			return 1;
-		}
-
-		if (lw == IDC_LINK_KEYFILES_INFO)
-		{
-			Applink ("keyfiles", TRUE, "");
 		}
 
 		if (lw == IDOK)

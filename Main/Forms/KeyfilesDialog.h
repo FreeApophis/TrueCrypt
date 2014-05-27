@@ -23,7 +23,6 @@ namespace TrueCrypt
 
 	protected:
 		void OnCreateKeyfileButttonClick (wxCommandEvent& event);
-		void OnKeyfilesHyperlinkClick (wxHyperlinkEvent& event);
 
 		shared_ptr <KeyfileList> Keyfiles;
 		KeyfilesPanel *mKeyfilesPanel;

@@ -84,6 +84,7 @@ namespace TrueCrypt
 			TC_CONFIG_SET (BackgroundTaskEnabled);
 			SetValue (configMap[L"FilesystemOptions"], DefaultMountOptions.FilesystemOptions);
 			TC_CONFIG_SET (ForceAutoDismount);
+			TC_CONFIG_SET (InsecureAppWarningDisplayed);
 			TC_CONFIG_SET (LastSelectedSlotNumber);
 			TC_CONFIG_SET (MaxVolumeIdleTime);
 			TC_CONFIG_SET (MountDevicesOnLogon);
@@ -184,6 +185,7 @@ namespace TrueCrypt
 		TC_CONFIG_ADD (BackgroundTaskEnabled);
 		formatter.AddEntry (L"FilesystemOptions", DefaultMountOptions.FilesystemOptions);
 		TC_CONFIG_ADD (ForceAutoDismount);
+		TC_CONFIG_ADD (InsecureAppWarningDisplayed);
 		TC_CONFIG_ADD (LastSelectedSlotNumber);
 		TC_CONFIG_ADD (MaxVolumeIdleTime);
 		TC_CONFIG_ADD (MountDevicesOnLogon);

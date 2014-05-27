@@ -33,7 +33,6 @@ namespace TrueCrypt
 		virtual void CheckRequirementsForMountingVolume () const;
 		virtual void CloseExplorerWindows (shared_ptr <VolumeInfo> mountedVolume) const;
 		virtual void CreateKeyfile (shared_ptr <FilePath> keyfilePath = shared_ptr <FilePath>()) const = 0;
-		virtual void CreateVolume (shared_ptr <VolumeCreationOptions> options) const = 0;
 		virtual void DeleteSecurityTokenKeyfiles () const = 0;
 		virtual void DismountAllVolumes (bool ignoreOpenFiles = false, bool interactive = true) const;
 		virtual void DismountVolume (shared_ptr <VolumeInfo> volume, bool ignoreOpenFiles = false, bool interactive = true) const;
@@ -53,7 +52,7 @@ namespace TrueCrypt
 		virtual void InitSecurityTokenLibrary () const = 0;
 		virtual void ListMountedVolumes (const VolumeInfoList &volumes) const;
 		virtual void ListSecurityTokenKeyfiles () const = 0;
-		virtual shared_ptr <VolumeInfo> MountVolume (MountOptions &options) const;
+		virtual shared_ptr <VolumeInfo> MountVolume (MountOptions &options);
 		virtual VolumeInfoList MountAllDeviceHostedVolumes (MountOptions &options) const;
 		virtual VolumeInfoList MountAllFavoriteVolumes (MountOptions &options);
 		virtual void OpenExplorerWindow (const DirectoryPath &path);

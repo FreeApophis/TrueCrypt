@@ -75,7 +75,9 @@ static void PrintMainMenu ()
 
 #endif // TC_WINDOWS_BOOT_RESCUE_DISK_MODE
 
-	PrintEndl (3);
+	PrintEndl (2);
+	Print ("WARNING: Using TrueCrypt is not secure");
+	PrintEndl (2);
 }
 
 
@@ -574,125 +576,6 @@ static void BootMenu ()
 
 #ifndef TC_WINDOWS_BOOT_RESCUE_DISK_MODE
 
-static bool CopySystemPartitionToHiddenVolume (byte drive, byte &exitKey)
-{
-	bool status = false;
-
-	uint64 sectorsRemaining;
-	uint64 sectorOffset;
-	sectorOffset.LowPart = 0;
-	sectorOffset.HighPart = 0;
-
-	int fragmentSectorCount = 0x7f; // Maximum safe value supported by BIOS
-	int statCount;
-
-	if (!CheckMemoryRequirements ())
-		goto err;
-
-	if (!GetSystemPartitions (drive))
-		goto err;
-
-	if (PartitionFollowingActive.Drive == TC_INVALID_BIOS_DRIVE)
-		TC_THROW_FATAL_EXCEPTION;
-
-	// Check if BIOS can read the last sector of the hidden system
-	AcquireSectorBuffer();
-
-	if (ReadSectors (SectorBuffer, PartitionFollowingActive.Drive, PartitionFollowingActive.EndSector - (TC_VOLUME_HEADER_GROUP_SIZE / TC_LB_SIZE - 2), 1) != BiosResultSuccess
-		|| GetCrc32 (SectorBuffer, sizeof (SectorBuffer)) != OuterVolumeBackupHeaderCrc)
-	{
-		PrintErrorNoEndl ("Your BIOS does not support large drives");
-		Print (IsLbaSupported (PartitionFollowingActive.Drive) ? " due to a bug" : "\r\n- Enable LBA in BIOS");
-		PrintEndl();
-		Print (TC_BOOT_STR_UPGRADE_BIOS);
-
-		ReleaseSectorBuffer();
-		goto err;
-	}
-
-	ReleaseSectorBuffer();
-
-	if (!MountVolume (drive, exitKey, true, false))
-		return false;
-
-	sectorsRemaining = EncryptedVirtualPartition.SectorCount;
-
-	if (!(sectorsRemaining == ActivePartition.SectorCount))
-		TC_THROW_FATAL_EXCEPTION;
-
-	InitScreen();
-	Print ("\r\nCopying system to hidden volume. To abort, press Esc.\r\n\r\n");
-
-	while (sectorsRemaining.HighPart != 0 || sectorsRemaining.LowPart != 0)
-	{
-		if (EscKeyPressed())
-		{
-			Print ("\rIf aborted, copying will have to start from the beginning (if attempted again).\r\n");
-			if (AskYesNo ("Abort"))
-				break;
-		}
-
-		if (sectorsRemaining.HighPart == 0 && sectorsRemaining.LowPart < fragmentSectorCount)
-			fragmentSectorCount = (int) sectorsRemaining.LowPart;
-
-		if (ReadWriteSectors (false, TC_BOOT_LOADER_BUFFER_SEGMENT, 0, drive, ActivePartition.StartSector + sectorOffset, fragmentSectorCount, false) != BiosResultSuccess)
-		{
-			Print ("To fix bad sectors: 1) Terminate 2) Encrypt and decrypt sys partition 3) Retry\r\n");
-			crypto_close (BootCryptoInfo);
-			goto err;
-		}
-
-		AcquireSectorBuffer();
-
-		for (int i = 0; i < fragmentSectorCount; ++i)
-		{
-			CopyMemory (TC_BOOT_LOADER_BUFFER_SEGMENT, i * TC_LB_SIZE, SectorBuffer, TC_LB_SIZE);
-
-			uint64 s = HiddenVolumeStartUnitNo + sectorOffset + i;
-			EncryptDataUnits (SectorBuffer, &s, 1, BootCryptoInfo);
-
-			CopyMemory (SectorBuffer, TC_BOOT_LOADER_BUFFER_SEGMENT, i * TC_LB_SIZE, TC_LB_SIZE);
-		} 
-
-		ReleaseSectorBuffer();
-
-		if (ReadWriteSectors (true, TC_BOOT_LOADER_BUFFER_SEGMENT, 0, drive, HiddenVolumeStartSector + sectorOffset, fragmentSectorCount, false) != BiosResultSuccess)
-		{
-			crypto_close (BootCryptoInfo);
-			goto err;
-		}
-
-		sectorsRemaining = sectorsRemaining - fragmentSectorCount;
-		sectorOffset = sectorOffset + fragmentSectorCount;
-
-		if (!(statCount++ & 0xf))
-		{
-			Print ("\rRemaining: ");
-			PrintSectorCountInMB (sectorsRemaining);
-		}
-	}
-
-	crypto_close (BootCryptoInfo);
-
-	if (sectorsRemaining.HighPart == 0 && sectorsRemaining.LowPart == 0)
-	{
-		status = true;
-		Print ("\rCopying completed.");
-	}
-
-	PrintEndl (2);
-	goto ret;
-
-err:
-	exitKey = TC_BIOS_KEY_ESC;
-	GetKeyboardChar();
-
-ret:
-	EraseMemory ((void *) TC_BOOT_LOADER_ARGS_OFFSET, sizeof (BootArguments));
-	return status;
-}
-
-
 #else // TC_WINDOWS_BOOT_RESCUE_DISK_MODE
 
 
@@ -1105,29 +988,7 @@ void main ()
 
 #ifndef TC_WINDOWS_BOOT_RESCUE_DISK_MODE
 
-		// Hidden system setup
-		byte hiddenSystemCreationPhase = BootSectorFlags & TC_BOOT_CFG_MASK_HIDDEN_OS_CREATION_PHASE;
-
-		if (hiddenSystemCreationPhase != TC_HIDDEN_OS_CREATION_PHASE_NONE)
-		{
-			PreventNormalSystemBoot = true;
-			PrintMainMenu();
-
-			if (hiddenSystemCreationPhase == TC_HIDDEN_OS_CREATION_PHASE_CLONING)
-			{
-				if (CopySystemPartitionToHiddenVolume (BootDrive, exitKey))
-				{
-					BootSectorFlags = (BootSectorFlags & ~TC_BOOT_CFG_MASK_HIDDEN_OS_CREATION_PHASE) | TC_HIDDEN_OS_CREATION_PHASE_WIPING;
-					UpdateBootSectorConfiguration (BootLoaderDrive);
-				}
-				else if (exitKey == TC_BIOS_KEY_ESC)
-					goto bootMenu;
-				else
-					continue;
-			}
-		}
-		else
-			PrintMainMenu();
+		PrintMainMenu();
 
 		exitKey = BootEncryptedDrive();
 

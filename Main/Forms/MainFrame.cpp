@@ -31,7 +31,6 @@
 #include "LegalNoticesDialog.h"
 #include "PreferencesDialog.h"
 #include "SecurityTokenKeyfilesDialog.h"
-#include "VolumeCreationWizard.h"
 #include "VolumePropertiesDialog.h"
 
 namespace TrueCrypt
@@ -83,6 +82,20 @@ namespace TrueCrypt
 			{
 				Gui->ShowError (e);
 			}
+		}
+
+		UserPreferences prefs = GetPreferences();
+		if (!prefs.InsecureAppWarningDisplayed)
+		{
+			try
+			{
+				prefs.InsecureAppWarningDisplayed = true;
+				Gui->SetPreferences (prefs);
+
+				Gui->ShowWarning ("INSECURE_APP");
+				SavePreferences();
+			}
+			catch (...) { }
 		}
 	}
 
@@ -312,8 +325,6 @@ namespace TrueCrypt
 
 #ifdef __WXGTK__
 		wxSize size (-1, (int) ((double) Gui->GetCharHeight (this) * 1.53));
-		CreateVolumeButton->SetMinSize (size);
-		VolumePropertiesButton->SetMinSize (size);
 		WipeCacheButton->SetMinSize (size);
 		VolumePathComboBox->SetMinSize (size);
 		SelectFileButton->SetMinSize (size);
@@ -802,14 +813,7 @@ namespace TrueCrypt
 
 	void MainFrame::OnCreateVolumeButtonClick (wxCommandEvent& event)
 	{
-		try
-		{
-			(new VolumeCreationWizard (nullptr))->Show();
-		}
-		catch (exception &e)
-		{
-			Gui->ShowError (e);
-		}
+		Gui->ShowError ("INSECURE_APP");
 	}
 
 	void MainFrame::OnDefaultKeyfilesMenuItemSelected (wxCommandEvent& event)
@@ -1442,7 +1446,6 @@ namespace TrueCrypt
 		bool mounted = IsMountedSlotSelected();
 
 		VolumeButton->SetLabel (mounted ? LangString["DISMOUNT"] : wxString (_("Mount")));
-		VolumePropertiesButton->Enable (mounted);
 
 		DismountVolumeMenuItem->Enable (mounted); 
 		MountVolumeMenuItem->Enable (!mounted);

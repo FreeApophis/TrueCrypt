@@ -20,6 +20,8 @@ namespace TrueCrypt
 {
 	wxApp* Application::CreateConsoleApp ()
 	{
+		fprintf (stderr, "\nWARNING: Using TrueCrypt is not secure (see help for more information).\n\n");
+
 		mUserInterface = new TextUserInterface;
 		mUserInterfaceType = UserInterfaceType::Text;
 		return mUserInterface;

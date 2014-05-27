@@ -723,7 +723,7 @@ namespace TrueCrypt
 		return newMountedVolumes;
 	}
 
-	shared_ptr <VolumeInfo> UserInterface::MountVolume (MountOptions &options) const
+	shared_ptr <VolumeInfo> UserInterface::MountVolume (MountOptions &options)
 	{
 		shared_ptr <VolumeInfo> volume;
 
@@ -973,29 +973,7 @@ namespace TrueCrypt
 			return true;
 
 		case CommandId::CreateVolume:
-			{
-				make_shared_auto (VolumeCreationOptions, options);
-
-				if (cmdLine.ArgHash)
-				{
-					options->VolumeHeaderKdf = Pkcs5Kdf::GetAlgorithm (*cmdLine.ArgHash);
-					RandomNumberGenerator::SetHash (cmdLine.ArgHash);
-				}
-				
-				options->EA = cmdLine.ArgEncryptionAlgorithm;
-				options->Filesystem = cmdLine.ArgFilesystem;
-				options->Keyfiles = cmdLine.ArgKeyfiles;
-				options->Password = cmdLine.ArgPassword;
-				options->Quick = cmdLine.ArgQuick;
-				options->Size = cmdLine.ArgSize;
-				options->Type = cmdLine.ArgVolumeType;
-
-				if (cmdLine.ArgVolumePath)
-					options->Path = VolumePath (*cmdLine.ArgVolumePath);
-
-				CreateVolume (options);
-				return true;
-			}
+			throw_err (LangString["INSECURE_APP"]);
 
 		case CommandId::DeleteSecurityTokenKeyfiles:
 			DeleteSecurityTokenKeyfiles();
@@ -1015,8 +993,8 @@ namespace TrueCrypt
 
 		case CommandId::Help:
 			{
-				wstring helpText = StringConverter::ToWide (
-					"Synopsis:\n"
+				wstring helpText = wstring (LangString["INSECURE_APP"]) + StringConverter::ToWide (
+					"\n\n\nSynopsis:\n"
 					"\n"
 					"truecrypt [OPTIONS] COMMAND\n"
 					"truecrypt [OPTIONS] VOLUME_PATH [MOUNT_DIRECTORY]\n"
@@ -1030,23 +1008,6 @@ namespace TrueCrypt
 					"--backup-headers[=VOLUME_PATH]\n"
 					" Backup volume headers to a file. All required options are requested from the\n"
 					" user.\n"
-					"\n"
-					"-c, --create[=VOLUME_PATH]\n"
-					" Create a new volume. Most options are requested from the user if not specified\n"
-					" on command line. See also options --encryption, -k, --filesystem, --hash, -p,\n"
-					" --random-source, --quick, --size, --volume-type. Note that passing some of the\n"
-					" options may affect security of the volume (see option -p for more information).\n"
-					"\n"
-					" Inexperienced users should use the graphical user interface to create a hidden\n"
-					" volume. When using the text user interface, the following procedure must be\n"
-					" followed to create a hidden volume:\n"
-					"  1) Create an outer volume with no filesystem.\n"
-					"  2) Create a hidden volume within the outer volume.\n"
-					"  3) Mount the outer volume using hidden volume protection.\n"
-					"  4) Create a filesystem on the virtual device of the outer volume.\n"
-					"  5) Mount the new filesystem and fill it with data.\n"
-					"  6) Dismount the outer volume.\n"
-					"  If at any step the hidden volume protection is triggered, start again from 1).\n"
 					"\n"
 					"--create-keyfile[=FILE_PATH]\n"
 					" Create a new keyfile containing pseudo-random data.\n"
@@ -1113,15 +1074,10 @@ namespace TrueCrypt
 					"--display-password\n"
 					" Display password characters while typing.\n"
 					"\n"
-					"--encryption=ENCRYPTION_ALGORITHM\n"
-					" Use specified encryption algorithm when creating a new volume.\n"
-					"\n"
 					"--filesystem=TYPE\n"
 					" Filesystem type to mount. The TYPE argument is passed to mount(8) command\n"
-					" with option -t. Default type is 'auto'. When creating a new volume, this\n"
-					" option specifies the filesystem to be created on the new volume (only 'FAT'\n"
-					" and 'none' TYPE is allowed). Filesystem type 'none' disables mounting or\n"
-					" creating a filesystem.\n"
+					" with option -t. Default type is 'auto'.\n"
+					" Filesystem type 'none' disables mounting of a filesystem.\n"
 					"\n"
 					"--force\n"
 					" Force mounting of a volume in use, dismounting of a volume in use, or\n"
@@ -1133,7 +1089,7 @@ namespace TrueCrypt
 					" This option is not available on some platforms.\n"
 					"\n"
 					"--hash=HASH\n"
-					" Use specified hash algorithm when creating a new volume or changing password\n"
+					" Use specified hash algorithm when changing password\n"
 					" and/or keyfiles. This option also specifies the mixing PRF of the random\n"
 					" number generator.\n"
 					"\n"
@@ -1196,19 +1152,12 @@ namespace TrueCrypt
 					" may be used only when mounting an outer volume with hidden volume protected.\n"
 					" See also options -p and --protect-hidden.\n"
 					"\n"
-					"--quick\n"
-					" Do not encrypt free space when creating a device-hosted volume. This option\n"
-					" must not be used when creating an outer volume.\n"
-					"\n"
 					"--random-source=FILE\n"
-					" Use FILE as a source of random data (e.g., when creating a volume) instead\n"
+					" Use FILE as a source of random data instead\n"
 					" of requiring the user to type random characters.\n"
 					"\n"
 					"--slot=SLOT\n"
 					" Use specified slot number when mounting, dismounting, or listing a volume.\n"
-					"\n"
-					"--size=SIZE\n"
-					" Use specified size in bytes when creating a new volume.\n"
 					"\n"
 					"-t, --text\n"
 					" Use text user interface. Graphical user interface is used by default if\n"
@@ -1217,24 +1166,10 @@ namespace TrueCrypt
 					"--token-lib=LIB_PATH\n"
 					" Use specified PKCS #11 security token library.\n"
 					"\n"
-					"--volume-type=TYPE\n"
-					" Use specified volume type when creating a new volume. TYPE can be 'normal'\n"
-					" or 'hidden'. See option -c for more information on creating hidden volumes.\n"
-					"\n"
 					"-v, --verbose\n"
 					" Enable verbose output.\n"
 					"\n"
-					"\n"
-					"IMPORTANT:\n"
-					"\n"
-					"If you want to use TrueCrypt, you must follow the security requirements and\n"
-					"security precautions listed in chapter 'Security Requirements and Precautions'\n"
-					"in the TrueCrypt documentation (file 'TrueCrypt User Guide.pdf').\n"
-					"\n"
 					"\nExamples:\n\n"
-					"Create a new volume:\n"
-					"truecrypt -t -c\n"
-					"\n"
 					"Mount a volume:\n"
 					"truecrypt volume.tc /media/truecrypt1\n"
 					"\n"
@@ -1252,7 +1187,7 @@ namespace TrueCrypt
 					"\n"
 					"Dismount all mounted volumes:\n"
 					"truecrypt -d\n"
-				);
+				) + L"\n\n" + wstring (LangString["INSECURE_APP"]) + L"\n";
 
 #ifndef TC_NO_GUI
 				if (Application::GetUserInterfaceType() == UserInterfaceType::Graphic)

@@ -10,9 +10,6 @@
 
 #include <wx/intl.h>
 
-class WizardPage;
-
-#include "WizardPage.h"
 #include <wx/string.h>
 #include <wx/bitmap.h>
 #include <wx/image.h>
@@ -25,6 +22,7 @@ class WizardPage;
 #include <wx/listctrl.h>
 #include <wx/sizer.h>
 #include <wx/statbox.h>
+#include <wx/hyperlink.h>
 #include <wx/button.h>
 #include <wx/statbmp.h>
 #include <wx/combobox.h>
@@ -33,14 +31,12 @@ class WizardPage;
 #include <wx/panel.h>
 #include <wx/frame.h>
 #include <wx/stattext.h>
-#include <wx/hyperlink.h>
 #include <wx/statline.h>
 #include <wx/textctrl.h>
 #include <wx/dialog.h>
 #include <wx/choice.h>
 #include <wx/spinctrl.h>
 #include <wx/notebook.h>
-#include <wx/gauge.h>
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -75,8 +71,9 @@ namespace TrueCrypt
 			wxListCtrl* SlotListCtrl;
 			wxStaticBoxSizer* LowStaticBoxSizer;
 			wxBoxSizer* HigherButtonSizer;
-			wxButton* CreateVolumeButton;
-			wxButton* VolumePropertiesButton;
+			
+			wxHyperlinkCtrl* InsecureAppLink;
+			
 			wxButton* WipeCacheButton;
 			
 			wxStaticBoxSizer* VolumeStaticBoxSizer;
@@ -96,6 +93,7 @@ namespace TrueCrypt
 			// Virtual event handlers, overide them in your derived class
 			virtual void OnActivate( wxActivateEvent& event ){ event.Skip(); }
 			virtual void OnClose( wxCloseEvent& event ){ event.Skip(); }
+			virtual void OnPermanentlyDecryptMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnCreateVolumeButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnMountVolumeMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnMountAllDevicesButtonClick( wxCommandEvent& event ){ event.Skip(); }
@@ -122,21 +120,13 @@ namespace TrueCrypt
 			virtual void OnDefaultKeyfilesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnSecurityTokenPreferencesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnPreferencesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnUserGuideMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnOnlineHelpMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnBeginnersTutorialMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnFaqMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnWebsiteMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnDownloadsMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnNewsMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnVersionHistoryMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnContactMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnLegalNoticesMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnAboutMenuItemSelected( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnListItemActivated( wxListEvent& event ){ event.Skip(); }
 			virtual void OnListItemDeselected( wxListEvent& event ){ event.Skip(); }
 			virtual void OnListItemRightClick( wxListEvent& event ){ event.Skip(); }
 			virtual void OnListItemSelected( wxListEvent& event ){ event.Skip(); }
+			virtual void OnInsecureAppLinkClick( wxHyperlinkEvent& event ){ event.Skip(); }
 			virtual void OnLogoBitmapClick( wxMouseEvent& event ){ event.Skip(); }
 			virtual void OnSelectFileButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnNoHistoryCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
@@ -149,42 +139,6 @@ namespace TrueCrypt
 		public:
 			MainFrameBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("TrueCrypt"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,496 ), long style = wxCAPTION|wxCLOSE_BOX|wxMINIMIZE_BOX|wxSYSTEM_MENU|wxTAB_TRAVERSAL );
 			~MainFrameBase();
-		
-	};
-	
-	///////////////////////////////////////////////////////////////////////////////
-	/// Class WizardFrameBase
-	///////////////////////////////////////////////////////////////////////////////
-	class WizardFrameBase : public wxFrame 
-	{
-		private:
-		
-		protected:
-			wxPanel* MainPanel;
-			wxStaticBitmap* WizardBitmap;
-			wxStaticText* PageTitleStaticText;
-			wxBoxSizer* PageSizer;
-			
-			wxButton* HelpButton;
-			
-			wxButton* PreviousButton;
-			wxButton* NextButton;
-			
-			wxButton* CancelButton;
-			
-			// Virtual event handlers, overide them in your derived class
-			virtual void OnActivate( wxActivateEvent& event ){ event.Skip(); }
-			virtual void OnClose( wxCloseEvent& event ){ event.Skip(); }
-			virtual void OnMouseMotion( wxMouseEvent& event ){ event.Skip(); }
-			virtual void OnHelpButtonClick( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnPreviousButtonClick( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnNextButtonClick( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnCancelButtonClick( wxCommandEvent& event ){ event.Skip(); }
-			
-		
-		public:
-			WizardFrameBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxEmptyString, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxCAPTION|wxCLOSE_BOX|wxMINIMIZE_BOX|wxSYSTEM_MENU|wxTAB_TRAVERSAL );
-			~WizardFrameBase();
 		
 	};
 	
@@ -203,17 +157,12 @@ namespace TrueCrypt
 			
 			wxStaticText* CopyrightStaticText;
 			
-			wxHyperlinkCtrl* WebsiteHyperlink;
 			wxStaticLine* m_staticline3;
 			wxTextCtrl* CreditsTextCtrl;
 			
 			wxStaticLine* m_staticline4;
 			wxStaticLine* m_staticline5;
 			
-			
-			
-			// Virtual event handlers, overide them in your derived class
-			virtual void OnWebsiteHyperlinkClick( wxHyperlinkEvent& event ){ event.Skip(); }
 			
 		
 		public:
@@ -383,11 +332,9 @@ namespace TrueCrypt
 			wxStaticText* WarningStaticText;
 			wxBoxSizer* KeyfilesNoteSizer;
 			wxStaticText* KeyfilesNoteStaticText;
-			wxHyperlinkCtrl* KeyfilesHyperlink;
 			wxButton* CreateKeyfileButtton;
 			
 			// Virtual event handlers, overide them in your derived class
-			virtual void OnKeyfilesHyperlinkClick( wxHyperlinkEvent& event ){ event.Skip(); }
 			virtual void OnCreateKeyfileButttonClick( wxCommandEvent& event ){ event.Skip(); }
 			
 		
@@ -468,7 +415,6 @@ namespace TrueCrypt
 			wxStaticBoxSizer* ProtectionSizer;
 			wxCheckBox* ProtectionCheckBox;
 			wxBoxSizer* ProtectionPasswordSizer;
-			wxHyperlinkCtrl* ProtectionHyperlinkCtrl;
 			wxBoxSizer* FilesystemSizer;
 			wxPanel* m_panel8;
 			wxCheckBox* NoFilesystemCheckBox;
@@ -486,7 +432,6 @@ namespace TrueCrypt
 			virtual void OnOptionsButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnReadOnlyCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnProtectionCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnProtectionHyperlinkClick( wxHyperlinkEvent& event ){ event.Skip(); }
 			virtual void OnNoFilesystemCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnMountPointButtonClick( wxCommandEvent& event ){ event.Skip(); }
 			
@@ -699,54 +644,6 @@ namespace TrueCrypt
 	};
 	
 	///////////////////////////////////////////////////////////////////////////////
-	/// Class EncryptionOptionsWizardPageBase
-	///////////////////////////////////////////////////////////////////////////////
-	class EncryptionOptionsWizardPageBase : public WizardPage
-	{
-		private:
-		
-		protected:
-			wxChoice* EncryptionAlgorithmChoice;
-			wxButton* TestButton;
-			wxStaticText* EncryptionAlgorithmStaticText;
-			wxHyperlinkCtrl* EncryptionAlgorithmHyperlink;
-			
-			wxButton* BenchmarkButton;
-			wxChoice* HashChoice;
-			wxHyperlinkCtrl* HashHyperlink;
-			
-			// Virtual event handlers, overide them in your derived class
-			virtual void OnEncryptionAlgorithmSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnTestButtonClick( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnEncryptionAlgorithmHyperlinkClick( wxHyperlinkEvent& event ){ event.Skip(); }
-			virtual void OnBenchmarkButtonClick( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnHashHyperlinkClick( wxHyperlinkEvent& event ){ event.Skip(); }
-			
-		
-		public:
-			EncryptionOptionsWizardPageBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL );
-			~EncryptionOptionsWizardPageBase();
-		
-	};
-	
-	///////////////////////////////////////////////////////////////////////////////
-	/// Class InfoWizardPageBase
-	///////////////////////////////////////////////////////////////////////////////
-	class InfoWizardPageBase : public WizardPage
-	{
-		private:
-		
-		protected:
-			wxBoxSizer* InfoPageSizer;
-			wxStaticText* InfoStaticText;
-		
-		public:
-			InfoWizardPageBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL );
-			~InfoWizardPageBase();
-		
-	};
-	
-	///////////////////////////////////////////////////////////////////////////////
 	/// Class KeyfilesPanelBase
 	///////////////////////////////////////////////////////////////////////////////
 	class KeyfilesPanelBase : public wxPanel 
@@ -779,165 +676,6 @@ namespace TrueCrypt
 	};
 	
 	///////////////////////////////////////////////////////////////////////////////
-	/// Class ProgressWizardPageBase
-	///////////////////////////////////////////////////////////////////////////////
-	class ProgressWizardPageBase : public WizardPage
-	{
-		private:
-		
-		protected:
-			wxBoxSizer* ProgressSizer;
-			wxGauge* ProgressGauge;
-			wxButton* AbortButton;
-			wxStaticText* InfoStaticText;
-			
-			// Virtual event handlers, overide them in your derived class
-			virtual void OnAbortButtonClick( wxCommandEvent& event ){ event.Skip(); }
-			
-		
-		public:
-			ProgressWizardPageBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL );
-			~ProgressWizardPageBase();
-		
-	};
-	
-	///////////////////////////////////////////////////////////////////////////////
-	/// Class SelectDirectoryWizardPageBase
-	///////////////////////////////////////////////////////////////////////////////
-	class SelectDirectoryWizardPageBase : public WizardPage
-	{
-		private:
-		
-		protected:
-			wxTextCtrl* DirectoryTextCtrl;
-			wxButton* BrowseButton;
-			wxStaticText* InfoStaticText;
-			
-			// Virtual event handlers, overide them in your derived class
-			virtual void OnDirectoryTextChanged( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnBrowseButtonClick( wxCommandEvent& event ){ event.Skip(); }
-			
-		
-		public:
-			SelectDirectoryWizardPageBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 200,65 ), long style = wxTAB_TRAVERSAL );
-			~SelectDirectoryWizardPageBase();
-		
-	};
-	
-	///////////////////////////////////////////////////////////////////////////////
-	/// Class SingleChoiceWizardPageBase
-	///////////////////////////////////////////////////////////////////////////////
-	class SingleChoiceWizardPageBase : public WizardPage
-	{
-		private:
-		
-		protected:
-			
-			wxBoxSizer* OuterChoicesSizer;
-			wxBoxSizer* ChoicesSizer;
-			wxStaticText* InfoStaticText;
-		
-		public:
-			SingleChoiceWizardPageBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL );
-			~SingleChoiceWizardPageBase();
-		
-	};
-	
-	///////////////////////////////////////////////////////////////////////////////
-	/// Class VolumeCreationProgressWizardPageBase
-	///////////////////////////////////////////////////////////////////////////////
-	class VolumeCreationProgressWizardPageBase : public WizardPage
-	{
-		private:
-		
-		protected:
-			wxBoxSizer* KeySamplesUpperSizer;
-			wxBoxSizer* KeySamplesUpperInnerSizer;
-			wxStaticText* RandomPoolSampleStaticText;
-			wxCheckBox* DisplayKeysCheckBox;
-			wxStaticText* HeaderKeySampleStaticText;
-			wxStaticText* MasterKeySampleStaticText;
-			wxGauge* ProgressGauge;
-			wxButton* AbortButton;
-			wxStaticText* m_staticText31;
-			wxPanel* m_panel12;
-			wxStaticText* SizeDoneStaticText;
-			wxStaticText* m_staticText311;
-			wxPanel* m_panel121;
-			wxStaticText* SpeedStaticText;
-			wxStaticText* m_staticText312;
-			wxPanel* m_panel122;
-			wxStaticText* TimeLeftStaticText;
-			
-			wxStaticText* InfoStaticText;
-			
-			// Virtual event handlers, overide them in your derived class
-			virtual void OnDisplayKeysCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnAbortButtonClick( wxCommandEvent& event ){ event.Skip(); }
-			
-		
-		public:
-			VolumeCreationProgressWizardPageBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL );
-			~VolumeCreationProgressWizardPageBase();
-		
-	};
-	
-	///////////////////////////////////////////////////////////////////////////////
-	/// Class VolumeLocationWizardPageBase
-	///////////////////////////////////////////////////////////////////////////////
-	class VolumeLocationWizardPageBase : public WizardPage
-	{
-		private:
-		
-		protected:
-			
-			wxComboBox* VolumePathComboBox;
-			wxButton* SelectFileButton;
-			wxButton* SelectDeviceButton;
-			
-			wxCheckBox* NoHistoryCheckBox;
-			
-			wxStaticText* InfoStaticText;
-			
-			// Virtual event handlers, overide them in your derived class
-			virtual void OnVolumePathTextChanged( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnSelectFileButtonClick( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnSelectDeviceButtonClick( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnNoHistoryCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
-			
-		
-		public:
-			VolumeLocationWizardPageBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL );
-			~VolumeLocationWizardPageBase();
-		
-	};
-	
-	///////////////////////////////////////////////////////////////////////////////
-	/// Class VolumeFormatOptionsWizardPageBase
-	///////////////////////////////////////////////////////////////////////////////
-	class VolumeFormatOptionsWizardPageBase : public WizardPage
-	{
-		private:
-		
-		protected:
-			wxStaticText* m_staticText43;
-			wxChoice* FilesystemTypeChoice;
-			wxCheckBox* QuickFormatCheckBox;
-			
-			wxStaticText* InfoStaticText;
-			
-			// Virtual event handlers, overide them in your derived class
-			virtual void OnFilesystemTypeSelected( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnQuickFormatCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
-			
-		
-		public:
-			VolumeFormatOptionsWizardPageBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL );
-			~VolumeFormatOptionsWizardPageBase();
-		
-	};
-	
-	///////////////////////////////////////////////////////////////////////////////
 	/// Class VolumePasswordPanelBase
 	///////////////////////////////////////////////////////////////////////////////
 	class VolumePasswordPanelBase : public wxPanel 
@@ -948,6 +686,7 @@ namespace TrueCrypt
 			wxGridBagSizer* GridBagSizer;
 			wxStaticText* PasswordStaticText;
 			wxTextCtrl* PasswordTextCtrl;
+			wxHyperlinkCtrl* InsecureAppLink;
 			wxStaticText* ConfirmPasswordStaticText;
 			wxTextCtrl* ConfirmPasswordTextCtrl;
 			wxCheckBox* CacheCheckBox;
@@ -961,6 +700,7 @@ namespace TrueCrypt
 			
 			// Virtual event handlers, overide them in your derived class
 			virtual void OnTextChanged( wxCommandEvent& event ){ event.Skip(); }
+			virtual void OnInsecureAppLinkClick( wxHyperlinkEvent& event ){ event.Skip(); }
 			virtual void OnDisplayPasswordCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnUseKeyfilesCheckBoxClick( wxCommandEvent& event ){ event.Skip(); }
 			virtual void OnKeyfilesButtonClick( wxCommandEvent& event ){ event.Skip(); }
@@ -971,50 +711,6 @@ namespace TrueCrypt
 		public:
 			VolumePasswordPanelBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL );
 			~VolumePasswordPanelBase();
-		
-	};
-	
-	///////////////////////////////////////////////////////////////////////////////
-	/// Class VolumePasswordWizardPageBase
-	///////////////////////////////////////////////////////////////////////////////
-	class VolumePasswordWizardPageBase : public WizardPage
-	{
-		private:
-		
-		protected:
-			wxBoxSizer* PasswordPanelSizer;
-			wxStaticText* InfoStaticText;
-		
-		public:
-			VolumePasswordWizardPageBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL );
-			~VolumePasswordWizardPageBase();
-		
-	};
-	
-	///////////////////////////////////////////////////////////////////////////////
-	/// Class VolumeSizeWizardPageBase
-	///////////////////////////////////////////////////////////////////////////////
-	class VolumeSizeWizardPageBase : public WizardPage
-	{
-		private:
-		
-		protected:
-			
-			wxTextCtrl* VolumeSizeTextCtrl;
-			wxChoice* VolumeSizePrefixChoice;
-			
-			wxStaticText* FreeSpaceStaticText;
-			
-			wxStaticText* InfoStaticText;
-			
-			// Virtual event handlers, overide them in your derived class
-			virtual void OnVolumeSizeTextChanged( wxCommandEvent& event ){ event.Skip(); }
-			virtual void OnVolumeSizePrefixSelected( wxCommandEvent& event ){ event.Skip(); }
-			
-		
-		public:
-			VolumeSizeWizardPageBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL );
-			~VolumeSizeWizardPageBase();
 		
 	};
 	

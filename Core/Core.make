@@ -9,11 +9,9 @@
 OBJS :=
 OBJS += CoreBase.o
 OBJS += CoreException.o
-OBJS += FatFormatter.o
 OBJS += HostDevice.o
 OBJS += MountOptions.o
 OBJS += RandomNumberGenerator.o
-OBJS += VolumeCreator.o
 OBJS += Unix/CoreService.o
 OBJS += Unix/CoreServiceRequest.o
 OBJS += Unix/CoreServiceResponse.o

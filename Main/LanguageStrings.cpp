@@ -73,13 +73,18 @@ namespace TrueCrypt
 		Map["ENTER_TC_VOL_PASSWORD"] = _("Enter TrueCrypt Volume Password");
 		Map["SELECT_KEYFILE_PATH"] = _("Select Keyfile Search Path");
 		Map["MORE_INFO_ABOUT"] = _("More information on {0}");
-		Map["TWO_LAYER_CASCADE_HELP"] = _("Two ciphers in a cascade operating in XTS mode. Each block is first encrypted with {0} ({1}-bit key) and then with {2} ({3}-bit key). Each cipher uses its own key. All keys are mutually independent.");
-		Map["THREE_LAYER_CASCADE_HELP"] = _("Three ciphers in a cascade operating in XTS mode. Each block is first encrypted with {0} ({1}-bit key), then with {2} ({3}-bit key), and finally with {4} ({5}-bit key). Each cipher uses its own key. All keys are mutually independent.");
 		Map["CHECKING_FS"] = _("Checking the file system on the TrueCrypt volume mounted as {0}...");
 		Map["REPAIRING_FS"] = _("Attempting to repair the file system on the TrueCrypt volume mounted as {0}...");
 		Map["UNMOUNT_LOCK_FAILED"] = _("Volume \"{0}\" contains files or folders being used by applications or system.\n\nForce dismount?");
-		Map["VOLUME_SIZE_HELP"] = _("Please specify the size of the container to create. Note that the minimum possible size of a volume is 292 KB.");
 		Map["ENCRYPTION_MODE_NOT_SUPPORTED_BY_KERNEL"] = _("The volume you have mounted uses a mode of operation that is not supported by the Linux kernel. You may experience slow performance when using this volume. To achieve full performance, you should move the data from this volume to a new volume created by TrueCrypt 5.0 or later.");
+
+		wstring insecureApp = Map["INSECURE_APP"];
+		Map["INSECURE_APP"] = insecureApp.substr (0, insecureApp.find (L"Use BitLocker"))
+#ifdef TC_MACOSX
+			+ _("Use Disk Utility to encrypt data:\n\n1) Open 'Utilities' in 'Applications'\n2) Open 'Disk Utility' in 'Utilities'\n3) Click 'New Image' icon in 'Disk Utility'\n4) Select 'Encryption' and other options\n5) Click 'Create'");
+#else
+			+ _("Use any integrated support for encryption. Search available installation packages for words encryption and crypt, install any of the packages found and follow its documentation.");
+#endif
 	}
 
 	LanguageStrings LangString;

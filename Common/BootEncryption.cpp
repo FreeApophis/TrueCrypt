@@ -1861,6 +1861,8 @@ namespace TrueCrypt
 
 	void BootEncryption::CheckRequirements ()
 	{
+		AbortProcess ("INSECURE_APP");
+
 		if (nCurrentOS == WIN_2000)
 			throw ErrorException ("SYS_ENCRYPTION_UNSUPPORTED_ON_CURRENT_OS");
  
@@ -2232,72 +2234,13 @@ namespace TrueCrypt
 
 	void BootEncryption::PrepareHiddenOSCreation (int ea, int mode, int pkcs5)
 	{
-		BootEncryptionStatus encStatus = GetStatus();
-		if (encStatus.DriveMounted)
-			throw ParameterIncorrect (SRC_POS);
-
-		CheckRequirements();
-		BackupSystemLoader();
-
-		SelectedEncryptionAlgorithmId = ea;
+		AbortProcess ("INSECURE_APP");
 	}
 
 
 	void BootEncryption::PrepareInstallation (bool systemPartitionOnly, Password &password, int ea, int mode, int pkcs5, const string &rescueIsoImagePath)
 	{
-		BootEncryptionStatus encStatus = GetStatus();
-		if (encStatus.DriveMounted)
-			throw ParameterIncorrect (SRC_POS);
-
-		CheckRequirements ();
-
-		SystemDriveConfiguration config = GetSystemDriveConfiguration();
-
-		// Some chipset drivers may prevent access to the last sector of the drive
-		if (!systemPartitionOnly)
-		{
-			DISK_GEOMETRY geometry = GetDriveGeometry (config.DriveNumber);
-			Buffer sector (geometry.BytesPerSector);
-
-			Device device (config.DevicePath);
-
-			try
-			{
-				device.SeekAt (config.DrivePartition.Info.PartitionLength.QuadPart - geometry.BytesPerSector);
-				device.Read (sector.Ptr(), sector.Size());
-			}
-			catch (SystemException &e)
-			{
-				if (e.ErrorCode != ERROR_CRC)
-				{
-					e.Show (ParentWindow);
-					Error ("WHOLE_DRIVE_ENCRYPTION_PREVENTED_BY_DRIVERS");
-					throw UserAbort (SRC_POS);
-				}
-			}
-		}
-
-		BackupSystemLoader ();
-
-		uint64 volumeSize;
-		uint64 encryptedAreaStart;
-
-		if (systemPartitionOnly)
-		{
-			volumeSize = config.SystemPartition.Info.PartitionLength.QuadPart;
-			encryptedAreaStart = config.SystemPartition.Info.StartingOffset.QuadPart;
-		}
-		else
-		{
-			volumeSize = config.DrivePartition.Info.PartitionLength.QuadPart - TC_BOOT_LOADER_AREA_SIZE;
-			encryptedAreaStart = config.DrivePartition.Info.StartingOffset.QuadPart + TC_BOOT_LOADER_AREA_SIZE;
-		}
-
-		SelectedEncryptionAlgorithmId = ea;
-		CreateVolumeHeader (volumeSize, encryptedAreaStart, &password, ea, mode, pkcs5);
-		
-		if (!rescueIsoImagePath.empty())
-			CreateRescueIsoImage (true, rescueIsoImagePath);
+		AbortProcess ("INSECURE_APP");
 	}
 
 	bool BootEncryption::IsPagingFileActive (BOOL checkNonWindowsPartitionsOnly)
@@ -2358,19 +2301,7 @@ namespace TrueCrypt
 
 	void BootEncryption::StartEncryption (WipeAlgorithmId wipeAlgorithm, bool zeroUnreadableSectors)
 	{
-		BootEncryptionStatus encStatus = GetStatus();
-
-		if (!encStatus.DeviceFilterActive || !encStatus.DriveMounted || encStatus.SetupInProgress)
-			throw ParameterIncorrect (SRC_POS);
-
-		BootEncryptionSetupRequest request;
-		ZeroMemory (&request, sizeof (request));
-		
-		request.SetupMode = SetupEncryption;
-		request.WipeAlgorithm = wipeAlgorithm;
-		request.ZeroUnreadableSectors = zeroUnreadableSectors;
-
-		CallDriver (TC_IOCTL_BOOT_ENCRYPTION_SETUP, &request, sizeof (request), NULL, 0);
+		AbortProcess ("INSECURE_APP");
 	}
 
 	void BootEncryption::CopyFileAdmin (const string &sourceFile, const string &destinationFile)

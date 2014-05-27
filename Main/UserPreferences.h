@@ -34,6 +34,7 @@ namespace TrueCrypt
 			DismountOnScreenSaver (false),
 			DisplayMessageAfterHotkeyDismount (false),
 			ForceAutoDismount (true),
+			InsecureAppWarningDisplayed (false),
 			LastSelectedSlotNumber (0),
 			MaxVolumeIdleTime (60),
 			MountDevicesOnLogon (false),
@@ -74,6 +75,7 @@ namespace TrueCrypt
 		bool DismountOnScreenSaver;
 		bool DisplayMessageAfterHotkeyDismount;
 		bool ForceAutoDismount;
+		bool InsecureAppWarningDisplayed;
 		uint64 LastSelectedSlotNumber;
 		int32 MaxVolumeIdleTime;
 		bool MountDevicesOnLogon;

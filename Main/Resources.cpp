@@ -156,29 +156,6 @@ namespace TrueCrypt
 #endif
 	}
 
-	wxBitmap Resources::GetVolumeCreationWizardBitmap (int height)
-	{
-#ifdef TC_WINDOWS
-		return wxBitmap (L"IDB_VOLUME_WIZARD_BITMAP", wxBITMAP_TYPE_BMP_RESOURCE);
-#else
-		static const byte VolumeWizardIcon[] =
-		{
-#			include "Format/TrueCrypt_Wizard.bmp.h"
-		};
-
-		wxMemoryInputStream stream (VolumeWizardIcon, sizeof (VolumeWizardIcon));
-
-		wxImage image (stream);
-		if (height != -1)
-		{
-			double scaleFactor = double (height) / double (image.GetHeight());
-			image.Rescale (int (image.GetWidth() * scaleFactor), int (image.GetHeight() * scaleFactor), wxIMAGE_QUALITY_HIGH);
-		}
-
-		return wxBitmap (image);
-#endif
-	}
-
 #endif // !TC_NO_GUI
 
 }

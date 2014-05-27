@@ -14,13 +14,11 @@
 #undef APSTUDIO_READONLY_SYMBOLS
 
 /////////////////////////////////////////////////////////////////////////////
-// English (U.S.) resources
+// English (United States) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
-#ifdef _WIN32
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 #pragma code_page(1252)
-#endif //_WIN32
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -28,8 +26,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 7,1,1,0
- PRODUCTVERSION 7,1,1,0
+ FILEVERSION 7,2,0,0
+ PRODUCTVERSION 7,2,0,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -46,11 +44,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Format"
-            VALUE "FileVersion", "7.1a"
+            VALUE "FileVersion", "7.2"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "TrueCrypt Format.exe"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "7.1a"
+            VALUE "ProductVersion", "7.2"
         END
     END
     BLOCK "VarFileInfo"
@@ -91,7 +89,7 @@ BEGIN
     PUSHBUTTON      "Cancel",IDCANCEL,343,189,50,14
     LTEXT           "",IDC_BOX_TITLE,160,8,233,17
     GROUPBOX        "",IDC_STATIC,4,0,392,183
-    CONTROL         116,IDC_BITMAP_WIZARD,"Static",SS_BITMAP | SS_SUNKEN,10,9,137,169
+    CONTROL         IDB_WIZARD,IDC_BITMAP_WIZARD,"Static",SS_BITMAP | SS_SUNKEN,10,9,137,169
     LTEXT           "",IDC_POS_BOX,160,24,231,152
 END
 
@@ -106,8 +104,6 @@ BEGIN
     LTEXT           "",IDC_BOX_HELP,7,40,205,40
     GROUPBOX        "Encryption Algorithm",IDT_ENCRYPTION_ALGO,0,10,217,95
     GROUPBOX        "Hash Algorithm",IDT_HASH_ALGO,0,109,217,35
-    LTEXT           "More information",IDC_LINK_MORE_INFO_ABOUT_CIPHER,7,82,135,10,SS_NOTIFY
-    LTEXT           "Information on hash algorithms",IDC_LINK_HASH_INFO,97,124,115,8,SS_NOTIFY
 END
 
 IDD_PASSWORD_PAGE_DLG DIALOGEX 0, 0, 226, 152
@@ -182,12 +178,10 @@ FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     CONTROL         "Create an encrypted file container",IDC_FILE_CONTAINER,
                     "Button",BS_AUTORADIOBUTTON,0,7,217,10
-    LTEXT           "More information",IDC_MORE_INFO_ON_CONTAINERS,16,39,165,10,SS_NOTIFY
     CONTROL         "Encrypt a non-system partition/drive",IDC_NONSYS_DEVICE,
                     "Button",BS_AUTORADIOBUTTON,0,53,217,10
     CONTROL         "Encrypt the system partition or entire system drive",IDC_SYS_DEVICE,
                     "Button",BS_AUTORADIOBUTTON,0,87,217,10
-    LTEXT           "More information about system encryption",IDC_MORE_INFO_ON_SYS_ENCRYPTION,16,136,190,10,SS_NOTIFY
     LTEXT           "Creates a virtual encrypted disk within a file. Recommended for inexperienced users.",IDT_FILE_CONTAINER,16,20,205,16
     LTEXT           "Encrypts a non-system partition on any internal or external drive (e.g. a flash drive). Optionally, creates a hidden volume.",IDT_NON_SYS_DEVICE,16,66,205,16
     LTEXT           "Encrypts the partition/drive where Windows is installed. Anyone who wants to gain access and use the system, read and write files, etc., will need to enter the correct password each time before Windows boots. Optionally, creates a hidden system.",IDT_SYS_DEVICE,16,100,205,33
@@ -236,7 +230,6 @@ FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     CONTROL         "Standard TrueCrypt volume",IDC_STD_VOL,"Button",BS_AUTORADIOBUTTON,0,7,212,10
     CONTROL         "Hi&dden TrueCrypt volume ",IDC_HIDDEN_VOL,"Button",BS_AUTORADIOBUTTON,0,53,212,10
-    LTEXT           "More information about hidden volumes",IDC_HIDDEN_VOL_HELP,16,125,205,10,SS_NOTIFY
     LTEXT           "",IDC_BOX_HELP_NORMAL_VOL,16,20,205,25
     LTEXT           "",IDC_BOX_HELP,16,66,205,57
 END
@@ -304,7 +297,6 @@ FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     COMBOBOX        IDC_WIPE_MODE,67,13,125,90,CBS_DROPDOWNLIST | WS_TABSTOP
     PUSHBUTTON      "&Pause",IDC_PAUSE,169,40,50,14
-    LTEXT           "More information",IDC_MORE_INFO_SYS_ENCRYPTION,1,141,202,10,SS_NOTIFY
     LTEXT           "",IDC_BYTESWRITTEN,29,58,39,11,SS_CENTERIMAGE,WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
     RTEXT           "",IDC_WRITESPEED,103,58,46,11,SS_CENTERIMAGE,WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
     RTEXT           "",IDC_TIMEREMAIN,177,58,42,11,SS_CENTERIMAGE,WS_EX_TRANSPARENT | WS_EX_RIGHT | WS_EX_STATICEDGE
@@ -356,7 +348,6 @@ FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     CONTROL         "Normal",IDC_SYSENC_NORMAL,"Button",BS_AUTORADIOBUTTON,0,7,212,10
     CONTROL         "Hi&dden",IDC_SYSENC_HIDDEN,"Button",BS_AUTORADIOBUTTON,0,53,212,10
-    LTEXT           "More information",IDC_HIDDEN_SYSENC_INFO_LINK,16,138,205,10,SS_NOTIFY
     LTEXT           "",IDC_BOX_HELP_SYSENC_NORMAL,16,20,205,25
     LTEXT           "",IDC_BOX_HELP,16,66,205,72
 END
@@ -365,7 +356,6 @@ IDD_SYSENC_HIDDEN_OS_REQ_CHECK_PAGE_DLG DIALOGEX 0, 0, 226, 152
 STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    LTEXT           "More information",IDC_HIDDEN_SYSENC_INFO_LINK,0,141,217,10,SS_NOTIFY
     LTEXT           "",IDC_BOX_HELP,0,2,225,136
 END
 
@@ -417,6 +407,15 @@ BEGIN
     LISTBOX         IDC_LIST_BOX,0,3,222,100,LBS_NOINTEGRALHEIGHT | LBS_DISABLENOSCROLL | WS_VSCROLL
 END
 
+IDD_DRIVE_LETTER_SELECTION_PAGE DIALOGEX 0, 0, 226, 152
+STYLE DS_SETFONT | DS_FIXEDSYS | DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LTEXT           "",IDC_BOX_HELP,0,40,225,95
+    COMBOBOX        IDC_DRIVE_LETTER_LIST,94,15,38,69,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    RTEXT           "Drive letter:",IDT_DRIVE_LETTER,5,17,86,8
+END
+
 
 #ifdef APSTUDIO_INVOKED
 /////////////////////////////////////////////////////////////////////////////
@@ -451,7 +450,7 @@ END
 //
 
 #ifdef APSTUDIO_INVOKED
-GUIDELINES DESIGNINFO 
+GUIDELINES DESIGNINFO
 BEGIN
     IDD_VOL_CREATION_WIZARD_DLG, DIALOG
     BEGIN
@@ -660,6 +659,14 @@ BEGIN
         TOPMARGIN, 7
         BOTTOMMARGIN, 145
     END
+
+    IDD_DRIVE_LETTER_SELECTION_PAGE, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 219
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 145
+    END
 END
 #endif    // APSTUDIO_INVOKED
 
@@ -676,12 +683,12 @@ IDB_WIZARD              BITMAP                  "TrueCrypt_wizard.bmp"
 // String Table
 //
 
-STRINGTABLE 
+STRINGTABLE
 BEGIN
     IDS_UACSTRING_FMT       "TrueCrypt"
 END
 
-#endif    // English (U.S.) resources
+#endif    // English (United States) resources
 /////////////////////////////////////////////////////////////////////////////
 
 

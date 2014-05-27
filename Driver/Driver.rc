@@ -13,13 +13,11 @@
 #undef APSTUDIO_READONLY_SYMBOLS
 
 /////////////////////////////////////////////////////////////////////////////
-// English (U.S.) resources
+// English (United States) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
-#ifdef _WIN32
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 #pragma code_page(1252)
-#endif //_WIN32
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -27,8 +25,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 7,1,1,0
- PRODUCTVERSION 7,1,1,0
+ FILEVERSION 7,2,0,0
+ PRODUCTVERSION 7,2,0,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -45,11 +43,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "TrueCrypt Foundation"
             VALUE "FileDescription", "TrueCrypt Driver"
-            VALUE "FileVersion", "7.1a"
+            VALUE "FileVersion", "7.2"
             VALUE "LegalTrademarks", "TrueCrypt"
             VALUE "OriginalFilename", "truecrypt.sys"
             VALUE "ProductName", "TrueCrypt"
-            VALUE "ProductVersion", "7.1a"
+            VALUE "ProductVersion", "7.2"
         END
     END
     BLOCK "VarFileInfo"
@@ -84,7 +82,7 @@ END
 
 #endif    // APSTUDIO_INVOKED
 
-#endif    // English (U.S.) resources
+#endif    // English (United States) resources
 /////////////////////////////////////////////////////////////////////////////
 
 

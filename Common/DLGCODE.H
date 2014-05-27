@@ -31,8 +31,7 @@ enum dynamic_gui_element_ids
 	IDPM_SELECT_DEVICE_AND_MOUNT,
 	IDPM_ADD_TO_FAVORITES,
 	IDPM_ADD_TO_SYSTEM_FAVORITES,
-	IDM_SHOW_HIDE,
-	IDM_HOMEPAGE_SYSTRAY
+	IDM_SHOW_HIDE
 };
 
 enum
@@ -74,8 +73,6 @@ enum
 #define TC_APPD_FILENAME_SYSTEM_FAVORITE_VOLUMES			TC_APP_NAME " System Favorite Volumes.xml"
 #define TC_APPD_FILENAME_NONSYS_INPLACE_ENC					"In-Place Encryption"
 #define TC_APPD_FILENAME_NONSYS_INPLACE_ENC_WIPE			"In-Place Encryption Wipe Algo"
-#define TC_APPD_FILENAME_POST_INSTALL_TASK_TUTORIAL			"Post-Install Task - Tutorial"
-#define TC_APPD_FILENAME_POST_INSTALL_TASK_RELEASE_NOTES	"Post-Install Task - Release Notes"
 
 #ifndef USER_DEFAULT_SCREEN_DPI
 #define USER_DEFAULT_SCREEN_DPI 96
@@ -85,17 +82,8 @@ enum
 #	error Revision of GUI and graphics necessary, since everything assumes default screen DPI as 96 (note that 96 is the default on Windows 2000, XP, and Vista).
 #endif
 
-enum
-{
-	TC_POST_INSTALL_CFG_REMOVE_ALL = 0,
-	TC_POST_INSTALL_CFG_TUTORIAL,
-	TC_POST_INSTALL_CFG_RELEASE_NOTES
-};
-
 extern char *LastDialogId;
 extern char *ConfigBuffer;
-extern char szHelpFile[TC_MAX_PATH];
-extern char szHelpFile2[TC_MAX_PATH];
 extern char SecurityTokenLibraryPath[TC_MAX_PATH];
 extern HFONT hFixedDigitFont;
 extern HFONT hBoldFont;
@@ -127,6 +115,10 @@ extern int SystemEncryptionStatus;
 extern WipeAlgorithmId nWipeMode;
 extern BOOL bSysPartitionSelected;
 extern BOOL bSysDriveSelected;
+
+extern char SysPartitionDevicePath [TC_MAX_PATH];
+extern char SysDriveDevicePath [TC_MAX_PATH];
+extern char bCachedSysDevicePathsValid;
 
 extern BOOL bHyperLinkBeingTracked;
 extern BOOL bInPlaceEncNonSysPending;
@@ -284,16 +276,14 @@ uint32 ReadEncryptionThreadPoolFreeCpuCountLimit ();
 BOOL LoadSysEncSettings (HWND hwndDlg);
 int LoadNonSysInPlaceEncSettings (WipeAlgorithmId *wipeAlgorithm);
 void RemoveNonSysInPlaceEncNotifications (void);
-void SavePostInstallTasksSettings (int command);
-void DoPostInstallTasks (void);
 void InitOSVersionInfo ();
 void InitApp ( HINSTANCE hInstance, char *lpszCommandLine );
-void InitHelpFileName (void);
 BOOL OpenDevice (const char *lpszPath, OPEN_TEST_STRUCT *driver, BOOL detectFilesystem);
 void NotifyDriverOfPortableMode (void);
 int GetAvailableFixedDisks ( HWND hComboBox , char *lpszRootPath );
 int GetAvailableRemovables ( HWND hComboBox , char *lpszRootPath );
 int IsSystemDevicePath (char *path, HWND hwndDlg, BOOL bReliableRequired);
+int IsNonSysPartitionOnSysDrive (const char *path);
 BOOL CALLBACK RawDevicesDlgProc ( HWND hwndDlg , UINT msg , WPARAM wParam , LPARAM lParam );
 BOOL TextInfoDialogBox (int nID);
 BOOL CALLBACK TextInfoDialogBoxDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -372,7 +362,6 @@ char *GetModPath (char *path, int maxSize);
 char *GetConfigPath (char *fileName);
 char *GetProgramConfigPath (char *fileName);
 char GetSystemDriveLetter (void);
-void OpenPageHelp (HWND hwndDlg, int nPage);
 void TaskBarIconDisplayBalloonTooltip (HWND hwnd, wchar_t *headline, wchar_t *text, BOOL warning);
 void InfoBalloon (char *headingStringId, char *textStringId);
 void InfoBalloonDirect (wchar_t *headingString, wchar_t *textString);
@@ -391,6 +380,7 @@ int AskYesNo (char *stringId);
 int AskYesNoString (const wchar_t *str);
 int AskYesNoTopmost (char *stringId);
 int AskNoYes (char *stringId);
+int AskNoYesString (const wchar_t *string);
 int AskOkCancel (char *stringId);
 int AskWarnYesNo (char *stringId);
 int AskWarnYesNoString (const wchar_t *string);
@@ -421,7 +411,6 @@ BOOL IsServerOS ();
 BOOL IsHiddenOSRunning (void);
 BOOL EnableWow64FsRedirection (BOOL enable);
 BOOL RestartComputer (void);
-void Applink (char *dest, BOOL bSendOS, char *extraOutput);
 char *RelativePath2Absolute (char *szFileName);
 void HandleDriveNotReadyError ();
 BOOL CALLBACK CloseTCWindowsEnum( HWND hwnd, LPARAM lParam);
@@ -431,7 +420,6 @@ void InconsistencyResolved (char *msg);
 void ReportUnexpectedState (char *techInfo);
 BOOL SelectMultipleFiles (HWND hwndDlg, char *stringId, char *lpszFileName, BOOL keepHistory);
 BOOL SelectMultipleFilesNext (char *lpszFileName);
-void OpenOnlineHelp ();
 BOOL GetPartitionInfo (const char *deviceName, PPARTITION_INFORMATION rpartInfo);
 BOOL GetDeviceInfo (const char *deviceName, DISK_PARTITION_INFO_STRUCT *info);
 BOOL GetDriveGeometry (const char *deviceName, PDISK_GEOMETRY diskGeometry);
@@ -443,9 +431,12 @@ int GetTextGfxWidth (HWND hwndDlgItem, const wchar_t *text, HFONT hFont);
 int GetTextGfxHeight (HWND hwndDlgItem, const wchar_t *text, HFONT hFont);
 BOOL ToHyperlink (HWND hwndDlg, UINT ctrlId);
 BOOL ToCustHyperlink (HWND hwndDlg, UINT ctrlId, HFONT hFont);
+void DisableCloseButton (HWND hwndDlg);
+void EnableCloseButton (HWND hwndDlg);
 void ToBootPwdField (HWND hwndDlg, UINT ctrlId);
 void AccommodateTextField (HWND hwndDlg, UINT ctrlId, BOOL bFirstUpdate, HFONT hFont);
 BOOL GetDriveLabel (int driveNo, wchar_t *label, int labelSize);
+BOOL GetSysDevicePaths (HWND hwndDlg);
 BOOL DoDriverInstall (HWND hwndDlg);
 int OpenVolume (OpenVolumeContext *context, const char *volumePath, Password *password, BOOL write, BOOL preserveTimestamps, BOOL useBackupHeader);
 void CloseVolume (OpenVolumeContext *context);
@@ -460,7 +451,7 @@ BOOL FileHasReadOnlyAttribute (const char *path);
 BOOL IsFileOnReadOnlyFilesystem (const char *path);
 void CheckFilesystem (int driveNo, BOOL fixErrors);
 BOOL BufferContainsString (const byte *buffer, size_t bufferSize, const char *str);
-int AskNonSysInPlaceEncryptionResume ();
+int AskNonSysInPlaceEncryptionResume (BOOL *decrypt);
 BOOL RemoveDeviceWriteProtection (HWND hwndDlg, char *devicePath);
 void EnableElevatedCursorChange (HWND parent);
 BOOL DisableFileCompression (HANDLE file);

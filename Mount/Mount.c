@@ -99,7 +99,6 @@ BOOL bHibernationPreventionNotified = FALSE;	/* TRUE if the user has been notifi
 BOOL bHiddenSysLeakProtNotifiedDuringSession = FALSE;	/* TRUE if the user has been notified during the session that unencrypted filesystems and non-hidden TrueCrypt volumes are mounted as read-only under hidden OS. */
 BOOL CloseSecurityTokenSessionsAfterMount = FALSE;
 BOOL DisableSystemCrashDetection = FALSE;
-BOOL SystemCrashDetected = FALSE;
 
 BOOL Quit = FALSE;					/* Exit after processing command line */
 BOOL ComServerMode = FALSE;
@@ -220,7 +219,7 @@ void EndMainDlg (HWND hwndDlg)
 static void InitMainDialog (HWND hwndDlg)
 {
 	MENUITEMINFOW info;
-	char *popupTexts[] = {"MENU_VOLUMES", "MENU_SYSTEM_ENCRYPTION", "MENU_FAVORITES", "MENU_TOOLS", "MENU_SETTINGS", "MENU_HELP", "MENU_WEBSITE", 0};
+	char *popupTexts[] = {"MENU_VOLUMES", "MENU_SYSTEM_ENCRYPTION", "MENU_FAVORITES", "MENU_TOOLS", "MENU_SETTINGS", "MENU_HELP", 0};
 	wchar_t *str;
 	int i;
 
@@ -234,9 +233,6 @@ static void InitMainDialog (HWND hwndDlg)
 
 	SendMessage (GetDlgItem (hwndDlg, IDC_VOLUME), CB_LIMITTEXT, TC_MAX_PATH, 0);
 	SetWindowTextW (hwndDlg, (IsAdmin() && !IsBuiltInAdmin() && IsUacSupported() && !IsNonInstallMode()) ? (wstring (lpszTitle) + L" [" + GetString ("ADMINISTRATOR") + L"]").c_str() : lpszTitle);
-
-	// Help file name
-	InitHelpFileName();
 
 	// Localize menu strings
 	for (i = 40001; str = (wchar_t *)GetDictionaryValueByInt (i); i++)
@@ -256,11 +252,7 @@ static void InitMainDialog (HWND hwndDlg)
 
 		info.cbSize = sizeof (info);
 		info.fMask = MIIM_TYPE;
-
-		if (strcmp (popupTexts[i], "MENU_WEBSITE") == 0)
-			info.fType = MFT_STRING | MFT_RIGHTJUSTIFY;
-		else
-			info.fType = MFT_STRING;
+		info.fType = MFT_STRING;
 
 		if (strcmp (popupTexts[i], "MENU_FAVORITES") == 0)
 			FavoriteVolumesMenu = GetSubMenu (GetMenu (hwndDlg), i);
@@ -301,6 +293,8 @@ static void InitMainDialog (HWND hwndDlg)
 
 	SendMessage (GetDlgItem (hwndDlg, IDC_NO_HISTORY), BM_SETCHECK, bHistory ? BST_UNCHECKED : BST_CHECKED, 0);
 	EnableDisableButtons (hwndDlg);
+
+	ToHyperlink (hwndDlg, IDT_INSECURE_APP);
 }
 
 void EnableDisableButtons (HWND hwndDlg)
@@ -387,6 +381,184 @@ BOOL ActiveSysEncDeviceSelected (void)
 	}
 
 	return FALSE;
+}
+
+
+// When a function does not require the affected volume to be dismounted, there may be cases where we have two valid
+// paths selected in the main window and we cannot be sure which of them the user really intends to apply the function to.
+// This function asks the user to explicitly select either the volume path specified in the input field below the main 
+// drive list (whether mounted or not), or the path to the volume selected in the main drive list. If, however, both
+// of the GUI elements contain the same volume (or one of them does not contain any path), this function does not 
+// ask the user and returns the volume path directly (no selection ambiguity).
+// If driveNoPtr is not NULL, and the volume is mounted, its drive letter is returned in *driveNoPtr (if no valid drive
+// letter is resolved, -1 is stored instead).
+static string ResolveAmbiguousSelection (int *driveNoPtr)
+{
+	LPARAM selectedDrive = GetSelectedLong (GetDlgItem (MainDlg, IDC_DRIVELIST));
+
+	char volPathInputField [TC_MAX_PATH];
+	wchar_t volPathInputFieldW [TC_MAX_PATH];
+
+	wchar_t volPathDriveListW [TC_MAX_PATH];
+	string volPathDriveListStr;
+	wstring volPathDriveListWStr;
+
+	string retPath;
+
+	VOLUME_PROPERTIES_STRUCT prop;
+	DWORD dwResult;
+
+	BOOL useInputField = TRUE;
+
+	memset (&prop, 0, sizeof(prop));
+
+	BOOL ambig = (LOWORD (selectedDrive) != TC_MLIST_ITEM_FREE && LOWORD (selectedDrive) != 0xffff && HIWORD (selectedDrive) != 0xffff
+		&& VolumeSelected (MainDlg));
+
+	if (VolumeSelected (MainDlg))
+	{
+		// volPathInputField will contain the volume path (if any) from the input field below the drive list 
+		GetWindowText (GetDlgItem (MainDlg, IDC_VOLUME), volPathInputField, sizeof (volPathInputField));
+
+		if (!ambig)
+			retPath = (string) volPathInputField;
+	}
+
+	if (LOWORD (selectedDrive) != TC_MLIST_ITEM_FREE && LOWORD (selectedDrive) != 0xffff && HIWORD (selectedDrive) != 0xffff)
+	{
+		// A volume is selected in the main drive list.
+
+		switch (LOWORD (selectedDrive))
+		{
+		case TC_MLIST_ITEM_NONSYS_VOL:
+			prop.driveNo = HIWORD (selectedDrive) - 'A';
+
+			if (!DeviceIoControl (hDriver, TC_IOCTL_GET_VOLUME_PROPERTIES, &prop, sizeof (prop), &prop, sizeof (prop), &dwResult, NULL) || dwResult == 0)
+			{
+				// The driver did not return any path for this drive letter (the volume may have been dismounted).
+
+				// Return whatever is in the input field below the drive list (even if empty)
+				return ((string) volPathInputField);
+			}
+
+			// volPathDriveListWStr will contain the volume path selected in the main drive list
+			volPathDriveListWStr = (wstring) prop.wszVolume;
+			volPathDriveListStr = WideToSingleString (volPathDriveListWStr);
+			break;
+
+		case TC_MLIST_ITEM_SYS_PARTITION:
+
+			GetSysDevicePaths (MainDlg);
+			
+			if (bCachedSysDevicePathsValid)
+			{
+				volPathDriveListStr = (string) SysPartitionDevicePath;
+				volPathDriveListWStr = SingleStringToWide (volPathDriveListStr);
+			}
+
+			break;
+
+		case TC_MLIST_ITEM_SYS_DRIVE:
+
+			GetSysDevicePaths (MainDlg);
+
+			if (bCachedSysDevicePathsValid)
+			{
+				volPathDriveListStr = (string) SysDriveDevicePath;
+				volPathDriveListWStr = SingleStringToWide (volPathDriveListStr);
+			}
+
+			break;
+		}
+
+		if (!ambig)
+		{
+			useInputField = FALSE;
+			retPath = volPathDriveListStr;
+		}
+	}
+
+	if (ambig)
+	{
+		/* We have two paths. Compare them and if they don't match, ask the user to select one of them. Otherwise, return the path without asking. */
+
+		if (memcmp (volPathDriveListStr.c_str (), "\\??\\", 4) == 0)
+		{
+			// The volume path starts with "\\??\\" which is used for file-hosted containers. We're going to strip this prefix.
+
+			volPathDriveListStr = (string) (volPathDriveListStr.c_str () + 4);
+			volPathDriveListWStr = SingleStringToWide (volPathDriveListStr);
+		}
+
+		wcscpy (volPathDriveListW, SingleStringToWide (volPathDriveListStr).c_str ());
+
+		ToSBCS (volPathDriveListW);
+		strcpy ((char *) volPathInputFieldW, volPathInputField);
+		ToUNICODE ((char *) volPathInputFieldW);
+
+		if (strcmp (((memcmp ((char *) volPathDriveListW, "\\??\\", 4) == 0) ? (char *) volPathDriveListW + 4 : (char *) volPathDriveListW), volPathInputField) != 0)
+		{
+			// The path selected in the input field is different from the path to the volume selected
+			// in the drive lettter list. We have to resolve possible ambiguity.
+
+			wchar_t *tmp[] = {L"", L"", L"", L"", L"", 0};
+			const int maxVolPathLen = 80;
+
+			if (volPathDriveListWStr.length () > maxVolPathLen)
+			{
+				// Ellipsis (path too long)
+				volPathDriveListWStr = wstring (L"...") + volPathDriveListWStr.substr (volPathDriveListWStr.length () - maxVolPathLen, maxVolPathLen);
+			}
+
+			wstring volPathInputFieldWStr (volPathInputFieldW);
+
+			if (volPathInputFieldWStr.length () > maxVolPathLen)
+			{
+				// Ellipsis (path too long)
+				volPathInputFieldWStr = wstring (L"...") + volPathInputFieldWStr.substr (volPathInputFieldWStr.length () - maxVolPathLen, maxVolPathLen);
+			}
+
+			tmp[1] = GetString ("AMBIGUOUS_VOL_SELECTION");
+			tmp[2] = (wchar_t *) volPathDriveListWStr.c_str();
+			tmp[3] = (wchar_t *) volPathInputFieldWStr.c_str();
+			tmp[4] = GetString ("IDCANCEL");
+
+			switch (AskMultiChoice ((void **) tmp, FALSE))
+			{
+			case 1:
+				retPath = volPathDriveListStr;
+				break;
+
+			case 2:
+				retPath = (string) volPathInputField;
+				break;
+
+			default:
+				if (driveNoPtr != NULL)
+					*driveNoPtr = -1;
+
+				return string ("");
+			}
+		}
+		else
+		{
+			// Both selected paths are the same
+			retPath = (string) volPathInputField;
+		}
+	}
+
+	if (driveNoPtr != NULL)
+		*driveNoPtr = GetMountedVolumeDriveNo ((char *) retPath.c_str ());
+
+
+	if (memcmp (retPath.c_str (), "\\??\\", 4) == 0)
+	{
+		// The selected volume path starts with "\\??\\" which is used for file-hosted containers. We're going to strip this prefix.
+
+		retPath = (string) (retPath.c_str () + 4);
+	}
+
+	return retPath;
 }
 
 void LoadSettings (HWND hwndDlg)
@@ -647,7 +819,7 @@ static BOOL SysEncDeviceActive (BOOL bSilent)
 	return (BootEncStatus.DriveMounted);
 }
 
-// Returns TRUE if the entire system drive (as opposed to the system partition only) is (or is to be) encrypted
+// Returns TRUE if the entire system drive (as opposed to the system partition only) of the currently running OS is (or is to be) encrypted
 BOOL WholeSysDriveEncryption (BOOL bSilent)
 {
 	try
@@ -856,18 +1028,15 @@ BOOL CheckSysEncMountWithoutPBA (const char *devicePath, BOOL quiet)
 // Returns TRUE if the host drive of the specified partition contains a portion of the TrueCrypt Boot Loader
 // and if the drive is not within key scope of active system encryption (e.g. the system drive of the running OS).
 // If bPrebootPasswordDlgMode is TRUE, this function returns FALSE (because the check would be redundant).
-BOOL TCBootLoaderOnInactiveSysEncDrive (void) 
+BOOL TCBootLoaderOnInactiveSysEncDrive (char *szDevicePath) 
 {
 	try
 	{
 		int driveNo;
-		char szDevicePath [TC_MAX_PATH+1];
 		char parentDrivePath [TC_MAX_PATH+1];
 
 		if (bPrebootPasswordDlgMode)
 			return FALSE;
-
-		GetWindowText (GetDlgItem (MainDlg, IDC_VOLUME), szDevicePath, sizeof (szDevicePath));
 
 		if (sscanf (szDevicePath, "\\Device\\Harddisk%d\\Partition", &driveNo) != 1)
 			return FALSE;
@@ -937,7 +1106,7 @@ BOOL SelectItem (HWND hTree, char nLetter)
 
 static void LaunchVolCreationWizard (HWND hwndDlg, const char *arg)
 {
-	char t[TC_MAX_PATH] = {'"',0};
+	char t[TC_MAX_PATH + 1024] = {'"',0};
 	char *tmp;
 
 	GetModuleFileName (NULL, t+1, sizeof(t)-1);
@@ -1943,6 +2112,8 @@ BOOL CALLBACK PasswordDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 
 				SetWindowPos (hwndDlg, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 			}
+
+			ToHyperlink (hwndDlg, IDT_INSECURE_APP);
 		}
 		return 0;
 
@@ -2026,6 +2197,12 @@ BOOL CALLBACK PasswordDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 		return 0;
 
 	case WM_COMMAND:
+
+		if (lw == IDT_INSECURE_APP)
+		{
+			Warning ("INSECURE_APP");
+			return 1;
+		}
 
 		if (lw == IDC_MOUNT_OPTIONS)
 		{
@@ -2435,9 +2612,6 @@ BOOL CALLBACK MountOptionsDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM
 
 			if (mountOptions->ProtectedHidVolPassword.Length > 0)
 				SetWindowText (GetDlgItem (hwndDlg, IDC_PASSWORD_PROT_HIDVOL), (LPSTR) mountOptions->ProtectedHidVolPassword.Text);	
-			
-			ToHyperlink (hwndDlg, IDC_LINK_HIDVOL_PROTECTION_INFO);
-
 		}
 		return 0;
 
@@ -2489,11 +2663,6 @@ BOOL CALLBACK MountOptionsDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM
 						0);
 			InvalidateRect (GetDlgItem (hwndDlg, IDC_PASSWORD_PROT_HIDVOL), NULL, TRUE);
 			return 1;
-		}
-
-		if (lw == IDC_LINK_HIDVOL_PROTECTION_INFO)
-		{
-			Applink ("hiddenvolprotection", TRUE, "");
 		}
 
 		if (lw == IDCANCEL)
@@ -3319,8 +3488,11 @@ LPARAM GetSelectedLong (HWND hTree)
 	item.mask = LVIF_PARAM;
 	item.iItem = hItem;
 
-	if (ListView_GetItem (hTree, &item) == FALSE)
+	if (ListView_GetItemCount (hTree) < 1
+		|| ListView_GetItem (hTree, &item) == FALSE)
+	{
 		return MAKELONG (0xffff, 0xffff);
+	}
 	else
 		return item.lParam;
 }
@@ -4127,9 +4299,6 @@ static void DecryptSystemDevice (void)
 	if (AskNoYes ("CONFIRM_DECRYPT_SYS_DEVICE") == IDNO)
 		return;
 
-	if (AskWarnNoYes ("CONFIRM_DECRYPT_SYS_DEVICE_CAUTION") == IDNO)
-		return;
-
 	if (CreateSysEncMutex ())	// If no instance of the wizard is currently taking care of system encryption
 	{
 		try
@@ -4169,16 +4338,115 @@ static void DecryptSystemDevice (void)
 		Warning ("SYSTEM_ENCRYPTION_IN_PROGRESS_ELSEWHERE");
 }
 
-// Initiates the process of creation of a hidden operating system
-static void CreateHiddenOS (void)
+static void DecryptNonSysDevice (BOOL bResolveAmbiguousSelection, BOOL bUseDriveListSel)
 {
+	string scPath;
 
-	// Display brief information as to what a hidden operating system is and what it's good for. This needs to be
-	// done, because if the system partition/drive is currently encrypted, the wizard will not display any
-	// such information, but will exit (displaying only an error meessage).
-	Info("HIDDEN_OS_PREINFO");
+	if (bResolveAmbiguousSelection)
+	{
+		scPath = ResolveAmbiguousSelection (NULL);
 
-	LaunchVolCreationWizard (MainDlg, "/isysenc");
+		if (scPath.empty ())
+		{
+			// The user selected Cancel
+			return;
+		}
+	}
+	else if (bUseDriveListSel)
+	{
+		// Decrypt mounted volume selected in the main drive list
+
+		LPARAM lLetter = GetSelectedLong (GetDlgItem (MainDlg, IDC_DRIVELIST));
+
+		if (LOWORD (lLetter) != 0xffff)
+		{
+			VOLUME_PROPERTIES_STRUCT prop;
+			DWORD bytesReturned;
+
+			memset (&prop, 0, sizeof (prop));
+			prop.driveNo = (char) HIWORD (lLetter) - 'A';
+
+			if (!DeviceIoControl (hDriver, TC_IOCTL_GET_VOLUME_PROPERTIES, &prop, sizeof (prop), &prop, sizeof (prop), &bytesReturned, NULL))
+			{
+				handleWin32Error (MainDlg);
+				return;
+			}
+
+			scPath = WideToSingleString ((wchar_t *) prop.wszVolume);
+		}
+		else
+			return;
+	}
+	else
+	{
+		// Decrypt volume specified in the input field below the main drive list
+
+		char volPath [TC_MAX_PATH];
+
+		GetWindowText (GetDlgItem (MainDlg, IDC_VOLUME), volPath, sizeof (volPath));
+
+		scPath = volPath;
+	}
+
+	if (scPath.empty ())
+	{
+		Warning ("NO_VOLUME_SELECTED");
+		return;
+	}
+
+	WaitCursor();
+
+	switch (IsSystemDevicePath ((char *) scPath.c_str (), MainDlg, TRUE))
+	{
+	case 1:
+	case 2:
+		// The user wants to decrypt the system partition/drive. Divert to the appropriate function.
+
+		NormalCursor ();
+
+		DecryptSystemDevice ();
+		return;
+	}
+
+	WaitCursor();
+
+	// Make sure the user is not attempting to decrypt a partition on an entirely encrypted system drive.
+	if (IsNonSysPartitionOnSysDrive (scPath.c_str ()) == 1)
+	{
+		if (WholeSysDriveEncryption (TRUE))
+		{
+			// The system drive is entirely encrypted and the encrypted OS is running
+
+			NormalCursor ();
+
+			Warning ("CANT_DECRYPT_PARTITION_ON_ENTIRELY_ENCRYPTED_SYS_DRIVE");
+			return;
+		}
+	}
+	else if (TCBootLoaderOnInactiveSysEncDrive ((char *) scPath.c_str ()))
+	{
+		// The system drive MAY be entirely encrypted (external access without PBA) and the potentially encrypted OS is not running
+
+		NormalCursor ();
+
+		Warning ("CANT_DECRYPT_PARTITION_ON_ENTIRELY_ENCRYPTED_SYS_DRIVE_UNSURE");
+
+		// We allow the user to continue as we don't know if the drive is really an encrypted system drive.
+		// If it is, the user has been warned and he will not be able to start decrypting, because the
+		// format wizard will not enable (nor will it allow the user to enable) the mount option for 
+		// external without-PBA access (the user will receive the 'Incorrect password' error message).
+	}
+
+	NormalCursor ();
+
+	
+	if (AskNoYesString ((wstring (GetString ("CONFIRM_DECRYPT_NON_SYS_DEVICE")) + L"\n\n" + SingleStringToWide (scPath)).c_str()) == IDNO)
+		return;
+
+	if (AskWarnNoYes ("CONFIRM_DECRYPT_NON_SYS_DEVICE_CAUTION") == IDNO)
+		return;
+
+	LaunchVolCreationWizard (MainDlg, (string ("/inplacedec \"") + scPath + "\"").c_str ());
 }
 
 // Blindly attempts (without any checks) to instruct the wizard to resume whatever system encryption process
@@ -4381,12 +4649,12 @@ static void ShowSystemEncryptionStatus (void)
 
 }
 
-static void ResumeInterruptedNonSysInplaceEncProcess (void)
+static void ResumeInterruptedNonSysInplaceEncProcess (BOOL decrypt)
 {
 	// IMPORTANT: This function must not check any config files! Otherwise, if a config file was lost or corrupt, 
 	// the user would not be able resume encryption and the data on the volume would be inaccessible.
 
-	LaunchVolCreationWizard (MainDlg, "/zinplace");
+	LaunchVolCreationWizard (MainDlg, decrypt ? "/resumeinplacedec" : "/zinplace");
 }
 
 static BOOL SelectContainer (HWND hwndDlg)
@@ -4988,62 +5256,13 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 				if (bInPlaceEncNonSysPending && !NonSysInplaceEncInProgressElsewhere())
 				{
-					if (AskNonSysInPlaceEncryptionResume() == IDYES)
-						ResumeInterruptedNonSysInplaceEncProcess ();
+					BOOL decrypt = FALSE;
+
+					if (AskNonSysInPlaceEncryptionResume (&decrypt) == IDYES)
+						ResumeInterruptedNonSysInplaceEncProcess (decrypt);
 				}
 			}
 
-			if (!DisableSystemCrashDetection
-				&& IsOSAtLeast (WIN_7))
-			{
-				// Auto-detect a system crash
-				
-				const int detectionPeriodInMonthsSinceReleaseDate = 2;
-				int maxYear = TC_RELEASE_DATE_YEAR;
-				int maxMonth = TC_RELEASE_DATE_MONTH + detectionPeriodInMonthsSinceReleaseDate;
-				if (maxMonth > 12)
-				{
-					++maxYear;
-					maxMonth -= 12;
-				}
-
-				SYSTEMTIME systemTime;
-				GetSystemTime (&systemTime);
-
-				if (systemTime.wYear >= TC_RELEASE_DATE_YEAR
-					&& !(systemTime.wYear == TC_RELEASE_DATE_YEAR && systemTime.wMonth < TC_RELEASE_DATE_MONTH)
-					&& systemTime.wYear <= maxYear
-					&& !(systemTime.wYear == maxYear && systemTime.wMonth > maxMonth))
-				{
-					char winDir[MAX_PATH] = { 0 };
-					GetWindowsDirectory (winDir, sizeof (winDir));
-
-					WIN32_FIND_DATA findData;
-					HANDLE find = FindFirstFile ((string (winDir) + "\\MEMORY.DMP").c_str(), &findData);
-
-					if (find != INVALID_HANDLE_VALUE)
-					{
-						SYSTEMTIME systemTime;
-						FILETIME ft;
-						GetSystemTime (&systemTime);
-						SystemTimeToFileTime (&systemTime, &ft);
-
-						ULARGE_INTEGER sysTime, fileTime;
-						sysTime.HighPart = ft.dwHighDateTime;
-						sysTime.LowPart = ft.dwLowDateTime;
-						fileTime.HighPart = findData.ftLastWriteTime.dwHighDateTime;
-						fileTime.LowPart = findData.ftLastWriteTime.dwLowDateTime;
-
-						// Memory dump must not be older than 10 minutes
-						if (sysTime.QuadPart - fileTime.QuadPart < 10I64 * 1000 * 1000 * 60 * 10)
-							SystemCrashDetected = TRUE;
-
-						FindClose (find);
-					}
-				}
-			}
-
-			DoPostInstallTasks ();
 			ResetCurrentDirectory ();
 		}
 		return 0;
@@ -5068,10 +5287,6 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			return 1;
 		}
 		return 0;
-
-	case WM_HELP:
-		OpenPageHelp (hwndDlg, 0);
-		return 1;
 
 	case WM_ENDSESSION:
 		if (TaskBarIconMutex != NULL)
@@ -5133,31 +5348,6 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 			if (TaskBarIconMutex != NULL)
 			{
-				// Handle system crash
-				static BOOL systemCrashHandlerLocked = FALSE;
-				if (SystemCrashDetected && !systemCrashHandlerLocked)
-				{
-					systemCrashHandlerLocked = TRUE;
-
-					SetForegroundWindow (hwndDlg);
-					MainWindowHidden = FALSE;
-					ShowWindow (hwndDlg, SW_SHOW);
-					ShowWindow (hwndDlg, SW_RESTORE);
-
-					if (AskYesNoTopmost ("SYSTEM_CRASHED_ASK_REPORT") == IDYES)
-					{
-						if (!IsAdmin() && IsUacSupported())
-							UacAnalyzeKernelMiniDump (hwndDlg);
-						else
-							AnalyzeKernelMiniDump (hwndDlg);
-					}
-					else if (AskYesNoTopmost ("ASK_KEEP_DETECTING_SYSTEM_CRASH") == IDNO)
-					{
-						DisableSystemCrashDetection = TRUE;
-						SaveSettings (hwndDlg);
-					}
-				}
-
 				// Idle auto-dismount
 				if (MaxVolumeIdleTime > 0)
 					DismountIdleVolumes ();
@@ -5363,8 +5553,6 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 							AppendMenu (popup, MF_SEPARATOR, 0, NULL);
 					}
 
-					AppendMenuW (popup, MF_STRING, IDM_HELP, GetString ("MENU_HELP"));
-					AppendMenuW (popup, MF_STRING, IDM_HOMEPAGE_SYSTRAY, GetString ("HOMEPAGE"));
 					AppendMenuW (popup, MF_STRING, IDM_PREFERENCES, GetString ("IDM_PREFERENCES"));
 					AppendMenuW (popup, MF_STRING, IDM_ABOUT, GetString ("IDM_ABOUT"));
 					AppendMenu (popup, MF_SEPARATOR, 0, NULL);
@@ -5402,10 +5590,6 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					else if (sel == IDM_SHOW_HIDE)
 					{
 						ChangeMainWindowVisibility ();
-					}
-					else if (sel == IDM_HOMEPAGE_SYSTRAY)
-					{
-						Applink ("home", TRUE, "");
 					}
 					else if (sel == IDCANCEL)
 					{
@@ -5621,6 +5805,8 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 						AppendMenuW (popup, MF_STRING, IDPM_ADD_TO_FAVORITES, GetString ("IDPM_ADD_TO_FAVORITES"));
 						AppendMenuW (popup, MF_STRING, IDPM_ADD_TO_SYSTEM_FAVORITES, GetString ("IDPM_ADD_TO_SYSTEM_FAVORITES"));
 						AppendMenu (popup, MF_SEPARATOR, 0, NULL);
+						AppendMenuW (popup, MF_STRING, IDM_DECRYPT_NONSYS_VOL, GetString ("IDM_DECRYPT_NONSYS_VOL"));
+						AppendMenu (popup, MF_SEPARATOR, 0, NULL);
 						AppendMenuW (popup, MF_STRING, IDM_VOLUME_PROPERTIES, GetString ("IDPM_PROPERTIES"));
 						break;
 
@@ -5670,6 +5856,11 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					case IDM_UNMOUNT_VOLUME:
 						if (CheckMountList ())
 							Dismount (hwndDlg, 0);
+						break;
+
+					case IDM_DECRYPT_NONSYS_VOL:
+						if (CheckMountList ())
+							DecryptNonSysDevice (FALSE, TRUE);
 						break;
 
 					case IDPM_OPEN_VOLUME:
@@ -5732,12 +5923,6 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 		if (lw == IDCANCEL || lw == IDC_EXIT)
 		{
 			EndMainDlg (hwndDlg);
-			return 1;
-		}
-
-		if (lw == IDHELP || lw == IDM_HELP)
-		{
-			OpenPageHelp (hwndDlg, 0);
 			return 1;
 		}
 
@@ -5813,9 +5998,6 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 		case IDM_PERMANENTLY_DECRYPT_SYS:
 			DecryptSystemDevice ();
 			break;
-		case IDM_CREATE_HIDDEN_OS:
-			CreateHiddenOS ();
-			break;
 		case IDM_SYSENC_RESUME:
 			ResumeInterruptedSysEncProcess ();
 			break;
@@ -5871,6 +6053,8 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 				AppendMenuW (popup, MF_STRING, IDM_ADD_REMOVE_VOL_KEYFILES, GetString ("IDM_ADD_REMOVE_VOL_KEYFILES"));
 				AppendMenuW (popup, MF_STRING, IDM_REMOVE_ALL_KEYFILES_FROM_VOL, GetString ("IDM_REMOVE_ALL_KEYFILES_FROM_VOL"));
 				AppendMenu (popup, MF_SEPARATOR, 0, NULL);
+				AppendMenuW (popup, MF_STRING, IDM_DECRYPT_NONSYS_VOL, GetString ("IDM_DECRYPT_NONSYS_VOL"));
+				AppendMenu (popup, MF_SEPARATOR, 0, NULL);
 				AppendMenuW (popup, MF_STRING, IDM_BACKUP_VOL_HEADER, GetString ("IDM_BACKUP_VOL_HEADER"));
 				AppendMenuW (popup, MF_STRING, IDM_RESTORE_VOL_HEADER, GetString ("IDM_RESTORE_VOL_HEADER"));
 			}
@@ -5889,6 +6073,17 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 			switch (menuItem)
 			{
+			case IDM_DECRYPT_NONSYS_VOL:
+				if (!VolumeSelected(hwndDlg))
+				{
+					Warning ("NO_VOLUME_SELECTED");
+				}
+				else
+				{
+					DecryptNonSysDevice (TRUE, FALSE);
+				}
+				break;
+
 			case IDM_CHANGE_PASSWORD:
 				if (!VolumeSelected(hwndDlg))
 				{
@@ -5984,6 +6179,22 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			return 1;
 		}
 
+		if (lw == IDM_DECRYPT_NONSYS_VOL)
+		{
+			LPARAM selectedDrive = GetSelectedLong (GetDlgItem (hwndDlg, IDC_DRIVELIST));
+
+			if (LOWORD (selectedDrive) == TC_MLIST_ITEM_FREE && !VolumeSelected (MainDlg))
+			{
+				Warning ("NO_VOLUME_SELECTED");
+			}
+			else
+			{
+				DecryptNonSysDevice (TRUE, FALSE);
+			}
+
+			return 1;
+		}
+
 		if (lw == IDM_CHANGE_PASSWORD)
 		{
 			if (!VolumeSelected(hwndDlg))
@@ -6026,6 +6237,12 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			return 1;
 		}
 
+		if (lw == IDT_INSECURE_APP)
+		{
+			Warning ("INSECURE_APP");
+			return 1;
+		}
+
 		if (lw == IDC_WIPE_CACHE || lw == IDM_WIPE_CACHE)
 		{
 			WipeCache (hwndDlg, FALSE);
@@ -6039,7 +6256,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			return 1;
 		}
 
-		if (lw == IDC_CREATE_VOLUME || lw == IDM_CREATE_VOLUME || lw == IDM_VOLUME_WIZARD)
+		if (lw == IDM_CREATE_VOLUME || lw == IDM_VOLUME_WIZARD)
 		{
 			LaunchVolCreationWizard (hwndDlg, "");
 			return 1;
@@ -6105,61 +6322,6 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 		if (lw == IDM_LICENSE)
 		{
 			TextInfoDialogBox (TC_TBXID_LEGAL_NOTICES);
-			return 1;
-		}
-	
-		if (lw == IDM_WEBSITE)
-		{
-			Applink ("website", TRUE, "");
-			return 1;
-		}
-		else if (lw == IDM_HOMEPAGE)
-		{
-			Applink ("homepage", TRUE, "");
-			return 1;
-		}
-		else if (lw == IDM_ONLINE_TUTORIAL)
-		{
-			Applink ("tutorial", TRUE, "");
-			return 1;
-		}
-		else if (lw == IDM_ONLINE_HELP)
-		{
-			OpenOnlineHelp ();
-			return 1;
-		}
-		else if (lw == IDM_FAQ)
-		{
-			Applink ("faq", TRUE, "");
-			return 1;
-		}
-		else if (lw == IDM_TC_DOWNLOADS)
-		{
-			Applink ("downloads", TRUE, "");
-			return 1;
-		}
-		else if (lw == IDM_NEWS)
-		{
-			Applink ("news", TRUE, "");
-			return 1;
-		}
-		else if (lw == IDM_VERSION_HISTORY)
-		{
-			Applink ("history", TRUE, "");
-			return 1;
-		}
-		else if (lw == IDM_ANALYZE_SYSTEM_CRASH)
-		{
-			if (!IsAdmin() && IsUacSupported())
-				UacAnalyzeKernelMiniDump (hwndDlg);
-			else
-				AnalyzeKernelMiniDump (hwndDlg);
-
-			return 1;
-		}
-		else if (lw == IDM_CONTACT)
-		{
-			Applink ("contact", FALSE, "");
 			return 1;
 		}
 
@@ -6453,7 +6615,7 @@ BOOL CALLBACK MainDialogProc (HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 		if (lw == IDM_RESUME_INTERRUPTED_PROC)
 		{
-			ResumeInterruptedNonSysInplaceEncProcess ();
+			ResumeInterruptedNonSysInplaceEncProcess (TRUE);
 			return 1;
 		}
 
@@ -8124,9 +8286,6 @@ static BOOL CALLBACK PerformanceSettingsDlgProc (HWND hwndDlg, UINT msg, WPARAM 
 			SetWindowTextW (GetDlgItem (hwndDlg, IDT_LIMIT_ENC_THREAD_POOL_NOTE), GetString("LIMIT_ENC_THREAD_POOL_NOTE"));
 
 			SetDlgItemTextW (hwndDlg, IDC_HW_AES_SUPPORTED_BY_CPU, (wstring (L" ") + (GetString (is_aes_hw_cpu_supported() ? "UISTR_YES" : "UISTR_NO"))).c_str());
-
-			ToHyperlink (hwndDlg, IDC_MORE_INFO_ON_HW_ACCELERATION);
-			ToHyperlink (hwndDlg, IDC_MORE_INFO_ON_THREAD_BASED_PARALLELIZATION);
 		}
 		return 0;
 
@@ -8236,14 +8395,6 @@ static BOOL CALLBACK PerformanceSettingsDlgProc (HWND hwndDlg, UINT msg, WPARAM 
 
 		case IDC_BENCHMARK:
 			Benchmark (hwndDlg);
-			return 1;
-
-		case IDC_MORE_INFO_ON_HW_ACCELERATION:
-			Applink ("hwacceleration", TRUE, "");
-			return 1;
-
-		case IDC_MORE_INFO_ON_THREAD_BASED_PARALLELIZATION:
-			Applink ("parallelization", TRUE, "");
 			return 1;
 		}
 
@@ -8603,340 +8754,6 @@ BOOL GetExecutableImageInformation (const string &path, string &version, string 
 	}
 
 	return TRUE;
-}
-
-
-void AnalyzeKernelMiniDump (HWND hwndDlg)
-{
-	char winDir[MAX_PATH] = { 0 };
-	GetWindowsDirectory (winDir, sizeof (winDir));
-	string memDumpPath = string (winDir) + "\\MEMORY.DMP";
-	string tmpDumpPath;
-
-	string dumpPath = FindLatestFileOrDirectory (string (winDir) + "\\Minidump", "*.dmp", false, true);
-	if (dumpPath.empty())
-	{
-		Error ("NO_MINIDUMP_FOUND");
-		return;
-	}
-
-	WIN32_FIND_DATA findData;
-	HANDLE find = FindFirstFile (memDumpPath.c_str(), &findData);
-
-	if (find != INVALID_HANDLE_VALUE)
-	{
-		ULARGE_INTEGER memDumpTime, miniDumpTime;
-		memDumpTime.HighPart = findData.ftLastWriteTime.dwHighDateTime;
-		memDumpTime.LowPart = findData.ftLastWriteTime.dwLowDateTime;
-
-		FindClose (find);
-
-		find = FindFirstFile (dumpPath.c_str(), &findData);
-		if (find != INVALID_HANDLE_VALUE)
-		{
-			miniDumpTime.HighPart = findData.ftLastWriteTime.dwHighDateTime;
-			miniDumpTime.LowPart = findData.ftLastWriteTime.dwLowDateTime;
-
-			if (_abs64 (miniDumpTime.QuadPart - memDumpTime.QuadPart) < 10I64 * 1000 * 1000 * 60 * 5)
-			{
-				// Rename MEMORY.DMP file first as it can be deleted by Windows when system crash dialog is closed
-				tmpDumpPath = memDumpPath + ".true_crypt.dmp"; // Application name must be mangled to avoid interfering with crash analysis
-
-				if (MoveFile (memDumpPath.c_str(), tmpDumpPath.c_str()))
-					dumpPath = tmpDumpPath;
-				else
-					tmpDumpPath.clear();
-			}
-
-			FindClose (find);
-		}
-	}
-
-	finally_do_arg2 (string, tmpDumpPath, string, memDumpPath,
-	{
-		if (!finally_arg.empty())
-		{
-			if (AskYesNo ("ASK_DELETE_KERNEL_CRASH_DUMP") == IDYES)
-				DeleteFile (finally_arg.c_str());
-			else
-				MoveFile (finally_arg.c_str(), finally_arg2.c_str());
-		}
-	});
-
-	STARTUPINFO startupInfo;
-	PROCESS_INFORMATION procInfo; 
-
-	ZeroMemory (&startupInfo, sizeof (startupInfo));
-	ZeroMemory (&procInfo, sizeof (procInfo));
-
-	if (!IsApplicationInstalled (Is64BitOs() ? "Debugging Tools for Windows (x64)" : "Debugging Tools for Windows (x86)"))
-	{
-		if (AskOkCancel ("ASK_DEBUGGER_INSTALL") != IDOK)
-			return;
-
-		if (!CreateProcess (NULL, (LPSTR) (string ("msiexec.exe /qb /i " TC_APPLINK "&dest=ms-debug-tools-x") + (Is64BitOs() ? "64" : "86")).c_str(),
-			NULL, NULL, FALSE, 0, NULL, NULL, &startupInfo, &procInfo))
-		{
-			handleWin32Error (hwndDlg);
-			return;
-		}
-
-		WaitCursor();
-		WaitForSingleObject (procInfo.hProcess, INFINITE);
-		NormalCursor();
-
-		DWORD exitCode;
-		if (!GetExitCodeProcess (procInfo.hProcess, &exitCode) || exitCode != 0)
-			return;
-	}
-
-	if (AskOkCancel ("SYSTEM_CRASH_ANALYSIS_INFO") == IDCANCEL)
-		return;
-
-	ZeroMemory (&startupInfo, sizeof (startupInfo));
-	ZeroMemory (&procInfo, sizeof (procInfo));
-
-	SECURITY_ATTRIBUTES securityAttrib; 
-	securityAttrib.bInheritHandle = TRUE; 
-	securityAttrib.nLength = sizeof (securityAttrib); 
-	securityAttrib.lpSecurityDescriptor = NULL; 
-
-	HANDLE hChildStdoutWrite = INVALID_HANDLE_VALUE;
-	HANDLE hChildStdoutRead = INVALID_HANDLE_VALUE;
-	if (!CreatePipe (&hChildStdoutRead, &hChildStdoutWrite, &securityAttrib, 0))
-	{
-		handleWin32Error (hwndDlg);
-		return;
-	}
-	SetHandleInformation (hChildStdoutRead, HANDLE_FLAG_INHERIT, 0);
-
-	startupInfo.hStdInput = INVALID_HANDLE_VALUE;
-	startupInfo.hStdOutput = hChildStdoutWrite;
-	startupInfo.cb = sizeof (startupInfo); 
-	startupInfo.hStdError = hChildStdoutWrite;
-	startupInfo.dwFlags |= STARTF_USESTDHANDLES;
-
-	list <string> kdPaths;
-	string kdPath;
-	char progPath[MAX_PATH];
-	if (SHGetSpecialFolderPath (hwndDlg, progPath, CSIDL_PROGRAM_FILES, FALSE))
-	{
-		if (Is64BitOs())
-		{
-			string s = progPath;
-			size_t p = s.find (" (x86)");
-			if (p != string::npos)
-			{
-				s = s.substr (0, p);
-				if (_access (s.c_str(), 0) != -1)
-					strcpy_s (progPath, sizeof (progPath), s.c_str());
-			}
-		}
-
-		kdPath = string (progPath) + "\\Debugging Tools for Windows (" + (Is64BitOs() ? "x64" : "x86") + ")\\kd.exe";
-		kdPaths.push_back (kdPath);
-	}
-
-	kdPath = FindLatestFileOrDirectory (string (winDir).substr (0, 1) + ":\\WinDDK", "*", true, false);
-	kdPath += "\\Debuggers\\kd.exe";
-	kdPaths.push_back (kdPath);
-
-	kdPaths.push_back ("kd.exe");
-
-	bool kdRunning = false;
-	foreach (const string &kdPath, kdPaths)
-	{
-		if (CreateProcess (NULL, (LPSTR) ("\"" + kdPath + "\" -z \"" + dumpPath + "\" -y http://msdl.microsoft.com/download/symbols -c \".bugcheck; !analyze -v; q\"").c_str(),
-			NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &startupInfo, &procInfo))
-		{
-			kdRunning = true;
-			break;
-		}
-	}
-
-	if (!kdRunning)
-	{
-		handleWin32Error (hwndDlg);
-		Error ("DEBUGGER_NOT_FOUND");
-		return;
-	}
-
-	EnableElevatedCursorChange (hwndDlg);
-	WaitCursor();
-
-	CloseHandle (procInfo.hProcess);
-	CloseHandle (procInfo.hThread);
-	CloseHandle (hChildStdoutWrite);
-
-	string output;
-
-	while (TRUE) 
-	{ 
-		DWORD bytesReceived;
-		char pipeBuffer [4096];
-
-		if (!ReadFile (hChildStdoutRead, pipeBuffer, sizeof (pipeBuffer), &bytesReceived, NULL)) 
-			break; 
-
-		output.insert (output.size(), pipeBuffer, bytesReceived);
-	}
-
-	NormalCursor();
-
-	bool otherDriver = (StringToUpperCase (output).find (StringToUpperCase (TC_APP_NAME)) == string::npos);
-
-	size_t p, p2;
-	while ((p = output.find ('`')) != string::npos)
-		output.erase (output.begin() + p);
-
-	p = output.find ("Bugcheck code ");
-	if (p == string::npos)
-	{
-		Error ("ERR_PARAMETER_INCORRECT");
-		return;
-	}
-
-	uint64 bugcheckCode;
-	int n = sscanf (output.substr (p + 14, 8).c_str(), "%I64X", &bugcheckCode);
-	if (n != 1)
-	{
-		Error ("ERR_PARAMETER_INCORRECT");
-		return;
-	}
-
-	p = output.find ("Arguments ", p);
-	
-	uint64 bugcheckArgs[4];
-	n = sscanf (output.substr (p + 10, (Is64BitOs() ? 17 : 9) * 4).c_str(), "%I64X %I64X %I64X %I64X", &bugcheckArgs[0], &bugcheckArgs[1], &bugcheckArgs[2], &bugcheckArgs[3]);
-	if (n != 4)
-	{
-		Error ("ERR_PARAMETER_INCORRECT");
-		return;
-	}
-
-	// Image name
-	string imageName, imageVersion;
-	p = output.find ("IMAGE_NAME:");
-	if (p != string::npos)
-	{
-		p += 13;
-		p2 = output.find ('\n', p);
-		if (p2 != string::npos)
-			imageName = output.substr (p, p2 - p);
-	}
-
-	// Stack trace
-	p = output.find ("STACK_TEXT:");
-	if (p == string::npos)
-	{
-		Error ("ERR_PARAMETER_INCORRECT");
-		return;
-	}
-
-	p2 = output.find ("FOLLOWUP_IP:", p);
-	if (p2 == string::npos)
-		p2 = output.find ("STACK_COMMAND:", p);
-	if (p2 == string::npos)
-		p2 = output.size();
-
-	output = output.substr (p, p2 - p);
-
-	list <string> retAddrs;
-	p = 0;
-	while ((p = output.find ("+", p)) != string::npos)
-	{
-		size_t p1 = output.rfind (" ", p);
-		if (p1 == string::npos)
-			break;
-
-		p = output.find ('\n', p);
-		if (p == string::npos)
-			p = output.size() - 1;
-
-		string s = output.substr (p1 + 1, p - p1 - 1);
-
-		if (s.find ('(') == 0)
-			s = s.substr (1);
-		if (s.rfind (')') == s.size() - 1)
-			s = s.substr (0, s.size() - 1);
-
-		retAddrs.push_back (s);
-	}
-
-	char url[MAX_URL_LENGTH];
-	sprintf (url, TC_APPLINK_SECURE "&dest=syserr-report&os=%s&osver=%d.%d.%d&arch=%s&err=%I64x&arg1=%I64x&arg2=%I64x&arg3=%I64x&arg4=%I64x&flag=%s&drv=%s",
-		GetWindowsEdition().c_str(),
-		CurrentOSMajor,
-		CurrentOSMinor,
-		CurrentOSServicePack,
-		Is64BitOs() ? "x64" : "x86",
-		bugcheckCode,
-		bugcheckArgs[0],
-		bugcheckArgs[1],
-		bugcheckArgs[2],
-		bugcheckArgs[3],
-		otherDriver ? "0" : "1",
-		imageName.empty() ? "-" : imageName.c_str()
-		);
-
-	stringstream stackTraceArgs;
-	int i = 0;
-	foreach (const string &retAddr, retAddrs)
-	{
-		stackTraceArgs << "&st" << i++ << "=" << retAddr;
-	}
-
-	wstring msg;
-
-	if (!imageName.empty() && StringToUpperCase (imageName) != StringToUpperCase (TC_APP_NAME) + ".SYS")
-	{
-		msg += wstring (GetString ("SYSTEM_CRASH_UPDATE_DRIVER")) + L"\n\n" + SingleStringToWide (imageName);
-
-		string description, company, product;
-		if (GetExecutableImageInformation (string (winDir) + "\\System32\\drivers\\" + imageName, imageVersion, description, company, product))
-		{
-			string s;
-			if (!description.empty())
-				s += description;
-			if (!company.empty())
-				s += ";  " + company;
-			if (!product.empty())
-				s += ";  " + product;
-
-			if (s.find (";  ") == 0)
-				s = s.substr (3);
-
-			if (!s.empty())
-				msg += SingleStringToWide ("  (" + s + ")");
-		}
-
-		msg += L"\n\n";
-	}
-
-	if (otherDriver)
-	{
-		msg += GetString ("SYSTEM_CRASH_NO_TRUECRYPT");
-		msg += L"\n\n";
-	}
-
-	string urlStr = string (url) + "&drvver=" + (imageVersion.empty() ? "-" : imageVersion) + stackTraceArgs.str();
-
-	for (size_t i = 0; i < urlStr.size(); ++i)
-	{
-		if (urlStr[i] == '+')
-			urlStr[i] = '.';
-	}
-
-	msg += GetString ("SYSTEM_CRASH_REPORT");
-	msg += L"\n\n";
-
-	msg += SingleStringToWide (urlStr);
-
-	msg += L"\n\n";
-	msg += GetString ("ASK_SEND_ERROR_REPORT");
-
-	if (AskYesNoString (msg.c_str()) == IDYES)
-		ShellExecute (NULL, "open", urlStr.c_str(), NULL, NULL, SW_SHOWNORMAL);
 }
 
 

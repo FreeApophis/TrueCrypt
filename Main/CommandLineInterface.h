@@ -13,7 +13,6 @@
 #include "Main.h"
 #include "Volume/VolumeInfo.h"
 #include "Core/MountOptions.h"
-#include "Core/VolumeCreator.h"
 #include "UserPreferences.h"
 #include "UserInterfaceType.h"
 
@@ -56,9 +55,7 @@ namespace TrueCrypt
 
 		CommandId::Enum ArgCommand;
 		bool ArgDisplayPassword;
-		shared_ptr <EncryptionAlgorithm> ArgEncryptionAlgorithm;
 		shared_ptr <FilePath> ArgFilePath;
-		VolumeCreationOptions::FilesystemType::Enum ArgFilesystem;
 		bool ArgForce;
 		shared_ptr <Hash> ArgHash;
 		shared_ptr <KeyfileList> ArgKeyfiles;
@@ -68,12 +65,9 @@ namespace TrueCrypt
 		shared_ptr <VolumePassword> ArgNewPassword;
 		bool ArgNoHiddenVolumeProtection;
 		shared_ptr <VolumePassword> ArgPassword;
-		bool ArgQuick;
 		FilesystemPath ArgRandomSourcePath;
-		uint64 ArgSize;
 		shared_ptr <VolumePath> ArgVolumePath;
 		VolumeInfoList ArgVolumes;
-		VolumeType::Enum ArgVolumeType;
 
 		bool StartBackgroundTask;
 		UserPreferences Preferences;

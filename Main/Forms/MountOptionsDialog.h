@@ -28,7 +28,6 @@ namespace TrueCrypt
 		void OnOKButtonClick (wxCommandEvent& event);
 		void OnOptionsButtonClick (wxCommandEvent& event);
 		void OnProtectionCheckBoxClick (wxCommandEvent& event);
-		void OnProtectionHyperlinkClick (wxHyperlinkEvent& event);
 		void OnReadOnlyCheckBoxClick (wxCommandEvent& event) { UpdateDialog(); }
 		void UpdateDialog ();
 

@@ -20,18 +20,15 @@ OBJS += Unix/Main.o
 OBJS += Resources.o
 
 ifndef TC_NO_GUI
-OBJS += FatalErrorHandler.o
 OBJS += GraphicUserInterface.o
 OBJS += VolumeHistory.o
 OBJS += Forms/AboutDialog.o
 OBJS += Forms/BenchmarkDialog.o
 OBJS += Forms/ChangePasswordDialog.o
 OBJS += Forms/DeviceSelectionDialog.o
-OBJS += Forms/EncryptionOptionsWizardPage.o
 OBJS += Forms/EncryptionTestDialog.o
 OBJS += Forms/FavoriteVolumesDialog.o
 OBJS += Forms/Forms.o
-OBJS += Forms/InfoWizardPage.o
 OBJS += Forms/KeyfileGeneratorDialog.o
 OBJS += Forms/KeyfilesDialog.o
 OBJS += Forms/KeyfilesPanel.o
@@ -40,19 +37,10 @@ OBJS += Forms/MainFrame.o
 OBJS += Forms/MountOptionsDialog.o
 OBJS += Forms/NewSecurityTokenKeyfileDialog.o
 OBJS += Forms/PreferencesDialog.o
-OBJS += Forms/ProgressWizardPage.o
 OBJS += Forms/RandomPoolEnrichmentDialog.o
 OBJS += Forms/SecurityTokenKeyfilesDialog.o
-OBJS += Forms/SelectDirectoryWizardPage.o
 OBJS += Forms/VolumePasswordPanel.o
 OBJS += Forms/VolumePropertiesDialog.o
-OBJS += Forms/VolumeCreationProgressWizardPage.o
-OBJS += Forms/VolumeCreationWizard.o
-OBJS += Forms/VolumeFormatOptionsWizardPage.o
-OBJS += Forms/VolumeLocationWizardPage.o
-OBJS += Forms/VolumePasswordWizardPage.o
-OBJS += Forms/VolumeSizeWizardPage.o
-OBJS += Forms/WizardFrame.o
 endif
 
 ifndef DISABLE_PRECOMPILED_HEADERS
@@ -64,7 +52,6 @@ RESOURCES += ../License.txt.h
 RESOURCES += ../Common/Language.xml.h
 ifndef TC_NO_GUI
 RESOURCES += ../Common/Textual_logo_96dpi.bmp.h
-RESOURCES += ../Format/TrueCrypt_Wizard.bmp.h
 RESOURCES += ../Mount/Drive_icon_96dpi.bmp.h
 RESOURCES += ../Mount/Drive_icon_mask_96dpi.bmp.h
 RESOURCES += ../Mount/Logo_96dpi.bmp.h

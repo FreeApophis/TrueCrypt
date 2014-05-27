@@ -7,6 +7,7 @@
 */
 
 #include "System.h"
+#include "Core/RandomNumberGenerator.h"
 #include "Main/GraphicUserInterface.h"
 #include "Volume/Hash.h"
 #include "RandomPoolEnrichmentDialog.h"

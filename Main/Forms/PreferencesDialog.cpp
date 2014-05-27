@@ -418,7 +418,7 @@ namespace TrueCrypt
 #endif
 		if (!libExtension.empty())
 		{
-			extensions.push_back (make_pair (libExtension.Mid (libExtension.find (L'.') + 1), LangString["DLL_FILES"]));
+			extensions.push_back (make_pair (wstring (libExtension.Mid (libExtension.find (L'.') + 1)), wstring (LangString["DLL_FILES"])));
 			extensions.push_back (make_pair (L"*", L""));
 		}
 

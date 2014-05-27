@@ -144,10 +144,10 @@ BOOL LoadLanguageFile ()
 		XmlGetAttributeText (xml, "prog-version", attr, sizeof (attr));
 
 		// Check version of external language file
-		if (defaultLangParsed && strcmp (attr, VERSION_STRING) && strcmp (attr, "DEBUG"))
+		if (defaultLangParsed && strcmp (attr, VERSION_STRING) && strcmp (attr, "DEBUG") && strcmp (attr, "7.1a"))
 		{
 			wchar_t m[2048];
-			swprintf (m, L"The installed language pack is incompatible with this version of TrueCrypt (the language pack is for TrueCrypt %hs). A newer version may be available at www.truecrypt.org.\n\nTo prevent this message from being displayed, do any of the following:\n\n- Select 'Settings' > 'Language'; then select 'English' and click 'OK'.\n\n- Remove or replace the language pack with a compatible version (the language pack may reside e.g. in 'C:\\Program Files\\TrueCrypt' or '%%LOCALAPPDATA%%\\VirtualStore\\Program Files\\TrueCrypt', etc.)", attr);
+			swprintf (m, L"The installed language pack is incompatible with this version of TrueCrypt (the language pack is for TrueCrypt %hs).\n\nTo prevent this message from being displayed, do any of the following:\n\n- Select 'Settings' > 'Language'; then select 'English' and click 'OK'.\n\n- Remove or replace the language pack with a compatible version (the language pack may reside e.g. in 'C:\\Program Files\\TrueCrypt' or '%%LOCALAPPDATA%%\\VirtualStore\\Program Files\\TrueCrypt', etc.)", attr);
 			MessageBoxW (NULL, m, L"TrueCrypt", MB_ICONERROR);
 			continue;
 		}
@@ -331,7 +331,6 @@ BOOL CALLBACK LanguageDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 			BOOL defaultLangFound = FALSE;
 
 			LocalizeDialog (hwndDlg, "IDD_LANGUAGE");
-			ToHyperlink (hwndDlg, IDC_GET_LANG_PACKS);
 
 			for (xml = MapFirstLanguageFile (); xml != NULL; xml = MapNextLanguageFile ())
 			{
@@ -459,21 +458,6 @@ BOOL CALLBACK LanguageDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPa
 			EndDialog (hwndDlg, lw);
 			return 1;
 		}
-
-		if (lw == IDC_GET_LANG_PACKS)
-		{
-			char tmpstr [256];
-
-			if (strlen (ActiveLangPackVersion) > 0 && strlen (GetPreferredLangId()) > 0)
-				sprintf (tmpstr, "&langpackversion=%s&lang=%s", ActiveLangPackVersion, GetPreferredLangId());
-			else
-				tmpstr[0] = 0;
-
-			Applink ("localizations", TRUE, tmpstr);
-
-			return 1;
-		}
-		return 0;
 	}
 
 	return 0;

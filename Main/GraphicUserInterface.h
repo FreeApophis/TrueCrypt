@@ -32,7 +32,6 @@ namespace TrueCrypt
 		virtual void ChangePassword (shared_ptr <VolumePath> volumePath = shared_ptr <VolumePath>(), shared_ptr <VolumePassword> password = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> keyfiles = shared_ptr <KeyfileList>(), shared_ptr <VolumePassword> newPassword = shared_ptr <VolumePassword>(), shared_ptr <KeyfileList> newKeyfiles = shared_ptr <KeyfileList>(), shared_ptr <Hash> newHash = shared_ptr <Hash>()) const { ThrowTextModeRequired(); }
 		wxHyperlinkCtrl *CreateHyperlink (wxWindow *parent, const wxString &linkUrl, const wxString &linkText) const;
 		virtual void CreateKeyfile (shared_ptr <FilePath> keyfilePath = shared_ptr <FilePath>()) const;
-		virtual void CreateVolume (shared_ptr <VolumeCreationOptions> options) const { ThrowTextModeRequired(); }
 		virtual void ClearListCtrlSelection (wxListCtrl *listCtrl) const;
 		virtual void DeleteSecurityTokenKeyfiles () const { ThrowTextModeRequired(); }
 		virtual void DoShowError (const wxString &message) const;
@@ -48,7 +47,6 @@ namespace TrueCrypt
 		virtual int GetCharWidth (wxWindow *window) const;
 		virtual int GetDefaultBorderSize () const { return 5; }
 		virtual wxFont GetDefaultBoldFont (wxWindow *window) const;
-		virtual wxString GetHomepageLinkURL (const wxString &linkId, bool secure = false, const wxString &extraVars = wxEmptyString) const;
 		virtual wxFrame *GetMainFrame () const { return mMainFrame; }
 		virtual int GetScrollbarWidth (wxWindow *window, bool noScrollBar = false) const;
 		virtual list <long> GetListCtrlSelectedItems (wxListCtrl *listCtrl) const;
@@ -60,15 +58,12 @@ namespace TrueCrypt
 		virtual bool IsTheOnlyTopLevelWindow (const wxWindow *window) const;
 		virtual void ListSecurityTokenKeyfiles () const;
 		virtual VolumeInfoList MountAllDeviceHostedVolumes (MountOptions &options) const;
-		virtual shared_ptr <VolumeInfo> MountVolume (MountOptions &options) const;
+		virtual shared_ptr <VolumeInfo> MountVolume (MountOptions &options);
 		virtual void MoveListCtrlItem (wxListCtrl *listCtrl, long itemIndex, long newItemIndex) const;
 		virtual void OnAutoDismountAllEvent ();
 		virtual bool OnInit ();
 		virtual void OnLogOff ();
 		virtual void OpenDocument (wxWindow *parent, const wxFileName &document);
-		virtual void OpenHomepageLink (wxWindow *parent, const wxString &linkId, const wxString &extraVars = wxEmptyString);
-		virtual void OpenOnlineHelp (wxWindow *parent);
-		virtual void OpenUserGuide (wxWindow *parent);
 		virtual void RestoreVolumeHeaders (shared_ptr <VolumePath> volumePath) const;
 		virtual DevicePath SelectDevice (wxWindow *parent) const;
 		virtual DirectoryPath SelectDirectory (wxWindow *parent, const wxString &message = wxEmptyString, bool existingOnly = true) const;

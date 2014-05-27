@@ -239,7 +239,7 @@ namespace TrueCrypt
 
 	bool CoreBase::IsVolumeMounted (const VolumePath &volumePath) const
 	{
-		return GetMountedVolume (volumePath);
+		return GetMountedVolume (volumePath).get() != nullptr;
 	}
 
 	shared_ptr <Volume> CoreBase::OpenVolume (shared_ptr <VolumePath> volumePath, bool preserveTimestamps, shared_ptr <VolumePassword> password, shared_ptr <KeyfileList> keyfiles, VolumeProtection::Enum protection, shared_ptr <VolumePassword> protectionPassword, shared_ptr <KeyfileList> protectionKeyfiles, bool sharedAccessAllowed, VolumeType::Enum volumeType, bool useBackupHeaders, bool partitionInSystemEncryptionScope) const

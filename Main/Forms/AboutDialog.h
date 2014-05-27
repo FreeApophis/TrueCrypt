@@ -17,8 +17,6 @@ namespace TrueCrypt
 	{
 	public:
 		AboutDialog (wxWindow* parent);
-		
-		void OnWebsiteHyperlinkClick (wxHyperlinkEvent& event) { Gui->OpenHomepageLink (this, L"main"); }
 	};
 }
 

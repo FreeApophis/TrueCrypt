@@ -19,10 +19,7 @@ namespace TrueCrypt
 {
 	CommandLineInterface::CommandLineInterface (wxCmdLineParser &parser, UserInterfaceType::Enum interfaceType) :
 		ArgCommand (CommandId::None),
-		ArgFilesystem (VolumeCreationOptions::FilesystemType::Unknown),
 		ArgNoHiddenVolumeProtection (false),
-		ArgSize (0),
-		ArgVolumeType (VolumeType::Unknown),
 		StartBackgroundTask (false)
 	{
 		parser.SetSwitchChars (L"-");
@@ -39,7 +36,6 @@ namespace TrueCrypt
 		parser.AddSwitch (L"",	L"delete-token-keyfiles", _("Delete security token keyfiles"));
 		parser.AddSwitch (L"d", L"dismount",			_("Dismount volume"));
 		parser.AddSwitch (L"",	L"display-password",	_("Display password while typing"));
-		parser.AddOption (L"",	L"encryption",			_("Encryption algorithm"));
 		parser.AddSwitch (L"",	L"explore",				_("Open explorer window for mounted volume"));
 		parser.AddSwitch (L"",	L"export-token-keyfile",_("Export keyfile from security token"));
 		parser.AddOption (L"",	L"filesystem",			_("Filesystem type"));
@@ -66,8 +62,6 @@ namespace TrueCrypt
 		parser.AddOption (L"",	L"random-source",		_("Use file as source of random data"));
 		parser.AddSwitch (L"",  L"restore-headers",		_("Restore volume headers"));
 		parser.AddSwitch (L"",	L"save-preferences",	_("Save user preferences"));
-		parser.AddSwitch (L"",	L"quick",				_("Enable quick format"));
-		parser.AddOption (L"",	L"size",				_("Size in bytes"));
 		parser.AddOption (L"",	L"slot",				_("Volume slot number"));
 		parser.AddSwitch (L"",	L"test",				_("Test internal algorithms"));
 		parser.AddSwitch (L"t", L"text",				_("Use text user interface"));
@@ -75,7 +69,6 @@ namespace TrueCrypt
 		parser.AddSwitch (L"v", L"verbose",				_("Enable verbose output"));
 		parser.AddSwitch (L"",	L"version",				_("Display version information"));
 		parser.AddSwitch (L"",	L"volume-properties",	_("Display volume properties"));
-		parser.AddOption (L"",	L"volume-type",			_("Volume type"));
 		parser.AddParam (								_("Volume path"), wxCMD_LINE_VAL_STRING, wxCMD_LINE_PARAM_OPTIONAL);
 		parser.AddParam (								_("Mount point"), wxCMD_LINE_VAL_STRING, wxCMD_LINE_PARAM_OPTIONAL);
 
@@ -250,20 +243,6 @@ namespace TrueCrypt
 #endif
 		ArgDisplayPassword = parser.Found (L"display-password");
 
-		if (parser.Found (L"encryption", &str))
-		{
-			ArgEncryptionAlgorithm.reset();
-
-			foreach (shared_ptr <EncryptionAlgorithm> ea, EncryptionAlgorithm::GetAvailableAlgorithms())
-			{
-				if (!ea->IsDeprecated() && wxString (ea->GetName()).IsSameAs (str, false))
-					ArgEncryptionAlgorithm = ea;
-			}
-
-			if (!ArgEncryptionAlgorithm)
-				throw_err (LangString["UNKNOWN_OPTION"] + L": " + str);
-		}
-
 		if (parser.Found (L"explore"))
 			Preferences.OpenExplorerWindowAfterMount = true;
 
@@ -272,16 +251,10 @@ namespace TrueCrypt
 			if (str.IsSameAs (L"none", false))
 			{
 				ArgMountOptions.NoFilesystem = true;
-				ArgFilesystem = VolumeCreationOptions::FilesystemType::None;
 			}
 			else
 			{
-				ArgMountOptions.FilesystemType = wstring (str);
-				
-				if (str.IsSameAs (L"FAT", false))
-					ArgFilesystem = VolumeCreationOptions::FilesystemType::FAT;
-				else
-					ArgFilesystem = VolumeCreationOptions::FilesystemType::None;
+				throw_err (LangString["UNKNOWN_OPTION"] + L": " + str);
 			}
 		}
 
@@ -377,8 +350,6 @@ namespace TrueCrypt
 			ArgMountOptions.Protection = VolumeProtection::HiddenVolumeReadOnly;
 		}
 
-		ArgQuick = parser.Found (L"quick");
-
 		if (parser.Found (L"random-source", &str))
 			ArgRandomSourcePath = FilesystemPath (str);
 
@@ -408,33 +379,11 @@ namespace TrueCrypt
 			}
 		}
 
-		if (parser.Found (L"size", &str))
-		{
-			try
-			{
-				ArgSize = StringConverter::ToUInt64 (wstring (str));
-			}
-			catch (...)
-			{
-				throw_err (LangString["PARAMETER_INCORRECT"] + L": " + str);
-			}
-		}
-
 		if (parser.Found (L"token-lib", &str))
 			Preferences.SecurityTokenModule = wstring (str);
 
 		if (parser.Found (L"verbose"))
 			Preferences.Verbose = true;
-
-		if (parser.Found (L"volume-type", &str))
-		{
-			if (str.IsSameAs (L"normal", false))
-				ArgVolumeType = VolumeType::Normal;
-			else if (str.IsSameAs (L"hidden", false))
-				ArgVolumeType = VolumeType::Hidden;
-			else
-				throw_err (LangString["UNKNOWN_OPTION"] + L": " + str);
-		}
 
 		// Parameters
 		if (parser.GetParamCount() > 0)

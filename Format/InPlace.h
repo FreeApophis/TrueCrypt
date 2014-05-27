@@ -18,6 +18,7 @@ enum nonsys_inplace_enc_status
 	NONSYS_INPLACE_ENC_STATUS_PREPARING,
 	NONSYS_INPLACE_ENC_STATUS_RESIZING,
 	NONSYS_INPLACE_ENC_STATUS_ENCRYPTING,
+	NONSYS_INPLACE_ENC_STATUS_DECRYPTING,
 	NONSYS_INPLACE_ENC_STATUS_FINALIZING,
 	NONSYS_INPLACE_ENC_STATUS_PAUSED,
 	NONSYS_INPLACE_ENC_STATUS_FINISHED,
@@ -25,16 +26,17 @@ enum nonsys_inplace_enc_status
 };
 
 BOOL CheckRequirementsForNonSysInPlaceEnc (const char *devicePath, BOOL silent);
+BOOL CheckRequirementsForNonSysInPlaceDec (const char *devicePath, BOOL silent);
 int EncryptPartitionInPlaceBegin (volatile FORMAT_VOL_PARAMETERS *volParams, volatile HANDLE *outHandle, WipeAlgorithmId wipeAlgorithm);
 int EncryptPartitionInPlaceResume (HANDLE dev, volatile FORMAT_VOL_PARAMETERS *volParams, WipeAlgorithmId wipeAlgorithm, volatile BOOL *bTryToCorrectReadErrors);
+int DecryptPartitionInPlace (volatile FORMAT_VOL_PARAMETERS *volParams, volatile BOOL *DiscardUnreadableEncryptedSectors);
 void ShowInPlaceEncErrMsgWAltSteps (char *iniStrId, BOOL bErr);
 void SetNonSysInplaceEncUIStatus (int nonSysInplaceEncStatus);
 int FastVolumeHeaderUpdate (HANDLE dev, CRYPTO_INFO *headerCryptoInfo, CRYPTO_INFO *masterCryptoInfo, __int64 deviceSize);
 
 static HANDLE OpenPartitionVolume (const char *devName, BOOL bExclusiveRequired, BOOL bSharedRequired, BOOL bSharedRequiresConfirmation, BOOL bShowAlternativeSteps, BOOL bSilent);
-static int DismountFileSystem (HANDLE dev, int driveLetter, BOOL bForcedAllowed, BOOL bForcedRequiresConfirmation, BOOL bSilent);
 static int ConcealNTFS (HANDLE dev);
-BOOL SaveNonSysInPlaceEncSettings (int delta, WipeAlgorithmId wipeAlgorithm);
+BOOL SaveNonSysInPlaceEncSettings (int delta, WipeAlgorithmId wipeAlgorithm, BOOL decrypting);
 static void ExportProgressStats (__int64 bytesDone, __int64 totalSize);
 int ZeroUnreadableSectors (HANDLE dev, LARGE_INTEGER startOffset, int64 size, int sectorSize, uint64 *zeroedSectorCount);
 static int OpenBackupHeader (HANDLE dev, const char *devicePath, Password *password, PCRYPTO_INFO *retCryptoInfo, CRYPTO_INFO *headerCryptoInfo, __int64 deviceSize);

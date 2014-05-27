@@ -89,10 +89,9 @@ static BOOL CheckMountList ();
 int GetCipherBlockSizeByDriveNo (int nDosDriveNo);
 int GetModeOfOperationByDriveNo (int nDosDriveNo);
 void ChangeMainWindowVisibility ();
-void LaunchVolCreationWizard (HWND hwndDlg);
 BOOL WholeSysDriveEncryption (BOOL bSilent);
 BOOL CheckSysEncMountWithoutPBA (const char *devicePath, BOOL quiet);
-BOOL TCBootLoaderOnInactiveSysEncDrive (void);
+BOOL TCBootLoaderOnInactiveSysEncDrive (char *szDevicePath);
 void CreateRescueDisk (void);
 int BackupVolumeHeader (HWND hwndDlg, BOOL bRequireConfirmation, char *lpszVolume);
 int RestoreVolumeHeader (HWND hwndDlg, char *lpszVolume);
@@ -101,7 +100,6 @@ static BOOL CALLBACK PerformanceSettingsDlgProc (HWND hwndDlg, UINT msg, WPARAM 
 static BOOL CALLBACK BootLoaderPreferencesDlgProc (HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam);
 void MountSelectedVolume (HWND hwndDlg, BOOL mountWithOptions);
 uint32 ReadDriverConfigurationFlags ();
-void AnalyzeKernelMiniDump (HWND hwndDlg);
 void HookMouseWheel (HWND hwndDlg, UINT ctrlId);
 static BOOL HandleDriveListMouseWheelEvent (UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL bListMustBePointed);
 

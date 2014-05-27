@@ -138,11 +138,6 @@ namespace TrueCrypt
 		ProtectionPasswordPanel->SetFocusToPasswordTextCtrl();
 	}
 
-	void MountOptionsDialog::OnProtectionHyperlinkClick (wxHyperlinkEvent& event)
-	{
-		Gui->OpenHomepageLink (this, L"hiddenvolprotection");
-	}
-
 	void MountOptionsDialog::UpdateDialog ()
 	{
 		FreezeScope freeze (this);

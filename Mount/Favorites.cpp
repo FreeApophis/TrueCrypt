@@ -207,11 +207,6 @@ namespace TrueCrypt
 						ListView_SetItemState (FavoriteListControl, Favorites.size() - 1, LVIS_SELECTED, LVIS_SELECTED);
 						ListView_EnsureVisible (FavoriteListControl, Favorites.size() - 1, FALSE);
 					}
-
-					if (SystemFavoritesMode)
-						SetDlgItemTextW (hwndDlg, IDC_FAVORITES_HELP_LINK, GetString ("SYS_FAVORITES_HELP_LINK"));
-
-					ToHyperlink (hwndDlg, IDC_FAVORITES_HELP_LINK);
 				}
 				catch (Exception &e)
 				{
@@ -362,10 +357,6 @@ namespace TrueCrypt
 					else
 						Warning ("SETTING_REQUIRES_REBOOT");
 				}
-				return 1;
-
-			case IDC_FAVORITES_HELP_LINK:
-				Applink (SystemFavoritesMode ? "sysfavorites" : "favorites", TRUE, "");
 				return 1;
 			}
 

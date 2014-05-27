@@ -38,6 +38,7 @@ namespace TrueCrypt
 		void OnAddKeyfilesMenuItemSelected (wxCommandEvent& event);
 		void OnAddSecurityTokenSignatureMenuItemSelected (wxCommandEvent& event);
 		void OnDisplayPasswordCheckBoxClick (wxCommandEvent& event);
+		void OnInsecureAppLinkClick (wxHyperlinkEvent& event) { Gui->ShowWarning ("INSECURE_APP"); }
 		void OnKeyfilesButtonClick (wxCommandEvent& event);
 		void OnKeyfilesButtonRightClick (wxMouseEvent& event);
 		void OnKeyfilesButtonRightDown (wxMouseEvent& event);

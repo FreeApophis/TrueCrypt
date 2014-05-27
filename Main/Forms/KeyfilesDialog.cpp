@@ -36,9 +36,4 @@ namespace TrueCrypt
 	{
 		Gui->CreateKeyfile();
 	}
-
-	void KeyfilesDialog::OnKeyfilesHyperlinkClick (wxHyperlinkEvent& event)
-	{
-		Gui->OpenHomepageLink (this, L"keyfiles");
-	}
 }
