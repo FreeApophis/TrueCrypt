@@ -1,6 +1,6 @@
 // Microsoft Visual C++ generated resource script.
 //
-#include "resource.h"
+#include "Resource.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
@@ -8,7 +8,7 @@
 // Generated from the TEXTINCLUDE 2 resource.
 //
 #include "afxres.h"
-#include "..\\common\\resource.h"
+#include "..\\common\\Resource.h"
 
 /////////////////////////////////////////////////////////////////////////////
 #undef APSTUDIO_READONLY_SYMBOLS
@@ -65,7 +65,7 @@ END
 // HEADER
 //
 
-IDR_FORMAT_RSRC_HEADER  HEADER                  "resource.h"
+IDR_FORMAT_RSRC_HEADER  HEADER                  "Resource.h"
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -426,13 +426,13 @@ END
 
 1 TEXTINCLUDE 
 BEGIN
-    "resource.h\0"
+    "Resource.h\0"
 END
 
 2 TEXTINCLUDE 
 BEGIN
     "#include ""afxres.h""\r\n"
-    "#include ""..\\\\common\\\\resource.h""\r\n"
+    "#include ""..\\\\common\\\\Resource.h""\r\n"
     "\0"
 END
 
