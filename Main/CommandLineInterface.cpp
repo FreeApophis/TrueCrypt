@@ -524,7 +524,7 @@ namespace TrueCrypt
 					arr.Add (L"");
 					continue;
 				}
-				arr.Last() += token.empty() ? L',' : token;
+				arr.Last() += token.empty() ? L"," : token;
 			}
 			else
 				arr.Add (token);
