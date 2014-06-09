@@ -129,7 +129,9 @@ Instructions for Building TrueCrypt for Linux and Mac OS X:
    command to configure the wxWidgets static library for TrueCrypt and to
    build it: 
 
+   ```sh
    $ make WX_ROOT=/usr/src/wxWidgets wxbuild
+   ```
 
    The variable WX_ROOT must point to the location of the source code of the
    wxWidgets library. Output files will be placed in the './wxrelease/'
@@ -137,11 +139,15 @@ Instructions for Building TrueCrypt for Linux and Mac OS X:
 
 3) To build TrueCrypt, run the following command:
 
+   ```sh
    $ make
+   ```
 
    or if you have no wxWidgets shared library installed:
    
+   ```sh
    $ make WXSTATIC=1
+   ```
 
 4) If successful, the TrueCrypt executable should be located in the directory
    'Main'.
@@ -150,8 +156,10 @@ By default, a universal executable supporting both graphical and text user
 interface is built. To build a console-only executable, which requires no GUI
 library, use the 'NOGUI' parameter:
 
+   ```sh
    $ make NOGUI=1 WX_ROOT=/usr/src/wxWidgets wxbuild
    $ make NOGUI=1 WXSTATIC=1
+   ```
 
 
 
