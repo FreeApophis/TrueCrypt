@@ -1250,19 +1250,19 @@ namespace TrueCrypt
 			File backupFile;
 			backupFile.Open (*files.front(), File::OpenRead);
 
-			uint64 headerSize;
+			//uint64 headerSize;
 			bool legacyBackup;
 
 			// Determine the format of the backup file
 			switch (backupFile.Length())
 			{
 			case TC_VOLUME_HEADER_GROUP_SIZE:
-				headerSize = TC_VOLUME_HEADER_SIZE;
+				//headerSize = TC_VOLUME_HEADER_SIZE;
 				legacyBackup = false;
 				break;
 
 			case TC_VOLUME_HEADER_SIZE_LEGACY * 2:
-				headerSize = TC_VOLUME_HEADER_SIZE_LEGACY;
+				//headerSize = TC_VOLUME_HEADER_SIZE_LEGACY;
 				legacyBackup = true;
 				break;
 
@@ -1378,13 +1378,14 @@ namespace TrueCrypt
 
 	DirectoryPath GraphicUserInterface::SelectDirectory (wxWindow *parent, const wxString &message, bool existingOnly) const
 	{
-		return DirectoryPath (::wxDirSelector (!message.empty() ? message :
+		return DirectoryPath (wstring(::wxDirSelector (!message.empty() ? message :
 #ifdef __WXGTK__
 			wxDirSelectorPromptStr,
 #else
 			L"",
 #endif
-			L"", wxDD_DEFAULT_STYLE | (existingOnly ? wxDD_DIR_MUST_EXIST : 0), wxDefaultPosition, parent));
+			L"", wxDD_DEFAULT_STYLE | (existingOnly ? wxDD_DIR_MUST_EXIST :
+                        0), wxDefaultPosition, parent)));
 	}
 
 	FilePathList GraphicUserInterface::SelectFiles (wxWindow *parent, const wxString &caption, bool saveMode, bool allowMultiple, const list < pair <wstring, wstring> > &fileExtensions, const DirectoryPath &directory) const
@@ -1428,14 +1429,14 @@ namespace TrueCrypt
 		if (dialog.ShowModal() == wxID_OK)
 		{
 			if (!allowMultiple)
-				files.push_back (make_shared <FilePath> (dialog.GetPath()));
+				files.push_back (make_shared <FilePath> (wstring(dialog.GetPath())));
 			else
 			{
 				wxArrayString paths;
 				dialog.GetPaths (paths);
 
 				foreach (const wxString &path, paths)
-					files.push_back (make_shared <FilePath> (path));
+					files.push_back (make_shared <FilePath> (wstring(path)));
 			}
 		}
 
