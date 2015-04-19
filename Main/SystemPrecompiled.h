@@ -5,24 +5,33 @@
  the file License.txt included in TrueCrypt binary and source code distribution
  packages.
 */
+#include <qt4/QtCore/qchar.h>
+#include <qt4/QtCore/qstringbuilder.h>
+#include <qt4/QtCore/qstring.h>
+#include <qt4/QtCore/qconfig.h>
+#include <qt4/QtCore/qglobal.h>
 
-#include <wx/wx.h>
-#include <wx/filename.h>
-#include <wx/mstream.h>
-#include <wx/snglinst.h>
-#include <wx/txtstrm.h>
-#include <wx/wfstream.h>
+//#include <qt4/QtCore/qglobal.h>
+//#include <QtCore/qstring.h>
+
+#include <wx-2.8/wx/wx.h>
+#include <wx-2.8/wx/filename.h>
+#include <wx-2.8/wx/mstream.h>
+#include <wx-2.8/wx/snglinst.h>
+#include <wx-2.8/wx/txtstrm.h>
+#include <wx-2.8/wx/wfstream.h>
 
 #ifndef TC_NO_GUI
-#include <wx/dnd.h>
-#include <wx/hyperlink.h>
-#include <wx/listctrl.h>
-#include <wx/imaglist.h>
-#include <wx/power.h>
-#include <wx/taskbar.h>
-#include <wx/valgen.h>
+#include <wx-2.8/wx/dnd.h>
+#include <wx-2.8/wx/hyperlink.h>
+#include <wx-2.8/wx/listctrl.h>
+#include <wx-2.8/wx/imaglist.h>
+#include <wx-2.8/wx/power.h>
+#include <wx-2.8/wx/taskbar.h>
+#include <wx-2.8/wx/valgen.h>
 #endif
 
+//#include <vector>
 #include <iostream>
 #include <memory.h>
 #include <stdio.h>

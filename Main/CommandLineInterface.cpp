@@ -7,8 +7,8 @@
 */
 
 #include "System.h"
-#include <wx/cmdline.h>
-#include <wx/tokenzr.h>
+#include <wx-2.8/wx/cmdline.h>
+#include <wx-2.8/wx/tokenzr.h>
 #include "Core/Core.h"
 #include "Application.h"
 #include "CommandLineInterface.h"
@@ -380,7 +380,7 @@ namespace TrueCrypt
 		ArgQuick = parser.Found (L"quick");
 
 		if (parser.Found (L"random-source", &str))
-			ArgRandomSourcePath = FilesystemPath (str.ToStdWstring());
+			ArgRandomSourcePath = FilesystemPath (str.ToAscii());
 
 		if (parser.Found (L"restore-headers"))
 		{
@@ -471,7 +471,7 @@ namespace TrueCrypt
 
 			if (param1IsFile)
 			{
-				ArgFilePath.reset (new FilePath (parser.GetParam (0).ToStdWstring()));
+				ArgFilePath.reset (new FilePath (parser.GetParam (0).ToAscii()));//ToStdWstring()
 			}
 		}
 
